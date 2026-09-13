@@ -24,6 +24,14 @@ android {
     }
 }
 
+repositories {
+    // FTC Dashboard. This is a standalone project (telemetry + live @Config
+    // tuning + field overlay); it does NOT pull in Road Runner.
+    maven { url = 'https://maven.brott.dev/' }
+}
+
 dependencies {
     implementation project(':FtcRobotController')
+
+    implementation 'com.acmerobotics.dashboard:dashboard:0.6.0'
 }
