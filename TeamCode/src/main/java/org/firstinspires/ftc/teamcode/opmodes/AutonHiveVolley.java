@@ -33,12 +33,18 @@ import org.firstinspires.ftc.teamcode.motion.SleepAction;
  * Red Wall at Y=-72, Blue Wall at Y=+72, audience wall at X=+72, heading 0 = facing +X,
  * CCW positive. See BIOBUZZ/rules/field-elements.md and the manual's Figure 9-4/9-5/10-2.
  *
- * Caveat: firing from this close to the Blue Wall, at this heading, assumes a launcher
- * with enough range/angle to reach the HIVE from here and that the upward CELL's
- * opening is actually reachable head-on from the Blue Wall side - neither is confirmed
- * yet (the manual only says the downward CELL "points at" a FLOWER, which sit on the
- * audience/rear walls, not the Red/Blue walls). Revisit once a real launcher exists and
- * the robot can be bench-tested on an actual field.
+ * HIVE geometry (manual Figures 9-8, 9-9, 9-10, 10-2): each HIVE rocks about a pivot axis
+ * running along Y, with its two CELLs at either end, so the CELL openings face along X
+ * (toward the audience or rear wall) - not toward the Red/Blue Walls. The red and blue
+ * HIVEs sit side by side 25.5 in apart, so the blue HIVE is centered at Y=+12.75. As
+ * staged (Fig 10-2), blue's seeded NECTAR are in the blue HIVE's REAR-side CELL (its
+ * opening faces -X, tilted up 30 deg), so the robot starts against the REAR wall facing
+ * +X, lined up with the blue HIVE. After a TIP the blue HIVE's other (audience-side)
+ * CELL is the upward one, so any follow-up volley would need the opposite side.
+ *
+ * Caveat: assumes the eventual launcher can reach the CELL opening (about 32 in away in X,
+ * opening 53.5-65.6 in above the tiles) from the starting position. Unverified until a
+ * real launcher exists and the robot can be tested on an actual field.
  */
 @Config
 @Autonomous(name = "Auton - Hive Volley (Blue)", group = "Auto")
@@ -47,11 +53,11 @@ public class AutonHiveVolley extends LinearOpMode {
     // --- field geometry (measured from the manual, not tunable) ---
     private static final double FIELD_HALF_IN = 72.0; // Section 9.2, 144x144in field
 
-    // --- start pose: blue alliance, touching the Blue Wall, centered on the HIVE in X ---
+    // --- start pose: blue alliance, touching the REAR wall, lined up with the blue HIVE in Y ---
     // Robot is 14(W) x 18(D) in; D (18in) is the dimension perpendicular to the wall.
     public static double ROBOT_DEPTH_IN = 18.0;
-    public static double START_X_IN = 0.0;
-    public static double START_HEADING_DEG = -90.0; // facing -Y, into the field toward the HIVE
+    public static double START_Y_IN = 12.75;        // blue HIVE center: half of the 25.5 in HIVE center-to-center
+    public static double START_HEADING_DEG = 0.0;   // facing +X, into the field toward the blue CELL opening
 
     // --- tunable waypoint (placeholder - re-tune once there's real field/robot access) ---
     public static double LEAVE_DISTANCE_IN = 6.0;     // just enough to clear the perimeter wall
@@ -64,10 +70,10 @@ public class AutonHiveVolley extends LinearOpMode {
     public void runOpMode() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        double startY = FIELD_HALF_IN - ROBOT_DEPTH_IN / 2.0;
-        Pose2d startPose = new Pose2d(START_X_IN, startY, Math.toRadians(START_HEADING_DEG));
+        double startX = -(FIELD_HALF_IN - ROBOT_DEPTH_IN / 2.0);
+        Pose2d startPose = new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG));
 
-        Pose2d leavePose = new Pose2d(START_X_IN, startY - LEAVE_DISTANCE_IN, Math.toRadians(START_HEADING_DEG));
+        Pose2d leavePose = new Pose2d(startX + LEAVE_DISTANCE_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
 
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
 

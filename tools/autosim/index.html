@@ -154,8 +154,8 @@ const AUTOS = {
       { group: "Robot / start pose" },
       { k: "ROBOT_DEPTH_IN", v: 18, hint: "perpendicular to the wall" },
       { k: "ROBOT_WIDTH_IN", v: 14, hint: "parallel to the wall (page only)" },
-      { k: "START_X_IN", v: 0, hint: "0 = centered on the HIVE" },
-      { k: "START_HEADING_DEG", v: -90, hint: "-90 = facing -Y, into the field" },
+      { k: "START_Y_IN", v: 12.75, hint: "blue HIVE center (25.5 in / 2)" },
+      { k: "START_HEADING_DEG", v: 0, hint: "0 = facing +X, toward the blue CELL" },
       { group: "Waypoints" },
       { k: "LEAVE_DISTANCE_IN", v: 6, hint: "just clear the perimeter wall" },
       { group: "Simulated volley" },
@@ -166,9 +166,9 @@ const AUTOS = {
       { k: "TURN_RATE_DPS", v: 180, hint: "assumed turn rate, NOT measured" },
     ],
     build(p) {
-      const startY = HALF - p.ROBOT_DEPTH_IN / 2;
-      const start = { x: p.START_X_IN, y: startY, h: p.START_HEADING_DEG };
-      const leave = { x: p.START_X_IN, y: startY - p.LEAVE_DISTANCE_IN, h: p.START_HEADING_DEG };
+      const startX = -(HALF - p.ROBOT_DEPTH_IN / 2);            // touching the rear wall
+      const start = { x: startX, y: p.START_Y_IN, h: p.START_HEADING_DEG };
+      const leave = { x: startX + p.LEAVE_DISTANCE_IN, y: p.START_Y_IN, h: p.START_HEADING_DEG };
       return {
         start,
         steps: [
@@ -276,11 +276,28 @@ function drawField() {
   ctx.fillStyle = "#d6336c"; ctx.fillRect(sx(-HALF), sy(HALF - 2), 23 * S, 2 * S);
   ctx.fillStyle = "#1c7ed6"; ctx.fillRect(sx(HALF - 23), sy(-HALF), 23 * S, 2 * S);
 
-  // HIVE frame: 49.46in wide (Y) x 38.95in deep (X), red HIVE on the red side, blue on the blue side
+  // HIVE: frame 49.46in wide (Y) x 38.95in deep (X). Red and blue HIVEs sit 25.5in apart (Y = -/+12.75).
+  // Each HIVE has two CELLs 20in wide (Y) x 12.04in deep (X), 18.84in apart, so CELL openings face
+  // along X (audience / rear). As staged (Fig 10-2) the UP cells are: red = audience side (+X),
+  // blue = rear side (-X); those hold the 3 seeded NECTAR. Figs 9-8, 9-9, 9-10.
   const hy = 49.46 / 2, hx = 38.95 / 2;
-  poly([[-hx, -hy], [hx, -hy], [hx, 0], [-hx, 0]], "rgba(214,51,108,.35)", "#a61e4d", 2);
-  poly([[-hx, 0], [hx, 0], [hx, hy], [-hx, hy]], "rgba(28,126,214,.35)", "#1864ab", 2);
-  text("HIVE", sx(0), sy(0), 13, "#222");
+  poly([[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]], "rgba(60,60,60,.10)", "#555", 1.5);
+  const cellIn = 18.84 / 2, cellOut = cellIn + 12.04;
+  [[-12.75, "#d6336c", "#a61e4d", +1], [12.75, "#1c7ed6", "#1864ab", -1]].forEach(([cy, fill, edge, upSide]) => {
+    [-1, 1].forEach(side => {                                   // side: -1 = rear (-X), +1 = audience (+X)
+      const x0 = side * cellIn, x1 = side * cellOut, isUp = side === upSide;
+      poly([[x0, cy - 10], [x1, cy - 10], [x1, cy + 10], [x0, cy + 10]],
+           isUp ? fill : "rgba(255,255,255,.25)", edge, isUp ? 3 : 1.5);
+      if (isUp) {                                               // opening faces away from the pivot
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+        const ax = sx(cy), ay0 = sy(x1), ay1 = sy(x1 + side * 8);
+        ctx.beginPath(); ctx.moveTo(ax, ay0); ctx.lineTo(ax, ay1);
+        ctx.lineTo(ax - 4, ay1 - side * 6); ctx.moveTo(ax, ay1); ctx.lineTo(ax + 4, ay1 - side * 6); ctx.stroke();
+        text("3N", sx(cy), sy((x0 + x1) / 2), 11, "#fff");
+      }
+    });
+  });
+  text("HIVE", sx(0), sy(0), 12, "#222");
 
   // walls
   ctx.lineWidth = 6;
