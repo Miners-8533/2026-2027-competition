@@ -54,9 +54,7 @@ public final class PinpointLocalizer implements Localizer {
     public PinpointLocalizer(HardwareMap hardwareMap, Pose2d initialPose) {
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 
-        pinpoint.setOffsets(PARAMS.xOffsetMM, PARAMS.yOffsetMM, DistanceUnit.MM);
-        pinpoint.setEncoderResolution(PARAMS.podType);
-        pinpoint.setEncoderDirections(PARAMS.xDirection, PARAMS.yDirection);
+        applyParams();
 
         // Recalibrates the IMU - the robot must be stationary. waitForStart() in the
         // OpMode gives it time to finish before the match begins.
@@ -64,6 +62,13 @@ public final class PinpointLocalizer implements Localizer {
 
         this.pose = initialPose;
         setPose(initialPose);
+    }
+
+    /** Push offsets, pod type and encoder directions from {@link #PARAMS} to the device. Bring-up opmodes call this to apply Dashboard edits. */
+    public void applyParams() {
+        pinpoint.setOffsets(PARAMS.xOffsetMM, PARAMS.yOffsetMM, DistanceUnit.MM);
+        pinpoint.setEncoderResolution(PARAMS.podType);
+        pinpoint.setEncoderDirections(PARAMS.xDirection, PARAMS.yDirection);
     }
 
     @Override
