@@ -141,6 +141,22 @@ const rad = d => d * Math.PI / 180;
 const norm = d => ((d + 180) % 360 + 360) % 360 - 180;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
+/* LOADING ZONEs (23in along the wall x 11in deep, aligned to tile seams) and FLOWERs, read from the
+   manual's Fig 9-2 / 10-2 to about +/-1in. The flower's distance from the wall is not in the manual;
+   3.4in is an estimate, and FLOWER_R is the ~4.3in top-ring footprint plus a little margin. */
+const LOADING_ZONES = [
+  { color: "#d6336c", x0: -47.5, x1: -24.5, y0: -72, y1: -61 },   // red, on the Red Wall
+  { color: "#1c7ed6", x0: 24.5, x1: 47.5, y0: 61, y1: 72 },       // blue, on the Blue Wall
+];
+const FLOWER_OFFSET = 3.4, FLOWER_R = 2.5;
+const FLOWERS = [
+  { x: -(HALF - FLOWER_OFFSET), y: -24 },   // rear wall
+  { x: -24, y: HALF - FLOWER_OFFSET },      // Blue Wall
+  { x: 24, y: -(HALF - FLOWER_OFFSET) },    // Red Wall
+  { x: HALF - FLOWER_OFFSET, y: 24 },       // audience wall
+];
+const lzPoly = z => [[z.x0, z.y0], [z.x1, z.y0], [z.x1, z.y1], [z.x0, z.y1]];
+
 /* From DriveToPose.java defaults; used only to estimate how long a drive leg takes. */
 const SETTLE_SEC = 0.20, TIMEOUT_SEC = 4.0;
 const AUTO_SEC = 30;
@@ -275,6 +291,15 @@ function drawField() {
   // GARDENs: 23in x 2in strips in opposite corners (red bottom-left, blue top-right; Fig 10-2)
   ctx.fillStyle = "#d6336c"; ctx.fillRect(sx(-HALF), sy(HALF - 2), 23 * S, 2 * S);
   ctx.fillStyle = "#1c7ed6"; ctx.fillRect(sx(HALF - 23), sy(-HALF), 23 * S, 2 * S);
+
+  LOADING_ZONES.forEach(z => {
+    poly(lzPoly(z), z.color + "55", z.color, 2);
+    text("LZ", sx((z.y0 + z.y1) / 2), sy((z.x0 + z.x1) / 2), 11, "#222");
+  });
+  FLOWERS.forEach(f => {
+    ctx.fillStyle = "#EF9F27"; ctx.strokeStyle = "#854F0B"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(sx(f.y), sy(f.x), FLOWER_R * S, 0, 7); ctx.fill(); ctx.stroke();
+  });
 
   // HIVE: frame 49.46in wide (Y) x 38.95in deep (X). Red and blue HIVEs sit 25.5in apart (Y = -/+12.75).
   // Each HIVE has two CELLs 20in wide (Y) x 12.04in deep (X), 18.84in apart, so CELL openings face
@@ -416,6 +441,29 @@ function buildSteps() {
   });
 }
 
+function satOverlap(a, b) {                                   // convex polygons, [[X, Y], ...]
+  for (const pg of [a, b]) for (let i = 0; i < pg.length; i++) {
+    const p = pg[i], q = pg[(i + 1) % pg.length];
+    const nx = -(q[1] - p[1]), ny = q[0] - p[0];
+    const pa = a.map(([X, Y]) => X * nx + Y * ny), pb = b.map(([X, Y]) => X * nx + Y * ny);
+    if (Math.max(...pa) <= Math.min(...pb) || Math.max(...pb) <= Math.min(...pa)) return false;
+  }
+  return true;
+}
+
+function circleHitsPoly(c, r, pg) {
+  let pos = 0, neg = 0, minD = Infinity;
+  for (let i = 0; i < pg.length; i++) {
+    const p = pg[i], q = pg[(i + 1) % pg.length];
+    const ex = q[0] - p[0], ey = q[1] - p[1];
+    const cross = ex * (c[1] - p[1]) - ey * (c[0] - p[0]);
+    if (cross > 0) pos++; else neg++;
+    const u = clamp(((c[0] - p[0]) * ex + (c[1] - p[1]) * ey) / (ex * ex + ey * ey), 0, 1);
+    minD = Math.min(minD, Math.hypot(c[0] - (p[0] + u * ex), c[1] - (p[1] + u * ey)));
+  }
+  return pos === 0 || neg === 0 || minD < r;                  // center inside the polygon, or within r of an edge
+}
+
 function buildChecks() {
   const cs = corners(plan.start, params);
   const eps = 0.05;
@@ -423,12 +471,16 @@ function buildChecks() {
   const blueSide = cs.every(([, Y]) => Y >= -eps);
   const touching = cs.some(([X, Y]) => Math.abs(Math.abs(X) - HALF) <= eps || Math.abs(Math.abs(Y) - HALF) <= eps)
                    && inField;
+  const inLZ = LOADING_ZONES.some(z => satOverlap(cs, lzPoly(z)));
+  const onFlower = FLOWERS.some(f => circleHitsPoly([f.x, f.y], FLOWER_R, cs));
   const rows = [
     [inField, "Fully inside the field perimeter"],
     [blueSide, "Fully on the blue side (columns D-F, Y >= 0)"],
     [touching, "Touching a perimeter wall"],
+    [!inLZ, "Not in a LOADING ZONE"],
+    [!onFlower, "Clear of every FLOWER footprint (approx.)"],
   ].map(([ok, label]) => `<div class="check ${ok ? "ok" : "bad"}"><b>${ok ? "&#10003;" : "&#10007;"}</b>${label}</div>`);
-  rows.push(`<div class="check na"><b>?</b>Not checked: LOADING ZONE, FLOWER volume, 4 POLLEN contact</div>`);
+  rows.push(`<div class="check na"><b>?</b>Not checked: 4 POLLEN contact, STARTING CONFIGURATION size</div>`);
   document.getElementById("checks").innerHTML = rows.join("");
 }
 
