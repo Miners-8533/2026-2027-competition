@@ -30,11 +30,13 @@ public final class PinpointLocalizer implements Localizer {
          *   xOffset: sideways distance to the X (forward) pod - left of center is POSITIVE.
          *   yOffset: forward distance to the Y (strafe) pod   - forward of center is POSITIVE.
          *
-         * Carried over from the 2025 robot's tuning (~ -55.0 / -85.5 mm).
-         * >>> RE-MEASURE / RE-TUNE on the physical robot before trusting autonomous. <<<
+         * Tuned on the 2026 prototype chassis (pods on the rear right) with Pinpoint Offset Check:
+         * x stayed at last year's -55.0, y moved from -85.5 to -75.6 (offset-only wobble
+         * 0.72 in -> 0.33 in; remaining error is at the ~3 mm noise floor).
+         * >>> A different chassis needs its own offsets: rerun Pinpoint Offset Check. <<<
          */
         public double xOffsetMM = -55.0;
-        public double yOffsetMM = -85.5;
+        public double yOffsetMM = -75.6;
 
         public GoBildaPinpointDriver.GoBildaOdometryPods podType =
                 GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD;
