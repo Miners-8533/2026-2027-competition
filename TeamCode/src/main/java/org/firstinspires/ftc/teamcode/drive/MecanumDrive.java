@@ -31,6 +31,15 @@ public final class MecanumDrive {
 
     public static Params PARAMS = new Params();
 
+    /**
+     * Directions that make a positive power turn each wheel so the robot is driven forward.
+     * These are the OPPOSITE of the 2025 robot's: Motor Map Test showed every wheel of the
+     * prototype chassis driving the robot backward with the old values. Other chassis may
+     * need the old pair (left REVERSE, right FORWARD).
+     */
+    public static final DcMotorSimple.Direction LEFT_DIRECTION = DcMotorSimple.Direction.FORWARD;
+    public static final DcMotorSimple.Direction RIGHT_DIRECTION = DcMotorSimple.Direction.REVERSE;
+
     public final DcMotorEx leftFront, leftBack, rightFront, rightBack;
     public final Localizer localizer;
 
@@ -47,11 +56,10 @@ public final class MecanumDrive {
         rightFront = hardwareMap.get(DcMotorEx.class, "rightFront");
         rightBack = hardwareMap.get(DcMotorEx.class, "rightBack");
 
-        // Directions carried over from the 2025 robot. Re-verify with a drive test.
-        leftFront.setDirection(DcMotorSimple.Direction.REVERSE);
-        leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
-        rightFront.setDirection(DcMotorSimple.Direction.FORWARD);
-        rightBack.setDirection(DcMotorSimple.Direction.FORWARD);
+        leftFront.setDirection(LEFT_DIRECTION);
+        leftBack.setDirection(LEFT_DIRECTION);
+        rightFront.setDirection(RIGHT_DIRECTION);
+        rightBack.setDirection(RIGHT_DIRECTION);
 
         for (DcMotorEx m : new DcMotorEx[]{leftFront, leftBack, rightFront, rightBack}) {
             m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);

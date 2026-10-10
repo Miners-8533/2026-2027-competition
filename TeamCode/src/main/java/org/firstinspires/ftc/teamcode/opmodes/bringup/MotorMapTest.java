@@ -9,10 +9,12 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
+import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
+
 /**
  * Spins ONE drive motor at a time so wiring, config names and directions can be checked
- * wheel by wheel. Uses the raw hardware map (not MecanumDrive) so it works even if the
- * Pinpoint is missing or misconfigured. The drive motors have no encoders on this chassis,
+ * wheel by wheel. Uses the raw hardware map and never constructs MecanumDrive, so it works even if
+ * the Pinpoint is missing or misconfigured. The drive motors have no encoders on this chassis,
  * so nothing here reads one - you judge by watching the wheel.
  *
  * Hold a button to spin that wheel at TEST_POWER; hold the left bumper as well to reverse.
@@ -22,7 +24,8 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
  * Pass: the named wheel (and only that wheel) turns so the robot would be driven FORWARD -
  * the top of the wheel moves toward the front of the robot. Put the robot on blocks first.
  *
- * Directions here must match MecanumDrive (left side REVERSE, right side FORWARD).
+ * Directions come from MecanumDrive.LEFT_DIRECTION / RIGHT_DIRECTION, so this test and the
+ * real drive always agree.
  */
 @Config
 @TeleOp(name = "Motor Map Test", group = "Bring-up")
@@ -33,8 +36,8 @@ public class MotorMapTest extends LinearOpMode {
     private static final String[] NAMES = {"leftFront", "rightFront", "leftBack", "rightBack"};
     private static final String[] BUTTONS = {"X", "Y", "A", "B"};
     private static final DcMotorSimple.Direction[] DIRECTIONS = {
-            DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
-            DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD};
+            MecanumDrive.LEFT_DIRECTION, MecanumDrive.RIGHT_DIRECTION,
+            MecanumDrive.LEFT_DIRECTION, MecanumDrive.RIGHT_DIRECTION};
 
     @Override
     public void runOpMode() {
