@@ -14,19 +14,29 @@ import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Spins the robot in place and measures how far the Pinpoint's reported position wanders.
  * If the pod offsets in {@link PinpointLocalizer#PARAMS} are right, the reported position
  * stays put while the robot rotates about the tracking center. A wrong offset makes the
- * position trace a circle whose diameter is twice the offset error, and a full turn closes
- * back to the start. So the number to chase toward zero is the WOBBLE.
+ * position trace a circle whose diameter is twice the offset error, repeating exactly every
+ * full turn.
  *
- * Math: a constant error e (length units, robot frame, per radian turned) traces
- *   P(theta) = (ex sin t - ey (1 - cos t),  ex (1 - cos t) + ey sin t),
- * so at a half turn P = (-2 ey, 2 ex). The forward component ex tracks an xOffset error
- * (X pod sideways offset) and the strafe component ey tracks a yOffset error.
+ * Two things move the reported position, and they must be separated:
+ *   - offset error: periodic, closes back to the start every full turn
+ *   - real sliding: an open-loop mecanum spin never stays on one spot, so the robot really
+ *     drifts across the floor. The Pinpoint reports that correctly, and it does NOT repeat.
+ * The position is sampled at every half turn (P0, P1, ...). Each odd sample (a half turn
+ * into a revolution) is corrected for steady drift by subtracting the average of its
+ * neighbors, P_k - (P_{k-1} + P_{k+1}) / 2. What remains is the offset-error circle at its
+ * far point, P = (-2 ey, 2 ex), so ex = Py / 2 and ey = -Px / 2. The forward component ex
+ * tracks an xOffset error and the strafe component ey tracks a yOffset error. The net drift
+ * per full turn is reported separately.
  * The SIGN of the correction has not been verified on hardware: nudge the offset by a few mm
- * in the FTC Dashboard, press A to rerun, and keep the direction that shrinks the wobble.
+ * in the FTC Dashboard, press A to rerun, and keep the direction that shrinks the error.
+ * Measuring the pod positions with a tape is the more reliable check.
  *
  * Also check by eye: after the spins the robot should face the way it started (line it up with
  * a floor tape line). If not, the heading scale/IMU is off, which offsets cannot fix.
@@ -58,9 +68,8 @@ public class PinpointOffsetCheck extends LinearOpMode {
         State state = State.IDLE;
         String outcome = "";
         ElapsedTime clock = new ElapsedTime();
-        double lastHeading = 0, unwrapped = 0, maxDist = 0, closure = 0;
-        double oddX = 0, oddY = 0;
-        int oddCount = 0, half = 1;
+        double lastHeading = 0, unwrapped = 0, maxDist = 0;
+        List<double[]> halfTurnPoints = new ArrayList<>();   // index k = position at k half turns
 
         while (opModeIsActive()) {
             drive.updatePoseEstimate();
@@ -72,10 +81,8 @@ public class PinpointOffsetCheck extends LinearOpMode {
                 lastHeading = pose.heading.toDouble();
                 maxDist = Math.max(maxDist, Math.hypot(x, y));
 
-                if (unwrapped >= half * Math.PI) {
-                    if (half % 2 == 1) { oddX += x; oddY += y; oddCount++; }
-                    else { closure = Math.max(closure, Math.hypot(x, y)); }
-                    half++;
+                if (unwrapped >= halfTurnPoints.size() * Math.PI) {
+                    halfTurnPoints.add(new double[]{x, y});
                 }
 
                 if (gamepad1.b) {
@@ -96,8 +103,9 @@ public class PinpointOffsetCheck extends LinearOpMode {
             } else if (gamepad1.aWasPressed()) {
                 loc.applyParams();
                 drive.setPose(new Pose2d(0, 0, 0));
-                lastHeading = 0; unwrapped = 0; maxDist = 0; closure = 0;
-                oddX = 0; oddY = 0; oddCount = 0; half = 1;
+                lastHeading = 0; unwrapped = 0; maxDist = 0;
+                halfTurnPoints.clear();
+                halfTurnPoints.add(new double[]{0, 0});     // P0 is the origin; the next point is the first half turn
                 outcome = "";
                 clock.reset();
                 state = State.SPINNING;
@@ -107,7 +115,7 @@ public class PinpointOffsetCheck extends LinearOpMode {
             telemetry.addData("Pinpoint status", loc.getDeviceStatus());
             telemetry.addData("x / y (in)", "%.2f / %.2f", x, y);
             telemetry.addData("turned (deg)", "%.0f of %d", Math.toDegrees(unwrapped), ROTATIONS * 360);
-            telemetry.addData("wobble so far (in)", "%.2f", maxDist);
+            telemetry.addData("farthest from start (in)", "%.2f", maxDist);
             telemetry.addData("offsets in use (mm)", "x %.1f   y %.1f",
                     PinpointLocalizer.PARAMS.xOffsetMM, PinpointLocalizer.PARAMS.yOffsetMM);
             if (state == State.IDLE) {
@@ -115,17 +123,37 @@ public class PinpointOffsetCheck extends LinearOpMode {
             }
             if (state == State.DONE) {
                 telemetry.addLine(outcome);
-                if (oddCount > 0) {
-                    double ex = oddY / oddCount / 2.0, ey = -oddX / oddCount / 2.0;
-                    telemetry.addData("wobble, max distance from start (in)", "%.2f   (= 2 x offset error)", maxDist);
-                    telemetry.addData("est. forward-axis error (mm)", "%.1f   -> xOffset (sign unverified)", ex * 25.4);
-                    telemetry.addData("est. strafe-axis error (mm)", "%.1f   -> yOffset (sign unverified)", ey * 25.4);
-                }
-                telemetry.addData("closure error at full turns (in)", "%.2f   (pods/scale, not offsets)", closure);
+                reportResults(halfTurnPoints);
                 telemetry.addLine("Check by eye: does the robot face its starting direction? A = rerun.");
             }
             telemetry.update();
         }
         drive.stop();
+    }
+
+    private void reportResults(List<double[]> pts) {
+        int sumCount = 0;
+        double cx = 0, cy = 0;
+        for (int k = 1; k + 1 < pts.size(); k += 2) {
+            cx += pts.get(k)[0] - (pts.get(k - 1)[0] + pts.get(k + 1)[0]) / 2.0;
+            cy += pts.get(k)[1] - (pts.get(k - 1)[1] + pts.get(k + 1)[1]) / 2.0;
+            sumCount++;
+        }
+        int lastEven = (pts.size() - 1) / 2 * 2;
+        if (lastEven >= 2) {
+            double drift = Math.hypot(pts.get(lastEven)[0], pts.get(lastEven)[1]) / (lastEven / 2.0);
+            telemetry.addData("net drift per full turn (in)", "%.2f   (real sliding, not offsets)", drift);
+        }
+        if (sumCount == 0) {
+            telemetry.addLine("Not enough turns for an offset estimate (needs at least 1 full turn).");
+            return;
+        }
+        double ex = cy / sumCount / 2.0, ey = -cx / sumCount / 2.0;     // inches
+        telemetry.addData("offset-only wobble (in)", "%.2f   (= 2 x offset error, drift removed)", 2 * Math.hypot(ex, ey));
+        telemetry.addData("est. forward-axis error (mm)", "%.1f   -> xOffset = %.1f or %.1f",
+                ex * 25.4, PinpointLocalizer.PARAMS.xOffsetMM - ex * 25.4, PinpointLocalizer.PARAMS.xOffsetMM + ex * 25.4);
+        telemetry.addData("est. strafe-axis error (mm)", "%.1f   -> yOffset = %.1f or %.1f",
+                ey * 25.4, PinpointLocalizer.PARAMS.yOffsetMM - ey * 25.4, PinpointLocalizer.PARAMS.yOffsetMM + ey * 25.4);
+        telemetry.addLine("Sign unverified: measure the pods with a tape, or nudge and rerun.");
     }
 }
