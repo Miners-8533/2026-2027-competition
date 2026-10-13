@@ -7,7 +7,9 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
+import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
+import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.Actions;
 import org.firstinspires.ftc.teamcode.motion.DriveToPose;
@@ -77,10 +79,22 @@ public class AutonHiveVolley extends LinearOpMode {
 
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
 
-        telemetry.addLine("Auton - Hive Volley (Blue). Keep still while the Pinpoint calibrates.");
-        telemetry.update();
-
-        waitForStart();
+        PinpointLocalizer loc = (PinpointLocalizer) drive.localizer;
+        while (!isStarted() && !isStopRequested()) {
+            drive.updatePoseEstimate();
+            Pose2d p = drive.getPose();
+            boolean poseOk = loc.seedConfirmed
+                    && Math.hypot(p.position.x - startPose.position.x, p.position.y - startPose.position.y) < 1.5
+                    && Math.abs(Math.toDegrees(Rotation2d.normalize(p.heading.toDouble() - startPose.heading.toDouble()))) < 3.0;
+            telemetry.addLine("Auton - Hive Volley (Blue). Rear wall, centered on the blue HIVE, facing +X. Keep still.");
+            telemetry.addData("Pinpoint status", loc.getDeviceStatus());
+            telemetry.addData("Pinpoint pose (in, in, deg)", "%.2f, %.2f, %.1f",
+                    p.position.x, p.position.y, p.heading.toDegrees());
+            telemetry.addData("Expected start pose", "%.2f, %.2f, %.1f",
+                    startPose.position.x, startPose.position.y, startPose.heading.toDegrees());
+            telemetry.addLine(poseOk ? "Pose OK." : "WARNING: Pinpoint pose does not match the start pose. Do NOT start; restart the opmode.");
+            telemetry.update();
+        }
         if (isStopRequested()) return;
 
         Action auto = new SequentialAction(
