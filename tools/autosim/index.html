@@ -195,6 +195,45 @@ const AUTOS = {
       };
     },
   },
+
+  blueStudents: {
+    name: "Auton - Blue Students",
+    source: "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/AutonBlueStudents.java",
+    params: [
+      { group: "Robot" },
+      { k: "ROBOT_DEPTH_IN", v: 18, hint: "front-to-back; wall-touching coordinates derive from it" },
+      { k: "ROBOT_WIDTH_IN", v: 14, hint: "side-to-side (page only)" },
+      { k: "TURN_CLEARANCE_IN", v: 0, hint: "moves the first turn off the wall" },
+      { group: "Simulated shots" },
+      { k: "SPIN_UP_SEC", v: 1.5 },
+      { k: "FIRE_SEC", v: 1.0 },
+      { group: "Page-only timing assumptions" },
+      { k: "DRIVE_SPEED_IPS", v: 35, hint: "assumed cruise speed, NOT measured" },
+      { k: "TURN_RATE_DPS", v: 180, hint: "assumed turn rate, NOT measured" },
+    ],
+    build(p) {
+      const wall = HALF - p.ROBOT_DEPTH_IN / 2;                 // robot center distance from a wall it touches
+      const at = (x, y, h) => ({ x, y, h });
+      const shot = p.SPIN_UP_SEC + p.FIRE_SEC;
+      const shootSpot = at(wall, 11, 180);
+      return {
+        start: at(-wall, 16, 0),
+        steps: [
+          { type: "sleep", label: "Shoot 4: preload (tip 1)", sec: shot },
+          { type: "drive", label: "Rotate 90 deg CCW", to: at(-wall + p.TURN_CLEARANCE_IN, 16, 90) },
+          { type: "drive", label: "To the garden start", to: at(-wall, 50, 90) },
+          { type: "drive", label: "Garden pickup (intake on)", to: at(-wall, wall, 90) },
+          { type: "drive", label: "Clear of the HIVE", to: at(24, 38, 0) },
+          { type: "drive", label: "To the shooting spot", to: shootSpot },
+          { type: "sleep", label: "Shoot 4: volley 2", sec: shot },
+          { type: "drive", label: "To the flower approach", to: at(51, 24, 180) },
+          { type: "drive", label: "Flower pickup (intake on)", to: at(59, 24, 180) },
+          { type: "drive", label: "Back to the shooting spot", to: { ...shootSpot } },
+          { type: "sleep", label: "Shoot 4: volley 3 (tip 2)", sec: shot },
+        ],
+      };
+    },
+  },
 };
 
 /* ---------- state ---------- */
@@ -217,8 +256,9 @@ function buildTimeline(plan, p) {
     if (s.type === "drive") {
       const dist = Math.hypot(s.to.x - pose.x, s.to.y - pose.y);
       const dh = Math.abs(norm(s.to.h - pose.h));
-      dur = Math.min(Math.max(dist / p.DRIVE_SPEED_IPS, dh / p.TURN_RATE_DPS) + SETTLE_SEC, TIMEOUT_SEC);
-      segs.push({ i, step: s, t0: time, t1: time + dur, a: pose, b: { ...s.to } });
+      const raw = Math.max(dist / p.DRIVE_SPEED_IPS, dh / p.TURN_RATE_DPS) + SETTLE_SEC;
+      dur = Math.min(raw, TIMEOUT_SEC);
+      segs.push({ i, step: s, t0: time, t1: time + dur, a: pose, b: { ...s.to }, capped: raw > TIMEOUT_SEC });
       pose = { ...s.to };
     } else {
       dur = s.sec;
@@ -433,7 +473,8 @@ function buildSteps() {
     let d;
     if (s.step.type === "drive") {
       const q = s.step.to;
-      d = `to (${q.x.toFixed(1)}, ${q.y.toFixed(1)}, ${norm(q.h).toFixed(0)} deg) ~${dur}s`;
+      d = `to (${q.x.toFixed(1)}, ${q.y.toFixed(1)}, ${norm(q.h).toFixed(0)} deg) ~${dur}s`
+        + (s.capped ? " - would hit the 4 s timeout, robot stops short" : "");
     } else d = `sleep ${dur}s`;
     li.innerHTML = `<span class="n">${s.i + 1}</span>${s.step.label}<span class="d">${d}</span>`;
     li.onclick = () => { t = s.t0; playing = false; syncPlay(); render(); };
