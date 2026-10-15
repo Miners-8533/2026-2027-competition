@@ -24,7 +24,10 @@ import org.firstinspires.ftc.teamcode.motion.SleepAction;
  * Plan, in field coordinates (origin at field center, X toward the audience, Y toward the
  * Blue Wall, heading 0 = +X, counterclockwise positive):
  *   1. Start on the rear wall at Y=16 facing +X. Shoot all 4 preload (tip 1, overflow).
- *   2. Rotate 90 deg counterclockwise (now facing the Blue Wall).
+ *   2. Rotate 90 deg so the BACK of the robot faces the Blue Wall. The intake is on the back and
+ *      the shooter on the front, so the garden run must go backward into the corner: heading -90
+ *      (clockwise turn). The students' notes said counterclockwise (heading +90), which would
+ *      lead with the shooter end; GARDEN_HEADING_DEG = 90 restores that.
  *   3. Drive to (X=rear wall, Y=50), intake ON, drive to the blue corner, intake OFF.
  *      This collects the blue GARDEN's 4 POLLEN along the rear wall.
  *   4. Drive to (24, 38) facing +X, clear of the HIVE.
@@ -51,6 +54,7 @@ public class AutonBlueStudents extends LinearOpMode {
 
     public static double ROBOT_DEPTH_IN = 18.0;
     public static double TURN_CLEARANCE_IN = 0.0;
+    public static double GARDEN_HEADING_DEG = -90.0;   // back intake leads toward +Y; 90 = shooter end leads
 
     public static double SPIN_UP_SEC = 1.5;
     public static double FIRE_SEC = 1.0;
@@ -78,9 +82,9 @@ public class AutonBlueStudents extends LinearOpMode {
         double wall = FIELD_HALF_IN - ROBOT_DEPTH_IN / 2.0;
 
         Pose2d start = pose(-wall, 16, 0);
-        Pose2d facingBlue = pose(-wall + TURN_CLEARANCE_IN, 16, 90);
-        Pose2d gardenStart = pose(-wall, 50, 90);
-        Pose2d gardenEnd = pose(-wall, wall, 90);
+        Pose2d facingBlue = pose(-wall + TURN_CLEARANCE_IN, 16, GARDEN_HEADING_DEG);
+        Pose2d gardenStart = pose(-wall, 50, GARDEN_HEADING_DEG);
+        Pose2d gardenEnd = pose(-wall, wall, GARDEN_HEADING_DEG);
         Pose2d clearOfHive = pose(24, 38, 0);
         Pose2d shootSpot = pose(wall, 11, 180);
         Pose2d flowerNear = pose(51, 24, 180);
