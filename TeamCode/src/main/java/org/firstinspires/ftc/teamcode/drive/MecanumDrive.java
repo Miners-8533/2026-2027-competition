@@ -33,12 +33,13 @@ public final class MecanumDrive {
 
     /**
      * Directions that make a positive power turn each wheel so the robot is driven forward.
-     * These are the OPPOSITE of the 2025 robot's: Motor Map Test showed every wheel of the
-     * prototype chassis driving the robot backward with the old values. Other chassis may
-     * need the old pair (left REVERSE, right FORWARD).
+     * Per chassis. Currently set for the first draft of the new chassis (left REVERSE, right
+     * FORWARD, the same pair as the 2025 robot). The earlier prototype chassis needed the
+     * opposite pair (left FORWARD, right REVERSE): Motor Map Test showed every wheel of it
+     * driving the robot backward with this one. Rerun Motor Map Test on any new chassis.
      */
-    public static final DcMotorSimple.Direction LEFT_DIRECTION = DcMotorSimple.Direction.FORWARD;
-    public static final DcMotorSimple.Direction RIGHT_DIRECTION = DcMotorSimple.Direction.REVERSE;
+    public static final DcMotorSimple.Direction LEFT_DIRECTION = DcMotorSimple.Direction.REVERSE;
+    public static final DcMotorSimple.Direction RIGHT_DIRECTION = DcMotorSimple.Direction.FORWARD;
 
     public final DcMotorEx leftFront, leftBack, rightFront, rightBack;
     public final Localizer localizer;
