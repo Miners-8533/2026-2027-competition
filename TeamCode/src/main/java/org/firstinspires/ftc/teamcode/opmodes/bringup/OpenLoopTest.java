@@ -20,7 +20,7 @@ import org.firstinspires.ftc.teamcode.math.Vector2d;
  *   D-pad up / down     forward / backward
  *   D-pad left / right  strafe left / strafe right
  *   Left / right bumper rotate counterclockwise / clockwise
- *   X / B               power down / up by 0.05 (while idle)
+ *   X / B               power down / up by 0.1, between 0.1 and 1.0 (while idle)
  *   A                   toggle HOLD (runs while held) / PULSE (runs PULSE_SEC per press)
  *   Options             clear the results table and zero the pose
  *
@@ -135,8 +135,8 @@ public class OpenLoopTest extends LinearOpMode {
             }
             if (gamepad1.aWasPressed()) holdMode = !holdMode;
             if (state == State.IDLE) {
-                if (gamepad1.xWasPressed()) POWER = Math.max(0.05, POWER - 0.05);
-                if (gamepad1.bWasPressed()) POWER = Math.min(1.0, POWER + 0.05);
+                if (gamepad1.xWasPressed()) POWER = Math.max(0.1, POWER - 0.1);
+                if (gamepad1.bWasPressed()) POWER = Math.min(1.0, POWER + 0.1);
             }
 
             switch (state) {
