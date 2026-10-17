@@ -42,10 +42,15 @@ public final class PinpointLocalizer implements Localizer {
         public GoBildaPinpointDriver.GoBildaOdometryPods podType =
                 GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD;
 
+        /**
+         * Pod encoder directions, per chassis. First-draft new chassis: Pinpoint Push Test reported
+         * forward as -X and left as -Y with REVERSED/REVERSED, so both are FORWARD here. The earlier
+         * prototype chassis (and the 2025 robot) used REVERSED/REVERSED.
+         */
         public GoBildaPinpointDriver.EncoderDirection xDirection =
-                GoBildaPinpointDriver.EncoderDirection.REVERSED;
+                GoBildaPinpointDriver.EncoderDirection.FORWARD;
         public GoBildaPinpointDriver.EncoderDirection yDirection =
-                GoBildaPinpointDriver.EncoderDirection.REVERSED;
+                GoBildaPinpointDriver.EncoderDirection.FORWARD;
     }
 
     public static Params PARAMS = new Params();
