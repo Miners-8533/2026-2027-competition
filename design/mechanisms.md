@@ -35,7 +35,9 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 - **Open, still being considered:** current-based jam detection. If the motor current stays high for about a quarter second, reverse briefly and automatically.
 - **Open idea:** with one color sensor per slot, the robot could spot an opponent-color nectar (G408) and outtake it automatically.
 
-**Verification:** a bring-up opmode that runs it at low power, confirms direction, and shows the motor current.
+**Status:** the `Intake` class (`subsystems/Intake.java`) and the bring-up opmode **Intake Test** are built and compile, but have not been run on hardware. The motor direction is in `ChassisProfile.intakeDirection` and is a last-year placeholder (REVERSE) until verified.
+
+**Verification:** Intake Test runs it only while a button is held, at 30% power to start (D-pad steps the scale), confirms direction, and shows the motor current with a peak reading. The peak current with and without an element in the roller is the data a jam threshold would come from.
 
 ## 2. Flywheel
 

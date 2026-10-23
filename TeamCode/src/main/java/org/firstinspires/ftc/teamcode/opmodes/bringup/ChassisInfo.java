@@ -33,6 +33,7 @@ public class ChassisInfo extends LinearOpMode {
                 telemetry.addData("Pod directions (X / Y)", "%s / %s", matched.podXDirection, matched.podYDirection);
                 telemetry.addData("Pod offsets x / y (mm)", "%.1f / %.1f", matched.xOffsetMM, matched.yOffsetMM);
                 telemetry.addData("Robot depth x width (in)", "%.1f x %.1f", matched.robotDepthIn, matched.robotWidthIn);
+                telemetry.addData("Intake direction", matched.intakeDirection);
             }
             telemetry.addLine("--- hub ids (register one in ChassisProfile) ---");
             if (ids.isEmpty()) {

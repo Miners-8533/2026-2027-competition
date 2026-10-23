@@ -37,12 +37,15 @@ public final class ChassisProfile {
     public final double xOffsetMM, yOffsetMM;
     /** Robot footprint, inches: depth is front-to-back, width side-to-side. */
     public final double robotDepthIn, robotWidthIn;
+    /** Direction that makes positive intake power pull elements in. Not yet verified on any chassis. */
+    public final DcMotorSimple.Direction intakeDirection;
 
     private ChassisProfile(String name, List<String> hubIds,
                            DcMotorSimple.Direction leftDirection, DcMotorSimple.Direction rightDirection,
                            GoBildaPinpointDriver.EncoderDirection podXDirection,
                            GoBildaPinpointDriver.EncoderDirection podYDirection,
-                           double xOffsetMM, double yOffsetMM, double robotDepthIn, double robotWidthIn) {
+                           double xOffsetMM, double yOffsetMM, double robotDepthIn, double robotWidthIn,
+                           DcMotorSimple.Direction intakeDirection) {
         this.name = name;
         this.hubIds = hubIds;
         this.leftDirection = leftDirection;
@@ -53,6 +56,7 @@ public final class ChassisProfile {
         this.yOffsetMM = yOffsetMM;
         this.robotDepthIn = robotDepthIn;
         this.robotWidthIn = robotWidthIn;
+        this.intakeDirection = intakeDirection;
     }
 
     /** The earlier prototype chassis. Offsets were tuned with Pinpoint Offset Check. */
@@ -60,7 +64,7 @@ public final class ChassisProfile {
             Arrays.asList(/* hub ids: add from Chassis Info */),
             DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.REVERSE,
             GoBildaPinpointDriver.EncoderDirection.REVERSED, GoBildaPinpointDriver.EncoderDirection.REVERSED,
-            -55.0, -75.6, 18.0, 14.0);
+            -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE);
 
     /**
      * First draft of the new chassis. Motor and pod directions come from Motor Map Test and Pinpoint
@@ -71,7 +75,7 @@ public final class ChassisProfile {
             Arrays.asList(/* hub ids: add from Chassis Info */),
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD,
-            -55.0, -75.6, 18.0, 14.0);
+            -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE);
 
     private static final ChassisProfile[] ALL = {PROTOTYPE, DRAFT_1};
     private static final ChassisProfile DEFAULT = DRAFT_1;
