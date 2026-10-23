@@ -4,7 +4,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.ServoImplEx;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -80,8 +80,8 @@ public class Mechanisms {
         Flywheel flywheel = hardwareMap.tryGet(DcMotorEx.class, "fly_motor_enc") != null ? new Flywheel(hardwareMap) : null;
         TransportGate gate = hardwareMap.tryGet(DcMotorEx.class, "gate") != null
                 ? new TransportGate(hardwareMap, gateReference) : null;
-        Depollinator depollinator = hardwareMap.tryGet(ServoImplEx.class, "depolLeft") != null
-                && hardwareMap.tryGet(ServoImplEx.class, "depolRight") != null ? new Depollinator(hardwareMap) : null;
+        Depollinator depollinator = hardwareMap.tryGet(Servo.class, "depolLeft") != null
+                && hardwareMap.tryGet(Servo.class, "depolRight") != null ? new Depollinator(hardwareMap) : null;
         return new Mechanisms(intake, flywheel, gate, depollinator);
     }
 

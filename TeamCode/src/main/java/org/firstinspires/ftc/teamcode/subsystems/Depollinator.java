@@ -3,8 +3,7 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.PwmControl;
-import com.qualcomm.robotcore.hardware.ServoImplEx;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -38,9 +37,6 @@ public class Depollinator {
     /** Servo position units per second, applied to the slew. Placeholder: tune so the ramp lowers gently. */
     public static double MAX_RATE = 1.0;
     public static double SETTLE_SEC = 0.15;
-    /** Pulse range, microseconds. These are the SDK defaults; a goBILDA servo in positional mode may need 500 to 2500. */
-    public static double PWM_MIN_US = 600;
-    public static double PWM_MAX_US = 2400;
     /** Robot-center distance from a flower center beyond which the ramp is considered clear. Placeholder: set from the real ramp length. */
     public static double CLEAR_DISTANCE_IN = 24.0;
 
@@ -52,8 +48,8 @@ public class Depollinator {
             {68.6, 24.0},     // audience wall
     };
 
-    private final ServoImplEx left;
-    private final ServoImplEx right;
+    private final Servo left;
+    private final Servo right;
     private final ElapsedTime loopTimer = new ElapsedTime();
     private final ElapsedTime atTargetTimer = new ElapsedTime();
 
@@ -69,11 +65,8 @@ public class Depollinator {
         deployedLeft = profile.depolDeployedLeft;
         deployedRight = profile.depolDeployedRight;
 
-        left = hardwareMap.get(ServoImplEx.class, "depolLeft");
-        right = hardwareMap.get(ServoImplEx.class, "depolRight");
-        PwmControl.PwmRange range = new PwmControl.PwmRange(PWM_MIN_US, PWM_MAX_US);
-        left.setPwmRange(range);
-        right.setPwmRange(range);
+        left = hardwareMap.get(Servo.class, "depolLeft");
+        right = hardwareMap.get(Servo.class, "depolRight");
 
         if (isConfigured()) {
             leftPosition = leftTarget = stowedLeft;
