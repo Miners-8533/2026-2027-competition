@@ -96,15 +96,17 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 - **Decided:** the driver or operator decides when to deploy and stow, for now. An automatic approach to a flower pickup pose is the long-run goal.
 - **Decided:** deploying switches the intake on. Stowing switches it off unless the driver is holding intake.
 - **Decided:** the robot must drive out from under the flower before the ramp can stow.
-- **Open:** whether a stow request made while still under the flower is ignored (hard interlock) or only warned about. The check would compare the Pinpoint pose against the four known flower positions.
-- **Proposed:** each servo has its own stowed and deployed positions in `ChassisProfile`, mirrored by direction. Both servos must be set to the same mode (goBILDA dual-mode servos can be positional, continuous or multi-turn). The deployed position is commanded just short of contact, so a torque servo is not stalled against the floor. Motion is rate-limited so the ramp lowers gently, and the travel time can be computed without feedback.
+- **Decided (rule 5):** a stow requested while still under the flower is remembered and happens once the pose, compared against the four known flower positions, shows the robot is clear.
+- **Decided:** keep the class plain, like last year's hood and stop servos: each command sets both servos straight to their position, with no slew limiting. "Settled" is a fixed `TRAVEL_SEC` after the command, measured once.
+- **Proposed:** each servo has its own stowed and deployed positions in `ChassisProfile`, mirrored by direction. Both servos must be set to the same mode (goBILDA dual-mode servos can be positional, continuous or multi-turn). The deployed position is commanded just short of contact, so a torque servo is not stalled against the floor.
+- **Open:** whether the ramp lands too hard at the servo's full speed. If it does, put a slew limit back (rate-limited motion, as an earlier version had).
 - **Open:** the stowed and deployed angles are not known yet. A bring-up opmode jogs each servo and records them.
 
 **Rules:** the stowed ramp must fit the R102 cube. Only pollen is removed (G418).
 
-**Status:** built and compiling, not yet run on hardware. `subsystems/Depollinator.java` (servos `depolLeft` and `depolRight`, per-servo positions in `ChassisProfile`, rate-limited slew at `MAX_RATE`, deploy and stow actions that finish once settled, and an `isClearOfFlower` check). **It will not move until the four positions are measured** (they are NaN in `ChassisProfile`). The class provides the clear-of-flower check but does not decide whether stow is blocked or only warned about; that is still open and left to the caller. `CLEAR_DISTANCE_IN` (24 in) is a placeholder for the real ramp length. It uses the plain `Servo` interface, as last year's hood and stop servos did, so there is no configurable pulse range and no way to switch a servo off. If either turns out to be needed (a goBILDA servo in positional mode may need a wider range than the SDK default, and a torque servo may need to be powered down), go back to `ServoImplEx`.
+**Status:** built and compiling, not yet run on hardware. `subsystems/Depollinator.java` (about 110 lines: servos `depolLeft` and `depolRight`, per-servo positions in `ChassisProfile`, direct `deploy()` / `stow()`, `isSettled()` after `TRAVEL_SEC`, and an `isClearOfFlower` check; no per-loop `update()` is needed). **It will not move until the four positions are measured** (they are NaN in `ChassisProfile`). The coordinator holds a stow request until the robot is clear (rule 5). `TRAVEL_SEC` (0.6 s) and `CLEAR_DISTANCE_IN` (24 in) are placeholders: measure the first, and set the second from the real ramp length. It uses the plain `Servo` interface, as last year's hood and stop servos did, so there is no configurable pulse range and no way to switch a servo off. If either turns out to be needed (a goBILDA servo in positional mode may need a wider range than the SDK default, and a torque servo may need to be powered down), go back to `ServoImplEx`.
 
-**Verification:** **Depollinator Test** commands nothing until you jog, then finds the stowed and deployed position of each servo by jogging, records them, and tests the slewed deploy and stow motion. It prints the values to paste into `ChassisProfile`.
+**Verification:** **Depollinator Test** commands nothing until you jog, then finds the stowed and deployed position of each servo by jogging, records them, and sends both servos to the recorded deployed and stowed positions so you can watch how the ramp lands. It times the move (press Options when the ramp stops) and prints the positions for `ChassisProfile` and the value for `Depollinator.TRAVEL_SEC`.
 
 ## Cross-actuator rules (confirmed 2026-10-22)
 
@@ -121,7 +123,7 @@ Also decided: after a salvo finishes, the flywheel stops automatically a short m
 ## Still to measure or decide
 
 - [ ] Gate ticks per revolution (calibration step).
-- [ ] Depollinator servo angles, stowed and deployed.
+- [ ] Depollinator servo angles, stowed and deployed, and `TRAVEL_SEC`. Watch whether the ramp lands too hard without a slew.
 - [ ] Shot map: distance to speed, measured on the robot.
 - [ ] Intake outtake power (starts at -0.5).
 - [ ] Whether to add current-based jam detection to the intake.

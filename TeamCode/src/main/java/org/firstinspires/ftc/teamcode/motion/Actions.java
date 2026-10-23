@@ -23,7 +23,7 @@ public final class Actions {
     /**
      * As {@link #runBlocking(LinearOpMode, Action)}, and also calls {@code everyLoop} once per
      * loop after the action runs. Autos pass the mechanisms' {@code update()} here so flywheel
-     * speed control, gate position control and servo slewing keep running between and during actions.
+     * speed control and gate position control keep running between and during actions.
      */
     public static void runBlocking(LinearOpMode opMode, Action action, Runnable everyLoop) {
         FtcDashboard dashboard = FtcDashboard.getInstance();

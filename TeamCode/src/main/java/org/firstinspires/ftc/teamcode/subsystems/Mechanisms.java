@@ -250,7 +250,6 @@ public class Mechanisms {
         if (intake != null) intake.update();
         if (flywheel != null) flywheel.update();
         if (gate != null) gate.update();
-        if (depollinator != null) depollinator.update();
     }
 
     private void notice(String message) {
