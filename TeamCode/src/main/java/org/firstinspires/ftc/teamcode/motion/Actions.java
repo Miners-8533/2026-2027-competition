@@ -17,11 +17,21 @@ public final class Actions {
      * each loop's telemetry packet to FTC Dashboard. Stops early if the OpMode stops.
      */
     public static void runBlocking(LinearOpMode opMode, Action action) {
+        runBlocking(opMode, action, () -> {});
+    }
+
+    /**
+     * As {@link #runBlocking(LinearOpMode, Action)}, and also calls {@code everyLoop} once per
+     * loop after the action runs. Autos pass the mechanisms' {@code update()} here so flywheel
+     * speed control, gate position control and servo slewing keep running between and during actions.
+     */
+    public static void runBlocking(LinearOpMode opMode, Action action, Runnable everyLoop) {
         FtcDashboard dashboard = FtcDashboard.getInstance();
         boolean running = true;
         while (running && opMode.opModeIsActive()) {
             TelemetryPacket packet = new TelemetryPacket();
             running = action.run(packet);
+            everyLoop.run();
             dashboard.sendTelemetryPacket(packet);
         }
     }

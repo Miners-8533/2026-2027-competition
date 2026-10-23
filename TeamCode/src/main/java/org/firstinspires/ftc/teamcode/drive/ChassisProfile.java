@@ -39,13 +39,23 @@ public final class ChassisProfile {
     public final double robotDepthIn, robotWidthIn;
     /** Direction that makes positive intake power pull elements in. Not yet verified on any chassis. */
     public final DcMotorSimple.Direction intakeDirection;
+    /** Flywheel motor direction (positive power spins it the shooting way) and gate direction (positive = the forward, pushing way). Both unverified. */
+    public final DcMotorSimple.Direction flywheelDirection, gateDirection;
+    /**
+     * Depollinator servo positions, 0 to 1, for the left and right servo. NaN means not measured yet:
+     * the depollinator will not move until they are filled in (use the Depollinator Test opmode).
+     */
+    public final double depolStowedLeft, depolStowedRight, depolDeployedLeft, depolDeployedRight;
 
     private ChassisProfile(String name, List<String> hubIds,
                            DcMotorSimple.Direction leftDirection, DcMotorSimple.Direction rightDirection,
                            GoBildaPinpointDriver.EncoderDirection podXDirection,
                            GoBildaPinpointDriver.EncoderDirection podYDirection,
                            double xOffsetMM, double yOffsetMM, double robotDepthIn, double robotWidthIn,
-                           DcMotorSimple.Direction intakeDirection) {
+                           DcMotorSimple.Direction intakeDirection,
+                           DcMotorSimple.Direction flywheelDirection, DcMotorSimple.Direction gateDirection,
+                           double depolStowedLeft, double depolStowedRight,
+                           double depolDeployedLeft, double depolDeployedRight) {
         this.name = name;
         this.hubIds = hubIds;
         this.leftDirection = leftDirection;
@@ -57,6 +67,12 @@ public final class ChassisProfile {
         this.robotDepthIn = robotDepthIn;
         this.robotWidthIn = robotWidthIn;
         this.intakeDirection = intakeDirection;
+        this.flywheelDirection = flywheelDirection;
+        this.gateDirection = gateDirection;
+        this.depolStowedLeft = depolStowedLeft;
+        this.depolStowedRight = depolStowedRight;
+        this.depolDeployedLeft = depolDeployedLeft;
+        this.depolDeployedRight = depolDeployedRight;
     }
 
     /** The earlier prototype chassis. Offsets were tuned with Pinpoint Offset Check. */
@@ -64,7 +80,9 @@ public final class ChassisProfile {
             Arrays.asList(/* hub ids: add from Chassis Info */),
             DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.REVERSE,
             GoBildaPinpointDriver.EncoderDirection.REVERSED, GoBildaPinpointDriver.EncoderDirection.REVERSED,
-            -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE);
+            -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
+            DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
+            Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
     /**
      * First draft of the new chassis. Motor and pod directions come from Motor Map Test and Pinpoint
@@ -75,7 +93,9 @@ public final class ChassisProfile {
             Arrays.asList(/* hub ids: add from Chassis Info */),
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD,
-            -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE);
+            -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
+            DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
+            Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
     private static final ChassisProfile[] ALL = {PROTOTYPE, DRAFT_1};
     private static final ChassisProfile DEFAULT = DRAFT_1;
