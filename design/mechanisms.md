@@ -1,6 +1,8 @@
 # BIOBUZZ mechanisms design
 
-Design notes for the four actuators the final robot adds on top of the verified chassis: intake, flywheel, transport gate, and depollinator. Worked out one actuator at a time with the team; each item is marked **Decided**, **Proposed** (my suggestion, not yet confirmed), or **Open**. Nothing here is built yet.
+Design notes for the four actuators the final robot adds on top of the verified chassis: intake, flywheel, transport gate, and depollinator. Worked out one actuator at a time with the team; each item is marked **Decided**, **Proposed** (my suggestion, not yet confirmed), or **Open**.
+
+Build status: all four actuators are built as classes in `subsystems/` with a bring-up opmode each (group "Bring-up"), and all compile. **None has been run on hardware.** The mechanisms coordinator that enforces the cross-actuator rules below is not built, because those rules are still proposed.
 
 Last updated 2026-10-22.
 
@@ -59,7 +61,9 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 - The flywheel only needs to be ready before the first ball. The ball spacing comes from the transport gate's sweep speed.
 - It stops between salvos and spins up when needed. In autos the spin-up runs in parallel with the drive to the shooting spot.
 
-**Verification:** `ShooterTest` on the prototype branch, then the shot-map tuner. A 4-ball burst measures the speed dip and recovery.
+**Status:** built and compiling, not yet run on hardware. `subsystems/Flywheel.java` (bang-bang plus `FEED_FORWARD`, placeholder 0.2; `READY_FRACTION` 0.95; 5-sample filter), `HiveTarget.java` (the four open-cell target points) and `ShotMap.java` (interpolation; the saved `TABLE` is empty until measured). Direction is `ChassisProfile.flywheelDirection`, a placeholder. The single-motor `Shooter` on the `shooter-prototype` branch is superseded by `Flywheel`.
+
+**Verification:** **Flywheel Test** (set a speed, tune `FEED_FORWARD`, and measure how far a ball dips the speed and how long it takes to recover: the one-vs-two-motors data) and **Shot Map Tuner** (drive to a distance, find a speed that scores, record the pair, test the interpolation live, and print lines for `ShotMap.TABLE`).
 
 ## 3. Transport gate
 
@@ -79,7 +83,9 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 - **Proposed:** stall and jam detection by high current with zero speed. A blocked gate does not lose its position, because it simply does not move.
 - **Open, later:** a hall sensor at HOLD to re-zero every revolution and check the start position, or the color sensors reading the gate tip as it passes. Color sensors read over a slow bus, so a fast tip could pass between readings, and the tip would need a distinct color.
 
-**Verification:** a bring-up opmode that jogs the gate slowly, shows ticks and current, measures ticks per revolution, then runs moves, a sweep and the stall check.
+**Status:** built and compiling, not yet run on hardware. `subsystems/TransportGate.java`: forward-only angle control with HOLD at 0 degrees, salvo = sweep then faster return then hold, reject = reverse then forward to HOLD, stall detection, and a zero reference saved in a static (`Reference.ASSUME_AT_HOLD` for auto, `CONTINUE` for TeleOp after auto). The encoder is never reset in code. `TICKS_PER_REV` and `SWEEP_END_DEG` start at 0 (not calibrated) and until they are set the gate only jogs. Speeds, hold gains and stall thresholds are untested placeholders. The hardware name is `gate`, and its direction is a `ChassisProfile` placeholder.
+
+**Verification:** **Transport Gate Test** walks the calibration in order (mark HOLD, jog one revolution to measure ticks per revolution, mark the sweep end), then runs a salvo, a reject, and a return to HOLD, lets you tune the two speeds, shows ticks and current, and prints the values to paste into `TransportGate.java`.
 
 ## 4. Depollinator
 
@@ -95,6 +101,10 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 - **Open:** the stowed and deployed angles are not known yet. A bring-up opmode jogs each servo and records them.
 
 **Rules:** the stowed ramp must fit the R102 cube. Only pollen is removed (G418).
+
+**Status:** built and compiling, not yet run on hardware. `subsystems/Depollinator.java` (servos `depolLeft` and `depolRight`, per-servo positions in `ChassisProfile`, rate-limited slew at `MAX_RATE`, deploy and stow actions that finish once settled, and an `isClearOfFlower` check). **It will not move until the four positions are measured** (they are NaN in `ChassisProfile`). The class provides the clear-of-flower check but does not decide whether stow is blocked or only warned about; that is still open and left to the caller. `CLEAR_DISTANCE_IN` (24 in) is a placeholder for the real ramp length. The PWM range defaults to the SDK's 600 to 2400 microseconds; a goBILDA servo in positional mode may need 500 to 2500.
+
+**Verification:** **Depollinator Test** commands nothing until you jog, then finds the stowed and deployed position of each servo by jogging, records them, and tests the slewed deploy and stow motion. It prints the values to paste into `ChassisProfile`.
 
 ## Cross-actuator rules (proposed)
 
