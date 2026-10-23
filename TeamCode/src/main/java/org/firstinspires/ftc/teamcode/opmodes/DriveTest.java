@@ -59,6 +59,7 @@ public class DriveTest extends LinearOpMode {
             PoseVelocity2d vel = drive.updatePoseEstimate();
             Pose2d pose = drive.getPose();
 
+            telemetry.addData("chassis", drive.profile.label());
             telemetry.addData("status", ((PinpointLocalizer) drive.localizer).getDeviceStatus());
             telemetry.addData("x (in)", "%.2f", pose.position.x);
             telemetry.addData("y (in)", "%.2f", pose.position.y);

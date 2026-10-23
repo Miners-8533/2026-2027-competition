@@ -6,6 +6,7 @@ import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
+import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
@@ -56,8 +57,7 @@ public class AutonHiveVolley extends LinearOpMode {
     private static final double FIELD_HALF_IN = 72.0; // Section 9.2, 144x144in field
 
     // --- start pose: blue alliance, touching the REAR wall, lined up with the blue HIVE in Y ---
-    // Robot is 14(W) x 18(D) in; D (18in) is the dimension perpendicular to the wall.
-    public static double ROBOT_DEPTH_IN = 18.0;
+    // Robot depth (the dimension perpendicular to the wall) comes from the chassis profile.
     public static double START_Y_IN = 12.75;        // blue HIVE center: half of the 25.5 in HIVE center-to-center
     public static double START_HEADING_DEG = 0.0;   // facing +X, into the field toward the blue CELL opening
 
@@ -72,7 +72,8 @@ public class AutonHiveVolley extends LinearOpMode {
     public void runOpMode() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        double startX = -(FIELD_HALF_IN - ROBOT_DEPTH_IN / 2.0);
+        ChassisProfile profile = ChassisProfile.detect(hardwareMap);
+        double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
         Pose2d startPose = new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG));
 
         Pose2d leavePose = new Pose2d(startX + LEAVE_DISTANCE_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
@@ -87,6 +88,7 @@ public class AutonHiveVolley extends LinearOpMode {
                     && Math.hypot(p.position.x - startPose.position.x, p.position.y - startPose.position.y) < 1.5
                     && Math.abs(Math.toDegrees(Rotation2d.normalize(p.heading.toDouble() - startPose.heading.toDouble()))) < 3.0;
             telemetry.addLine("Auton - Hive Volley (Blue). Rear wall, centered on the blue HIVE, facing +X. Keep still.");
+            telemetry.addData("Chassis profile", profile.label());
             telemetry.addData("Pinpoint status", loc.getDeviceStatus());
             telemetry.addData("Pinpoint pose (in, in, deg)", "%.2f, %.2f, %.1f",
                     p.position.x, p.position.y, p.heading.toDegrees());

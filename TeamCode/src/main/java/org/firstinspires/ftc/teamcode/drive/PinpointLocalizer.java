@@ -31,10 +31,9 @@ public final class PinpointLocalizer implements Localizer {
          *   xOffset: sideways distance to the X (forward) pod - left of center is POSITIVE.
          *   yOffset: forward distance to the Y (strafe) pod   - forward of center is POSITIVE.
          *
-         * Tuned on the 2026 prototype chassis (pods on the rear right) with Pinpoint Offset Check:
-         * x stayed at last year's -55.0, y moved from -85.5 to -75.6 (offset-only wobble
-         * 0.72 in -> 0.33 in; remaining error is at the ~3 mm noise floor).
-         * >>> A different chassis needs its own offsets: rerun Pinpoint Offset Check. <<<
+         * These are overwritten from the detected {@link ChassisProfile} every time this localizer is
+         * constructed, so the real per-chassis values live there. Edit them in the FTC Dashboard
+         * while an opmode runs to try a change; it is lost at the next init.
          */
         public double xOffsetMM = -55.0;
         public double yOffsetMM = -75.6;
@@ -42,11 +41,7 @@ public final class PinpointLocalizer implements Localizer {
         public GoBildaPinpointDriver.GoBildaOdometryPods podType =
                 GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD;
 
-        /**
-         * Pod encoder directions, per chassis. First-draft new chassis: Pinpoint Push Test reported
-         * forward as -X and left as -Y with REVERSED/REVERSED, so both are FORWARD here. The earlier
-         * prototype chassis (and the 2025 robot) used REVERSED/REVERSED.
-         */
+        /** Pod encoder directions; also overwritten from the {@link ChassisProfile} at construction. */
         public GoBildaPinpointDriver.EncoderDirection xDirection =
                 GoBildaPinpointDriver.EncoderDirection.FORWARD;
         public GoBildaPinpointDriver.EncoderDirection yDirection =
@@ -70,6 +65,11 @@ public final class PinpointLocalizer implements Localizer {
     public PinpointLocalizer(HardwareMap hardwareMap, Pose2d initialPose) {
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 
+        ChassisProfile profile = ChassisProfile.detect(hardwareMap);
+        PARAMS.xOffsetMM = profile.xOffsetMM;
+        PARAMS.yOffsetMM = profile.yOffsetMM;
+        PARAMS.xDirection = profile.podXDirection;
+        PARAMS.yDirection = profile.podYDirection;
         applyParams();
 
         // Zeroes the position and recalibrates the IMU - the robot must be stationary.

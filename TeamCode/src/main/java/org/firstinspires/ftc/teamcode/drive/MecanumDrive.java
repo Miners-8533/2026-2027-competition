@@ -31,18 +31,10 @@ public final class MecanumDrive {
 
     public static Params PARAMS = new Params();
 
-    /**
-     * Directions that make a positive power turn each wheel so the robot is driven forward.
-     * Per chassis. Currently set for the first draft of the new chassis (left REVERSE, right
-     * FORWARD, the same pair as the 2025 robot). The earlier prototype chassis needed the
-     * opposite pair (left FORWARD, right REVERSE): Motor Map Test showed every wheel of it
-     * driving the robot backward with this one. Rerun Motor Map Test on any new chassis.
-     */
-    public static final DcMotorSimple.Direction LEFT_DIRECTION = DcMotorSimple.Direction.REVERSE;
-    public static final DcMotorSimple.Direction RIGHT_DIRECTION = DcMotorSimple.Direction.FORWARD;
-
     public final DcMotorEx leftFront, leftBack, rightFront, rightBack;
     public final Localizer localizer;
+    /** Per-chassis values (motor directions here, pod settings in the localizer), picked by hub. */
+    public final ChassisProfile profile;
 
     private PoseVelocity2d lastCommand = PoseVelocity2d.zero();
 
@@ -57,10 +49,11 @@ public final class MecanumDrive {
         rightFront = hardwareMap.get(DcMotorEx.class, "rightFront");
         rightBack = hardwareMap.get(DcMotorEx.class, "rightBack");
 
-        leftFront.setDirection(LEFT_DIRECTION);
-        leftBack.setDirection(LEFT_DIRECTION);
-        rightFront.setDirection(RIGHT_DIRECTION);
-        rightBack.setDirection(RIGHT_DIRECTION);
+        profile = ChassisProfile.detect(hardwareMap);
+        leftFront.setDirection(profile.leftDirection);
+        leftBack.setDirection(profile.leftDirection);
+        rightFront.setDirection(profile.rightDirection);
+        rightBack.setDirection(profile.rightDirection);
 
         for (DcMotorEx m : new DcMotorEx[]{leftFront, leftBack, rightFront, rightBack}) {
             m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);

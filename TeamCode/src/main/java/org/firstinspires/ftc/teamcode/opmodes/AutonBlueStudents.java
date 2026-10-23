@@ -6,6 +6,7 @@ import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
+import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
@@ -37,9 +38,9 @@ import org.firstinspires.ftc.teamcode.motion.SleepAction;
  *      FLOWER, intake OFF, collecting its 4 POLLEN.
  *   7. Back to the shooting spot, shoot 4 again (8 equivalents in the cell, tip 2). End.
  *
- * Wall-touching coordinates come from ROBOT_DEPTH_IN: a robot of depth D touching a wall has its
- * center D/2 from it, so "rear wall" is X = -(72 - D/2) and the corner pickup is
- * Y = 72 - D/2. The students' notes used +-64 (a 16 in robot); our 18 in robot gives +-63.
+ * Wall-touching coordinates come from the chassis profile's robot depth: a robot of depth D
+ * touching a wall has its center D/2 from it, so "rear wall" is X = -(72 - D/2) and the corner
+ * pickup is Y = 72 - D/2. The students' notes used +-64 (a 16 in robot); an 18 in robot gives +-63.
  *
  * Heads-up for the first run: rotating a 14x18 in robot in place at a wall swings its corners
  * about 11.4 in from its center, more than the 9 in to the wall, so step 2 can clip the wall.
@@ -52,7 +53,6 @@ public class AutonBlueStudents extends LinearOpMode {
 
     private static final double FIELD_HALF_IN = 72.0;
 
-    public static double ROBOT_DEPTH_IN = 18.0;
     public static double TURN_CLEARANCE_IN = 0.0;
     public static double GARDEN_HEADING_DEG = -90.0;   // back intake leads toward +Y; 90 = shooter end leads
 
@@ -79,7 +79,8 @@ public class AutonBlueStudents extends LinearOpMode {
     public void runOpMode() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        double wall = FIELD_HALF_IN - ROBOT_DEPTH_IN / 2.0;
+        ChassisProfile profile = ChassisProfile.detect(hardwareMap);
+        double wall = FIELD_HALF_IN - profile.robotDepthIn / 2.0;
 
         Pose2d start = pose(-wall, 16, 0);
         Pose2d facingBlue = pose(-wall + TURN_CLEARANCE_IN, 16, GARDEN_HEADING_DEG);
@@ -100,6 +101,7 @@ public class AutonBlueStudents extends LinearOpMode {
                     && Math.hypot(p.position.x - start.position.x, p.position.y - start.position.y) < 1.5
                     && Math.abs(Math.toDegrees(Rotation2d.normalize(p.heading.toDouble() - start.heading.toDouble()))) < 3.0;
             telemetry.addLine("Auton - Blue Students. Rear wall at Y=16, facing +X. Keep still.");
+            telemetry.addData("Chassis profile", profile.label());
             telemetry.addData("Pinpoint status", loc.getDeviceStatus());
             telemetry.addData("Pinpoint pose (in, in, deg)", "%.2f, %.2f, %.1f",
                     p.position.x, p.position.y, p.heading.toDegrees());

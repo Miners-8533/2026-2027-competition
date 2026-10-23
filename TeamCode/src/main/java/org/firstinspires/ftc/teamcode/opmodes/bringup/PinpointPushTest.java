@@ -105,11 +105,11 @@ public class PinpointPushTest extends LinearOpMode {
         boolean onX = Math.abs(dx) >= Math.abs(dy);
         if (forward) {
             if (onX && dx > 0) return "PASS  forward registered as +X";
-            if (onX) return "FAIL  forward registered as -X: flip PinpointLocalizer.PARAMS.xDirection";
+            if (onX) return "FAIL  forward registered as -X: flip podXDirection in this chassis's ChassisProfile (or PARAMS.xDirection in the Dashboard to try it)";
             return "FAIL  forward registered on Y: the X and Y pods look swapped";
         }
         if (!onX && dy > 0) return "PASS  left registered as +Y";
-        if (!onX) return "FAIL  left registered as -Y: flip PinpointLocalizer.PARAMS.yDirection";
+        if (!onX) return "FAIL  left registered as -Y: flip podYDirection in this chassis's ChassisProfile (or PARAMS.yDirection in the Dashboard to try it)";
         return "FAIL  left registered on X: the X and Y pods look swapped";
     }
 }
