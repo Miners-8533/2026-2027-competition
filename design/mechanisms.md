@@ -106,13 +106,17 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 
 **Verification:** **Depollinator Test** commands nothing until you jog, then finds the stowed and deployed position of each servo by jogging, records them, and tests the slewed deploy and stow motion. It prints the values to paste into `ChassisProfile`.
 
-## Cross-actuator rules (proposed)
+## Cross-actuator rules (confirmed 2026-10-22)
 
-1. The intake runs only while the gate is at HOLD, because HOLD is what limits capacity to 4.
-2. Deploying the depollinator turns the intake on. Stowing turns it off, unless the driver is holding intake.
-3. The flywheel must be up to speed before a salvo starts (first ball only).
-4. A rejection is a gate reverse plus an intake outtake, together.
-5. Stowing is blocked or warned about while the robot is not clear of a flower.
+1. **Decided:** the intake runs only while the gate is at HOLD, because HOLD is what limits capacity to 4. If the driver holds intake while the gate is away from HOLD (mid-salvo or returning), the intake stays off until the gate is back at HOLD, then starts if the driver is still holding. (If the gate is not calibrated yet, this interlock cannot be enforced and is disabled with a warning.)
+2. **Decided:** deploying the depollinator turns the intake on. Stowing turns it off, unless the driver is holding intake. If the ramp is deployed while the gate is not at HOLD, the ramp deploys normally and the intake waits, then starts by itself when the gate returns to HOLD (rule 1 wins).
+3. **Decided:** the flywheel must be up to speed before a salvo starts (first ball only). A Fire pressed too early is queued: it spins up if needed and fires automatically the moment the flywheel is ready, with a timeout. One button does spin-up and fire.
+4. **Decided:** a rejection is a gate reverse plus an intake outtake, together. The outtake runs for the whole reject move (reverse, then forward back to HOLD), then the intake turns off.
+5. **Decided:** a stow requested while the robot is still under a flower is remembered, and the ramp stows automatically once the pose shows the robot has driven out. A warning shows meanwhile.
+
+Also decided: after a salvo finishes, the flywheel stops automatically a short moment later so the last ball clears, and spins up again only when the next Fire is requested. The integrated TeleOp splits the controls between a driver (gamepad 1, drives the chassis) and an operator (gamepad 2, runs the mechanisms), as last year.
+
+**Status:** the coordinator (`subsystems/Mechanisms.java`) and the integrated TeleOp (`opmodes/TeleOpDraft.java`) implement these rules. Any mechanism the robot does not have yet is simply skipped, so the coordinator works on a partially built chassis. Not yet run on hardware.
 
 ## Still to measure or decide
 

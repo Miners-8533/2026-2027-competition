@@ -31,6 +31,16 @@ public enum HiveTarget {
         return Math.hypot(x - pose.position.x, y - pose.position.y);
     }
 
+    /** The same HIVE's other CELL (rear / audience side), which becomes the open one after a tip. */
+    public HiveTarget otherSide() {
+        switch (this) {
+            case BLUE_REAR: return BLUE_AUDIENCE;
+            case BLUE_AUDIENCE: return BLUE_REAR;
+            case RED_REAR: return RED_AUDIENCE;
+            default: return RED_REAR;
+        }
+    }
+
     public HiveTarget next() {
         HiveTarget[] all = values();
         return all[(ordinal() + 1) % all.length];
