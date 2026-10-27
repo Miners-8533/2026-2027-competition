@@ -55,8 +55,13 @@ public class TransportGate {
     public static double ENCODER_SIGN = -1.0;
     /** Software velocity control for the sweep: feedforward 1 / MAX_TICKS_PER_SEC plus VELOCITY_KP on the error. Placeholders. */
     public static double MAX_TICKS_PER_SEC = 2600.0;
-    /** Power added per tick/s of slowdown: 0.002 adds 0.2 power for every 100 ticks/s the load pulls the sweep below target. */
-    public static double VELOCITY_KP = 0.002;
+    /**
+     * Power added per tick/s of slowdown. 0.0008 adds 0.08 power per 100 ticks/s the load pulls the sweep below
+     * target. 0.002 was jerky on the bench: the hub's speed reading is noisy, so a stiff loop chased the noise.
+     */
+    public static double VELOCITY_KP = 0.0008;
+    /** Time constant of the low-pass filter on the speed reading used by the sweep loop. Larger = smoother but slower to respond. */
+    public static double VELOCITY_FILTER_TAU_S = 0.1;
     /** A move that gains less than PROGRESS_MIN_GAIN_DEG in PROGRESS_TIMEOUT_S faults (wrong sign or direction, or a jam). */
     public static double PROGRESS_TIMEOUT_S = 1.5;
     public static double PROGRESS_MIN_GAIN_DEG = 2.0;
@@ -108,6 +113,8 @@ public class TransportGate {
     /** When not NaN, the hold target in unwrapped ticks (set by a reject to finish on the nearest HOLD, even if that is behind). */
     private double holdTargetOverrideTicks = Double.NaN;
     private boolean stalling = false;
+    private double velocityFiltered = 0.0;
+    private final ElapsedTime velocityTimer = new ElapsedTime();
     private String faultReason = "";
     private double progressBest = Double.NEGATIVE_INFINITY;
     private final ElapsedTime progressTimer = new ElapsedTime();
@@ -178,9 +185,9 @@ public class TransportGate {
         return ((angle % 360.0) + 360.0) % 360.0;
     }
 
-    /** Signed so that forward is positive, whatever the encoder wiring. */
+    /** Low-pass filtered speed, signed so that forward is positive, whatever the encoder wiring. Updated in update(). */
     public double getVelocityTicksPerSec() {
-        return ENCODER_SIGN * motor.getVelocity();
+        return velocityFiltered;
     }
 
     public double getCurrentAmps() {
@@ -256,6 +263,10 @@ public class TransportGate {
 
     /** Call once per loop. */
     public void update() {
+        double dt = Math.max(1e-3, Math.min(0.1, velocityTimer.seconds()));
+        velocityTimer.reset();
+        velocityFiltered += dt / (VELOCITY_FILTER_TAU_S + dt) * (ENCODER_SIGN * motor.getVelocity() - velocityFiltered);
+
         double unwrapped = getUnwrappedTicks();
         double ticksPerDeg = TICKS_PER_REV / 360.0;
 
