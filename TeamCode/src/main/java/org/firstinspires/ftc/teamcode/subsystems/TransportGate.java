@@ -38,13 +38,12 @@ public class TransportGate {
 
     /**
      * Encoder ticks for one full gate revolution. 0 = not calibrated. goBILDA publishes 751.8 counts per output
-     * revolution for the 26.9:1 motor, but on the bench five mark-to-mark turns read 5.088 revolutions at 751.8
-     * (about 3825 ticks), so the value here is 3825 / 5 = 765, and the old 751.8 made every salvo stop about 6
-     * degrees short. Verify with a 10-turn jog (Transport Gate Test, Back then B) and refine.
+     * revolution for the 26.9:1 motor and the bench agrees: ten mark-to-mark turns read 9.825 revolutions at 765,
+     * which is 751.6 per turn. (An earlier five-turn reading that suggested 765 was a mark-alignment error.)
      */
-    public static double TICKS_PER_REV = 765.0;
+    public static double TICKS_PER_REV = 751.8;
     /** Gate angle (degrees from HOLD) where the push sweep ends and the faster return starts. 0 = not set. */
-    public static double SWEEP_END_DEG = 0.0;
+    public static double SWEEP_END_DEG = 360.0;
 
     /**
      * +1 if the SDK encoder count rises when the arm moves forward (the way a positive power drives it), -1 if
@@ -67,11 +66,16 @@ public class TransportGate {
     public static double SWEEP_DEG_PER_SEC = 180.0;
     public static double RETURN_DEG_PER_SEC = 360.0;
     public static double CAPTURE_DEG = 30.0;
-    public static double REJECT_DEG = 90.0;
+    /** Reject reverses this far, then finishes onto the NEAREST HOLD (330 deg back leaves it 30 deg short of a full reverse turn). */
+    public static double REJECT_DEG = 330.0;
     public static double REJECT_POWER = 0.4;
 
     public static double HOLD_KP = 0.012;
     public static double HOLD_KD = 0.0008;
+    /** Breakaway power added in the direction of the hold output. Without it the hold stalls short of HOLD. Placeholder: tune. */
+    public static double HOLD_KS = 0.08;
+    /** Inside this many degrees of the hold target the motor is left alone (avoids hunting). */
+    public static double HOLD_DEADBAND_DEG = 1.0;
     public static double HOLD_MAX_POWER = 0.5;
     public static double HOLD_TOLERANCE_DEG = 2.0;
     public static double OVERSHOOT_TOL_DEG = 10.0;
@@ -100,6 +104,8 @@ public class TransportGate {
     private double salvoStartTicks = 0.0;
     private double rejectTargetTicks = 0.0;
     private double holdErrorDeg = Double.NaN;
+    /** When not NaN, the hold target in unwrapped ticks (set by a reject to finish on the nearest HOLD, even if that is behind). */
+    private double holdTargetOverrideTicks = Double.NaN;
     private boolean stalling = false;
     private String faultReason = "";
     private double progressBest = Double.NEGATIVE_INFINITY;
@@ -189,6 +195,7 @@ public class TransportGate {
     /** Return to (and hold) the nearest HOLD ahead. */
     public void hold() {
         state = State.HOLD;
+        holdTargetOverrideTicks = Double.NaN;
         holdPid.reset();
         resetProgress();
     }
@@ -210,7 +217,7 @@ public class TransportGate {
         resetProgress();
     }
 
-    /** Reverse by REJECT_DEG to reject an element, then return forward to HOLD. Ignored until calibrated. */
+    /** Reverse by REJECT_DEG to reject an element, then finish on the nearest HOLD (the one behind, for 330 deg). Ignored until calibrated. */
     public void startReject() {
         if (!isCalibrated() || state == State.STALLED) return;
         rejectTargetTicks = getUnwrappedTicks() - REJECT_DEG * TICKS_PER_REV / 360.0;
@@ -277,6 +284,7 @@ public class TransportGate {
             case REJECT:
                 if (unwrapped <= rejectTargetTicks) {
                     hold();
+                    holdTargetOverrideTicks = Math.round(unwrapped / TICKS_PER_REV) * TICKS_PER_REV;
                     updateHold(unwrapped, ticksPerDeg);
                 } else {
                     motor.setPower(-REJECT_POWER);
@@ -301,13 +309,16 @@ public class TransportGate {
             return;
         }
         double overshootTicks = OVERSHOOT_TOL_DEG * ticksPerDeg;
-        double targetTicks = Math.ceil((unwrapped - overshootTicks) / TICKS_PER_REV) * TICKS_PER_REV;
+        double targetTicks = Double.isNaN(holdTargetOverrideTicks)
+                ? Math.ceil((unwrapped - overshootTicks) / TICKS_PER_REV) * TICKS_PER_REV
+                : holdTargetOverrideTicks;
         holdErrorDeg = (targetTicks - unwrapped) / ticksPerDeg;
 
         holdPid.kP = HOLD_KP;
         holdPid.kD = HOLD_KD;
+        holdPid.kStatic = HOLD_KS;
         holdPid.maxOutput = HOLD_MAX_POWER;
-        double power = Math.abs(holdErrorDeg) < 0.5 ? 0.0 : holdPid.calculate(holdErrorDeg);
+        double power = Math.abs(holdErrorDeg) < HOLD_DEADBAND_DEG ? 0.0 : holdPid.calculate(holdErrorDeg);
         motor.setPower(power);
         if (Math.abs(holdErrorDeg) > PROGRESS_MIN_ERROR_DEG && Math.abs(power) > 0.1) {
             monitorProgress(-Math.abs(holdErrorDeg));

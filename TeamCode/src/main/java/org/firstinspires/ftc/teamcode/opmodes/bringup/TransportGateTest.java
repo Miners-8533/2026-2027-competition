@@ -21,7 +21,8 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *      Check the direction first: forward must be the way the arm pushes elements toward the flywheel.
  *      If not, flip gateDirection for this chassis in ChassisProfile.
  *   3. Jog to the angle where the push sweep should end (arm through the ramp, last element handed to the
- *      flywheel), press X: records SWEEP_END_DEG.
+ *      flywheel), press X: records SWEEP_END_DEG. If that is the HOLD mark itself (the sweep is the whole
+ *      turn) it records 360.
  *   4. Y runs a full salvo, RB runs a reject (reverse then forward to HOLD), LB returns to HOLD.
  *      D-pad up/down changes the sweep speed, left/right the return speed (30 deg/s per press).
  *   Options clears a stall. The recorded values last only for this session: copy the lines the
@@ -81,8 +82,11 @@ public class TransportGateTest extends LinearOpMode {
                 if (!gate.isCalibrated()) {
                     lastEvent = "X ignored: set TICKS_PER_REV first (B).";
                 } else {
-                    TransportGate.SWEEP_END_DEG = gate.getAngleDeg();
-                    lastEvent = String.format("SWEEP_END_DEG = %.1f", TransportGate.SWEEP_END_DEG);
+                    double angle = gate.getAngleDeg();
+                    boolean atHoldMark = angle < 5.0 || angle > 355.0;
+                    TransportGate.SWEEP_END_DEG = atHoldMark ? 360.0 : angle;
+                    lastEvent = String.format("SWEEP_END_DEG = %.1f%s", TransportGate.SWEEP_END_DEG,
+                            atHoldMark ? "  (at the HOLD mark: the sweep runs the whole turn)" : "");
                 }
             }
             if (gamepad1.yWasPressed()) {
