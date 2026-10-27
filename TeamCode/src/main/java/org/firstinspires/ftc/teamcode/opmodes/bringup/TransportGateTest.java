@@ -40,6 +40,7 @@ public class TransportGateTest extends LinearOpMode {
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         TransportGate gate = new TransportGate(hardwareMap, TransportGate.Reference.ASSUME_AT_HOLD);
+        gate.jog(0.0);   // do nothing until told: no automatic hold at start, so an unverified encoder sign cannot run away
         String lastEvent = "-";
 
         telemetry.addData("Chassis profile", profile.label());
@@ -101,6 +102,10 @@ public class TransportGateTest extends LinearOpMode {
 
             telemetry.addData("Chassis profile", profile.label());
             gate.log(telemetry);
+            if (gate.isCalibrated()) {
+                telemetry.addData("Revolutions (ticks / TICKS_PER_REV)", "%.3f   (jog N full turns to the mark: this should read N)",
+                        gate.getUnwrappedTicks() / TransportGate.TICKS_PER_REV);
+            }
             telemetry.addData("Last event", lastEvent);
             telemetry.addLine("--- copy into TransportGate.java when happy ---");
             telemetry.addLine(String.format("TICKS_PER_REV = %.1f;   SWEEP_END_DEG = %.1f;", TransportGate.TICKS_PER_REV, TransportGate.SWEEP_END_DEG));
