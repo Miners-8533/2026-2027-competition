@@ -54,8 +54,9 @@ public class TransportGate {
      */
     public static double ENCODER_SIGN = -1.0;
     /** Software velocity control for the sweep: feedforward 1 / MAX_TICKS_PER_SEC plus VELOCITY_KP on the error. Placeholders. */
-    public static double MAX_TICKS_PER_SEC = 2300.0;
-    public static double VELOCITY_KP = 0.0003;
+    public static double MAX_TICKS_PER_SEC = 2600.0;
+    /** Power added per tick/s of slowdown: 0.002 adds 0.2 power for every 100 ticks/s the load pulls the sweep below target. */
+    public static double VELOCITY_KP = 0.002;
     /** A move that gains less than PROGRESS_MIN_GAIN_DEG in PROGRESS_TIMEOUT_S faults (wrong sign or direction, or a jam). */
     public static double PROGRESS_TIMEOUT_S = 1.5;
     public static double PROGRESS_MIN_GAIN_DEG = 2.0;
@@ -63,12 +64,12 @@ public class TransportGate {
     public static double PROGRESS_MIN_ERROR_DEG = 15.0;
 
     // placeholders: tune on the rig
-    public static double SWEEP_DEG_PER_SEC = 180.0;
-    public static double RETURN_DEG_PER_SEC = 360.0;
+    public static double SWEEP_DEG_PER_SEC = 360.0;
+    public static double RETURN_DEG_PER_SEC = 540.0;
     public static double CAPTURE_DEG = 30.0;
     /** Reject reverses this far, then finishes onto the NEAREST HOLD (330 deg back leaves it 30 deg short of a full reverse turn). */
     public static double REJECT_DEG = 330.0;
-    public static double REJECT_POWER = 0.4;
+    public static double REJECT_POWER = 0.6;
 
     public static double HOLD_KP = 0.012;
     public static double HOLD_KD = 0.0008;
@@ -76,7 +77,7 @@ public class TransportGate {
     public static double HOLD_KS = 0.08;
     /** Inside this many degrees of the hold target the motor is left alone (avoids hunting). */
     public static double HOLD_DEADBAND_DEG = 1.0;
-    public static double HOLD_MAX_POWER = 0.5;
+    public static double HOLD_MAX_POWER = 0.7;
     public static double HOLD_TOLERANCE_DEG = 2.0;
     public static double OVERSHOOT_TOL_DEG = 10.0;
 
@@ -349,7 +350,7 @@ public class TransportGate {
         telemetry.addData("Gate angle (deg from HOLD)", isCalibrated() ? String.format("%.1f", getAngleDeg()) : "not calibrated (TICKS_PER_REV = 0)");
         telemetry.addData("Gate ticks (unwrapped)", "%.0f   velocity %.0f ticks/s", getUnwrappedTicks(), getVelocityTicksPerSec());
         telemetry.addData("Gate hold error (deg)", Double.isNaN(holdErrorDeg) ? "-" : String.format("%.1f", holdErrorDeg));
-        telemetry.addData("Gate current (A)", "%.2f", getCurrentAmps());
+        telemetry.addData("Gate power / current", "%+.2f / %.2f A", motor.getPower(), getCurrentAmps());
         telemetry.addData("Gate ENCODER_SIGN", "%+.0f", ENCODER_SIGN);
         if (isStalled()) telemetry.addLine("GATE FAULT (Options clears): " + faultReason);
     }
