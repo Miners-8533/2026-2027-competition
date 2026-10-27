@@ -46,6 +46,23 @@ public class TransportGate {
     /** Gate angle (degrees from HOLD) where the push sweep ends and the faster return starts. 0 = not set. */
     public static double SWEEP_END_DEG = 0.0;
 
+    /**
+     * +1 if the SDK encoder count rises when the arm moves forward (the way a positive power drives it), -1 if
+     * it falls. The gate bench's encoder polarity opposes its motor's (a positive command counted DOWN), and
+     * flipping the motor direction cannot fix that because the SDK reverses power and encoder together. The
+     * gate runs WITHOUT the hub's closed-loop encoder modes (those would run away with the wrong sign), so
+     * this only affects the ticks, angle and velocity this class reads. Transport Gate Test shows a hint.
+     */
+    public static double ENCODER_SIGN = -1.0;
+    /** Software velocity control for the sweep: feedforward 1 / MAX_TICKS_PER_SEC plus VELOCITY_KP on the error. Placeholders. */
+    public static double MAX_TICKS_PER_SEC = 2300.0;
+    public static double VELOCITY_KP = 0.0003;
+    /** A move that gains less than PROGRESS_MIN_GAIN_DEG in PROGRESS_TIMEOUT_S faults (wrong sign or direction, or a jam). */
+    public static double PROGRESS_TIMEOUT_S = 1.5;
+    public static double PROGRESS_MIN_GAIN_DEG = 2.0;
+    /** Hold is only checked for progress while farther than this from its target. */
+    public static double PROGRESS_MIN_ERROR_DEG = 15.0;
+
     // placeholders: tune on the rig
     public static double SWEEP_DEG_PER_SEC = 180.0;
     public static double RETURN_DEG_PER_SEC = 360.0;
@@ -84,13 +101,16 @@ public class TransportGate {
     private double rejectTargetTicks = 0.0;
     private double holdErrorDeg = Double.NaN;
     private boolean stalling = false;
+    private String faultReason = "";
+    private double progressBest = Double.NEGATIVE_INFINITY;
+    private final ElapsedTime progressTimer = new ElapsedTime();
 
     public TransportGate(HardwareMap hardwareMap, Reference reference) {
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         motor = hardwareMap.get(DcMotorEx.class, "gate");
         motor.setDirection(profile.gateDirection);
         motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         motor.setPower(0.0);
 
         int raw = motor.getCurrentPosition();
@@ -136,7 +156,12 @@ public class TransportGate {
 
     /** Ticks forward of HOLD since the zero, accumulating across revolutions. */
     public double getUnwrappedTicks() {
-        return motor.getCurrentPosition() - homeRaw;
+        return ENCODER_SIGN * (motor.getCurrentPosition() - homeRaw);
+    }
+
+    /** The SDK's encoder count, before ENCODER_SIGN and the HOLD zero (bring-up). */
+    public int getRawTicks() {
+        return motor.getCurrentPosition();
     }
 
     /** Gate angle in [0, 360) from HOLD, or NaN until TICKS_PER_REV is set. */
@@ -146,8 +171,9 @@ public class TransportGate {
         return ((angle % 360.0) + 360.0) % 360.0;
     }
 
+    /** Signed so that forward is positive, whatever the encoder wiring. */
     public double getVelocityTicksPerSec() {
-        return motor.getVelocity();
+        return ENCODER_SIGN * motor.getVelocity();
     }
 
     public double getCurrentAmps() {
@@ -164,6 +190,7 @@ public class TransportGate {
     public void hold() {
         state = State.HOLD;
         holdPid.reset();
+        resetProgress();
     }
 
     /** Open-loop jog for bring-up and calibration; positive = forward. Not for match use. */
@@ -180,6 +207,7 @@ public class TransportGate {
         salvoStartTicks = Math.floor((getUnwrappedTicks() + tol) / TICKS_PER_REV) * TICKS_PER_REV;
         state = State.SALVO;
         moveTimer.reset();
+        resetProgress();
     }
 
     /** Reverse by REJECT_DEG to reject an element, then return forward to HOLD. Ignored until calibrated. */
@@ -188,11 +216,34 @@ public class TransportGate {
         rejectTargetTicks = getUnwrappedTicks() - REJECT_DEG * TICKS_PER_REV / 360.0;
         state = State.REJECT;
         moveTimer.reset();
+        resetProgress();
     }
 
     public void clearStall() {
         stalling = false;
+        faultReason = "";
         hold();
+    }
+
+    private void resetProgress() {
+        progressBest = Double.NEGATIVE_INFINITY;
+        progressTimer.reset();
+    }
+
+    /** metricDeg must INCREASE as the move succeeds. Faults if it stops gaining. */
+    private void monitorProgress(double metricDeg) {
+        if (metricDeg > progressBest + PROGRESS_MIN_GAIN_DEG) {
+            progressBest = metricDeg;
+            progressTimer.reset();
+        } else if (progressTimer.seconds() > PROGRESS_TIMEOUT_S) {
+            fault("not converging: check ENCODER_SIGN and gateDirection, or a jam");
+        }
+    }
+
+    private void fault(String reason) {
+        faultReason = reason;
+        state = State.STALLED;
+        motor.setPower(0.0);
     }
 
     /** Call once per loop. */
@@ -216,7 +267,10 @@ public class TransportGate {
                     updateHold(unwrapped, ticksPerDeg);
                 } else {
                     double degPerSec = unwrapped < sweepEndTicks ? SWEEP_DEG_PER_SEC : RETURN_DEG_PER_SEC;
-                    motor.setVelocity(degPerSec * ticksPerDeg);
+                    double targetTps = degPerSec * ticksPerDeg;
+                    double power = targetTps / MAX_TICKS_PER_SEC + VELOCITY_KP * (targetTps - getVelocityTicksPerSec());
+                    motor.setPower(Math.max(0.0, Math.min(1.0, power)));
+                    monitorProgress(unwrapped / ticksPerDeg);
                 }
                 break;
             }
@@ -226,6 +280,7 @@ public class TransportGate {
                     updateHold(unwrapped, ticksPerDeg);
                 } else {
                     motor.setPower(-REJECT_POWER);
+                    monitorProgress(-unwrapped / ticksPerDeg);
                 }
                 break;
             case JOG:
@@ -252,7 +307,13 @@ public class TransportGate {
         holdPid.kP = HOLD_KP;
         holdPid.kD = HOLD_KD;
         holdPid.maxOutput = HOLD_MAX_POWER;
-        motor.setPower(Math.abs(holdErrorDeg) < 0.5 ? 0.0 : holdPid.calculate(holdErrorDeg));
+        double power = Math.abs(holdErrorDeg) < 0.5 ? 0.0 : holdPid.calculate(holdErrorDeg);
+        motor.setPower(power);
+        if (Math.abs(holdErrorDeg) > PROGRESS_MIN_ERROR_DEG && Math.abs(power) > 0.1) {
+            monitorProgress(-Math.abs(holdErrorDeg));
+        } else {
+            resetProgress();
+        }
     }
 
     private void detectStall() {
@@ -268,8 +329,7 @@ public class TransportGate {
             stalling = true;
             stallTimer.reset();
         } else if (stallTimer.seconds() > STALL_TIME_S) {
-            state = State.STALLED;
-            motor.setPower(0.0);
+            fault("blocked: high current and no motion");
         }
     }
 
@@ -278,7 +338,9 @@ public class TransportGate {
         telemetry.addData("Gate angle (deg from HOLD)", isCalibrated() ? String.format("%.1f", getAngleDeg()) : "not calibrated (TICKS_PER_REV = 0)");
         telemetry.addData("Gate ticks (unwrapped)", "%.0f   velocity %.0f ticks/s", getUnwrappedTicks(), getVelocityTicksPerSec());
         telemetry.addData("Gate hold error (deg)", Double.isNaN(holdErrorDeg) ? "-" : String.format("%.1f", holdErrorDeg));
-        telemetry.addData("Gate current (A)", "%.2f%s", getCurrentAmps(), isStalled() ? "   STALLED" : "");
+        telemetry.addData("Gate current (A)", "%.2f", getCurrentAmps());
+        telemetry.addData("Gate ENCODER_SIGN", "%+.0f", ENCODER_SIGN);
+        if (isStalled()) telemetry.addLine("GATE FAULT (Options clears): " + faultReason);
     }
 
     /** Action: run one salvo and finish when the gate is back at HOLD, stalls, or times out. */

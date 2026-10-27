@@ -42,6 +42,8 @@ public class TransportGateTest extends LinearOpMode {
         TransportGate gate = new TransportGate(hardwareMap, TransportGate.Reference.ASSUME_AT_HOLD);
         gate.jog(0.0);   // do nothing until told: no automatic hold at start, so an unverified encoder sign cannot run away
         String lastEvent = "-";
+        int lastRaw = gate.getRawTicks();
+        double forwardRaw = 0;
 
         telemetry.addData("Chassis profile", profile.label());
         telemetry.addLine("Transport Gate Test. The gate is assumed to be at HOLD right now.");
@@ -50,6 +52,9 @@ public class TransportGateTest extends LinearOpMode {
 
         while (opModeIsActive()) {
             double stick = -gamepad1.left_stick_y;
+            int raw = gate.getRawTicks();
+            if (stick > 0.05) forwardRaw += raw - lastRaw;
+            lastRaw = raw;
             if (Math.abs(stick) > 0.05) {
                 gate.jog(stick * JOG_MAX_POWER);
             } else if (gate.getState() == TransportGate.State.JOG) {
@@ -102,6 +107,15 @@ public class TransportGateTest extends LinearOpMode {
 
             telemetry.addData("Chassis profile", profile.label());
             gate.log(telemetry);
+            if (Math.abs(forwardRaw) < 200) {
+                telemetry.addData("Encoder sign check", "jog forward (stick up) a bit; raw movement so far %.0f ticks", forwardRaw);
+            } else if (forwardRaw < 0 && TransportGate.ENCODER_SIGN > 0) {
+                telemetry.addData("Encoder sign check", "WRONG: the encoder counts DOWN going forward. Set TransportGate.ENCODER_SIGN = -1.");
+            } else if (forwardRaw > 0 && TransportGate.ENCODER_SIGN < 0) {
+                telemetry.addData("Encoder sign check", "WRONG: the encoder counts UP going forward. Set TransportGate.ENCODER_SIGN = +1.");
+            } else {
+                telemetry.addData("Encoder sign check", "OK (raw %.0f ticks forward, ENCODER_SIGN %+.0f)", forwardRaw, TransportGate.ENCODER_SIGN);
+            }
             if (gate.isCalibrated()) {
                 telemetry.addData("Revolutions (ticks / TICKS_PER_REV)", "%.3f   (jog N full turns to the mark: this should read N)",
                         gate.getUnwrappedTicks() / TransportGate.TICKS_PER_REV);
