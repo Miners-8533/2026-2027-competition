@@ -16,7 +16,8 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *
  *   1. Jog the arm (left stick) to the position where its back limits the transport to 4 elements. This
  *      is HOLD. Press A to declare "HOLD is here".
- *   2. Jog FORWARD exactly one full revolution back to the same mark, press B: records TICKS_PER_REV.
+ *   2. Jog FORWARD a whole number of full revolutions back to the same mark, press B: records TICKS_PER_REV.
+ *      Back picks 1, 5 or 10 revolutions; more revolutions is more precise (a mark misalignment is spread over them).
  *      Check the direction first: forward must be the way the arm pushes elements toward the flywheel.
  *      If not, flip gateDirection for this chassis in ChassisProfile.
  *   3. Jog to the angle where the push sweep should end (arm through the ramp, last element handed to the
@@ -44,6 +45,7 @@ public class TransportGateTest extends LinearOpMode {
         String lastEvent = "-";
         int lastRaw = gate.getRawTicks();
         double forwardRaw = 0;
+        int calRevs = 1;
 
         telemetry.addData("Chassis profile", profile.label());
         telemetry.addLine("Transport Gate Test. The gate is assumed to be at HOLD right now.");
@@ -65,13 +67,14 @@ public class TransportGateTest extends LinearOpMode {
                 gate.markHoldHere();
                 lastEvent = "HOLD marked here (zero set).";
             }
+            if (gamepad1.backWasPressed()) calRevs = calRevs == 1 ? 5 : calRevs == 5 ? 10 : 1;
             if (gamepad1.bWasPressed()) {
                 double ticks = Math.abs(gate.getUnwrappedTicks());
                 if (ticks < 100) {
-                    lastEvent = "B ignored: jog one full revolution forward from HOLD first.";
+                    lastEvent = "B ignored: jog the arm forward from the HOLD mark first.";
                 } else {
-                    TransportGate.TICKS_PER_REV = ticks;
-                    lastEvent = String.format("TICKS_PER_REV = %.1f", ticks);
+                    TransportGate.TICKS_PER_REV = ticks / calRevs;
+                    lastEvent = String.format("TICKS_PER_REV = %.1f  (%.0f ticks over %d revolutions)", ticks / calRevs, ticks, calRevs);
                 }
             }
             if (gamepad1.xWasPressed()) {
@@ -120,6 +123,7 @@ public class TransportGateTest extends LinearOpMode {
                 telemetry.addData("Revolutions (ticks / TICKS_PER_REV)", "%.3f   (jog N full turns to the mark: this should read N)",
                         gate.getUnwrappedTicks() / TransportGate.TICKS_PER_REV);
             }
+            telemetry.addData("B records ticks per rev over", "%d revolution(s)   (Back changes it: 1, 5, 10)", calRevs);
             telemetry.addData("Last event", lastEvent);
             telemetry.addLine("--- copy into TransportGate.java when happy ---");
             telemetry.addLine(String.format("TICKS_PER_REV = %.1f;   SWEEP_END_DEG = %.1f;", TransportGate.TICKS_PER_REV, TransportGate.SWEEP_END_DEG));

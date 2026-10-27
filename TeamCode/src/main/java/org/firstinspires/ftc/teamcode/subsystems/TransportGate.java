@@ -37,12 +37,12 @@ import org.firstinspires.ftc.teamcode.motion.PidController;
 public class TransportGate {
 
     /**
-     * Encoder ticks for one full gate revolution. 0 = not calibrated. Starts at goBILDA's published 751.8 counts per
-     * output revolution for the 26.9:1 motor, which is right if nothing but 1:1 follows the motor. The first bench run
-     * read about 840 by eye with one revolution against a mark; verify with a multi-revolution jog before trusting
-     * either number.
+     * Encoder ticks for one full gate revolution. 0 = not calibrated. goBILDA publishes 751.8 counts per output
+     * revolution for the 26.9:1 motor, but on the bench five mark-to-mark turns read 5.088 revolutions at 751.8
+     * (about 3825 ticks), so the value here is 3825 / 5 = 765, and the old 751.8 made every salvo stop about 6
+     * degrees short. Verify with a 10-turn jog (Transport Gate Test, Back then B) and refine.
      */
-    public static double TICKS_PER_REV = 751.8;
+    public static double TICKS_PER_REV = 765.0;
     /** Gate angle (degrees from HOLD) where the push sweep ends and the faster return starts. 0 = not set. */
     public static double SWEEP_END_DEG = 0.0;
 
