@@ -66,8 +66,6 @@ public class TransportGate {
     public static double STOP_SPEED_TICKS_PER_SEC = 30.0;
     /** If it comes to rest short of HOLD by more than the tolerance but less than this, it nudges forward. 0 turns the nudge off. */
     public static double AUTO_CORRECT_MAX_DEG = 45.0;
-    /** How many salvos can be chained back to back (the running one plus queued ones). */
-    public static int MAX_CHAINED_SALVOS = 3;
 
     public static double STALL_CURRENT_A = 6.0;
     public static double STALL_TIME_S = 0.3;
@@ -99,6 +97,9 @@ public class TransportGate {
     private boolean stalling = false;
     private String faultReason = "";
     private double progressBest = Double.NEGATIVE_INFINITY;
+    private double moveStartTicks = 0.0;
+    private String lastCommand = "none yet";
+    private String lastResult = "-";
 
     public TransportGate(HardwareMap hardwareMap, Reference reference) {
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
@@ -209,35 +210,37 @@ public class TransportGate {
         jogPower = Math.max(-1.0, Math.min(1.0, power));
     }
 
-    /**
-     * One full forward turn, from the nearest HOLD to the next. Ignored until calibrated, or while faulted.
-     * Called while a salvo is already running (or a return to HOLD), it CHAINS: one more revolution is added to
-     * the running target, so back-to-back salvos are one continuous move that only stops on the last one, with
-     * no position re-derived between them. At most MAX_CHAINED_SALVOS are queued at once.
-     */
+    /** One full forward turn, from the nearest HOLD to the next. Ignored until calibrated, or while faulted. */
     public void startSalvo() {
-        if (!isCalibrated() || state == State.STALLED) return;
-        if (state == State.RETURN) {
-            targetTicks += TICKS_PER_REV;
-            state = State.SALVO;
-        } else if (state == State.SALVO) {
-            if (getSalvosRemaining() < MAX_CHAINED_SALVOS) targetTicks += TICKS_PER_REV;
-        } else {
-            beginForwardMove(State.SALVO, nearestHoldTicks() + TICKS_PER_REV);
+        if (!isCalibrated()) {
+            lastCommand = "salvo IGNORED: TICKS_PER_REV is not set";
+            return;
         }
-    }
-
-    /** Salvos still to run, including the one in progress (0 when no salvo is running). */
-    public int getSalvosRemaining() {
-        if (state != State.SALVO || !isCalibrated()) return 0;
-        return Math.max(0, (int) Math.ceil((targetTicks - getUnwrappedTicks()) / TICKS_PER_REV - 0.02));
+        if (state == State.STALLED) {
+            lastCommand = "salvo IGNORED: the gate is faulted (" + faultReason + "); clear it first";
+            return;
+        }
+        double target = nearestHoldTicks() + TICKS_PER_REV;
+        lastCommand = String.format("salvo from %s, %+.1f deg to nearest HOLD, now %.0f ticks, target %.0f ticks",
+                state, getHoldErrorDeg(), getUnwrappedTicks(), target);
+        beginForwardMove(State.SALVO, target);
     }
 
     /** Reverse about REJECT_DEG to reject an element, finishing on the nearest HOLD behind. Ignored until calibrated, or while faulted. */
     public void startReject() {
-        if (!isCalibrated() || state == State.STALLED) return;
+        if (!isCalibrated()) {
+            lastCommand = "reject IGNORED: TICKS_PER_REV is not set";
+            return;
+        }
+        if (state == State.STALLED) {
+            lastCommand = "reject IGNORED: the gate is faulted (" + faultReason + "); clear it first";
+            return;
+        }
         targetTicks = Math.round((getUnwrappedTicks() - REJECT_DEG * TICKS_PER_REV / 360.0) / TICKS_PER_REV) * TICKS_PER_REV;
+        lastCommand = String.format("reject from %s, %+.1f deg to nearest HOLD, now %.0f ticks, target %.0f ticks",
+                state, getHoldErrorDeg(), getUnwrappedTicks(), targetTicks);
         state = State.REJECT;
+        moveStartTicks = getUnwrappedTicks();
         moveTimer.reset();
         resetProgress();
     }
@@ -251,8 +254,15 @@ public class TransportGate {
     private void beginForwardMove(State moveState, double target) {
         targetTicks = target;
         state = moveState;
+        moveStartTicks = getUnwrappedTicks();
         moveTimer.reset();
         resetProgress();
+    }
+
+    /** Remember how the move that is ending ended (shown on screen so a move that does nothing can be explained). */
+    private void recordFinish(double remainingDeg) {
+        lastResult = String.format("%s cut off by threshold after %.2f s: travelled %.0f deg, %.1f deg left to target at the cut",
+                state, moveTimer.seconds(), Math.abs(getUnwrappedTicks() - moveStartTicks) * 360.0 / TICKS_PER_REV, remainingDeg);
     }
 
     private void stopHere() {
@@ -278,6 +288,8 @@ public class TransportGate {
     }
 
     private void fault(String reason) {
+        lastResult = String.format("%s FAULT after %.2f s: %s (travelled %.0f deg)", state, moveTimer.seconds(), reason,
+                Math.abs(getUnwrappedTicks() - moveStartTicks) * 360.0 / TICKS_PER_REV);
         faultReason = reason;
         state = State.STALLED;
         motor.setPower(0.0);
@@ -307,6 +319,7 @@ public class TransportGate {
             case RETURN: {
                 double remainingDeg = (targetTicks - unwrapped) / ticksPerDeg;
                 if (remainingDeg <= STOP_EARLY_DEG) {
+                    recordFinish(remainingDeg);
                     stopHere();
                 } else {
                     motor.setPower(APPROACH_DEG > 0.0 && remainingDeg <= APPROACH_DEG ? APPROACH_POWER : SWEEP_POWER);
@@ -317,6 +330,7 @@ public class TransportGate {
             case REJECT: {
                 double remainingDeg = (unwrapped - targetTicks) / ticksPerDeg;
                 if (remainingDeg <= STOP_EARLY_DEG) {
+                    recordFinish(remainingDeg);
                     stopHere();
                 } else {
                     motor.setPower(-(APPROACH_DEG > 0.0 && remainingDeg <= APPROACH_DEG ? APPROACH_POWER : REJECT_POWER));
@@ -359,7 +373,8 @@ public class TransportGate {
         telemetry.addData("Error to nearest HOLD (deg)", Double.isNaN(getHoldErrorDeg()) ? "-"
                 : String.format("%+.1f   (+ = short of it, - = past it)", getHoldErrorDeg()));
         telemetry.addData("Gate power / current", "%+.2f / %.2f A", motor.getPower(), getCurrentAmps());
-        telemetry.addData("Gate salvos remaining", getSalvosRemaining());
+        telemetry.addData("Gate last command", lastCommand);
+        telemetry.addData("Gate last move result", lastResult);
         telemetry.addData("Gate ENCODER_SIGN", "%+.0f", ENCODER_SIGN);
         if (isStalled()) telemetry.addLine("GATE FAULT (Options clears): " + faultReason);
     }
