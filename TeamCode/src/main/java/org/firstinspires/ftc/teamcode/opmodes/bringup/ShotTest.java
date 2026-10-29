@@ -20,6 +20,8 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   D-pad up / down    shot speed +/- SPEED_STEP ticks/s     D-pad left / right: -/+ COARSE_STEP
  *   Y                  FIRE: spins up if needed, then runs a salvo as soon as the flywheel is ready
  *                      and the gate is at HOLD (gives up after FIRE_TIMEOUT_SEC)
+ *                      Y or RB again WHILE a salvo runs chains another one: the gate keeps turning with no stop
+ *                      between (up to TransportGate.MAX_CHAINED_SALVOS), and stops only after the last
  *   RB                 salvo NOW, without waiting for the flywheel (a dry run of the gate)
  *   X                  reverse: the gate's reject move (330 deg back onto the nearest HOLD)
  *   LB                 gate back to the nearest HOLD
@@ -61,7 +63,7 @@ public class ShotTest extends LinearOpMode {
         boolean shotActive = false;
         double shotStartSpeed = 0, shotMinSpeed = 0, shotSetpoint = 0;
         ElapsedTime shotTimer = new ElapsedTime();
-        int shots = 0;
+        int shots = 0, shotSalvos = 0;
         String lastShot = "-";
         String lastEvent = "-";
 
@@ -104,12 +106,17 @@ public class ShotTest extends LinearOpMode {
             }
             if (gamepad1.rightBumperWasPressed()) {
                 if (gate.getState() == TransportGate.State.JOG) gate.hold();
+                if (gate.getState() == TransportGate.State.SALVO) shotSalvos++;
                 gate.startSalvo();
                 lastEvent = "Dry salvo started (not waiting for the flywheel).";
             }
             if (gamepad1.yWasPressed()) {
                 if (!gate.isCalibrated()) {
                     lastEvent = "Fire ignored: the gate is not calibrated.";
+                } else if (gate.getState() == TransportGate.State.SALVO) {
+                    gate.startSalvo();
+                    shotSalvos++;
+                    lastEvent = "Salvo chained: " + gate.getSalvosRemaining() + " remaining, no stop between.";
                 } else {
                     if (gate.getState() == TransportGate.State.JOG) gate.hold();
                     spinning = true;
@@ -137,6 +144,7 @@ public class ShotTest extends LinearOpMode {
                     shotSetpoint = setpoint;
                     shotTimer.reset();
                     gate.startSalvo();
+                    shotSalvos = 1;
                     shotActive = true;
                     fireQueued = false;
                     lastEvent = "Salvo started.";
@@ -152,8 +160,8 @@ public class ShotTest extends LinearOpMode {
                 if (salvoDone) {
                     shotActive = false;
                     shots++;
-                    lastShot = String.format("#%d  setpoint %.0f, at release %.0f, lowest %.0f (%.0f%% of setpoint), salvo %.2f s%s",
-                            shots, shotSetpoint, shotStartSpeed, shotMinSpeed, 100.0 * shotMinSpeed / Math.max(shotSetpoint, 1.0),
+                    lastShot = String.format("#%d (%d salvo%s)  setpoint %.0f, at release %.0f, lowest %.0f (%.0f%% of setpoint), %.2f s%s",
+                            shots, shotSalvos, shotSalvos == 1 ? "" : "s", shotSetpoint, shotStartSpeed, shotMinSpeed, 100.0 * shotMinSpeed / Math.max(shotSetpoint, 1.0),
                             shotTimer.seconds(), gate.isStalled() ? "  GATE FAULT" : "");
                 }
             }
