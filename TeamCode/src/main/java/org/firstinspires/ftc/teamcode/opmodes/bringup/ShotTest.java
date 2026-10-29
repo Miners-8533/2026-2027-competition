@@ -19,7 +19,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   A                  flywheel on / off
  *   D-pad up / down    shot speed +/- SPEED_STEP ticks/s     D-pad left / right: -/+ COARSE_STEP
  *   Y                  FIRE: spins up if needed, then runs a salvo as soon as the flywheel is ready
- *                      and the gate is at HOLD (gives up after FIRE_TIMEOUT_SEC)
+ *                      and the gate has stopped, wherever it rests (gives up after FIRE_TIMEOUT_SEC)
  *   RB                 salvo NOW, without waiting for the flywheel (a dry run of the gate)
  *   X                  reverse: the gate's reject move (330 deg back onto the nearest HOLD)
  *   LB                 gate back to the nearest HOLD
@@ -131,7 +131,7 @@ public class ShotTest extends LinearOpMode {
                 if (fireTimer.seconds() > FIRE_TIMEOUT_SEC) {
                     fireQueued = false;
                     lastEvent = "Fire dropped: the flywheel or the gate was not ready in time.";
-                } else if (flywheel.isReady() && gate.atHold()) {
+                } else if (flywheel.isReady() && gate.isStopped()) {
                     shotStartSpeed = flywheel.getFilteredVelocity();
                     shotMinSpeed = shotStartSpeed;
                     shotSetpoint = setpoint;
@@ -165,7 +165,7 @@ public class ShotTest extends LinearOpMode {
             telemetry.addData("Fire", fireQueued
                     ? String.format("QUEUED %.1f s: flywheel %s, gate %s", fireTimer.seconds(),
                             flywheel.isReady() ? "ready" : "NOT ready",
-                            gate.atHold() ? "at HOLD" : "NOT at HOLD (" + gate.getState() + ", error " + String.format("%+.1f", gate.getHoldErrorDeg()) + " deg)")
+                            gate.isStopped() ? "stopped" : "NOT stopped (" + gate.getState() + ")")
                     : shotActive ? "salvo running" : "idle");
             telemetry.addData("Last shot", lastShot);
             telemetry.addData("Last event", lastEvent);

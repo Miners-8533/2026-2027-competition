@@ -187,6 +187,11 @@ public class TransportGate {
                 && Math.abs(motor.getVelocity()) < STOP_SPEED_TICKS_PER_SEC;
     }
 
+    /** Idle and not moving, wherever it came to rest: a salvo can start from here (it targets the next HOLD ahead of the nearest one). */
+    public boolean isStopped() {
+        return state == State.HOLD && Math.abs(motor.getVelocity()) < STOP_SPEED_TICKS_PER_SEC;
+    }
+
     /** Go to the nearest HOLD: forward only. Already within the tolerance: just stop. */
     public void hold() {
         if (!isCalibrated()) {
