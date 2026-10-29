@@ -16,11 +16,15 @@ import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
  *   A                  spin on / off
  *   D-pad up / down    setpoint up / down by STEP ticks/s
  *   Y                  arm a dip measurement, then feed a ball (by hand or with the gate)
- *   Options             clear the last measurement
+ *   Options             clear the last measurement and any fault
+ *
+ * Both motors ("fly_motor_enc", plus "fly_follow" if configured) get the same power, with no hub encoder loop.
  *
  * Checks, in order:
- *   1. Spin it up at a low setpoint: the flywheel turns the shooting way. If not, flip
- *      flywheelDirection for this chassis in ChassisProfile.
+ *   1. Spin it up at a low setpoint: the flywheel turns the shooting way and the speed reads POSITIVE.
+ *      If it turns the wrong way, flip flywheelDirection (or flywheelFollowerDirection for the second
+ *      motor) for this chassis in ChassisProfile. If the speed reads negative, the flywheel stops with a
+ *      fault: set Flywheel.ENCODER_SIGN = -1.
  *   2. Raise the setpoint and watch the velocity settle near it, with Flywheel.FEED_FORWARD (start 0.2)
  *      holding it. Tune FEED_FORWARD live in the FTC Dashboard so the hold power is just enough.
  *   3. Press Y, then feed a ball. It records how far the speed dips and how long it takes to recover.
@@ -48,6 +52,8 @@ public class FlywheelTest extends LinearOpMode {
         boolean measuring = false, dipped = false;
         double minVelocity = 0;
         ElapsedTime sinceDip = new ElapsedTime();
+        ElapsedTime spinTimer = new ElapsedTime();
+        double spinUpSec = Double.NaN;
         String lastMeasurement = "-";
 
         telemetry.addData("Chassis profile", profile.label());
@@ -56,10 +62,17 @@ public class FlywheelTest extends LinearOpMode {
         waitForStart();
 
         while (opModeIsActive()) {
-            if (gamepad1.aWasPressed()) spinning = !spinning;
+            if (gamepad1.aWasPressed()) {
+                spinning = !spinning;
+                spinUpSec = Double.NaN;
+                spinTimer.reset();
+            }
             if (gamepad1.dpadUpWasPressed()) setpoint += STEP;
             if (gamepad1.dpadDownWasPressed()) setpoint = Math.max(0.0, setpoint - STEP);
-            if (gamepad1.optionsWasPressed()) lastMeasurement = "-";
+            if (gamepad1.optionsWasPressed()) {
+                lastMeasurement = "-";
+                flywheel.clearFault();
+            }
             if (gamepad1.yWasPressed()) {
                 measuring = true;
                 dipped = false;
@@ -71,6 +84,7 @@ public class FlywheelTest extends LinearOpMode {
 
             double velocity = flywheel.getVelocity();
             double target = flywheel.getTargetVelocity();
+            if (spinning && Double.isNaN(spinUpSec) && flywheel.isReady()) spinUpSec = spinTimer.seconds();
             if (measuring && target > 0) {
                 minVelocity = Math.min(minVelocity, velocity);
                 if (!dipped && velocity < DIP_START_FRACTION * target) {
@@ -86,6 +100,7 @@ public class FlywheelTest extends LinearOpMode {
 
             telemetry.addData("Chassis profile", profile.label());
             telemetry.addData("Spinning / setpoint", "%s   %.0f ticks/s", spinning, setpoint);
+            telemetry.addData("Spin-up to ready", Double.isNaN(spinUpSec) ? (spinning ? "spinning up..." : "-") : String.format("%.2f s", spinUpSec));
             flywheel.log(telemetry);
             telemetry.addData("Dip measurement", measuring ? (dipped ? "dipped, waiting to recover..." : "armed, feed a ball") : "idle");
             telemetry.addData("Last measurement", lastMeasurement);

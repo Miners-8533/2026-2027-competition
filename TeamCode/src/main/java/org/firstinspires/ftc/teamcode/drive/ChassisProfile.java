@@ -41,6 +41,8 @@ public final class ChassisProfile {
     public final DcMotorSimple.Direction intakeDirection;
     /** Flywheel motor direction (positive power spins it the shooting way) and gate direction (positive = the forward, pushing way). Both unverified. */
     public final DcMotorSimple.Direction flywheelDirection, gateDirection;
+    /** Direction of the optional second flywheel motor ("fly_follow", no encoder). It usually faces the first, so REVERSE (last year's pair). Unverified. */
+    public final DcMotorSimple.Direction flywheelFollowerDirection;
     /**
      * Depollinator servo positions, 0 to 1, for the left and right servo. NaN means not measured yet:
      * the depollinator will not move until they are filled in (use the Depollinator Test opmode).
@@ -54,6 +56,7 @@ public final class ChassisProfile {
                            double xOffsetMM, double yOffsetMM, double robotDepthIn, double robotWidthIn,
                            DcMotorSimple.Direction intakeDirection,
                            DcMotorSimple.Direction flywheelDirection, DcMotorSimple.Direction gateDirection,
+                           DcMotorSimple.Direction flywheelFollowerDirection,
                            double depolStowedLeft, double depolStowedRight,
                            double depolDeployedLeft, double depolDeployedRight) {
         this.name = name;
@@ -69,6 +72,7 @@ public final class ChassisProfile {
         this.intakeDirection = intakeDirection;
         this.flywheelDirection = flywheelDirection;
         this.gateDirection = gateDirection;
+        this.flywheelFollowerDirection = flywheelFollowerDirection;
         this.depolStowedLeft = depolStowedLeft;
         this.depolStowedRight = depolStowedRight;
         this.depolDeployedLeft = depolDeployedLeft;
@@ -81,7 +85,7 @@ public final class ChassisProfile {
             DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.REVERSE,
             GoBildaPinpointDriver.EncoderDirection.REVERSED, GoBildaPinpointDriver.EncoderDirection.REVERSED,
             -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
-            DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
+            DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.REVERSE,
             Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
     /**
@@ -94,7 +98,7 @@ public final class ChassisProfile {
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD,
             -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
-            DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
+            DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.REVERSE,
             Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
     private static final ChassisProfile[] ALL = {PROTOTYPE, DRAFT_1};

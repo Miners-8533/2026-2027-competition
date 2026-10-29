@@ -43,7 +43,7 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 
 ## 2. Flywheel
 
-**Hardware (decided):** one motor with an encoder (`fly_motor_enc`), very like last year's. A second follower motor with no encoder may be added later, decided from rig data: how far the speed dips and how fast it recovers over a 4-ball burst. The hood is a static angle.
+**Hardware (decided):** an encoder motor (`fly_motor_enc`), very like last year's, plus an optional second motor (`fly_follow`, no encoder, last year's name) that gets the same power. With no `fly_follow` in the hub configuration it is a one-motor flywheel. Whether the second motor is needed is decided from rig data: how far the speed dips and how fast it recovers over a 4-ball burst, with and without it. The hood is a static angle.
 
 **Control**
 - **Decided:** bang-bang plus feedforward, as last year: full power below the setpoint, a single `feedForward` motor command (0 to 1) at or above it. The prototype rig on the `shooter-prototype` branch already works this way.
@@ -61,7 +61,7 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 - The flywheel only needs to be ready before the first ball. The ball spacing comes from the transport gate's sweep speed.
 - It stops between salvos and spins up when needed. In autos the spin-up runs in parallel with the drive to the shooting spot.
 
-**Status:** built and compiling, not yet run on hardware. `subsystems/Flywheel.java` (bang-bang plus `FEED_FORWARD`, placeholder 0.2; `READY_FRACTION` 0.95; 5-sample filter), `HiveTarget.java` (the four open-cell target points) and `ShotMap.java` (interpolation; the saved `TABLE` is empty until measured). Direction is `ChassisProfile.flywheelDirection`, a placeholder. The single-motor `Shooter` on the `shooter-prototype` branch is superseded by `Flywheel`.
+**Status:** built and compiling, not yet run on hardware. `subsystems/Flywheel.java` (bang-bang plus `FEED_FORWARD`, placeholder 0.2; `READY_FRACTION` 0.95; 5-sample filter), `HiveTarget.java` (the four open-cell target points) and `ShotMap.java` (interpolation; the saved `TABLE` is empty until measured). Directions are `ChassisProfile.flywheelDirection` and `flywheelFollowerDirection` (REVERSE, last year's pair), both placeholders. Both motors run without the hub's closed-loop encoder modes and receive the same power, so a power is a plain duty cycle on each (the closed-loop mode would make one number mean a speed target on one motor and a duty on the other, and runs away if an encoder counts opposite to its motor, as the gate's did). `ENCODER_SIGN` (default +1) fixes a reversed encoder, and a speed that reads strongly negative while spinning stops the flywheel with a fault. The single-motor `Shooter` on the `shooter-prototype` branch is superseded by `Flywheel`.
 
 **Verification:** **Flywheel Test** (set a speed, tune `FEED_FORWARD`, and measure how far a ball dips the speed and how long it takes to recover: the one-vs-two-motors data) and **Shot Map Tuner** (drive to a distance, find a speed that scores, record the pair, test the interpolation live, and print lines for `ShotMap.TABLE`).
 
