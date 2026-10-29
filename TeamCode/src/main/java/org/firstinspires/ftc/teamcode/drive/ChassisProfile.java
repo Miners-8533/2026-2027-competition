@@ -41,7 +41,7 @@ public final class ChassisProfile {
     public final DcMotorSimple.Direction intakeDirection;
     /** Flywheel motor direction (positive power spins it the shooting way) and gate direction (positive = the forward, pushing way). Both unverified. */
     public final DcMotorSimple.Direction flywheelDirection, gateDirection;
-    /** Direction of the optional second flywheel motor ("fly_follow", no encoder). It usually faces the first, so REVERSE (last year's pair). Unverified. */
+    /** Direction of the optional second flywheel motor ("fly_follow", no encoder). It usually faces the first, so the opposite of flywheelDirection. Verified on the flywheel bench: flywheel REVERSE, follower FORWARD (both spun the wrong way with last year's FORWARD / REVERSE). */
     public final DcMotorSimple.Direction flywheelFollowerDirection;
     /**
      * Depollinator servo positions, 0 to 1, for the left and right servo. NaN means not measured yet:
@@ -85,7 +85,7 @@ public final class ChassisProfile {
             DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.REVERSE,
             GoBildaPinpointDriver.EncoderDirection.REVERSED, GoBildaPinpointDriver.EncoderDirection.REVERSED,
             -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
-            DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.REVERSE,
+            DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
             Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
     /**
@@ -98,7 +98,7 @@ public final class ChassisProfile {
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD,
             -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
-            DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.REVERSE,
+            DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
             Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
     private static final ChassisProfile[] ALL = {PROTOTYPE, DRAFT_1};
