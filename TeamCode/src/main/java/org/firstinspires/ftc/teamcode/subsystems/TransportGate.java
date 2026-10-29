@@ -57,6 +57,12 @@ public class TransportGate {
     public static double APPROACH_DEG = 30.0;
     /** Cut the power this many degrees before the target; the brake and coasting cover the rest. Calibrate. */
     public static double STOP_EARLY_DEG = 3.0;
+    /**
+     * Also cut this many seconds' worth of the arm's current speed early. Speed times this is the extra distance
+     * the arm still travels after the cut (loop delay plus coasting), so one value covers the fast sweep and the
+     * slow approach where a fixed STOP_EARLY_DEG cannot. Calibrate it from "Gate last settle". 0 turns it off.
+     */
+    public static double COAST_LOOKAHEAD_S = 0.0;
     public static double REJECT_POWER = 0.6;
     /** A reject reverses about this far and finishes on the nearest HOLD behind (330 leaves it 30 deg short of a full turn, so it finishes a full reverse turn). */
     public static double REJECT_DEG = 330.0;
@@ -100,6 +106,9 @@ public class TransportGate {
     private double moveStartTicks = 0.0;
     private String lastCommand = "none yet";
     private String lastResult = "-";
+    private String lastSettle = "-";
+    private boolean pendingSettle = false;
+    private double cutUnwrapped = 0.0, cutSpeedDegPerSec = 0.0, cutRemainingDeg = 0.0, cutDirection = 1.0;
 
     public TransportGate(HardwareMap hardwareMap, Reference reference) {
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
@@ -245,6 +254,7 @@ public class TransportGate {
         lastCommand = String.format("reject from %s, %+.1f deg to nearest HOLD, now %.0f ticks, target %.0f ticks",
                 state, getHoldErrorDeg(), getUnwrappedTicks(), targetTicks);
         state = State.REJECT;
+        pendingSettle = false;
         moveStartTicks = getUnwrappedTicks();
         moveTimer.reset();
         resetProgress();
@@ -259,15 +269,32 @@ public class TransportGate {
     private void beginForwardMove(State moveState, double target) {
         targetTicks = target;
         state = moveState;
+        pendingSettle = false;
         moveStartTicks = getUnwrappedTicks();
         moveTimer.reset();
         resetProgress();
     }
 
     /** Remember how the move that is ending ended (shown on screen so a move that does nothing can be explained). */
-    private void recordFinish(double remainingDeg) {
-        lastResult = String.format("%s cut off by threshold after %.2f s: travelled %.0f deg, %.1f deg left to target at the cut",
-                state, moveTimer.seconds(), Math.abs(getUnwrappedTicks() - moveStartTicks) * 360.0 / TICKS_PER_REV, remainingDeg);
+    private void recordFinish(double remainingDeg, double speedDegPerSec, double direction) {
+        lastResult = String.format("%s cut off by threshold after %.2f s: travelled %.0f deg, %.1f deg left to target at the cut, speed %.0f deg/s",
+                state, moveTimer.seconds(), Math.abs(getUnwrappedTicks() - moveStartTicks) * 360.0 / TICKS_PER_REV, remainingDeg, speedDegPerSec);
+        cutUnwrapped = getUnwrappedTicks();
+        cutSpeedDegPerSec = speedDegPerSec;
+        cutRemainingDeg = remainingDeg;
+        cutDirection = direction;
+        pendingSettle = true;
+    }
+
+    /** Once the arm has stopped after a cut: how far it coasted, and where it came to rest relative to the target. */
+    private void recordSettle() {
+        pendingSettle = false;
+        double ticksPerDeg = TICKS_PER_REV / 360.0;
+        double coastDeg = cutDirection * (getUnwrappedTicks() - cutUnwrapped) / ticksPerDeg;
+        double pastTargetDeg = cutDirection * (getUnwrappedTicks() - targetTicks) / ticksPerDeg;
+        lastSettle = String.format("cut with %.1f deg left at %.0f deg/s; travelled %.1f deg more after the cut; rest %+.1f deg past the target (- = short)%s",
+                cutRemainingDeg, cutSpeedDegPerSec, coastDeg, pastTargetDeg,
+                cutSpeedDegPerSec > 50.0 ? String.format("; COAST_LOOKAHEAD_S %.3f -> about %.3f", COAST_LOOKAHEAD_S, COAST_LOOKAHEAD_S + pastTargetDeg / cutSpeedDegPerSec) : "");
     }
 
     private void stopHere() {
@@ -314,6 +341,10 @@ public class TransportGate {
         switch (state) {
             case HOLD:
                 motor.setPower(0.0);
+                if (pendingSettle && isCalibrated() && restTimer.seconds() > 0.25
+                        && Math.abs(motor.getVelocity()) < STOP_SPEED_TICKS_PER_SEC) {
+                    recordSettle();
+                }
                 if (isCalibrated() && AUTO_CORRECT_MAX_DEG > 0.0 && restTimer.seconds() > 0.3
                         && Math.abs(motor.getVelocity()) < STOP_SPEED_TICKS_PER_SEC) {
                     double error = getHoldErrorDeg();
@@ -323,8 +354,9 @@ public class TransportGate {
             case SALVO:
             case RETURN: {
                 double remainingDeg = (targetTicks - unwrapped) / ticksPerDeg;
-                if (remainingDeg <= STOP_EARLY_DEG) {
-                    recordFinish(remainingDeg);
+                double speedDegPerSec = Math.max(0.0, getVelocityTicksPerSec()) / ticksPerDeg;
+                if (remainingDeg <= STOP_EARLY_DEG + speedDegPerSec * COAST_LOOKAHEAD_S) {
+                    recordFinish(remainingDeg, speedDegPerSec, 1.0);
                     stopHere();
                 } else {
                     motor.setPower(APPROACH_DEG > 0.0 && remainingDeg <= APPROACH_DEG ? APPROACH_POWER : SWEEP_POWER);
@@ -334,8 +366,9 @@ public class TransportGate {
             }
             case REJECT: {
                 double remainingDeg = (unwrapped - targetTicks) / ticksPerDeg;
-                if (remainingDeg <= STOP_EARLY_DEG) {
-                    recordFinish(remainingDeg);
+                double speedDegPerSec = Math.max(0.0, -getVelocityTicksPerSec()) / ticksPerDeg;
+                if (remainingDeg <= STOP_EARLY_DEG + speedDegPerSec * COAST_LOOKAHEAD_S) {
+                    recordFinish(remainingDeg, speedDegPerSec, -1.0);
                     stopHere();
                 } else {
                     motor.setPower(-(APPROACH_DEG > 0.0 && remainingDeg <= APPROACH_DEG ? APPROACH_POWER : REJECT_POWER));
@@ -380,6 +413,7 @@ public class TransportGate {
         telemetry.addData("Gate power / current", "%+.2f / %.2f A", motor.getPower(), getCurrentAmps());
         telemetry.addData("Gate last command", lastCommand);
         telemetry.addData("Gate last move result", lastResult);
+        telemetry.addData("Gate last settle", lastSettle);
         telemetry.addData("Gate ENCODER_SIGN", "%+.0f", ENCODER_SIGN);
         if (isStalled()) telemetry.addLine("GATE FAULT (Options clears): " + faultReason);
     }

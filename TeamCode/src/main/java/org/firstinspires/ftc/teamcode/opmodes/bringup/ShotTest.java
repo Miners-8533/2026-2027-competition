@@ -70,7 +70,13 @@ public class ShotTest extends LinearOpMode {
         telemetry.update();
         waitForStart();
 
+        ElapsedTime loopTimer = new ElapsedTime();
+        double loopMs = 0.0, loopMaxMs = 0.0;
         while (opModeIsActive()) {
+            double thisLoopMs = loopTimer.milliseconds();
+            loopTimer.reset();
+            loopMs = 0.95 * loopMs + 0.05 * thisLoopMs;
+            loopMaxMs = Math.max(0.99 * loopMaxMs, thisLoopMs);
             TransportGate.State gateState = gate.getState();
             boolean gateFree = gateState == TransportGate.State.JOG || gateState == TransportGate.State.HOLD;
 
@@ -167,6 +173,7 @@ public class ShotTest extends LinearOpMode {
                             flywheel.isReady() ? "ready" : "NOT ready",
                             gate.isStopped() ? "stopped" : "NOT stopped (" + gate.getState() + ")")
                     : shotActive ? "salvo running" : "idle");
+            telemetry.addData("Loop (ms)", "%.1f avg, %.1f recent max", loopMs, loopMaxMs);
             telemetry.addData("Last shot", lastShot);
             telemetry.addData("Last event", lastEvent);
             telemetry.addLine("A flywheel, D-pad speed, Y fire, RB dry salvo, X reverse, LB hold, stick jog, B set HOLD, Options clear");
