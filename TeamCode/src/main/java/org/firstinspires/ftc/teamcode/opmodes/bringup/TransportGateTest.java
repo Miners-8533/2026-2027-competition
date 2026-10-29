@@ -10,25 +10,24 @@ import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
 
 /**
- * Bring-up and calibration for the transport gate. The gate has no hard stops and a relative encoder, so
- * two numbers must be measured before it can do anything but jog: ticks per revolution and where the
- * push sweep ends. Do these in order:
+ * Bring-up and calibration for the transport gate. The gate has no hard stops and a relative encoder, and
+ * every move is "run at a power, cut it at a position threshold", so there is one number to measure
+ * (ticks per revolution) and a few to calibrate (powers and where to cut). In order:
  *
- *   1. Jog the arm (left stick) to the position where its back limits the transport to 4 elements. This
- *      is HOLD. Press A to declare "HOLD is here".
+ *   1. Jog the arm (left stick, up = forward) to the position where its back limits the transport to 4
+ *      elements. This is HOLD. Press A to declare "HOLD is here".
  *   2. Jog FORWARD a whole number of full revolutions back to the same mark, press B: records TICKS_PER_REV.
- *      Back picks 1, 5 or 10 revolutions; more revolutions is more precise (a mark misalignment is spread over them).
- *      Check the direction first: forward must be the way the arm pushes elements toward the flywheel.
- *      If not, flip gateDirection for this chassis in ChassisProfile.
- *   3. Jog to the angle where the push sweep should end (arm through the ramp, last element handed to the
- *      flywheel), press X: records SWEEP_END_DEG. If that is the HOLD mark itself (the sweep is the whole
- *      turn) it records 360.
- *   4. Y runs a full salvo, RB runs a reject (reverse then forward to HOLD), LB returns to HOLD.
- *      D-pad up/down changes the sweep speed, left/right the return speed (30 deg/s per press).
- *   Options clears a stall. The recorded values last only for this session: copy the lines the
- *   opmode prints into TransportGate.java.
+ *      Back picks 1, 5 or 10 revolutions; more is more precise. Check the direction first: forward must be
+ *      the way the arm pushes elements toward the flywheel (if not, flip gateDirection in ChassisProfile).
+ *   3. Y runs a full salvo (HOLD, one turn forward, HOLD), RB a reject, LB returns to the nearest HOLD.
+ *      After each move read "Error to nearest HOLD" once the arm stops: + means it stopped SHORT of the
+ *      mark, - means it went PAST. Adjust and repeat.
+ *   4. X selects which setting the D-pad up / down changes: sweep power, approach power, stop-early degrees,
+ *      reject power. If it stops short, lower STOP_EARLY_DEG or raise APPROACH_POWER a little; if it goes
+ *      past, raise STOP_EARLY_DEG or lower the powers. Options clears a fault.
  *
- * Needs a motor named "gate". Jog slowly; the arm has no stops, so mind the elements and the ramp.
+ * The values last only for this session: copy the printed lines into TransportGate.java. Needs a motor named
+ * "gate". Jog slowly; the arm has no stops, so mind the elements and the ramp.
  */
 @Config
 @TeleOp(name = "Transport Gate Test", group = "Bring-up")
@@ -36,17 +35,41 @@ public class TransportGateTest extends LinearOpMode {
 
     public static double JOG_MAX_POWER = 0.3;
 
+    private static final String[] SETTING_NAMES = {"SWEEP_POWER", "APPROACH_POWER", "STOP_EARLY_DEG", "REJECT_POWER"};
+
+    private static double getSetting(int i) {
+        switch (i) {
+            case 0: return TransportGate.SWEEP_POWER;
+            case 1: return TransportGate.APPROACH_POWER;
+            case 2: return TransportGate.STOP_EARLY_DEG;
+            default: return TransportGate.REJECT_POWER;
+        }
+    }
+
+    private static void changeSetting(int i, int direction) {
+        double step = i == 2 ? 1.0 : 0.05;
+        double max = i == 2 ? 30.0 : 1.0;
+        double value = Math.max(i == 2 ? 0.0 : 0.05, Math.min(max, getSetting(i) + direction * step));
+        switch (i) {
+            case 0: TransportGate.SWEEP_POWER = value; break;
+            case 1: TransportGate.APPROACH_POWER = value; break;
+            case 2: TransportGate.STOP_EARLY_DEG = value; break;
+            default: TransportGate.REJECT_POWER = value; break;
+        }
+    }
+
     @Override
     public void runOpMode() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         TransportGate gate = new TransportGate(hardwareMap, TransportGate.Reference.ASSUME_AT_HOLD);
-        gate.jog(0.0);   // do nothing until told: no automatic hold at start, so an unverified encoder sign cannot run away
+        gate.jog(0.0);   // do nothing until told
         String lastEvent = "-";
         int lastRaw = gate.getRawTicks();
         double forwardRaw = 0;
         int calRevs = 1;
+        int setting = 0;
 
         telemetry.addData("Chassis profile", profile.label());
         telemetry.addLine("Transport Gate Test. The gate is assumed to be at HOLD right now.");
@@ -78,20 +101,9 @@ public class TransportGateTest extends LinearOpMode {
                     lastEvent = String.format("TICKS_PER_REV = %.1f  (%.0f ticks over %d revolutions)", ticks / calRevs, ticks, calRevs);
                 }
             }
-            if (gamepad1.xWasPressed()) {
-                if (!gate.isCalibrated()) {
-                    lastEvent = "X ignored: set TICKS_PER_REV first (B).";
-                } else {
-                    double angle = gate.getAngleDeg();
-                    boolean atHoldMark = angle < 5.0 || angle > 355.0;
-                    TransportGate.SWEEP_END_DEG = atHoldMark ? 360.0 : angle;
-                    lastEvent = String.format("SWEEP_END_DEG = %.1f%s", TransportGate.SWEEP_END_DEG,
-                            atHoldMark ? "  (at the HOLD mark: the sweep runs the whole turn)" : "");
-                }
-            }
             if (gamepad1.yWasPressed()) {
                 gate.startSalvo();
-                lastEvent = gate.isSweepConfigured() ? "Salvo started." : "Salvo ignored: set TICKS_PER_REV (B) and SWEEP_END_DEG (X).";
+                lastEvent = gate.isCalibrated() ? "Salvo started." : "Salvo ignored: set TICKS_PER_REV first.";
             }
             if (gamepad1.rightBumperWasPressed()) {
                 gate.startReject();
@@ -99,16 +111,15 @@ public class TransportGateTest extends LinearOpMode {
             }
             if (gamepad1.leftBumperWasPressed()) {
                 gate.hold();
-                lastEvent = "Returning to HOLD.";
+                lastEvent = "Going to the nearest HOLD.";
             }
             if (gamepad1.optionsWasPressed()) {
                 gate.clearStall();
-                lastEvent = "Stall cleared.";
+                lastEvent = "Fault cleared.";
             }
-            if (gamepad1.dpadUpWasPressed()) TransportGate.SWEEP_DEG_PER_SEC += 30;
-            if (gamepad1.dpadDownWasPressed()) TransportGate.SWEEP_DEG_PER_SEC = Math.max(30, TransportGate.SWEEP_DEG_PER_SEC - 30);
-            if (gamepad1.dpadRightWasPressed()) TransportGate.RETURN_DEG_PER_SEC += 30;
-            if (gamepad1.dpadLeftWasPressed()) TransportGate.RETURN_DEG_PER_SEC = Math.max(30, TransportGate.RETURN_DEG_PER_SEC - 30);
+            if (gamepad1.xWasPressed()) setting = (setting + 1) % SETTING_NAMES.length;
+            if (gamepad1.dpadUpWasPressed()) changeSetting(setting, +1);
+            if (gamepad1.dpadDownWasPressed()) changeSetting(setting, -1);
 
             gate.update();
 
@@ -128,11 +139,14 @@ public class TransportGateTest extends LinearOpMode {
                         gate.getUnwrappedTicks() / TransportGate.TICKS_PER_REV);
             }
             telemetry.addData("B records ticks per rev over", "%d revolution(s)   (Back changes it: 1, 5, 10)", calRevs);
+            telemetry.addData("D-pad up/down changes", "%s = %.2f   (X selects)", SETTING_NAMES[setting], getSetting(setting));
             telemetry.addData("Last event", lastEvent);
             telemetry.addLine("--- copy into TransportGate.java when happy ---");
-            telemetry.addLine(String.format("TICKS_PER_REV = %.1f;   SWEEP_END_DEG = %.1f;", TransportGate.TICKS_PER_REV, TransportGate.SWEEP_END_DEG));
-            telemetry.addLine(String.format("SWEEP_DEG_PER_SEC = %.0f;   RETURN_DEG_PER_SEC = %.0f;", TransportGate.SWEEP_DEG_PER_SEC, TransportGate.RETURN_DEG_PER_SEC));
-            telemetry.addLine("Stick jog, A mark HOLD, B ticks/rev, X sweep end, Y salvo, RB reject, LB hold, Options clear stall");
+            telemetry.addLine(String.format("TICKS_PER_REV = %.1f;   SWEEP_POWER = %.2f;   APPROACH_POWER = %.2f;",
+                    TransportGate.TICKS_PER_REV, TransportGate.SWEEP_POWER, TransportGate.APPROACH_POWER));
+            telemetry.addLine(String.format("APPROACH_DEG = %.0f;   STOP_EARLY_DEG = %.0f;   REJECT_POWER = %.2f;",
+                    TransportGate.APPROACH_DEG, TransportGate.STOP_EARLY_DEG, TransportGate.REJECT_POWER));
+            telemetry.addLine("Stick jog, A mark HOLD, B ticks/rev, Y salvo, RB reject, LB hold, X setting, D-pad up/down adjust, Options clear fault");
             telemetry.update();
         }
         gate.jog(0.0);

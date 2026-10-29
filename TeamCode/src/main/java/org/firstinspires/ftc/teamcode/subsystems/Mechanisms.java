@@ -210,9 +210,9 @@ public class Mechanisms {
 
         // rule 3: queued fire
         if (fireQueued && flywheel != null && gate != null) {
-            if (!gate.isSweepConfigured()) {
+            if (!gate.isCalibrated()) {
                 fireQueued = false;
-                notice("Fire dropped: set the gate's TICKS_PER_REV and SWEEP_END_DEG first.");
+                notice("Fire dropped: set the gate's TICKS_PER_REV first.");
             } else if (fireTimer.seconds() > FIRE_TIMEOUT_SEC) {
                 fireQueued = false;
                 notice("Fire dropped: the flywheel was not ready in time.");

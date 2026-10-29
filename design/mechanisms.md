@@ -72,20 +72,21 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 **Position (proposed from the above)**
 - Position is an angle on a circle: ticks divided by the ticks per revolution, with HOLD defined as 0 degrees. The arm's thickness means its pushing face and its limiting face sit at different angles.
 - Moves are forward only. The error is the forward distance to the target modulo one revolution. A small overshoot is tolerated, so a gate that stops a few degrees past a target does not command nearly a full extra turn.
-- **Open (required):** ticks per revolution is not known yet. It is needed to finish the class. It is a tunable constant, measured by a one-revolution calibration step in the bring-up opmode.
+- **Measured on the bench:** ticks per revolution is 751.8, goBILDA's published value for the 26.9:1 motor (ten mark-to-mark turns read 751.6). It is a tunable constant, re-measured over 1, 5 or 10 turns by a calibration step in the bring-up opmode.
+- **Decided (bench):** the encoder on the bench gate counts opposite to its motor's direction, so `ENCODER_SIGN` (-1 there) flips the ticks, and the gate runs without the hub's closed-loop encoder modes (which run away when the polarity is opposed).
 
 **Behavior**
 - **Decided:** full salvos only for now, because we may miss. A salvo is about one forward revolution: from HOLD, sweep through the ramp pushing the stack to the flywheel, then keep going forward back to HOLD.
-- **Decided:** the sweep speed is tunable. It sets the spacing between balls. Using the encoder's velocity mode would keep it steady as the battery drains.
-- **Decided:** reverse is needed to reject an opponent's nectar (G408), together with an intake outtake.
+- **Decided:** control is plain thresholding on position, with no PID and no velocity loop (a PID and a velocity loop were tried on the bench and were jerky and hard to tune). A forward move runs at a calibratable `SWEEP_POWER`, drops to a gentler `APPROACH_POWER` for the last `APPROACH_DEG`, and cuts the power `STOP_EARLY_DEG` before the target; the brake does the rest. The power sets the spacing between balls. Targets are absolute multiples of one turn, so landing errors do not accumulate. If the arm comes to rest a little short of HOLD it nudges forward; nothing else holds it against a push.
+- **Decided:** reverse is needed to reject an opponent's nectar (G408), together with an intake outtake. A reject reverses about 330 degrees and finishes on the nearest HOLD behind (a full reverse turn).
 - **Decided:** assume a known starting position, with the gate at HOLD at power-on.
 - **Proposed:** auto zeroes the encoder at init. TeleOp after auto does not, and takes the reference from a static saved by auto, as the pose is. A fresh TeleOp-only session assumes the gate is at HOLD.
 - **Proposed:** stall and jam detection by high current with zero speed. A blocked gate does not lose its position, because it simply does not move.
 - **Open, later:** a hall sensor at HOLD to re-zero every revolution and check the start position, or the color sensors reading the gate tip as it passes. Color sensors read over a slow bus, so a fast tip could pass between readings, and the tip would need a distinct color.
 
-**Status:** built and compiling, not yet run on hardware. `subsystems/TransportGate.java`: forward-only angle control with HOLD at 0 degrees, salvo = sweep then faster return then hold, reject = reverse then forward to HOLD, stall detection, and a zero reference saved in a static (`Reference.ASSUME_AT_HOLD` for auto, `CONTINUE` for TeleOp after auto). The encoder is never reset in code. `TICKS_PER_REV` and `SWEEP_END_DEG` start at 0 (not calibrated) and until they are set the gate only jogs. Speeds, hold gains and stall thresholds are untested placeholders. The hardware name is `gate`, and its direction is a `ChassisProfile` placeholder.
+**Status:** built and compiling, not yet run on hardware. `subsystems/TransportGate.java`: position thresholding with HOLD at 0 degrees (salvo = one forward turn, return = forward to the nearest HOLD, reject = reverse onto the nearest HOLD behind), stall and no-progress fault detection, and a zero reference saved in a static (`Reference.ASSUME_AT_HOLD` for auto, `CONTINUE` for TeleOp after auto). The encoder is never reset in code. The powers, `STOP_EARLY_DEG` and the stall thresholds are placeholders to calibrate on the rig, and the gate direction is a `ChassisProfile` placeholder. The hardware name is `gate`. Ran on the bench gate (branch `gate-bench`) with the earlier PID version; this thresholding rewrite has not been run yet.
 
-**Verification:** **Transport Gate Test** walks the calibration in order (mark HOLD, jog one revolution to measure ticks per revolution, mark the sweep end), then runs a salvo, a reject, and a return to HOLD, lets you tune the two speeds, shows ticks and current, and prints the values to paste into `TransportGate.java`.
+**Verification:** **Transport Gate Test** walks the calibration (mark HOLD, jog 1, 5 or 10 turns to measure ticks per revolution), then runs a salvo, a reject and a return to HOLD, shows the error to the nearest HOLD after every move, lets you tune the powers and the early-stop angle from the controller, and prints the values to paste into `TransportGate.java`.
 
 ## 4. Depollinator
 
