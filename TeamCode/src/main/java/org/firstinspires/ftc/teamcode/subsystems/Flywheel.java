@@ -44,6 +44,8 @@ public class Flywheel {
     /** A speed below minus this (ticks/s) for REVERSED_TIME_S while spinning is taken as a reversed encoder. */
     public static double REVERSED_TICKS_PER_SEC = 100.0;
     public static double REVERSED_TIME_S = 0.5;
+    /** How often (ms) the motor currents are refreshed for the display. */
+    public static double CURRENT_REFRESH_MS = 250.0;
 
     private static final int FILTER_SAMPLES = 5;
 
@@ -56,6 +58,13 @@ public class Flywheel {
     private double targetVelocity = 0.0;
     private boolean reversedSeen = false;
     private boolean faulted = false;
+
+    // Hub calls are blocking round trips, so the hub is read in one place (the velocity, at the top of update(), and the
+    // currents a few times a second for the display) and written only when the power changes.
+    private final ElapsedTime currentTimer = new ElapsedTime();
+    private double velocity = 0.0;
+    private double currentA = 0.0, followerCurrentA = 0.0;
+    private double lastPower = 0.0;
 
     public Flywheel(HardwareMap hardwareMap) {
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
@@ -78,9 +87,17 @@ public class Flywheel {
         return follower != null;
     }
 
+    /** Write the power to both motors only when it changed (each write is a blocking round trip), unless forced. */
+    private void setPower(double power, boolean force) {
+        if (force || power != lastPower) {
+            motor.setPower(power);
+            if (follower != null) follower.setPower(power);
+            lastPower = power;
+        }
+    }
+
     private void setPower(double power) {
-        motor.setPower(power);
-        if (follower != null) follower.setPower(power);
+        setPower(power, false);
     }
 
     /** Ticks per second; 0 or less turns the flywheel off. */
@@ -90,7 +107,7 @@ public class Flywheel {
 
     public void stop() {
         targetVelocity = 0.0;
-        setPower(0.0);
+        setPower(0.0, true);
     }
 
     public double getTargetVelocity() {
@@ -99,7 +116,7 @@ public class Flywheel {
 
     /** Speed in ticks per second, positive when the wheel turns the shooting way (after ENCODER_SIGN). */
     public double getVelocity() {
-        return ENCODER_SIGN * motor.getVelocity();
+        return velocity;
     }
 
     public double getFilteredVelocity() {
@@ -121,9 +138,14 @@ public class Flywheel {
         reversedSeen = false;
     }
 
-    /** Call once per loop. */
+    /** Call once per loop. Reads the encoder once, up front; getVelocity() and the filter use that reading. */
     public void update() {
-        double velocity = getVelocity();
+        velocity = ENCODER_SIGN * motor.getVelocity();
+        if (currentTimer.milliseconds() > CURRENT_REFRESH_MS) {
+            currentA = motor.getCurrent(CurrentUnit.AMPS);
+            followerCurrentA = follower != null ? follower.getCurrent(CurrentUnit.AMPS) : 0.0;
+            currentTimer.reset();
+        }
         windowSum += velocity - window[windowIndex];
         window[windowIndex] = velocity;
         windowIndex = (windowIndex + 1) % FILTER_SAMPLES;
@@ -148,17 +170,18 @@ public class Flywheel {
         }
     }
 
+    /** Motor current as of the last refresh (a few times a second; for the display, not for control). */
     public double getCurrentAmps() {
-        return motor.getCurrent(CurrentUnit.AMPS);
+        return currentA;
     }
 
     public void log(Telemetry telemetry) {
         telemetry.addData("Flywheel target (ticks/s)", "%.0f", targetVelocity);
         telemetry.addData("Flywheel velocity (ticks/s)", "%.0f   filtered %.0f", getVelocity(), getFilteredVelocity());
         telemetry.addData("Flywheel ready", isReady());
-        telemetry.addData("Flywheel power (+/-%FS)", "%.2f   (%s)", motor.getPower(), follower != null ? "2 motors" : "1 motor");
+        telemetry.addData("Flywheel power (+/-%FS)", "%.2f   (%s)", lastPower, follower != null ? "2 motors" : "1 motor");
         telemetry.addData("Flywheel current (A)", "%.2f%s", getCurrentAmps(), follower != null
-                ? String.format("   follower %.2f", follower.getCurrent(CurrentUnit.AMPS)) : "");
+                ? String.format("   follower %.2f", followerCurrentA) : "");
         if (faulted) {
             telemetry.addLine("FLYWHEEL FAULT: the encoder reads BACKWARD while spinning. Set Flywheel.ENCODER_SIGN = -1 (Options clears).");
         }

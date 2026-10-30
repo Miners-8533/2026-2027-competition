@@ -73,6 +73,8 @@ public class TransportGate {
     /** If it comes to rest short of HOLD by more than the tolerance but less than this, it nudges forward. 0 turns the nudge off. */
     public static double AUTO_CORRECT_MAX_DEG = 45.0;
 
+    /** How often (ms) the motor current is refreshed for the display when no stall check needs it. */
+    public static double CURRENT_DISPLAY_REFRESH_MS = 250.0;
     public static double STALL_CURRENT_A = 6.0;
     public static double STALL_TIME_S = 0.3;
     public static double STALL_GRACE_S = 0.3;
@@ -110,6 +112,14 @@ public class TransportGate {
     private boolean pendingSettle = false;
     private double cutUnwrapped = 0.0, cutSpeedDegPerSec = 0.0, cutRemainingDeg = 0.0, cutDirection = 1.0;
 
+    // Hub calls are blocking round trips, so this class talks to the hub in only two places: readSensors() once at
+    // the top of update(), and setMotorPower() when the command actually changes. Everything else uses these.
+    private final ElapsedTime currentTimer = new ElapsedTime();
+    private int rawTicks = 0;
+    private double velocityRaw = 0.0;
+    private double currentA = 0.0;
+    private double lastPower = 0.0;
+
     public TransportGate(HardwareMap hardwareMap, Reference reference) {
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         motor = hardwareMap.get(DcMotorEx.class, "gate");
@@ -119,6 +129,7 @@ public class TransportGate {
         motor.setPower(0.0);
 
         int raw = motor.getCurrentPosition();
+        rawTicks = raw;
         if (reference == Reference.CONTINUE && savedReferenceValid) {
             homeRaw = savedHomeRaw;
             referenceFromSaved = true;
@@ -141,9 +152,35 @@ public class TransportGate {
 
     /** Declare the gate to be at HOLD right now (bring-up). The encoder is not reset, only the reference. */
     public void markHoldHere() {
-        homeRaw = motor.getCurrentPosition();
+        readSensors();
+        homeRaw = rawTicks;
         savedHomeRaw = homeRaw;
         savedReferenceValid = true;
+    }
+
+    /** The one place the sensors are read from the hub. Current is only read when the stall check or the display needs it. */
+    private void readSensors() {
+        rawTicks = motor.getCurrentPosition();
+        velocityRaw = motor.getVelocity();
+        boolean maybeBlocked = isCommanded() && moveTimer.seconds() > STALL_GRACE_S
+                && Math.abs(velocityRaw) < STALL_MIN_TICKS_PER_SEC;
+        if (maybeBlocked || currentTimer.milliseconds() > CURRENT_DISPLAY_REFRESH_MS) {
+            currentA = motor.getCurrent(CurrentUnit.AMPS);
+            currentTimer.reset();
+        }
+    }
+
+    /** Write the motor power only when it changed; each write is a blocking round trip to the hub. */
+    private void setMotorPower(double power) {
+        if (power != lastPower) {
+            motor.setPower(power);
+            lastPower = power;
+        }
+    }
+
+    private boolean isCommanded() {
+        return state == State.SALVO || state == State.RETURN || state == State.REJECT
+                || (state == State.JOG && Math.abs(jogPower) >= STALL_MIN_JOG_POWER);
     }
 
     public State getState() {
@@ -156,12 +193,12 @@ public class TransportGate {
 
     /** Ticks forward of HOLD since the zero, accumulating across revolutions. */
     public double getUnwrappedTicks() {
-        return ENCODER_SIGN * (motor.getCurrentPosition() - homeRaw);
+        return ENCODER_SIGN * (rawTicks - homeRaw);
     }
 
     /** The SDK's encoder count, before ENCODER_SIGN and the HOLD zero (bring-up). */
     public int getRawTicks() {
-        return motor.getCurrentPosition();
+        return rawTicks;
     }
 
     /** Gate angle in [0, 360) from HOLD, or NaN until TICKS_PER_REV is set. */
@@ -173,11 +210,12 @@ public class TransportGate {
 
     /** Signed so that forward is positive, whatever the encoder wiring. */
     public double getVelocityTicksPerSec() {
-        return ENCODER_SIGN * motor.getVelocity();
+        return ENCODER_SIGN * velocityRaw;
     }
 
+    /** Motor current as of the last read: fresh while a move could be blocked, otherwise refreshed a few times a second. */
     public double getCurrentAmps() {
-        return motor.getCurrent(CurrentUnit.AMPS);
+        return currentA;
     }
 
     private double nearestHoldTicks() {
@@ -193,12 +231,12 @@ public class TransportGate {
     /** Idle, stopped, and within HOLD_TOLERANCE_DEG of a HOLD. */
     public boolean atHold() {
         return state == State.HOLD && isCalibrated() && Math.abs(getHoldErrorDeg()) <= HOLD_TOLERANCE_DEG
-                && Math.abs(motor.getVelocity()) < STOP_SPEED_TICKS_PER_SEC;
+                && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC;
     }
 
     /** Idle and not moving, wherever it came to rest: a salvo can start from here (it targets the next HOLD ahead of the nearest one). */
     public boolean isStopped() {
-        return state == State.HOLD && Math.abs(motor.getVelocity()) < STOP_SPEED_TICKS_PER_SEC;
+        return state == State.HOLD && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC;
     }
 
     /** Go to the nearest HOLD: forward only. Already within the tolerance: just stop. */
@@ -299,7 +337,7 @@ public class TransportGate {
 
     private void stopHere() {
         state = State.HOLD;
-        motor.setPower(0.0);
+        setMotorPower(0.0);
         restTimer.reset();
         resetProgress();
     }
@@ -324,11 +362,12 @@ public class TransportGate {
                 Math.abs(getUnwrappedTicks() - moveStartTicks) * 360.0 / TICKS_PER_REV);
         faultReason = reason;
         state = State.STALLED;
-        motor.setPower(0.0);
+        setMotorPower(0.0);
     }
 
-    /** Call once per loop. */
+    /** Call once per loop. Reads the hub once, up front; everything below works from that snapshot. */
     public void update() {
+        readSensors();
         double unwrapped = getUnwrappedTicks();
         double ticksPerDeg = TICKS_PER_REV / 360.0;
         boolean moving = state == State.SALVO || state == State.RETURN || state == State.REJECT;
@@ -340,13 +379,13 @@ public class TransportGate {
 
         switch (state) {
             case HOLD:
-                motor.setPower(0.0);
+                setMotorPower(0.0);
                 if (pendingSettle && isCalibrated() && restTimer.seconds() > 0.25
-                        && Math.abs(motor.getVelocity()) < STOP_SPEED_TICKS_PER_SEC) {
+                        && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC) {
                     recordSettle();
                 }
                 if (isCalibrated() && AUTO_CORRECT_MAX_DEG > 0.0 && restTimer.seconds() > 0.3
-                        && Math.abs(motor.getVelocity()) < STOP_SPEED_TICKS_PER_SEC) {
+                        && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC) {
                     double error = getHoldErrorDeg();
                     if (error > HOLD_TOLERANCE_DEG && error <= AUTO_CORRECT_MAX_DEG) hold();
                 }
@@ -359,7 +398,7 @@ public class TransportGate {
                     recordFinish(remainingDeg, speedDegPerSec, 1.0);
                     stopHere();
                 } else {
-                    motor.setPower(APPROACH_DEG > 0.0 && remainingDeg <= APPROACH_DEG ? APPROACH_POWER : SWEEP_POWER);
+                    setMotorPower(APPROACH_DEG > 0.0 && remainingDeg <= APPROACH_DEG ? APPROACH_POWER : SWEEP_POWER);
                     monitorProgress(unwrapped / ticksPerDeg);
                 }
                 break;
@@ -371,16 +410,16 @@ public class TransportGate {
                     recordFinish(remainingDeg, speedDegPerSec, -1.0);
                     stopHere();
                 } else {
-                    motor.setPower(-(APPROACH_DEG > 0.0 && remainingDeg <= APPROACH_DEG ? APPROACH_POWER : REJECT_POWER));
+                    setMotorPower(-(APPROACH_DEG > 0.0 && remainingDeg <= APPROACH_DEG ? APPROACH_POWER : REJECT_POWER));
                     monitorProgress(-unwrapped / ticksPerDeg);
                 }
                 break;
             }
             case JOG:
-                motor.setPower(jogPower);
+                setMotorPower(jogPower);
                 break;
             case STALLED:
-                motor.setPower(0.0);
+                setMotorPower(0.0);
                 break;
         }
 
@@ -388,10 +427,8 @@ public class TransportGate {
     }
 
     private void detectStall() {
-        boolean commanded = state == State.SALVO || state == State.RETURN || state == State.REJECT
-                || (state == State.JOG && Math.abs(jogPower) >= STALL_MIN_JOG_POWER);
-        boolean blocked = commanded && moveTimer.seconds() > STALL_GRACE_S
-                && getCurrentAmps() > STALL_CURRENT_A && Math.abs(motor.getVelocity()) < STALL_MIN_TICKS_PER_SEC;
+        boolean blocked = isCommanded() && moveTimer.seconds() > STALL_GRACE_S
+                && currentA > STALL_CURRENT_A && Math.abs(velocityRaw) < STALL_MIN_TICKS_PER_SEC;
         if (!blocked) {
             stalling = false;
             return;
@@ -410,7 +447,7 @@ public class TransportGate {
         telemetry.addData("Gate ticks (unwrapped)", "%.0f   speed %.0f ticks/s", getUnwrappedTicks(), getVelocityTicksPerSec());
         telemetry.addData("Error to nearest HOLD (deg)", Double.isNaN(getHoldErrorDeg()) ? "-"
                 : String.format("%+.1f   (+ = short of it, - = past it)", getHoldErrorDeg()));
-        telemetry.addData("Gate power / current", "%+.2f / %.2f A", motor.getPower(), getCurrentAmps());
+        telemetry.addData("Gate power / current", "%+.2f / %.2f A", lastPower, getCurrentAmps());
         telemetry.addData("Gate last command", lastCommand);
         telemetry.addData("Gate last move result", lastResult);
         telemetry.addData("Gate last settle", lastSettle);
