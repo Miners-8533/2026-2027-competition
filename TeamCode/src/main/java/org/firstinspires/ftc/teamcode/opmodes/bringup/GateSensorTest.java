@@ -39,7 +39,8 @@ import java.util.Locale;
  *   D-pad up/down    sensor gain +/- 0.5 (affects the color readings; distance is unaffected)
  *   D-pad left/right condition label: empty / pollen / nectar / pollen+nectar (for comparing runs; goes in the log)
  *   Left bumper      next sweep power (0.15, 0.2, 0.3, 0.45, 0.6: include 0.3, the salvo's SWEEP_POWER)
- *   Right bumper     start / stop the automatic SWEEP (needs X and Y done first)
+ *   Right bumper     start / stop the automatic SWEEP. With X and Y captured it uses them; without, it learns the alpha
+ *                    range itself during the first turn (AUTO_CAL_DEG), then counts passes
  *   Back             clear the captures and the sweep results
  *
  * SWEEP: the gate turns forward at the chosen power for SWEEP_PASSES turns. Each time the best reading crosses the
@@ -64,6 +65,9 @@ public class GateSensorTest extends LinearOpMode {
     public static int SWEEP_PASSES = 12;
     public static double SWEEP_MAX_SEC = 90.0;
     public static double SWEEP_ABORT_STICK = 0.3;
+    /** Without X / Y captures the sweep self-calibrates on alpha over this much travel, and needs this much alpha range to trust it. */
+    public static double AUTO_CAL_DEG = 400.0;
+    public static double AUTO_CAL_MIN_RANGE = 0.03;
 
     private static final double[] SWEEP_POWERS = {0.15, 0.2, 0.3, 0.45, 0.6};
     private static final String[] CONDITIONS = {"empty", "pollen", "nectar", "pollen+nectar"};
@@ -159,6 +163,9 @@ public class GateSensorTest extends LinearOpMode {
         int sweepLoops = 0;
         String sweepStatus = "idle";
         String sweepSummary = "-";
+        boolean autoCal = false;
+        double calMin = 0, calMax = 0, calStartAngle = 0, lastLoggedAngle = 0;
+        String note = "-";
 
         telemetry.addLine("Gate Sensor Test. Jog the gate slowly, then X (background) and Y (gate in front), then RB to sweep. Nothing moves until you push the stick or start a sweep.");
         telemetry.update();
@@ -191,6 +198,8 @@ public class GateSensorTest extends LinearOpMode {
                 best = -1;
                 seen = false;
                 sweeping = false;
+                autoCal = false;
+                note = "cleared";
                 rises.clear();
                 falls.clear();
                 sweepSummary = "-";
@@ -199,10 +208,15 @@ public class GateSensorTest extends LinearOpMode {
 
             boolean captureBackground = gamepad1.xWasPressed();
             boolean captureGate = gamepad1.yWasPressed();
-            if (captureTarget == 0 && !sweeping && (captureBackground || captureGate)) {
-                captureTarget = captureBackground ? 1 : 2;
-                capturing = captureTarget == 1 ? (background = new Stats()) : (gateSeen = new Stats());
-                captureTimer.reset();
+            if (captureBackground || captureGate) {
+                if (captureTarget == 0 && !sweeping) {
+                    captureTarget = captureBackground ? 1 : 2;
+                    capturing = captureTarget == 1 ? (background = new Stats()) : (gateSeen = new Stats());
+                    captureTimer.reset();
+                    note = (captureBackground ? "BACKGROUND" : "GATE") + " capture started: hold still";
+                } else {
+                    note = "capture ignored: wait until the current capture or the sweep has finished";
+                }
             }
 
             double[] v = new double[N];
@@ -216,6 +230,12 @@ public class GateSensorTest extends LinearOpMode {
             if (captureTarget != 0) {
                 capturing.add(v);
                 if (captureTimer.seconds() >= CAPTURE_SEC) {
+                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "CAPTURE %s done: %d samples, distance %.2f, alpha %.4f (+/-%.4f), r %.4f g %.4f b %.4f",
+                            captureTarget == 1 ? "BACKGROUND" : "GATE", capturing.n, capturing.mean(0), capturing.mean(4), capturing.std(4),
+                            capturing.mean(1), capturing.mean(2), capturing.mean(3)));
+                    note = (captureTarget == 1 ? "BACKGROUND" : "GATE") + " captured. "
+                            + (captureTarget == 1 ? (gateSeen.n > 0 ? "Both done: RB starts the sweep." : "Now do Y.")
+                            : (background.n > 0 ? "Both done: RB starts the sweep." : "Now do X."));
                     captureTarget = 0;
                     capturing = null;
                     if (background.n > 0 && gateSeen.n > 0) {
@@ -247,7 +267,20 @@ public class GateSensorTest extends LinearOpMode {
                 if (sweeping) {
                     sweeping = false;
                     sweepStatus = "stopped by you";
-                } else if (best >= 0 && captureTarget == 0) {
+                } else if (captureTarget != 0) {
+                    note = "sweep not started: a capture is still running";
+                } else {
+                    boolean haveCaptures = best >= 0 && background.n > 0 && gateSeen.n > 0;
+                    autoCal = !haveCaptures;
+                    if (autoCal) {
+                        best = -1;
+                        calMin = Double.POSITIVE_INFINITY;
+                        calMax = Double.NEGATIVE_INFINITY;
+                        calStartAngle = angle;
+                        note = "no X / Y captures: the sweep self-calibrates on alpha during its first turn (" + (int) AUTO_CAL_DEG + " deg)";
+                    } else {
+                        note = "sweep using your X / Y captures";
+                    }
                     sweeping = true;
                     sweepTimer.reset();
                     rises.clear();
@@ -257,9 +290,10 @@ public class GateSensorTest extends LinearOpMode {
                     lastEdgeAngle = angle;
                     stepSum = loopMsSum = speedSum = 0;
                     sweepLoops = 0;
-                    sweepStatus = "running";
+                    sweepStatus = autoCal ? "calibrating" : "running";
                     sweepSummary = "-";
                     lastAngleForSpeed = angle;
+                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "SWEEP START label=%s power=%.2f autoCal=%b", CONDITIONS[condition], SWEEP_POWERS[powerIndex], autoCal));
                 }
             }
 
@@ -273,7 +307,29 @@ public class GateSensorTest extends LinearOpMode {
                 sweepLoops++;
                 lastAngleForSpeed = angle;
 
-                if (havePrev) {
+                if (autoCal) {
+                    // no X / Y captures: learn the alpha range (arm away .. arm in front) over the first turn
+                    calMin = Math.min(calMin, v[4]);
+                    calMax = Math.max(calMax, v[4]);
+                    if (angle - calStartAngle >= AUTO_CAL_DEG) {
+                        autoCal = false;
+                        if (calMax - calMin < AUTO_CAL_MIN_RANGE) {
+                            sweeping = false;
+                            sweepStatus = String.format(Locale.US, "NO ARM SEEN in a full turn: alpha only varied %.3f (needs %.2f)", calMax - calMin, AUTO_CAL_MIN_RANGE);
+                        } else {
+                            best = 4;                                   // alpha
+                            threshold = (calMin + calMax) / 2.0;
+                            band = 0.15 * (calMax - calMin);
+                            gateHigher = true;
+                            seen = false;
+                            signed = v[4] - threshold;
+                            havePrev = false;
+                            lastEdgeAngle = angle;
+                            sweepStatus = String.format(Locale.US, "running (self-calibrated: alpha %.3f .. %.3f, threshold %.3f)", calMin, calMax, threshold);
+                            RobotLog.ii(LOG_TAG, "SWEEP " + sweepStatus);
+                        }
+                    }
+                } else if (havePrev) {
                     boolean wasOn = prevSigned >= 0, isOn = signed >= 0;
                     if (wasOn != isOn) {
                         double frac = (0.0 - prevSigned) / (signed - prevSigned);   // where the reading crosses the midpoint between two samples
@@ -337,8 +393,12 @@ public class GateSensorTest extends LinearOpMode {
             }
             gate.setPower(power);
 
-            if (logTimer.milliseconds() > 150) {
+            // the phone keeps only 256 KB of log: write often only while something is changing, so the sweep lines survive
+            boolean moving = sweeping || Math.abs(angle - lastLoggedAngle) > 0.5 || Math.abs(stick) > 0.05;
+            double logEveryMs = sweeping ? 500.0 : moving ? 150.0 : 1000.0;
+            if (logTimer.milliseconds() > logEveryMs) {
                 logTimer.reset();
+                lastLoggedAngle = angle;
                 double sum = v[1] + v[2] + v[3] + 1e-9;
                 RobotLog.ii(LOG_TAG, String.format(Locale.US,
                         "angle=%.1f ticks=%d dist=%.2f r=%.4f g=%.4f b=%.4f a=%.4f chroma=%.2f/%.2f/%.2f seen=%b best=%s sweeping=%b label=%s",
@@ -355,6 +415,7 @@ public class GateSensorTest extends LinearOpMode {
             telemetry.addData("Capture", captureTarget == 0 ? "idle"
                     : String.format(Locale.US, "%s: hold still %.1f s", captureTarget == 1 ? "BACKGROUND" : "GATE", CAPTURE_SEC - captureTimer.seconds()));
             telemetry.addData("Captures taken", "background %d samples, gate %d samples", background.n, gateSeen.n);
+            telemetry.addData("Note", note);
             if (background.n > 0 && gateSeen.n > 0) {
                 for (int i = 0; i < N; i++) {
                     double sep = Math.abs(gateSeen.mean(i) - background.mean(i)) / (background.std(i) + gateSeen.std(i) + 1e-6);
@@ -366,7 +427,7 @@ public class GateSensorTest extends LinearOpMode {
                 telemetry.addData("DETECTION", best < 0 ? "-" : String.format(Locale.US, "%s using %s (threshold %.4f, gate reads %s)",
                         seen ? "SEEN" : "not seen", METRICS[best], threshold, gateHigher ? "HIGHER" : "LOWER"));
             } else {
-                telemetry.addLine("Jog the arm away from the sensor, press X; then jog it in front of the sensor, press Y.");
+                telemetry.addLine("Optional: jog the arm away from the sensor and press X, then in front of it and press Y. Or just press RB: the sweep then self-calibrates on its first turn.");
             }
             telemetry.addData("SWEEP", sweeping
                     ? String.format(Locale.US, "running at power %.2f: pass %d of %d (%.0f s)", SWEEP_POWERS[powerIndex], falls.size(), SWEEP_PASSES, sweepTimer.seconds())
