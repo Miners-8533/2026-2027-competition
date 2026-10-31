@@ -103,6 +103,8 @@ public class ColorSensorsTest extends LinearOpMode {
     public static boolean ARM_REQUIRE_DISTANCE = false;
     /** While recording, the confusion table is also written to the log this often (seconds). */
     public static double SNAPSHOT_SEC = 20.0;
+    /** Readings are not scored for this long after a sensor's label changes (the classifier lags by its debounce). */
+    public static double LABEL_SETTLE_MS = 700.0;
 
     /** What the team says is in front of a sensor (the ground truth), and what the classifier can answer (index 0 = empty / nothing). */
     private static final String[] CLASSES = {"NOTHING", "POLLEN", "RED NECTAR", "BLUE NECTAR", "GATE ARM", "OTHER"};
@@ -210,6 +212,7 @@ public class ColorSensorsTest extends LinearOpMode {
 
         // labeled test: what the team says is in front of each sensor, and how the classifier did against it
         int[] truth = new int[N];                      // index into CLASSES, per sensor; default NOTHING
+        long[] labelSince = new long[N];               // when each label last changed
         int selected = 0;
         boolean recording = false;
         int[][][] counts = new int[N][CLASSES.length][PREDICTIONS.length];
@@ -241,9 +244,18 @@ public class ColorSensorsTest extends LinearOpMode {
             if (gamepad1.xWasPressed()) READ_ONE_PER_LOOP = !READ_ONE_PER_LOOP;
             if (gamepad1.dpadUpWasPressed()) selected = (selected + N - 1) % N;
             if (gamepad1.dpadDownWasPressed()) selected = (selected + 1) % N;
-            if (gamepad1.dpadRightWasPressed()) truth[selected] = (truth[selected] + 1) % CLASSES.length;
-            if (gamepad1.dpadLeftWasPressed()) truth[selected] = (truth[selected] + CLASSES.length - 1) % CLASSES.length;
-            if (gamepad1.leftBumperWasPressed()) Arrays.fill(truth, 0);
+            if (gamepad1.dpadRightWasPressed()) {
+                truth[selected] = (truth[selected] + 1) % CLASSES.length;
+                labelSince[selected] = now;
+            }
+            if (gamepad1.dpadLeftWasPressed()) {
+                truth[selected] = (truth[selected] + CLASSES.length - 1) % CLASSES.length;
+                labelSince[selected] = now;
+            }
+            if (gamepad1.leftBumperWasPressed()) {
+                Arrays.fill(truth, 0);
+                Arrays.fill(labelSince, now);
+            }
             if (gamepad1.rightBumperWasPressed()) {
                 for (int[][] perSensor : counts) for (int[] perTruth : perSensor) Arrays.fill(perTruth, 0);
                 note = "confusion counts cleared";
@@ -367,7 +379,9 @@ public class ColorSensorsTest extends LinearOpMode {
                     if (candidate[i] != present[i] && (now - candidateSince[i]) / 1e6 >= DEBOUNCE_MS) present[i] = candidate[i];
                     cls[i] = present[i] ? classify(i, sr[i], sg[i], sb[i], dist[i]) : "-";
                     state = present[i] ? "PRESENT: " + cls[i] : "empty";
-                    if (recording && readNow[i]) counts[i][truth[i]][predictionIndex(present[i], cls[i])]++;
+                    if (recording && readNow[i] && (now - labelSince[i]) / 1e6 >= LABEL_SETTLE_MS) {
+                        counts[i][truth[i]][predictionIndex(present[i], cls[i])]++;
+                    }
                     if (present[i]) {
                         presentCount++;
                         switch (cls[i]) {
