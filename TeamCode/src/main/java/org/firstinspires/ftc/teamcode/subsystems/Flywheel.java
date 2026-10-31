@@ -14,8 +14,8 @@ import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
 
 /**
- * The shooter flywheel: an encoder motor "fly_motor_enc" and an optional second motor "fly_follow" (no
- * encoder), hood fixed. Design notes: design/mechanisms.md.
+ * The shooter flywheel: one encoder motor "fly_motor_enc", hood fixed. (The optional second motor "fly_follow"
+ * is commented out for now; search for "fly_follow" to restore it.) Design notes: design/mechanisms.md.
  *
  * Control is last season's bang-bang plus feedforward: full power while below the setpoint, a single
  * FEED_FORWARD motor command (0 to 1) at or above it, nothing when the target is 0. Plain on purpose;
@@ -23,14 +23,14 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * transport gate sets the ball spacing, and {@link #isReady()} is meant to be checked before the
  * FIRST ball of a salvo only.
  *
- * Both motors run WITHOUT the hub's closed-loop encoder modes and get the SAME power, so a power is a plain
- * duty cycle on each (a closed-loop mode would turn the same number into a speed target on one motor and a duty
- * on the other, and runs away if the encoder counts opposite to its motor). The encoder is only a sensor:
+ * The motor runs WITHOUT the hub's closed-loop encoder modes, so a power is a plain duty cycle (a closed-loop mode
+ * would turn the same number into a speed target, and runs away if the encoder counts opposite to its motor). The
+ * encoder is only a sensor:
  * ENCODER_SIGN makes the speed positive when the wheel turns the shooting way, and a speed that reads
  * strongly negative while spinning stops the flywheel with a fault instead of letting it run at full power.
  *
  * Call {@link #update()} once per loop (autos pass it to Actions.runBlocking). Velocity is in encoder ticks
- * per second. The follower is optional: with no "fly_follow" in the configuration this is a one-motor flywheel.
+ * per second.
  */
 @Config
 public class Flywheel {
@@ -50,7 +50,9 @@ public class Flywheel {
     private static final int FILTER_SAMPLES = 5;
 
     private final DcMotorEx motor;
-    private final DcMotorEx follower;   // null when there is no "fly_follow" motor
+    // The optional second motor "fly_follow" is commented out for now (removed from the robot); the lines below
+    // marked "fly_follow" put it back.
+    // private final DcMotorEx follower;   // null when there is no "fly_follow" motor
     private final double[] window = new double[FILTER_SAMPLES];
     private final ElapsedTime reversedTimer = new ElapsedTime();
     private int windowIndex = 0;
@@ -63,7 +65,8 @@ public class Flywheel {
     // currents a few times a second for the display) and written only when the power changes.
     private final ElapsedTime currentTimer = new ElapsedTime();
     private double velocity = 0.0;
-    private double currentA = 0.0, followerCurrentA = 0.0;
+    private double currentA = 0.0;
+    // private double followerCurrentA = 0.0;   // fly_follow
     private double lastPower = 0.0;
 
     public Flywheel(HardwareMap hardwareMap) {
@@ -74,24 +77,26 @@ public class Flywheel {
         motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         motor.setPower(0.0);
 
-        follower = hardwareMap.tryGet(DcMotorEx.class, "fly_follow");
-        if (follower != null) {
-            follower.setDirection(profile.flywheelFollowerDirection);
-            follower.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-            follower.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            follower.setPower(0.0);
-        }
+        // fly_follow
+        // follower = hardwareMap.tryGet(DcMotorEx.class, "fly_follow");
+        // if (follower != null) {
+        //     follower.setDirection(profile.flywheelFollowerDirection);
+        //     follower.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        //     follower.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        //     follower.setPower(0.0);
+        // }
     }
 
-    public boolean hasFollower() {
-        return follower != null;
-    }
+    // fly_follow
+    // public boolean hasFollower() {
+    //     return follower != null;
+    // }
 
-    /** Write the power to both motors only when it changed (each write is a blocking round trip), unless forced. */
+    /** Write the power only when it changed (each write is a blocking round trip), unless forced. */
     private void setPower(double power, boolean force) {
         if (force || power != lastPower) {
             motor.setPower(power);
-            if (follower != null) follower.setPower(power);
+            // if (follower != null) follower.setPower(power);   // fly_follow
             lastPower = power;
         }
     }
@@ -143,7 +148,7 @@ public class Flywheel {
         velocity = ENCODER_SIGN * motor.getVelocity();
         if (currentTimer.milliseconds() > CURRENT_REFRESH_MS) {
             currentA = motor.getCurrent(CurrentUnit.AMPS);
-            followerCurrentA = follower != null ? follower.getCurrent(CurrentUnit.AMPS) : 0.0;
+            // followerCurrentA = follower != null ? follower.getCurrent(CurrentUnit.AMPS) : 0.0;   // fly_follow
             currentTimer.reset();
         }
         windowSum += velocity - window[windowIndex];
@@ -179,9 +184,12 @@ public class Flywheel {
         telemetry.addData("Flywheel target (ticks/s)", "%.0f", targetVelocity);
         telemetry.addData("Flywheel velocity (ticks/s)", "%.0f   filtered %.0f", getVelocity(), getFilteredVelocity());
         telemetry.addData("Flywheel ready", isReady());
-        telemetry.addData("Flywheel power (+/-%FS)", "%.2f   (%s)", lastPower, follower != null ? "2 motors" : "1 motor");
-        telemetry.addData("Flywheel current (A)", "%.2f%s", getCurrentAmps(), follower != null
-                ? String.format("   follower %.2f", followerCurrentA) : "");
+        telemetry.addData("Flywheel power (+/-%FS)", "%.2f", lastPower);
+        telemetry.addData("Flywheel current (A)", "%.2f", getCurrentAmps());
+        // fly_follow
+        // telemetry.addData("Flywheel power (+/-%FS)", "%.2f   (%s)", lastPower, follower != null ? "2 motors" : "1 motor");
+        // telemetry.addData("Flywheel current (A)", "%.2f%s", getCurrentAmps(), follower != null
+        //         ? String.format("   follower %.2f", followerCurrentA) : "");
         if (faulted) {
             telemetry.addLine("FLYWHEEL FAULT: the encoder reads BACKWARD while spinning. Set Flywheel.ENCODER_SIGN = -1 (Options clears).");
         }

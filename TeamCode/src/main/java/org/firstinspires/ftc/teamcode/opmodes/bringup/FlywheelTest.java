@@ -18,13 +18,12 @@ import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
  *   Y                  arm a dip measurement, then feed a ball (by hand or with the gate)
  *   Options             clear the last measurement and any fault
  *
- * Both motors ("fly_motor_enc", plus "fly_follow" if configured) get the same power, with no hub encoder loop.
+ * The motor ("fly_motor_enc"; the second motor "fly_follow" is commented out in Flywheel) runs with no hub encoder loop.
  *
  * Checks, in order:
  *   1. Spin it up at a low setpoint: the flywheel turns the shooting way and the speed reads POSITIVE.
- *      If it turns the wrong way, flip flywheelDirection (or flywheelFollowerDirection for the second
- *      motor) for this chassis in ChassisProfile. If the speed reads negative, the flywheel stops with a
- *      fault: set Flywheel.ENCODER_SIGN = -1.
+ *      If it turns the wrong way, flip flywheelDirection for this chassis in ChassisProfile. If the speed
+ *      reads negative, the flywheel stops with a fault: set Flywheel.ENCODER_SIGN = -1.
  *   2. Raise the setpoint and watch the velocity settle near it, with Flywheel.FEED_FORWARD (start 0.2)
  *      holding it. Tune FEED_FORWARD live in the FTC Dashboard so the hold power is just enough.
  *   3. Press Y, then feed a ball. It records how far the speed dips and how long it takes to recover.

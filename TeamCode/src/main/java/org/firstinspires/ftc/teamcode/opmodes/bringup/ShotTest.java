@@ -13,7 +13,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
 
 /**
  * Test shots with the flywheel and the transport gate together, with no chassis or other mechanism needed
- * (hub configuration: "gate", "fly_motor_enc", and optionally "fly_follow"). Everything is manual; nothing
+ * (hub configuration: "gate" and "fly_motor_enc"). Everything is manual; nothing
  * runs behind your back, and the flywheel keeps spinning between shots until you stop it.
  *
  *   A                  flywheel on / off
