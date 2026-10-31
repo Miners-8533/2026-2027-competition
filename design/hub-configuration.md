@@ -61,14 +61,14 @@ Ports above were read by Hardware Check on 2026-10-31 (battery 12.2 V). Pinpoint
 
 Run each opmode in order. All three only read.
 
-- [ ] **Hardware Check**
+- [x] **Hardware Check** (passed 2026-10-31: all ten devices present, ports recorded above, Pinpoint READY, turning the flywheel by hand moved only `fly_motor_enc` and turning the gate arm moved only `gate`; remaining: delete the stale `limelight` and `stop` entries)
   - `RESULT: all required devices are present`. A `MISSING` or `WRONG TYPE` line names the problem entry.
   - Every device line shows the hub and port you expected. Copy them into the port table above.
   - Turn each part **by hand** and watch the encoders: the flywheel by hand changes only `fly_motor_enc`, the gate arm changes only `gate`. If two encoders move together, or the wrong name moves, two cables are crossed.
   - `pinpoint`: `status READY`, and a loop time of 500-1100 us. `FAULT_*` means a pod is not detected.
   - Both hubs listed with a battery voltage that makes sense (a charged battery reads about 12-13 V; note it).
   - The "configured but not used" list is empty (or only holds devices you chose to keep, such as `imu`).
-- [ ] **Chassis Info**: `Matched profile: ROBOT_1` (not "NONE").
+- [x] **Chassis Info**: `Matched profile: ROBOT_1` (not "NONE"). Hardware Check reported `Chassis profile: ROBOT_1` on 2026-10-31.
 - [ ] **TeleOp - Draft (mechanisms)**, in INIT: the telemetry line `Mechanisms present` reads `intake true, flywheel true, gate true, depollinator true`, and the init screen shows no "no hub registered yet" warning.
 
 ## If something is wrong
