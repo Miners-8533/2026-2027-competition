@@ -13,10 +13,14 @@ import com.qualcomm.robotcore.hardware.NormalizedRGBA;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
+import com.qualcomm.hardware.broadcom.BroadcomColorSensor;
+import com.qualcomm.hardware.broadcom.BroadcomColorSensorImpl;
+
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -41,7 +45,15 @@ import java.util.Locale;
  *   Left bumper      next sweep power (0.15, 0.2, 0.3, 0.45, 0.6: include 0.3, the salvo's SWEEP_POWER)
  *   Right bumper     start / stop the automatic SWEEP. With X and Y captured it uses them; without, it learns the alpha
  *                    range itself during the first turn (AUTO_CAL_DEG), then counts passes
+ *   Right stick click  next sensor rate preset: SDK default (color and proximity refresh every 100 ms), medium, fast
+ *                    (color 25 ms, proximity 6.25 ms). The SDK fixes the default and offers no setter, so this uses
+ *                    reflection. The readings rescale, so the captures are cleared (RB self-calibrates again).
  *   Back             clear the captures and the sweep results
+ *
+ * Why the rate matters: at the default 100 ms the sensor reports a new value only ten times a second, so at 340 deg/s
+ * the arm moves about 34 deg between fresh values. The sweep therefore interpolates only between FRESH readings (the
+ * value changed), not between loops, so the unknown refresh phase does not show up as a crossing-angle error; what is
+ * left is a constant lag that grows with speed. Compare presets and powers to see how much.
  *
  * SWEEP: the gate turns forward at the chosen power for SWEEP_PASSES turns. Each time the best reading crosses the
  * midpoint between the two captures it records the encoder angle, interpolated between the two samples around the
@@ -97,6 +109,52 @@ public class GateSensorTest extends LinearOpMode {
             if (n < 2) return 0.0;
             double m = sum[i] / n;
             return Math.sqrt(Math.max(0.0, sumSq[i] / n - m * m));
+        }
+    }
+
+    private static final String[] RATE_NAMES = {
+            "SDK default: color 100 ms (18-bit), proximity 100 ms",
+            "fast: color 25 ms (16-bit), proximity 6.25 ms",
+            "medium: color 50 ms (17-bit), proximity 25 ms"};
+
+    /**
+     * The SDK fixes the sensor's measurement rates at start-up (color and proximity both 100 ms) and offers no public
+     * way to change them, so this calls its protected setters by reflection. Test-only: if it ever fails, the sensor
+     * simply keeps the rates it has. The color readings rescale with the resolution, so captures must be redone.
+     */
+    private static String applyRates(RevColorSensorV3 sensor, int preset) {
+        try {
+            BroadcomColorSensor.PSMeasurementRate psRate;
+            BroadcomColorSensor.LSResolution lsRes;
+            BroadcomColorSensor.LSMeasurementRate lsRate;
+            switch (preset) {
+                case 1:
+                    psRate = BroadcomColorSensor.PSMeasurementRate.R6_25ms;
+                    lsRes = BroadcomColorSensor.LSResolution.R16BIT;
+                    lsRate = BroadcomColorSensor.LSMeasurementRate.R25ms;
+                    break;
+                case 2:
+                    psRate = BroadcomColorSensor.PSMeasurementRate.R25ms;
+                    lsRes = BroadcomColorSensor.LSResolution.R17BIT;
+                    lsRate = BroadcomColorSensor.LSMeasurementRate.R50ms;
+                    break;
+                default:
+                    psRate = BroadcomColorSensor.PSMeasurementRate.R100ms;
+                    lsRes = BroadcomColorSensor.LSResolution.R18BIT;
+                    lsRate = BroadcomColorSensor.LSMeasurementRate.R100ms;
+                    break;
+            }
+            Method ps = BroadcomColorSensorImpl.class.getDeclaredMethod("setPSRateAndRes",
+                    BroadcomColorSensor.PSResolution.class, BroadcomColorSensor.PSMeasurementRate.class);
+            ps.setAccessible(true);
+            ps.invoke(sensor, BroadcomColorSensor.PSResolution.R8BIT, psRate);
+            Method ls = BroadcomColorSensorImpl.class.getDeclaredMethod("setLSRateAndRes",
+                    BroadcomColorSensor.LSResolution.class, BroadcomColorSensor.LSMeasurementRate.class);
+            ls.setAccessible(true);
+            ls.invoke(sensor, lsRes, lsRate);
+            return "applied: " + RATE_NAMES[preset];
+        } catch (Exception e) {
+            return "FAILED to apply (" + e + "); the sensor keeps its current rates";
         }
     }
 
@@ -166,6 +224,10 @@ public class GateSensorTest extends LinearOpMode {
         boolean autoCal = false;
         double calMin = 0, calMax = 0, calStartAngle = 0, lastLoggedAngle = 0;
         String note = "-";
+        int ratePreset = 0;
+        String rateStatus = "SDK default (not changed): " + RATE_NAMES[0];
+        double lastMetricValue = Double.NaN;
+        int sweepFresh = 0;
 
         telemetry.addLine("Gate Sensor Test. Jog the gate slowly, then X (background) and Y (gate in front), then RB to sweep. Nothing moves until you push the stick or start a sweep.");
         telemetry.update();
@@ -192,6 +254,16 @@ public class GateSensorTest extends LinearOpMode {
             if (gamepad1.dpadRightWasPressed()) condition = (condition + 1) % CONDITIONS.length;
             if (gamepad1.dpadLeftWasPressed()) condition = (condition + CONDITIONS.length - 1) % CONDITIONS.length;
             if (gamepad1.leftBumperWasPressed() && !sweeping) powerIndex = (powerIndex + 1) % SWEEP_POWERS.length;
+            if (gamepad1.rightStickButtonWasPressed() && !sweeping && captureTarget == 0) {
+                ratePreset = (ratePreset + 1) % RATE_NAMES.length;
+                rateStatus = applyRates(sensor, ratePreset);
+                background = new Stats();
+                gateSeen = new Stats();
+                best = -1;
+                seen = false;
+                note = "sensor rate changed: the readings rescale, so redo X / Y or let RB self-calibrate";
+                RobotLog.ii(LOG_TAG, "RATE " + rateStatus);
+            }
             if (gamepad1.backWasPressed()) {
                 background = new Stats();
                 gateSeen = new Stats();
@@ -290,6 +362,8 @@ public class GateSensorTest extends LinearOpMode {
                     lastEdgeAngle = angle;
                     stepSum = loopMsSum = speedSum = 0;
                     sweepLoops = 0;
+                    sweepFresh = 0;
+                    lastMetricValue = Double.NaN;
                     sweepStatus = autoCal ? "calibrating" : "running";
                     sweepSummary = "-";
                     lastAngleForSpeed = angle;
@@ -307,10 +381,21 @@ public class GateSensorTest extends LinearOpMode {
                 sweepLoops++;
                 lastAngleForSpeed = angle;
 
+                // Work only on FRESH sensor readings. The sensor refreshes every 100 ms by default, so most loops see the
+                // same value again; interpolating between loops would put a crossing at the wrong angle by up to a whole
+                // refresh (the repeating three-turn sawtooth in the first sweep). Between fresh readings the lag is constant.
+                double metricNow = v[autoCal || best < 0 ? 4 : best];
+                boolean fresh = metricNow != lastMetricValue;
+                if (fresh) {
+                    lastMetricValue = metricNow;
+                    sweepFresh++;
+                }
                 if (autoCal) {
                     // no X / Y captures: learn the alpha range (arm away .. arm in front) over the first turn
-                    calMin = Math.min(calMin, v[4]);
-                    calMax = Math.max(calMax, v[4]);
+                    if (fresh) {
+                        calMin = Math.min(calMin, v[4]);
+                        calMax = Math.max(calMax, v[4]);
+                    }
                     if (angle - calStartAngle >= AUTO_CAL_DEG) {
                         autoCal = false;
                         if (calMax - calMin < AUTO_CAL_MIN_RANGE) {
@@ -329,27 +414,29 @@ public class GateSensorTest extends LinearOpMode {
                             RobotLog.ii(LOG_TAG, "SWEEP " + sweepStatus);
                         }
                     }
-                } else if (havePrev) {
-                    boolean wasOn = prevSigned >= 0, isOn = signed >= 0;
-                    if (wasOn != isOn) {
-                        double frac = (0.0 - prevSigned) / (signed - prevSigned);   // where the reading crosses the midpoint between two samples
-                        double edge = prevAngle + frac * (angle - prevAngle);
-                        lastEdgeAngle = edge;
-                        if (isOn) {
-                            rises.add(edge);
-                            haveRise = true;
-                        } else if (haveRise && rises.size() > falls.size()) {
-                            falls.add(edge);
-                            int k = falls.size() - 1;
-                            RobotLog.ii(LOG_TAG, String.format(Locale.US,
-                                    "SWEEP label=%s power=%.2f pass=%d rise=%.2f fall=%.2f center=%.2f width=%.2f",
-                                    CONDITIONS[condition], power, k, rises.get(k), edge, (rises.get(k) + edge) / 2.0, edge - rises.get(k)));
+                } else if (fresh) {
+                    if (havePrev) {
+                        boolean wasOn = prevSigned >= 0, isOn = signed >= 0;
+                        if (wasOn != isOn) {
+                            double frac = (0.0 - prevSigned) / (signed - prevSigned);   // where the reading crosses the midpoint between two fresh readings
+                            double edge = prevAngle + frac * (angle - prevAngle);
+                            lastEdgeAngle = edge;
+                            if (isOn) {
+                                rises.add(edge);
+                                haveRise = true;
+                            } else if (haveRise && rises.size() > falls.size()) {
+                                falls.add(edge);
+                                int k = falls.size() - 1;
+                                RobotLog.ii(LOG_TAG, String.format(Locale.US,
+                                        "SWEEP label=%s power=%.2f pass=%d rise=%.2f fall=%.2f center=%.2f width=%.2f",
+                                        CONDITIONS[condition], power, k, rises.get(k), edge, (rises.get(k) + edge) / 2.0, edge - rises.get(k)));
+                            }
                         }
                     }
+                    prevSigned = signed;
+                    prevAngle = angle;
+                    havePrev = true;
                 }
-                prevSigned = signed;
-                prevAngle = angle;
-                havePrev = true;
 
                 if (Math.abs(stick) > SWEEP_ABORT_STICK) {
                     sweeping = false;
@@ -382,10 +469,12 @@ public class GateSensorTest extends LinearOpMode {
                     double stepAvg = sweepLoops > 0 ? stepSum / sweepLoops : Double.NaN;
                     double loopAvg = sweepLoops > 0 ? loopMsSum / sweepLoops : Double.NaN;
                     double speedAvg = sweepLoops > 0 ? speedSum / sweepLoops : Double.NaN;
+                    double freshMs = sweepTimer.seconds() * 1000.0 / Math.max(1, sweepFresh);
                     sweepSummary = passes == 0 ? "no complete passes" : String.format(Locale.US,
-                            "%d passes at power %.2f (%s): RISE spread std %.2f deg (min..max %.2f..%.2f); FALL std %.2f (%.2f..%.2f); CENTER std %.2f (%.2f..%.2f); WIDTH %.1f +/- %.2f; speed %.0f deg/s; %.1f ms per loop; %.2f deg between readings",
+                            "%d passes at power %.2f (%s): RISE spread std %.2f deg (min..max %.2f..%.2f); FALL std %.2f (%.2f..%.2f); CENTER std %.2f (%.2f..%.2f); WIDTH %.1f +/- %.2f; speed %.0f deg/s; %.1f ms per loop; %.2f deg between loops; sensor value changed every %.0f ms (= %.1f deg of travel) [%s]",
                             passes, SWEEP_POWERS[powerIndex], CONDITIONS[condition],
-                            rs[1], rs[2], rs[3], fs[1], fs[2], fs[3], cs[1], cs[2], cs[3], ws[0], ws[1], speedAvg, loopAvg, stepAvg);
+                            rs[1], rs[2], rs[3], fs[1], fs[2], fs[3], cs[1], cs[2], cs[3], ws[0], ws[1], speedAvg, loopAvg, stepAvg,
+                            freshMs, speedAvg * freshMs / 1000.0, RATE_NAMES[ratePreset]);
                     RobotLog.ii(LOG_TAG, "SWEEP SUMMARY label=" + CONDITIONS[condition] + " " + sweepStatus + ": " + sweepSummary);
                 }
             } else {
@@ -416,6 +505,7 @@ public class GateSensorTest extends LinearOpMode {
                     : String.format(Locale.US, "%s: hold still %.1f s", captureTarget == 1 ? "BACKGROUND" : "GATE", CAPTURE_SEC - captureTimer.seconds()));
             telemetry.addData("Captures taken", "background %d samples, gate %d samples", background.n, gateSeen.n);
             telemetry.addData("Note", note);
+            telemetry.addData("Sensor rate (right stick click changes)", rateStatus);
             if (background.n > 0 && gateSeen.n > 0) {
                 for (int i = 0; i < N; i++) {
                     double sep = Math.abs(gateSeen.mean(i) - background.mean(i)) / (background.std(i) + gateSeen.std(i) + 1e-6);
