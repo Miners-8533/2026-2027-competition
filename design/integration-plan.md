@@ -24,6 +24,21 @@ Ground rules
 
 So the numbers to commit (below) still need to be recorded, and the competition TeleOp has not been run yet.
 
+## Queued configuration and tuning actions
+
+Work that is deliberately not scheduled yet. Each one is a runnable checklist; run it when it comes up, then record the result and commit the numbers.
+
+| # | Action | Affects | How |
+|---|---|---|---|
+| 1 | **Pinpoint localization for `ROBOT_1`**: tune the pod offsets (still the prototype's) | autos only | Pinpoint Offset Check, then the two verify autos |
+| 2 | **DriveToPose PID tuning** | autos only | the Axial, Lateral and Heading tuners at 48 in, then the verify autos |
+| 3 | **Gate HOLD to CS4 offset**: where the arm is seen, in degrees ahead of HOLD (the team expects about 90) | the future gate check and re-home; not TeleOp | Gate Sensor Matrix (CS4): jog the arm to HOLD, **A** to mark it, **right bumper** to run (about 1 minute, default 3x gain), then read the `GateSensorMatrix` log for "ARC ... ahead of the mark" at powers 0.15, 0.3 and 0.6 |
+| 4 | **Belt tooth pitch** in degrees of gate rotation: decides whether the parked check (about +/-15 deg) is enough or the slow pass is needed | the future gate check | measure or look it up; no test needed |
+| 5 | **Element counter baseline** in the pit: the empty readings depend on lighting | TeleOp (the 4-element stop) | Color Sensors Test: track empty, **A**, then copy the BASELINE log line into the table in `ElementCounter` |
+| 6 | **Commit the tuned gate, flywheel and depollinator values** (see the list below) | TeleOp | read them from the Dashboard after a tuned run and write them into the code |
+
+Then, once 3 and 4 are known, build the gate check: after a salvo, with the track empty (the counter reports 0), turn the gate to the CS4 position, look for the arm, and if it is not seen do a slow re-home sweep, check again, and return to HOLD.
+
 ## Values still to write into the code (Phase 5, "final values committed")
 
 Anything tuned live is lost on the next install. For each, record the final value and commit it: gate `TICKS_PER_REV`, `ENCODER_SIGN`, `SWEEP_POWER`, `APPROACH_POWER`, `STOP_EARLY_DEG`, `COAST_LOOKAHEAD_S`, `REJECT_POWER`; flywheel `FEED_FORWARD` and `ENCODER_SIGN`; `Mechanisms` manual setpoint start and fire timeout; the shot map points; depollinator `CLEAR_DISTANCE_IN`; any drive, intake, gate or flywheel direction changes in `ROBOT_1`.
