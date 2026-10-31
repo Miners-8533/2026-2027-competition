@@ -29,8 +29,8 @@ import org.firstinspires.ftc.teamcode.math.Pose2d;
 @Config
 public class Depollinator {
 
-    /** Seconds after a command until the ramp counts as in place. Placeholder: measure it with the Depollinator Test. */
-    public static double TRAVEL_SEC = 0.6;
+    /** Seconds after a command until the ramp counts as in place. Measured 2026-10-31 with the Depollinator Test: 0.8 s up or down (no servo feedback, so this is only a timer). */
+    public static double TRAVEL_SEC = 0.8;
     /** Robot-center distance from a flower center beyond which the ramp is considered clear. Placeholder: set from the real ramp length. */
     public static double CLEAR_DISTANCE_IN = 24.0;
 
