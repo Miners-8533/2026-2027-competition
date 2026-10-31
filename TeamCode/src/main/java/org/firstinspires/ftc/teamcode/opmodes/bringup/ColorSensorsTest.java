@@ -34,6 +34,11 @@ import java.util.Locale;
  * alpha ratio and the nearer distance, with hysteresis (separate on / off thresholds) and a debounce, so a pollen near a
  * threshold no longer flickers. All thresholds are in the FTC Dashboard.
  *
+ * Layout: the sensors are numbered along the track, intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel (CS4 is deepest, nearest
+ * the flywheel and the gate arm; CS1 is nearest the intake). The test shows the pattern as a STACK line, how many are in a
+ * row from the flywheel end, and the element at the deepest slot (it fires first). The fill order (from the flywheel end)
+ * is an assumption: a GAP warning means an element is seen without a neighbor toward the flywheel.
+ *
  * Reading: each sensor read is two blocking I2C transactions (about 13 ms), and the sensors only refresh every 100 ms,
  * so by default ONE sensor is read per loop, cycling: the loop stays short and each sensor is still read every 4 loops.
  *
@@ -88,6 +93,16 @@ public class ColorSensorsTest extends LinearOpMode {
         if (blue >= BLUE_NECTAR_MIN_BLUE && blue > green) return "BLUE NECTAR";
         if (green >= POLLEN_MIN_GREEN_OVER_BLUE * blue && red <= POLLEN_MAX_RED) return "POLLEN";
         return "OTHER";
+    }
+
+    private static String symbolFor(String cls) {
+        switch (cls) {
+            case "POLLEN": return "P";
+            case "RED NECTAR": return "R";
+            case "BLUE NECTAR": return "B";
+            case "GATE ARM": return "A";
+            default: return "O";
+        }
     }
 
     @Override
@@ -286,6 +301,30 @@ public class ColorSensorsTest extends LinearOpMode {
             int elements = presentCount - armCount;
             telemetry.addData("ELEMENTS SEEN", "%d  (pollen %d, red nectar %d, blue nectar %d, other %d)%s", elements, pollenCount, redCount, blueCount, otherCount,
                     armCount > 0 ? "   [CS4 sees the gate arm: not counted]" : "");
+
+            // The track runs intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel, and the stack is expected to fill from the
+            // flywheel end. Show the pattern, the contiguous run from CS4, and the element at the deepest slot (it fires first).
+            StringBuilder stack = new StringBuilder("intake > ");
+            int contiguous = 0;
+            boolean unbroken = true;
+            String head = "-";
+            for (int i = 0; i < N; i++) {
+                String symbol = color[i] == null ? "?" : !haveBase[i] ? "_" : !present[i] ? "." : symbolFor(cls[i]);
+                stack.append("[").append(symbol).append("] ");
+            }
+            stack.append("> flywheel");
+            for (int i = N - 1; i >= 0; i--) {
+                boolean element = haveBase[i] && present[i] && !"GATE ARM".equals(cls[i]);
+                if (unbroken && element) {
+                    contiguous++;
+                    if (head.equals("-")) head = cls[i];
+                } else {
+                    unbroken = false;
+                }
+            }
+            telemetry.addData("STACK (. empty, P pollen, R red nectar, B blue nectar, O other, A arm)", stack.toString());
+            telemetry.addData("From the flywheel end", "%d in a row (CS4 back toward CS1); next out: %s%s", contiguous, head,
+                    elements != contiguous ? String.format(Locale.US, "   GAP: %d element(s) seen but only %d in a row (still moving, or a misread)", elements, contiguous) : "");
             telemetry.addData("Note", note);
             telemetry.addData("Read mode / LEDs / loop", "%s / %s / %.1f ms", READ_ONE_PER_LOOP ? "one sensor per loop" : "all four every loop", led ? "on" : "off", loopMs);
             telemetry.addLine("A baseline (all empty), B LEDs, X read mode, Back clear. Thresholds are in the Dashboard (ColorSensorsTest).");
