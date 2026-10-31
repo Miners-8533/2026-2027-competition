@@ -29,16 +29,18 @@ Names are case-sensitive and must match exactly.
 
 | Device | Name | Config type | Hub | Port | Notes |
 |---|---|---|---|---|---|
-| Drive, left front | `leftFront` | motor (the actual model) | | | no encoder needed |
-| Drive, left back | `leftBack` | motor | | | |
-| Drive, right front | `rightFront` | motor | | | |
-| Drive, right back | `rightBack` | motor | | | |
-| Odometry | `pinpoint` | goBILDA Pinpoint | Control Hub | I2C bus | needs both pods plugged into the Pinpoint |
-| Intake | `intake` | motor | | | no encoder needed |
-| Flywheel | `fly_motor_enc` | motor | | | **encoder cable plugged in** (the code reads its velocity) |
-| Gate | `gate` | motor, goBILDA 5203 series (26.9:1) | | | **encoder cable plugged in** (position and velocity) |
-| Depollinator, left | `depolLeft` | Servo | | | positional mode, not continuous |
-| Depollinator, right | `depolRight` | Servo | | | same mode as the left one |
+| Drive, left front | `leftFront` | motor (the actual model) | Control Hub (173) | motor 0 | no encoder needed |
+| Drive, left back | `leftBack` | motor | Control Hub (173) | motor 1 | |
+| Drive, right front | `rightFront` | motor | Control Hub (173) | motor 2 | |
+| Drive, right back | `rightBack` | motor | Control Hub (173) | motor 3 | |
+| Odometry | `pinpoint` | goBILDA Pinpoint | Control Hub (173) | I2C bus 1, addr 0x31 | needs both pods plugged into the Pinpoint |
+| Intake | `intake` | motor | Expansion Hub (2) | motor 2 | no encoder needed |
+| Flywheel | `fly_motor_enc` | motor | Expansion Hub (2) | motor 1 | **encoder cable plugged in** (the code reads its velocity) |
+| Gate | `gate` | motor, goBILDA 5203 series (26.9:1) | Expansion Hub (2) | motor 0 | **encoder cable plugged in** (position and velocity) |
+| Depollinator, left | `depolLeft` | Servo | Control Hub (173) | servo 5 | positional mode, not continuous |
+| Depollinator, right | `depolRight` | Servo | Control Hub (173) | servo 4 | same mode as the left one |
+
+Ports above were read by Hardware Check on 2026-10-31 (battery 12.2 V). Pinpoint: status READY, loop 637-662 us. **Note:** the gate and flywheel are on the **Expansion Hub**, where the benches had them on the Control Hub, so the loop time and the gate's `COAST_LOOKAHEAD_S` must be re-measured here (the benches' numbers do not carry over).
 
 `fly_follow` must **not** be configured (the code no longer uses it, and Hardware Check flags it as stale).
 
