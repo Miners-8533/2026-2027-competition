@@ -14,7 +14,7 @@ import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
 
 /**
- * The transport gate: ONE pusher arm that rotates around the curved track the elements ride, driven by
+ * The pusher: ONE pusher arm that rotates around the curved track the elements ride, driven by
  * one motor with a RELATIVE encoder and NO hard stops (it spins continuously, almost always forward).
  * The back of the arm limits how many elements enter (the 4 cap) while it sits at HOLD; a salvo takes
  * it one full turn forward, pushing the stack to the flywheel. Design notes: design/mechanisms.md.
@@ -27,24 +27,24 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  *   - Position is an angle on a circle: HOLD is 0 degrees, one revolution is TICKS_PER_REV ticks, and a
  *     "HOLD" is any multiple of it. Targets are absolute multiples, so landing errors do not accumulate.
  *
- * Localization: the encoder is relative, so the code assumes the gate is at HOLD at init (Reference
+ * Localization: the encoder is relative, so the code assumes the pusher is at HOLD at init (Reference
  * ASSUME_AT_HOLD) and saves that zero in a static. A TeleOp after an auto uses Reference CONTINUE to keep
  * the auto's zero. The encoder is never reset in code. The encoder may count opposite to the motor
  * (ENCODER_SIGN), and the motor runs WITHOUT the hub's closed-loop encoder modes.
  *
- * Landing accuracy depends on calibrating SWEEP_POWER, APPROACH_POWER and STOP_EARLY_DEG on the real gate
- * (Transport Gate Test); the reading to watch is the error to the nearest HOLD. Nothing holds the arm
+ * Landing accuracy depends on calibrating SWEEP_POWER, APPROACH_POWER and STOP_EARLY_DEG on the real pusher
+ * (Pusher Test); the reading to watch is the error to the nearest HOLD. Nothing holds the arm
  * against a push beyond the brake, except a small nudge forward if it comes to rest a little short.
  * Call {@link #update()} once per loop.
  */
 @Config
-public class TransportGate {
+public class Pusher {
 
-    /** Encoder ticks for one full gate revolution. goBILDA's 751.8 for the 26.9:1 motor; ten bench turns read 751.6. */
+    /** Encoder ticks for one full pusher revolution. goBILDA's 751.8 for the 26.9:1 motor; ten bench turns read 751.6. */
     public static double TICKS_PER_REV = 751.8;
     /**
      * +1 if the SDK encoder count rises when the arm moves forward (the way a positive power drives it), -1 if
-     * it falls. The gate bench's encoder polarity opposes its motor's (a positive command counted DOWN).
+     * it falls. The pusher bench's encoder polarity opposes its motor's (a positive command counted DOWN).
      */
     public static double ENCODER_SIGN = -1.0;
 
@@ -60,7 +60,7 @@ public class TransportGate {
     /**
      * Also cut this many seconds' worth of the arm's current speed early. Speed times this is the extra distance
      * the arm still travels after the cut (loop delay plus coasting), so one value covers the fast sweep and the
-     * slow approach where a fixed STOP_EARLY_DEG cannot. Calibrate it from "Gate last settle". 0 turns it off.
+     * slow approach where a fixed STOP_EARLY_DEG cannot. Calibrate it from "Pusher last settle". 0 turns it off.
      */
     public static double COAST_LOOKAHEAD_S = 0.0;
     public static double REJECT_POWER = 0.6;
@@ -120,10 +120,10 @@ public class TransportGate {
     private double currentA = 0.0;
     private double lastPower = 0.0;
 
-    public TransportGate(HardwareMap hardwareMap, Reference reference) {
+    public Pusher(HardwareMap hardwareMap, Reference reference) {
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         motor = hardwareMap.get(DcMotorEx.class, "gate");
-        motor.setDirection(profile.gateDirection);
+        motor.setDirection(profile.pusherDirection);
         motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         motor.setPower(0.0);
@@ -150,7 +150,7 @@ public class TransportGate {
         return referenceFromSaved;
     }
 
-    /** Declare the gate to be at HOLD right now (bring-up). The encoder is not reset, only the reference. */
+    /** Declare the pusher to be at HOLD right now (bring-up). The encoder is not reset, only the reference. */
     public void markHoldHere() {
         readSensors();
         homeRaw = rawTicks;
@@ -201,7 +201,7 @@ public class TransportGate {
         return rawTicks;
     }
 
-    /** Gate angle in [0, 360) from HOLD, or NaN until TICKS_PER_REV is set. */
+    /** Pusher angle in [0, 360) from HOLD, or NaN until TICKS_PER_REV is set. */
     public double getAngleDeg() {
         if (!isCalibrated()) return Double.NaN;
         double angle = getUnwrappedTicks() * 360.0 / TICKS_PER_REV;
@@ -269,7 +269,7 @@ public class TransportGate {
             return;
         }
         if (state == State.STALLED) {
-            lastCommand = "salvo IGNORED: the gate is faulted (" + faultReason + "); clear it first";
+            lastCommand = "salvo IGNORED: the pusher is faulted (" + faultReason + "); clear it first";
             return;
         }
         double target = nearestHoldTicks() + TICKS_PER_REV;
@@ -285,7 +285,7 @@ public class TransportGate {
             return;
         }
         if (state == State.STALLED) {
-            lastCommand = "reject IGNORED: the gate is faulted (" + faultReason + "); clear it first";
+            lastCommand = "reject IGNORED: the pusher is faulted (" + faultReason + "); clear it first";
             return;
         }
         targetTicks = Math.round((getUnwrappedTicks() - REJECT_DEG * TICKS_PER_REV / 360.0) / TICKS_PER_REV) * TICKS_PER_REV;
@@ -353,7 +353,7 @@ public class TransportGate {
             progressBest = metricDeg;
             progressTimer.reset();
         } else if (progressTimer.seconds() > PROGRESS_TIMEOUT_S) {
-            fault("not converging: check ENCODER_SIGN and gateDirection, or a jam");
+            fault("not converging: check ENCODER_SIGN and pusherDirection, or a jam");
         }
     }
 
@@ -442,20 +442,20 @@ public class TransportGate {
     }
 
     public void log(Telemetry telemetry) {
-        telemetry.addData("Gate state", state + (referenceFromSaved ? "   (zero from saved auto reference)" : "   (zero assumed at init)"));
-        telemetry.addData("Gate angle (deg from HOLD)", isCalibrated() ? String.format("%.1f", getAngleDeg()) : "not calibrated (TICKS_PER_REV = 0)");
-        telemetry.addData("Gate ticks (unwrapped)", "%.0f   speed %.0f ticks/s", getUnwrappedTicks(), getVelocityTicksPerSec());
+        telemetry.addData("Pusher state", state + (referenceFromSaved ? "   (zero from saved auto reference)" : "   (zero assumed at init)"));
+        telemetry.addData("Pusher angle (deg from HOLD)", isCalibrated() ? String.format("%.1f", getAngleDeg()) : "not calibrated (TICKS_PER_REV = 0)");
+        telemetry.addData("Pusher ticks (unwrapped)", "%.0f   speed %.0f ticks/s", getUnwrappedTicks(), getVelocityTicksPerSec());
         telemetry.addData("Error to nearest HOLD (deg)", Double.isNaN(getHoldErrorDeg()) ? "-"
                 : String.format("%+.1f   (+ = short of it, - = past it)", getHoldErrorDeg()));
-        telemetry.addData("Gate power / current", "%+.2f / %.2f A", lastPower, getCurrentAmps());
-        telemetry.addData("Gate last command", lastCommand);
-        telemetry.addData("Gate last move result", lastResult);
-        telemetry.addData("Gate last settle", lastSettle);
-        telemetry.addData("Gate ENCODER_SIGN", "%+.0f", ENCODER_SIGN);
-        if (isStalled()) telemetry.addLine("GATE FAULT (Back clears): " + faultReason);
+        telemetry.addData("Pusher power / current", "%+.2f / %.2f A", lastPower, getCurrentAmps());
+        telemetry.addData("Pusher last command", lastCommand);
+        telemetry.addData("Pusher last move result", lastResult);
+        telemetry.addData("Pusher last settle", lastSettle);
+        telemetry.addData("Pusher ENCODER_SIGN", "%+.0f", ENCODER_SIGN);
+        if (isStalled()) telemetry.addLine("PUSHER FAULT (Back clears): " + faultReason);
     }
 
-    /** Action: run one salvo and finish when the gate has stopped, or has faulted, or times out. */
+    /** Action: run one salvo and finish when the pusher has stopped, or has faulted, or times out. */
     public Action salvo(double timeoutSeconds) {
         return motion(true, timeoutSeconds);
     }
@@ -483,7 +483,7 @@ public class TransportGate {
                     if (salvo) startSalvo(); else startReject();
                     if (state != (salvo ? State.SALVO : State.REJECT)) return false;   // ignored: not calibrated or faulted
                 }
-                packet.put("gate/angleDeg", getAngleDeg());
+                packet.put("pusher/angleDeg", getAngleDeg());
                 boolean finished = state == State.HOLD || state == State.STALLED;
                 return !finished && timer.seconds() < timeoutSeconds;
             }

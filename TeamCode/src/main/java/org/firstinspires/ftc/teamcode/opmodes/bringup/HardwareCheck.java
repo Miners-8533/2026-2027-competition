@@ -34,7 +34,7 @@ import java.util.TreeSet;
  * motor, so turning a part by hand shows which name it is wired to; the Pinpoint's status; the hubs and battery
  * voltage; and any configured device our code does not use (stale entries to delete).
  *
- * Required names: leftFront, leftBack, rightFront, rightBack, intake, fly_motor_enc, gate (motors); depolLeft,
+ * Required names: leftFront, leftBack, rightFront, rightBack, intake, fly_motor_enc, pusher (motors); depolLeft,
  * depolRight (servos); CS1 to CS4 (REV Color Sensor V3, one per I2C bus); pinpoint (goBILDA Pinpoint).
  */
 @TeleOp(name = "Hardware Check", group = "Bring-up")
@@ -128,7 +128,7 @@ public class HardwareCheck extends LinearOpMode {
     private String[] checkServo(String name) {
         Servo servo = hardwareMap.tryGet(Servo.class, name);
         if (servo == null) return absent(name, Servo.class);
-        return new String[]{name, String.format("OK   %s   [Depollinator]", servo.getConnectionInfo())};
+        return new String[]{name, String.format("OK   %s   [Ramp]", servo.getConnectionInfo())};
     }
 
     private String[] checkColorSensor(String name) {

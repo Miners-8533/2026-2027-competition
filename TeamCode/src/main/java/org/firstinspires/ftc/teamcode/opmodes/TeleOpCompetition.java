@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
-import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
+import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 
 /**
  * The competition TeleOp: a driver (gamepad 1) drives the chassis FIELD-oriented and an operator (gamepad 2) runs
@@ -42,13 +42,13 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   right trigger        intake on / off (a toggle)
  *   left trigger (hold)  outtake
  *   A                    fire a salvo (spins up and fires when ready)
- *   B                    reject (gate reverse + outtake)
- *   X / Y                deploy / stow the depollinator ramp (stow waits until clear of a flower)
+ *   B                    reject (pusher reverse + outtake)
+ *   X / Y                deploy / stow the ramp (stow waits until clear of a flower)
  *   right bumper         flywheel on / off (toggle). It runs by default, from Start, and keeps running after salvos
  *   left bumper          flywheel stop (the right bumper turns it back on)
  *   D-pad up / down      manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   D-pad left or right  the open CELL is the HIVE's other side (after a tip)
- *   Back                 clear a gate fault
+ *   Back                 clear a pusher fault
  *
  * "Away from the driver" is a field direction fixed by the alliance: drivers stand behind their alliance wall, so
  * blue faces -Y (-90 deg) and red faces +Y (+90 deg). If a stick direction is wrong at the field, correct
@@ -114,7 +114,7 @@ public class TeleOpCompetition extends LinearOpMode {
         double driverForwardRad = Math.toRadians(blue ? BLUE_DRIVER_FORWARD_DEG : RED_DRIVER_FORWARD_DEG);
 
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
-        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, TransportGate.Reference.CONTINUE);
+        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
@@ -172,7 +172,7 @@ public class TeleOpCompetition extends LinearOpMode {
             if (gamepad2.dpadLeftWasPressed() || gamepad2.dpadRightWasPressed()) {
                 mechanisms.setOpenCell(mechanisms.getOpenCell().otherSide());
             }
-            if (gamepad2.backWasPressed()) mechanisms.clearGateStall();
+            if (gamepad2.backWasPressed()) mechanisms.clearPusherStall();
 
             mechanisms.update(pose);
 

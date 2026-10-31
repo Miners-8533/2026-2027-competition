@@ -19,7 +19,7 @@ import com.qualcomm.hardware.broadcom.BroadcomColorSensorImpl;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
-import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
+import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -27,19 +27,19 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Can the REV Color Sensor V3 "CS4" see the (grey) gate arm, and how repeatably? The eventual use is to confirm,
- * during a salvo, that the gate has not skipped belt: the arm passes the sensor once per turn, so the encoder angle
+ * Can the REV Color Sensor V3 "CS4" see the (grey) pusher arm, and how repeatably? The eventual use is to confirm,
+ * during a salvo, that the pusher has not skipped belt: the arm passes the sensor once per turn, so the encoder angle
  * at which the sensor sees it should be the same every turn. If the belt skips, the encoder and the arm disagree and
  * that angle shifts. So the number that matters is how much that crossing angle varies from turn to turn, at the speed
  * a salvo runs.
  *
- * It drives the gate motor DIRECTLY, not through TransportGate, so it never touches the TeleOp's saved HOLD zero. The
- * gate angle shown is relative to a local mark (A) and only matters within this test. The gate has no hard stops.
+ * It drives the pusher motor DIRECTLY, not through Pusher, so it never touches the TeleOp's saved HOLD zero. The
+ * pusher angle shown is relative to a local mark (A) and only matters within this test. The pusher has no hard stops.
  *
- *   Left stick       jog the gate (up = forward), JOG_MAX_POWER at full deflection
- *   A                mark the gate angle as 0 here (local to this test)
+ *   Left stick       jog the pusher (up = forward), JOG_MAX_POWER at full deflection
+ *   A                mark the pusher angle as 0 here (local to this test)
  *   X                capture BACKGROUND: jog the arm AWAY from the sensor first, hold still while it averages
- *   Y                capture GATE: jog the arm IN FRONT of the sensor first, hold still while it averages
+ *   Y                capture PUSHER: jog the arm IN FRONT of the sensor first, hold still while it averages
  *   Left stick click capture POLLEN: put a yellow pollen in front of the sensor (the arm away), hold still. With it,
  *                    detection picks a reading where the ARM is an extreme among background, arm and pollen (pollen
  *                    reads much brighter than the arm, so alpha alone mistakes it; color shares tell them apart)
@@ -62,20 +62,20 @@ import java.util.Locale;
  * value changed), not between loops, so the unknown refresh phase does not show up as a crossing-angle error; what is
  * left is a constant lag that grows with speed. Compare presets and powers to see how much.
  *
- * SWEEP: the gate turns forward at the chosen power for SWEEP_PASSES turns. Each time the best reading crosses the
+ * SWEEP: the pusher turns forward at the chosen power for SWEEP_PASSES turns. Each time the best reading crosses the
  * midpoint between the two captures it records the encoder angle, interpolated between the two samples around the
  * crossing. It reports, for the rising edge, the falling edge and the arc's center: the spread of the angle from turn
- * to turn (std and min..max), plus the arc width, the gate speed, and the angle the gate moves between two sensor
+ * to turn (std and min..max), plus the arc width, the pusher speed, and the angle the pusher moves between two sensor
  * readings (the resolution). A stick push, a timeout, or 1.5 turns without a crossing ends the sweep.
  *
- * Everything is also written to the robot log (tag GateSensor) so it can be read over USB. Run it empty, then with
+ * Everything is also written to the robot log (tag PusherSensor) so it can be read over USB. Run it empty, then with
  * yellow pollen in the robot, and compare the summaries: the label is in every line.
  *
  * Needs a REV Color Sensor V3 named "CS4" and the motor "gate".
  */
 @Config
-@TeleOp(name = "Gate Sensor Test (CS4)", group = "Bring-up")
-public class GateSensorTest extends LinearOpMode {
+@TeleOp(name = "Pusher Sensor Test (CS4)", group = "Bring-up")
+public class PusherSensorTest extends LinearOpMode {
 
     public static double JOG_MAX_POWER = 0.25;
     public static double CAPTURE_SEC = 1.0;
@@ -101,7 +101,7 @@ public class GateSensorTest extends LinearOpMode {
     private static final String SENSOR_NAME = "CS4";
     private static final String[] METRICS = {"distance cm", "red", "green", "blue", "alpha", "red share", "green share", "blue share"};
     private static final int N = METRICS.length;
-    private static final String LOG_TAG = "GateSensor";
+    private static final String LOG_TAG = "PusherSensor";
 
     private static final class Stats {
         int n = 0;
@@ -196,11 +196,11 @@ public class GateSensorTest extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        DcMotorEx gate = hardwareMap.get(DcMotorEx.class, "gate");
-        gate.setDirection(profile.gateDirection);
-        gate.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        gate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        gate.setPower(0.0);
+        DcMotorEx pusher = hardwareMap.get(DcMotorEx.class, "gate");
+        pusher.setDirection(profile.pusherDirection);
+        pusher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        pusher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        pusher.setPower(0.0);
 
         RevColorSensorV3 sensor = hardwareMap.tryGet(RevColorSensorV3.class, SENSOR_NAME);
         if (sensor == null) {
@@ -219,8 +219,8 @@ public class GateSensorTest extends LinearOpMode {
         Flywheel flywheel = hardwareMap.tryGet(DcMotorEx.class, "fly_motor_enc") != null ? new Flywheel(hardwareMap) : null;
         boolean flywheelManual = false, flywheelWasOn = false, prevLeftTrigger = false;
 
-        int markTicks = gate.getCurrentPosition();
-        Stats background = new Stats(), gateSeen = new Stats(), pollenSeen = new Stats(), capturing = null;
+        int markTicks = pusher.getCurrentPosition();
+        Stats background = new Stats(), pusherSeen = new Stats(), pollenSeen = new Stats(), capturing = null;
         int captureTarget = 0;   // 1 = background, 2 = arm in front, 3 = pollen in front
         ElapsedTime moveTimer = new ElapsedTime();
         double moveRefAngle = 0;
@@ -230,7 +230,7 @@ public class GateSensorTest extends LinearOpMode {
 
         int best = -1;
         double threshold = Double.NaN, band = 0.0;
-        boolean gateHigher = true, seen = false;
+        boolean pusherHigher = true, seen = false;
 
         int condition = 0, powerIndex = 2;
         boolean sweeping = false;
@@ -252,7 +252,7 @@ public class GateSensorTest extends LinearOpMode {
         double lastMetricValue = Double.NaN;
         int sweepFresh = 0;
 
-        telemetry.addLine("Gate Sensor Test. Jog the gate slowly, then X (background) and Y (gate in front), then RB to sweep. Nothing moves until you push the stick or start a sweep.");
+        telemetry.addLine("Pusher Sensor Test. Jog the pusher slowly, then X (background) and Y (pusher in front), then RB to sweep. Nothing moves until you push the stick or start a sweep.");
         telemetry.update();
         waitForStart();
         loopTimer.reset();
@@ -263,8 +263,8 @@ public class GateSensorTest extends LinearOpMode {
             loopTimer.reset();
 
             double stick = -gamepad1.left_stick_y;
-            int ticks = gate.getCurrentPosition();
-            double angle = TransportGate.ENCODER_SIGN * (ticks - markTicks) * 360.0 / TransportGate.TICKS_PER_REV;
+            int ticks = pusher.getCurrentPosition();
+            double angle = Pusher.ENCODER_SIGN * (ticks - markTicks) * 360.0 / Pusher.TICKS_PER_REV;
 
             if (gamepad1.aWasPressed()) markTicks = ticks;
             if (gamepad1.bWasPressed()) {
@@ -284,7 +284,7 @@ public class GateSensorTest extends LinearOpMode {
                 ratePreset = (ratePreset + 1) % RATE_NAMES.length;
                 rateStatus = applyRates(sensor, ratePreset);
                 background = new Stats();
-                gateSeen = new Stats();
+                pusherSeen = new Stats();
                 pollenSeen = new Stats();
                 best = -1;
                 seen = false;
@@ -293,7 +293,7 @@ public class GateSensorTest extends LinearOpMode {
             }
             if (gamepad1.backWasPressed()) {
                 background = new Stats();
-                gateSeen = new Stats();
+                pusherSeen = new Stats();
                 pollenSeen = new Stats();
                 best = -1;
                 seen = false;
@@ -307,13 +307,13 @@ public class GateSensorTest extends LinearOpMode {
             }
 
             boolean captureBackground = gamepad1.xWasPressed();
-            boolean captureGate = gamepad1.yWasPressed();
+            boolean capturePusher = gamepad1.yWasPressed();
             boolean capturePollen = gamepad1.leftStickButtonWasPressed();
-            if (captureBackground || captureGate || capturePollen) {
+            if (captureBackground || capturePusher || capturePollen) {
                 if (captureTarget == 0 && !sweeping) {
-                    captureTarget = captureBackground ? 1 : captureGate ? 2 : 3;
+                    captureTarget = captureBackground ? 1 : capturePusher ? 2 : 3;
                     capturing = captureTarget == 1 ? (background = new Stats())
-                            : captureTarget == 2 ? (gateSeen = new Stats()) : (pollenSeen = new Stats());
+                            : captureTarget == 2 ? (pusherSeen = new Stats()) : (pollenSeen = new Stats());
                     captureTimer.reset();
                     note = (captureTarget == 1 ? "BACKGROUND" : captureTarget == 2 ? "ARM" : "POLLEN") + " capture started: hold still";
                 } else {
@@ -343,19 +343,19 @@ public class GateSensorTest extends LinearOpMode {
                             gain, led ? "on" : "off", RATE_NAMES[ratePreset]));
                     captureTarget = 0;
                     capturing = null;
-                    if (background.n > 0 && gateSeen.n > 0) {
+                    if (background.n > 0 && pusherSeen.n > 0) {
                         // pick the reading that separates the ARM best. With a pollen capture the arm must be an EXTREME among
                         // background, arm and pollen (one threshold cannot isolate it otherwise), and the score is the weaker of
                         // its two separations (from the background, from the pollen).
                         double bestScore = -1;
                         best = -1;
                         for (int i = 0; i < N; i++) {
-                            double arm = gateSeen.mean(i), bg = background.mean(i);
-                            double score = Math.abs(arm - bg) / (background.std(i) + gateSeen.std(i) + 1e-6);
+                            double arm = pusherSeen.mean(i), bg = background.mean(i);
+                            double score = Math.abs(arm - bg) / (background.std(i) + pusherSeen.std(i) + 1e-6);
                             if (pollenSeen.n > 0) {
                                 double pol = pollenSeen.mean(i);
                                 if (!((arm > bg && arm > pol) || (arm < bg && arm < pol))) continue;
-                                score = Math.min(score, Math.abs(arm - pol) / (pollenSeen.std(i) + gateSeen.std(i) + 1e-6));
+                                score = Math.min(score, Math.abs(arm - pol) / (pollenSeen.std(i) + pusherSeen.std(i) + 1e-6));
                             }
                             if (score > bestScore) {
                                 bestScore = score;
@@ -363,12 +363,12 @@ public class GateSensorTest extends LinearOpMode {
                             }
                         }
                         if (best >= 0) {
-                            double arm = gateSeen.mean(best), bg = background.mean(best);
+                            double arm = pusherSeen.mean(best), bg = background.mean(best);
                             double other = bg;
                             if (pollenSeen.n > 0) other = arm > bg ? Math.max(bg, pollenSeen.mean(best)) : Math.min(bg, pollenSeen.mean(best));
                             threshold = (arm + other) / 2.0;
                             band = 0.15 * Math.abs(arm - other);
-                            gateHigher = arm > other;
+                            pusherHigher = arm > other;
                             havePrev = false;
                             note = captureName + " captured. Detecting the arm with " + METRICS[best] + ". RB starts the sweep.";
                         } else {
@@ -383,7 +383,7 @@ public class GateSensorTest extends LinearOpMode {
 
             double signed = 0;
             if (best >= 0) {
-                signed = gateHigher ? v[best] - threshold : threshold - v[best];
+                signed = pusherHigher ? v[best] - threshold : threshold - v[best];
                 if (!seen && signed > band) seen = true;
                 if (seen && signed < -band) seen = false;
             }
@@ -396,7 +396,7 @@ public class GateSensorTest extends LinearOpMode {
                 } else if (captureTarget != 0) {
                     note = "sweep not started: a capture is still running";
                 } else {
-                    boolean haveCaptures = best >= 0 && background.n > 0 && gateSeen.n > 0;
+                    boolean haveCaptures = best >= 0 && background.n > 0 && pusherSeen.n > 0;
                     autoCal = !haveCaptures;
                     if (autoCal) {
                         best = -1;
@@ -463,7 +463,7 @@ public class GateSensorTest extends LinearOpMode {
                             best = 4;                                   // alpha
                             threshold = (calMin + calMax) / 2.0;
                             band = 0.15 * (calMax - calMin);
-                            gateHigher = true;
+                            pusherHigher = true;
                             seen = false;
                             signed = v[4] - threshold;
                             havePrev = false;
@@ -505,7 +505,7 @@ public class GateSensorTest extends LinearOpMode {
                     sweepStatus = "aborted by the stick";
                 } else if (moveTimer.seconds() > 1.0) {
                     sweeping = false;
-                    sweepStatus = "GATE NOT MOVING for 1 s (blocked, for example by a pollen?): stopped";
+                    sweepStatus = "PUSHER NOT MOVING for 1 s (blocked, for example by a pollen?): stopped";
                 } else if (sweepTimer.seconds() > SWEEP_MAX_SEC) {
                     sweeping = false;
                     sweepStatus = "timed out";
@@ -546,7 +546,7 @@ public class GateSensorTest extends LinearOpMode {
             } else {
                 power = Math.abs(stick) > 0.05 ? stick * JOG_MAX_POWER : 0.0;
             }
-            gate.setPower(power);
+            pusher.setPower(power);
 
             // the flywheel: on while toggled on, or during a sweep; stopped as soon as neither applies
             boolean flywheelWanted = flywheel != null && FLYWHEEL_SPEED > 0 && (flywheelManual || (sweeping && FLYWHEEL_DURING_SWEEP));
@@ -575,35 +575,35 @@ public class GateSensorTest extends LinearOpMode {
             }
 
             double chromaSum = v[1] + v[2] + v[3] + 1e-9;
-            telemetry.addData("Gate angle (deg, from your mark)", "%.1f   ticks %d   stick %.2f", angle, ticks, stick);
+            telemetry.addData("Pusher angle (deg, from your mark)", "%.1f   ticks %d   stick %.2f", angle, ticks, stick);
             telemetry.addData("Sensor (distance cm / r / g / b / alpha)", "%.2f / %.4f / %.4f / %.4f / %.4f", v[0], v[1], v[2], v[3], v[4]);
             telemetry.addData("Chromaticity r / g / b (share of the color)", "%.2f / %.2f / %.2f   (grey is near equal; yellow pollen is red and green high, blue low)",
                     v[1] / chromaSum, v[2] / chromaSum, v[3] / chromaSum);
             telemetry.addData("LED / gain / condition", "%s / %.1f / %s", led ? "on" : "off", gain, CONDITIONS[condition]);
             telemetry.addData("Capture", captureTarget == 0 ? "idle"
-                    : String.format(Locale.US, "%s: hold still %.1f s", captureTarget == 1 ? "BACKGROUND" : "GATE", CAPTURE_SEC - captureTimer.seconds()));
-            telemetry.addData("Captures taken", "background %d, arm %d, pollen %d samples", background.n, gateSeen.n, pollenSeen.n);
+                    : String.format(Locale.US, "%s: hold still %.1f s", captureTarget == 1 ? "BACKGROUND" : "PUSHER", CAPTURE_SEC - captureTimer.seconds()));
+            telemetry.addData("Captures taken", "background %d, arm %d, pollen %d samples", background.n, pusherSeen.n, pollenSeen.n);
             telemetry.addData("Note", note);
             telemetry.addData("Sensor rate (right stick click changes)", rateStatus);
             telemetry.addData("Flywheel (left trigger toggles; also on during a sweep)", flywheel == null ? "no fly_motor_enc in the configuration"
                     : flywheelWanted ? String.format(Locale.US, "ON, target %.0f ticks/s, speed %.0f%s", FLYWHEEL_SPEED, flywheel.getVelocity(),
                     flywheel.isFaulted() ? "   FAULT: encoder reads backward (Flywheel.ENCODER_SIGN)" : "")
                     : "off");
-            if (background.n > 0 && gateSeen.n > 0) {
+            if (background.n > 0 && pusherSeen.n > 0) {
                 for (int i = 0; i < N; i++) {
-                    double sep = Math.abs(gateSeen.mean(i) - background.mean(i)) / (background.std(i) + gateSeen.std(i) + 1e-6);
+                    double sep = Math.abs(pusherSeen.mean(i) - background.mean(i)) / (background.std(i) + pusherSeen.std(i) + 1e-6);
                     String pollenPart = "";
                     if (pollenSeen.n > 0) {
-                        double sepPollen = Math.abs(gateSeen.mean(i) - pollenSeen.mean(i)) / (pollenSeen.std(i) + gateSeen.std(i) + 1e-6);
+                        double sepPollen = Math.abs(pusherSeen.mean(i) - pollenSeen.mean(i)) / (pollenSeen.std(i) + pusherSeen.std(i) + 1e-6);
                         pollenPart = String.format(Locale.US, "  pollen %.4f  arm-vs-pollen separation %.1f", pollenSeen.mean(i), sepPollen);
                     }
                     telemetry.addData((i == best ? "BEST  " : "      ") + METRICS[i],
                             "background %.4f (+/-%.4f)  arm %.4f (+/-%.4f)  separation %.1f%s%s",
-                            background.mean(i), background.std(i), gateSeen.mean(i), gateSeen.std(i), sep,
+                            background.mean(i), background.std(i), pusherSeen.mean(i), pusherSeen.std(i), sep,
                             sep < MIN_SEPARATION ? "  (weak)" : "", pollenPart);
                 }
-                telemetry.addData("DETECTION", best < 0 ? "-" : String.format(Locale.US, "%s using %s (threshold %.4f, gate reads %s)",
-                        seen ? "SEEN" : "not seen", METRICS[best], threshold, gateHigher ? "HIGHER" : "LOWER"));
+                telemetry.addData("DETECTION", best < 0 ? "-" : String.format(Locale.US, "%s using %s (threshold %.4f, pusher reads %s)",
+                        seen ? "SEEN" : "not seen", METRICS[best], threshold, pusherHigher ? "HIGHER" : "LOWER"));
             } else {
                 telemetry.addLine("Optional: jog the arm away from the sensor and press X, then in front of it and press Y. Or just press RB: the sweep then self-calibrates on its first turn.");
             }
@@ -611,10 +611,10 @@ public class GateSensorTest extends LinearOpMode {
                     ? String.format(Locale.US, "running at power %.2f: pass %d of %d (%.0f s)", SWEEP_POWERS[powerIndex], falls.size(), SWEEP_PASSES, sweepTimer.seconds())
                     : String.format(Locale.US, "%s   (next power %.2f, LB changes, RB starts)", sweepStatus, SWEEP_POWERS[powerIndex]));
             telemetry.addData("Sweep result", sweepSummary);
-            telemetry.addLine("Stick jog, A mark, X background, Y gate, B LED, D-pad up/down gain, D-pad left/right condition, LB power, RB sweep, Back clear");
+            telemetry.addLine("Stick jog, A mark, X background, Y pusher, B LED, D-pad up/down gain, D-pad left/right condition, LB power, RB sweep, Back clear");
             telemetry.update();
         }
-        gate.setPower(0.0);
+        pusher.setPower(0.0);
         if (flywheel != null) flywheel.stop();
     }
 }

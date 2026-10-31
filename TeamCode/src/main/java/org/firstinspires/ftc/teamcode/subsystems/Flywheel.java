@@ -20,7 +20,7 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * Control is last season's bang-bang plus feedforward: full power while below the setpoint, a single
  * FEED_FORWARD motor command (0 to 1) at or above it, nothing when the target is 0. Plain on purpose;
  * add compensation only after this has been tried. It does NOT wait for recovery between balls: the
- * transport gate sets the ball spacing, and {@link #isReady()} is meant to be checked before the
+ * pusher sets the ball spacing, and {@link #isReady()} is meant to be checked before the
  * FIRST ball of a salvo only.
  *
  * The motor runs WITHOUT the hub's closed-loop encoder modes, so a power is a plain duty cycle (a closed-loop mode

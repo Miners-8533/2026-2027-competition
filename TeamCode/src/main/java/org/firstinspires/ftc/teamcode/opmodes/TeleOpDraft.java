@@ -13,7 +13,7 @@ import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
-import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
+import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 
 /**
  * Draft integrated TeleOp: a driver (gamepad 1) drives the chassis and an operator (gamepad 2) runs the
@@ -28,15 +28,15 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   Back                         reseed the pose to the start pose
  *
  * Gamepad 2 (operator):
- *   right trigger (press)        intake on / off (a toggle; not gated on the gate's position)
+ *   right trigger (press)        intake on / off (a toggle; not gated on the pusher's position)
  *   left trigger (hold)          outtake
  *   A                            fire a salvo (spins up and fires when ready)
- *   B                            reject (gate reverse + outtake)
- *   X / Y                        deploy / stow the depollinator ramp (stow waits until clear of a flower)
+ *   B                            reject (pusher reverse + outtake)
+ *   X / Y                        deploy / stow the ramp (stow waits until clear of a flower)
  *   right bumper / left bumper   flywheel spin up / stop
  *   D-pad up / down              manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   D-pad left or right          the open CELL is the HIVE's other side (after a tip)
- *   Back                         clear a gate stall
+ *   Back                         clear a pusher stall
  *
  * Not yet done: the pose is not carried over from an auto (it starts at the start pose below), and the
  * chassis is robot oriented, not field oriented.
@@ -74,7 +74,7 @@ public class TeleOpDraft extends LinearOpMode {
         double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
         Pose2d startPose = new Pose2d(startX, blue ? START_Y_IN : -START_Y_IN, Math.toRadians(START_HEADING_DEG));
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
-        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, TransportGate.Reference.CONTINUE);
+        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
         boolean prevIntakeTrigger = false;
@@ -104,7 +104,7 @@ public class TeleOpDraft extends LinearOpMode {
             if (gamepad2.dpadLeftWasPressed() || gamepad2.dpadRightWasPressed()) {
                 mechanisms.setOpenCell(mechanisms.getOpenCell().otherSide());
             }
-            if (gamepad2.backWasPressed()) mechanisms.clearGateStall();
+            if (gamepad2.backWasPressed()) mechanisms.clearPusherStall();
 
             mechanisms.update(pose);
 

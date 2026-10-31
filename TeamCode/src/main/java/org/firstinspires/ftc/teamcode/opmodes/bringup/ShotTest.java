@@ -9,33 +9,33 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
-import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
+import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 
 /**
- * Test shots with the flywheel and the transport gate together, with no chassis or other mechanism needed
+ * Test shots with the flywheel and the pusher together, with no chassis or other mechanism needed
  * (hub configuration: "gate" and "fly_motor_enc"). Everything is manual; nothing
  * runs behind your back, and the flywheel keeps spinning between shots until you stop it.
  *
  *   A                  flywheel on / off
  *   D-pad up / down    shot speed +/- SPEED_STEP ticks/s     D-pad left / right: -/+ COARSE_STEP
  *   Y                  FIRE: spins up if needed, then runs a salvo as soon as the flywheel is ready
- *                      and the gate has stopped, wherever it rests (gives up after FIRE_TIMEOUT_SEC)
- *   RB                 salvo NOW, without waiting for the flywheel (a dry run of the gate)
- *   X                  reverse: the gate's reject move (330 deg back onto the nearest HOLD)
- *   LB                 gate back to the nearest HOLD
- *   Left stick         jog the gate (up = forward) to place it, then B to set HOLD there
- *   B                  declare the gate's current position to be HOLD
- *   Back            clear a gate or flywheel fault, and cancel a queued fire
+ *                      and the pusher has stopped, wherever it rests (gives up after FIRE_TIMEOUT_SEC)
+ *   RB                 salvo NOW, without waiting for the flywheel (a dry run of the pusher)
+ *   X                  reverse: the pusher's reject move (330 deg back onto the nearest HOLD)
+ *   LB                 pusher back to the nearest HOLD
+ *   Left stick         jog the pusher (up = forward) to place it, then B to set HOLD there
+ *   B                  declare the pusher's current position to be HOLD
+ *   Back            clear a pusher or flywheel fault, and cancel a queued fire
  *
- * After each salvo it shows the flywheel speed when the gate started, the lowest speed during the salvo, and
- * the salvo time: that is the data for choosing the shot speed. The gate's TICKS_PER_REV, powers and
- * STOP_EARLY_DEG (see Transport Gate Test) and the flywheel's FEED_FORWARD come from their classes.
+ * After each salvo it shows the flywheel speed when the pusher started, the lowest speed during the salvo, and
+ * the salvo time: that is the data for choosing the shot speed. The pusher's TICKS_PER_REV, powers and
+ * STOP_EARLY_DEG (see Pusher Test) and the flywheel's FEED_FORWARD come from their classes.
  *
- * Starts in a do-nothing gate state, so press LB (or Y) to bring the gate to a HOLD. Keep clear of the wheel and
- * the arm; the gate has no stops.
+ * Starts in a do-nothing pusher state, so press LB (or Y) to bring the pusher to a HOLD. Keep clear of the wheel and
+ * the arm; the pusher has no stops.
  */
 @Config
-@TeleOp(name = "Shot Test (gate + flywheel)", group = "Bring-up")
+@TeleOp(name = "Shot Test (pusher + flywheel)", group = "Bring-up")
 public class ShotTest extends LinearOpMode {
 
     public static double START_SPEED = 800.0;
@@ -50,8 +50,8 @@ public class ShotTest extends LinearOpMode {
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         Flywheel flywheel = new Flywheel(hardwareMap);
-        TransportGate gate = new TransportGate(hardwareMap, TransportGate.Reference.ASSUME_AT_HOLD);
-        gate.jog(0.0);
+        Pusher pusher = new Pusher(hardwareMap, Pusher.Reference.ASSUME_AT_HOLD);
+        pusher.jog(0.0);
 
         boolean spinning = false;
         double setpoint = START_SPEED;
@@ -66,7 +66,7 @@ public class ShotTest extends LinearOpMode {
         String lastEvent = "-";
 
         telemetry.addData("Chassis profile", profile.label());
-        telemetry.addLine("Shot Test. The gate is assumed to be at HOLD right now. Flywheel and gate stay still until you press something.");
+        telemetry.addLine("Shot Test. The pusher is assumed to be at HOLD right now. Flywheel and pusher stay still until you press something.");
         telemetry.update();
         waitForStart();
 
@@ -77,19 +77,19 @@ public class ShotTest extends LinearOpMode {
             loopTimer.reset();
             loopMs = 0.95 * loopMs + 0.05 * thisLoopMs;
             loopMaxMs = Math.max(0.99 * loopMaxMs, thisLoopMs);
-            TransportGate.State gateState = gate.getState();
-            boolean gateFree = gateState == TransportGate.State.JOG || gateState == TransportGate.State.HOLD;
+            Pusher.State pusherState = pusher.getState();
+            boolean pusherFree = pusherState == Pusher.State.JOG || pusherState == Pusher.State.HOLD;
 
             double stick = -gamepad1.left_stick_y;
-            if (gateFree && Math.abs(stick) > 0.05) {
-                gate.jog(stick * JOG_MAX_POWER);
-            } else if (gateState == TransportGate.State.JOG) {
-                gate.jog(0.0);
+            if (pusherFree && Math.abs(stick) > 0.05) {
+                pusher.jog(stick * JOG_MAX_POWER);
+            } else if (pusherState == Pusher.State.JOG) {
+                pusher.jog(0.0);
             }
 
-            if (gamepad1.bWasPressed() && gateFree) {
-                gate.markHoldHere();
-                lastEvent = "HOLD set at the gate's current position.";
+            if (gamepad1.bWasPressed() && pusherFree) {
+                pusher.markHoldHere();
+                lastEvent = "HOLD set at the pusher's current position.";
             }
             if (gamepad1.aWasPressed()) {
                 spinning = !spinning;
@@ -101,31 +101,31 @@ public class ShotTest extends LinearOpMode {
             if (gamepad1.dpadLeftWasPressed()) setpoint = Math.max(0.0, setpoint - COARSE_STEP);
 
             if (gamepad1.leftBumperWasPressed()) {
-                gate.hold();
-                lastEvent = "Gate going to the nearest HOLD.";
+                pusher.hold();
+                lastEvent = "Pusher going to the nearest HOLD.";
             }
             if (gamepad1.xWasPressed()) {
-                gate.startReject();
-                lastEvent = gate.isCalibrated() ? "Reverse (reject) started." : "Reverse ignored: the gate is not calibrated.";
+                pusher.startReject();
+                lastEvent = pusher.isCalibrated() ? "Reverse (reject) started." : "Reverse ignored: the pusher is not calibrated.";
             }
             if (gamepad1.rightBumperWasPressed()) {
-                if (gate.getState() == TransportGate.State.JOG) gate.hold();
-                gate.startSalvo();
+                if (pusher.getState() == Pusher.State.JOG) pusher.hold();
+                pusher.startSalvo();
                 lastEvent = "Dry salvo started (not waiting for the flywheel).";
             }
             if (gamepad1.yWasPressed()) {
-                if (!gate.isCalibrated()) {
-                    lastEvent = "Fire ignored: the gate is not calibrated.";
+                if (!pusher.isCalibrated()) {
+                    lastEvent = "Fire ignored: the pusher is not calibrated.";
                 } else {
-                    if (gate.getState() == TransportGate.State.JOG) gate.hold();
+                    if (pusher.getState() == Pusher.State.JOG) pusher.hold();
                     spinning = true;
                     fireQueued = true;
                     fireTimer.reset();
-                    lastEvent = "Fire queued: waiting for the flywheel and the gate.";
+                    lastEvent = "Fire queued: waiting for the flywheel and the pusher.";
                 }
             }
             if (gamepad1.backWasPressed()) {
-                gate.clearStall();
+                pusher.clearStall();
                 flywheel.clearFault();
                 fireQueued = false;
                 lastEvent = "Faults cleared, fire cancelled.";
@@ -136,13 +136,13 @@ public class ShotTest extends LinearOpMode {
             if (fireQueued) {
                 if (fireTimer.seconds() > FIRE_TIMEOUT_SEC) {
                     fireQueued = false;
-                    lastEvent = "Fire dropped: the flywheel or the gate was not ready in time.";
-                } else if (flywheel.isReady() && gate.isStopped()) {
+                    lastEvent = "Fire dropped: the flywheel or the pusher was not ready in time.";
+                } else if (flywheel.isReady() && pusher.isStopped()) {
                     shotStartSpeed = flywheel.getFilteredVelocity();
                     shotMinSpeed = shotStartSpeed;
                     shotSetpoint = setpoint;
                     shotTimer.reset();
-                    gate.startSalvo();
+                    pusher.startSalvo();
                     shotActive = true;
                     fireQueued = false;
                     lastEvent = "Salvo started.";
@@ -150,28 +150,28 @@ public class ShotTest extends LinearOpMode {
             }
 
             flywheel.update();
-            gate.update();
+            pusher.update();
 
             if (shotActive) {
                 shotMinSpeed = Math.min(shotMinSpeed, flywheel.getVelocity());
-                boolean salvoDone = gate.getState() != TransportGate.State.SALVO;
+                boolean salvoDone = pusher.getState() != Pusher.State.SALVO;
                 if (salvoDone) {
                     shotActive = false;
                     shots++;
                     lastShot = String.format("#%d  setpoint %.0f, at release %.0f, lowest %.0f (%.0f%% of setpoint), salvo %.2f s%s",
                             shots, shotSetpoint, shotStartSpeed, shotMinSpeed, 100.0 * shotMinSpeed / Math.max(shotSetpoint, 1.0),
-                            shotTimer.seconds(), gate.isStalled() ? "  GATE FAULT" : "");
+                            shotTimer.seconds(), pusher.isStalled() ? "  PUSHER FAULT" : "");
                 }
             }
 
             telemetry.addData("Chassis profile", profile.label());
             telemetry.addData("Flywheel", "%s   shot speed %.0f ticks/s", spinning ? "ON" : "off", setpoint);
             flywheel.log(telemetry);
-            gate.log(telemetry);
+            pusher.log(telemetry);
             telemetry.addData("Fire", fireQueued
-                    ? String.format("QUEUED %.1f s: flywheel %s, gate %s", fireTimer.seconds(),
+                    ? String.format("QUEUED %.1f s: flywheel %s, pusher %s", fireTimer.seconds(),
                             flywheel.isReady() ? "ready" : "NOT ready",
-                            gate.isStopped() ? "stopped" : "NOT stopped (" + gate.getState() + ")")
+                            pusher.isStopped() ? "stopped" : "NOT stopped (" + pusher.getState() + ")")
                     : shotActive ? "salvo running" : "idle");
             telemetry.addData("Loop (ms)", "%.1f avg, %.1f recent max", loopMs, loopMaxMs);
             telemetry.addData("Last shot", lastShot);
@@ -180,7 +180,7 @@ public class ShotTest extends LinearOpMode {
             telemetry.update();
         }
         flywheel.stop();
-        gate.jog(0.0);
-        gate.update();
+        pusher.jog(0.0);
+        pusher.update();
     }
 }

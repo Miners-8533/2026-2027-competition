@@ -39,15 +39,15 @@ public final class ChassisProfile {
     public final double robotDepthIn, robotWidthIn;
     /** Direction that makes positive intake power pull elements in. Not yet verified on any chassis. */
     public final DcMotorSimple.Direction intakeDirection;
-    /** Flywheel motor direction (positive power spins it the shooting way) and gate direction (positive = the forward, pushing way). Both unverified. */
-    public final DcMotorSimple.Direction flywheelDirection, gateDirection;
+    /** Flywheel motor direction (positive power spins it the shooting way) and pusher direction (positive = the forward, pushing way). Both unverified. */
+    public final DcMotorSimple.Direction flywheelDirection, pusherDirection;
     /** Direction of the optional second flywheel motor ("fly_follow", no encoder). It usually faces the first, so the opposite of flywheelDirection. Verified on the flywheel bench: flywheel REVERSE, follower FORWARD (both spun the wrong way with last year's FORWARD / REVERSE). */
     public final DcMotorSimple.Direction flywheelFollowerDirection;
     /**
-     * Depollinator servo positions, 0 to 1, for the left and right servo. NaN means not measured yet:
-     * the depollinator will not move until they are filled in (use the Depollinator Test opmode).
+     * Ramp servo positions, 0 to 1, for the left and right servo. NaN means not measured yet:
+     * the ramp will not move until they are filled in (use the Ramp Test opmode).
      */
-    public final double depolStowedLeft, depolStowedRight, depolDeployedLeft, depolDeployedRight;
+    public final double rampStowedLeft, rampStowedRight, rampDeployedLeft, rampDeployedRight;
 
     private ChassisProfile(String name, List<String> hubIds,
                            DcMotorSimple.Direction leftDirection, DcMotorSimple.Direction rightDirection,
@@ -55,10 +55,10 @@ public final class ChassisProfile {
                            GoBildaPinpointDriver.EncoderDirection podYDirection,
                            double xOffsetMM, double yOffsetMM, double robotDepthIn, double robotWidthIn,
                            DcMotorSimple.Direction intakeDirection,
-                           DcMotorSimple.Direction flywheelDirection, DcMotorSimple.Direction gateDirection,
+                           DcMotorSimple.Direction flywheelDirection, DcMotorSimple.Direction pusherDirection,
                            DcMotorSimple.Direction flywheelFollowerDirection,
-                           double depolStowedLeft, double depolStowedRight,
-                           double depolDeployedLeft, double depolDeployedRight) {
+                           double rampStowedLeft, double rampStowedRight,
+                           double rampDeployedLeft, double rampDeployedRight) {
         this.name = name;
         this.hubIds = hubIds;
         this.leftDirection = leftDirection;
@@ -71,12 +71,12 @@ public final class ChassisProfile {
         this.robotWidthIn = robotWidthIn;
         this.intakeDirection = intakeDirection;
         this.flywheelDirection = flywheelDirection;
-        this.gateDirection = gateDirection;
+        this.pusherDirection = pusherDirection;
         this.flywheelFollowerDirection = flywheelFollowerDirection;
-        this.depolStowedLeft = depolStowedLeft;
-        this.depolStowedRight = depolStowedRight;
-        this.depolDeployedLeft = depolDeployedLeft;
-        this.depolDeployedRight = depolDeployedRight;
+        this.rampStowedLeft = rampStowedLeft;
+        this.rampStowedRight = rampStowedRight;
+        this.rampDeployedLeft = rampDeployedLeft;
+        this.rampDeployedRight = rampDeployedRight;
     }
 
     /** The earlier prototype chassis. Offsets were tuned with Pinpoint Offset Check. */
@@ -102,13 +102,13 @@ public final class ChassisProfile {
             Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
     /**
-     * The assembled robot with all four mechanisms (intake, flywheel, gate, depollinator). Starts as a copy of
+     * The assembled robot with all four mechanisms (intake, flywheel, pusher, ramp). Starts as a copy of
      * DRAFT_1: drive and pod directions are verified on that chassis, but the pod offsets are NOT yet tuned for this
-     * robot. The depollinator pair is mirrored: stowed left 1.0 / right 0.0, deployed left 0.0 / right 1.0 (set
-     * 2026-10-31 from Depollinator Test, ramp seen stowed up at left 1.0 / right 0.0; the servos have no feedback, so
+     * robot. The ramp pair is mirrored: stowed left 1.0 / right 0.0, deployed left 0.0 / right 1.0 (set
+     * 2026-10-31 from Ramp Test, ramp seen stowed up at left 1.0 / right 0.0; the servos have no feedback, so
      * these are commanded values; TRAVEL_SEC is still the unmeasured placeholder). The intake direction was flipped to FORWARD on
      * 2026-10-31 (it ran backwards with REVERSE; not yet re-checked after the flip). The footprint
-     * (17 deep x 13.75 wide, depollinator stowed) was measured on 2026-10-31. See design/integration-plan.md,
+     * (17 deep x 13.75 wide, ramp stowed) was measured on 2026-10-31. See design/integration-plan.md,
      * Phases 1 and 2. Hub: serial and Android id read over adb.
      */
     public static final ChassisProfile ROBOT_1 = new ChassisProfile("ROBOT_1",
@@ -117,7 +117,7 @@ public final class ChassisProfile {
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD,
             -55.0, -75.6, 17.0, 13.75, DcMotorSimple.Direction.FORWARD,
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
-            1.0, 0.0, 0.0, 1.0);   // depollinator: stowed left / right, deployed left / right (the tied servos are mirrored)
+            1.0, 0.0, 0.0, 1.0);   // ramp: stowed left / right, deployed left / right (the tied servos are mirrored)
 
     private static final ChassisProfile[] ALL = {PROTOTYPE, DRAFT_1, ROBOT_1};
     private static final ChassisProfile DEFAULT = DRAFT_1;

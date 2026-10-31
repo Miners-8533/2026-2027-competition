@@ -16,7 +16,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
-import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
+import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -26,14 +26,14 @@ import java.util.Locale;
 
 /**
  * One automatic run that steps CS4 (REV Color Sensor V3) through every setting we want to compare, with the robot
- * EMPTY of game elements, and reports which settings find the gate arm best.
+ * EMPTY of game elements, and reports which settings find the pusher arm best.
  *
- * Why: the plan is to check the gate after a salvo by turning it to the CS4 position and looking for the arm, and
+ * Why: the plan is to check the pusher after a salvo by turning it to the CS4 position and looking for the arm, and
  * to re-home with a slow sweep if it is not seen. With no pollen in play the only questions are which sensor setting
  * (hardware gain, LED, sweep speed) gives a clean, repeatable arm signal that does not saturate.
  *
  * For every combination of HARDWARE GAIN (1x, 3x default, 6x, 9x, 18x), LED (on; also off if TEST_LED_OFF) and
- * SWEEP POWER (0.15, 0.3, 0.6), it: sets the sensor, waits SETTLE_SEC, turns the gate forward through one calibration
+ * SWEEP POWER (0.15, 0.3, 0.6), it: sets the sensor, waits SETTLE_SEC, turns the pusher forward through one calibration
  * turn (CAL_DEG) to learn the empty and arm-in-front alpha levels, then PASSES_PER_SETTING passes recording the encoder
  * angle where the arm enters and leaves the sensor's view (interpolated between FRESH readings only). Per setting it
  * logs: empty level and noise, arm level and noise, the separation (gap / noise), whether alpha saturated, and the
@@ -42,18 +42,18 @@ import java.util.Locale;
  *
  * The hardware gain and the rate are set by reflection on protected SDK methods: test-only code.
  *
- *   Left stick       jog the gate (up = forward) before starting, JOG_MAX_POWER at full deflection
- *   A                mark the gate angle as 0 here. Put the arm at HOLD first: the results then say where the arc is,
+ *   Left stick       jog the pusher (up = forward) before starting, JOG_MAX_POWER at full deflection
+ *   A                mark the pusher angle as 0 here. Put the arm at HOLD first: the results then say where the arc is,
  *                    in degrees AHEAD of HOLD, at each sweep speed (the team expects about 90 deg)
- *   Right bumper     start the whole run (any stick push, Back or a gate that stops moving ends it)
+ *   Right bumper     start the whole run (any stick push, Back or a pusher that stops moving ends it)
  *   Back             stop the run / clear the results
  *
- * Needs a REV Color Sensor V3 named "CS4" and the motor "gate". The gate has no stops: keep clear. Everything is also
- * written to the robot log (tag GateSensorMatrix); read it over USB.
+ * Needs a REV Color Sensor V3 named "CS4" and the motor "gate". The pusher has no stops: keep clear. Everything is also
+ * written to the robot log (tag PusherSensorMatrix); read it over USB.
  */
 @Config
-@TeleOp(name = "Gate Sensor Matrix (CS4)", group = "Bring-up")
-public class GateSensorMatrixTest extends LinearOpMode {
+@TeleOp(name = "Pusher Sensor Matrix (CS4)", group = "Bring-up")
+public class PusherSensorMatrixTest extends LinearOpMode {
 
     public static double JOG_MAX_POWER = 0.25;
     public static int PASSES_PER_SETTING = 6;
@@ -72,7 +72,7 @@ public class GateSensorMatrixTest extends LinearOpMode {
     public static double HEADROOM_ALPHA = 0.6;
 
     private static final String SENSOR_NAME = "CS4";
-    private static final String LOG_TAG = "GateSensorMatrix";
+    private static final String LOG_TAG = "PusherSensorMatrix";
     private static final double[] POWERS = {0.15, 0.3, 0.6};
     private static final BroadcomColorSensor.Gain[] GAINS = {
             BroadcomColorSensor.Gain.GAIN_1, BroadcomColorSensor.Gain.GAIN_3, BroadcomColorSensor.Gain.GAIN_6,
@@ -191,11 +191,11 @@ public class GateSensorMatrixTest extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        DcMotorEx gate = hardwareMap.get(DcMotorEx.class, "gate");
-        gate.setDirection(profile.gateDirection);
-        gate.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        gate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        gate.setPower(0.0);
+        DcMotorEx pusher = hardwareMap.get(DcMotorEx.class, "gate");
+        pusher.setDirection(profile.pusherDirection);
+        pusher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        pusher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        pusher.setPower(0.0);
 
         RevColorSensorV3 sensor = hardwareMap.tryGet(RevColorSensorV3.class, SENSOR_NAME);
         if (sensor == null) {
@@ -209,7 +209,7 @@ public class GateSensorMatrixTest extends LinearOpMode {
         String rateStatus = applyFastRate(sensor);
         RobotLog.ii(LOG_TAG, rateStatus);
 
-        int markTicks = gate.getCurrentPosition();
+        int markTicks = pusher.getCurrentPosition();
         ElapsedTime loopTimer = new ElapsedTime();
         ElapsedTime phaseTimer = new ElapsedTime();
         ElapsedTime comboTimer = new ElapsedTime();
@@ -232,10 +232,10 @@ public class GateSensorMatrixTest extends LinearOpMode {
         double measureStartAngle = 0, loopMsSum = 0;
         int loops = 0, fresh = 0;
         double moveRefAngle = 0;
-        String runStatus = "idle: jog the gate if you like, then press the right bumper to start the run";
+        String runStatus = "idle: jog the pusher if you like, then press the right bumper to start the run";
         String ranking = "-";
 
-        telemetry.addLine("Gate Sensor Matrix (CS4). Empty robot, nothing in the transport. Right bumper starts the automatic run.");
+        telemetry.addLine("Pusher Sensor Matrix (CS4). Empty robot, nothing in the transport. Right bumper starts the automatic run.");
         telemetry.update();
         waitForStart();
         loopTimer.reset();
@@ -245,8 +245,8 @@ public class GateSensorMatrixTest extends LinearOpMode {
             loopTimer.reset();
 
             double stick = -gamepad1.left_stick_y;
-            int ticks = gate.getCurrentPosition();
-            double angle = TransportGate.ENCODER_SIGN * (ticks - markTicks) * 360.0 / TransportGate.TICKS_PER_REV;
+            int ticks = pusher.getCurrentPosition();
+            double angle = Pusher.ENCODER_SIGN * (ticks - markTicks) * 360.0 / Pusher.TICKS_PER_REV;
             NormalizedRGBA c = sensor.getNormalizedColors();
             double alpha = c.alpha;
             boolean isFresh = alpha != lastMetric;
@@ -255,7 +255,7 @@ public class GateSensorMatrixTest extends LinearOpMode {
             if (gamepad1.aWasPressed() && (phase == Phase.IDLE || phase == Phase.DONE)) {
                 markTicks = ticks;
                 angle = 0.0;
-                RobotLog.ii(LOG_TAG, "MARK: the gate angle is now 0 here (HOLD)");
+                RobotLog.ii(LOG_TAG, "MARK: the pusher angle is now 0 here (HOLD)");
                 runStatus = "HOLD marked here: the arc positions in the results are measured from this mark";
             }
             boolean abort = false;
@@ -326,7 +326,7 @@ public class GateSensorMatrixTest extends LinearOpMode {
                         abortWhy = "aborted by the stick";
                     } else if (moveTimer.seconds() > 1.0) {
                         abort = true;
-                        abortWhy = "gate not moving for 1 s (blocked?)";
+                        abortWhy = "pusher not moving for 1 s (blocked?)";
                     } else if (comboTimer.seconds() > MAX_SEC_PER_SETTING) {
                         abort = true;
                         abortWhy = "timed out";
@@ -452,7 +452,7 @@ public class GateSensorMatrixTest extends LinearOpMode {
             }
 
             if (abort) {
-                gate.setPower(0.0);
+                pusher.setPower(0.0);
                 RobotLog.ii(LOG_TAG, "RUN ENDED early: " + abortWhy + " after " + results.size() + " of " + combos.size() + " settings");
                 runStatus = "ENDED early: " + abortWhy;
                 phase = Phase.DONE;
@@ -487,7 +487,7 @@ public class GateSensorMatrixTest extends LinearOpMode {
                     ranking = sb.toString();
                     RobotLog.ii(LOG_TAG, "RANKING (per sweep power; complete, not saturated, arm alpha <= " + HEADROOM_ALPHA + ", lowest center spread first):\n" + ranking);
                     runStatus = "DONE: " + results.size() + " settings measured";
-                    gate.setPower(0.0);
+                    pusher.setPower(0.0);
                 } else {
                     combo = combos.get(comboIndex);
                     applyHardwareGain(sensor, GAINS[combo.gainIndex]);
@@ -497,7 +497,7 @@ public class GateSensorMatrixTest extends LinearOpMode {
                     runStatus = "setting " + (comboIndex + 1) + " of " + combos.size() + ": " + combo.label();
                 }
             }
-            gate.setPower(power);
+            pusher.setPower(power);
 
             if (logTimer.milliseconds() > (phase == Phase.IDLE || phase == Phase.DONE ? 1000.0 : 2000.0)) {
                 logTimer.reset();
@@ -506,7 +506,7 @@ public class GateSensorMatrixTest extends LinearOpMode {
 
             telemetry.addData("Run", runStatus);
             telemetry.addData("Phase", combo == null ? phase.toString() : String.format(Locale.US, "%s (%d passes of %d)", phase, falls.size(), PASSES_PER_SETTING));
-            telemetry.addData("Gate angle / alpha", "%.1f deg / %.4f   (stick %.2f)", angle, alpha, stick);
+            telemetry.addData("Pusher angle / alpha", "%.1f deg / %.4f   (stick %.2f)", angle, alpha, stick);
             telemetry.addData("Sensor", rateStatus);
             int from = Math.max(0, results.size() - 8);
             for (int i = from; i < results.size(); i++) {
@@ -519,6 +519,6 @@ public class GateSensorMatrixTest extends LinearOpMode {
             telemetry.addLine("Right bumper: start the run   Left stick: jog (before) / abort (during)   Back: stop or clear");
             telemetry.update();
         }
-        gate.setPower(0.0);
+        pusher.setPower(0.0);
     }
 }

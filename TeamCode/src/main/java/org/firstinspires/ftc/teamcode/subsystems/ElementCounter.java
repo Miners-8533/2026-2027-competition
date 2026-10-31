@@ -14,12 +14,12 @@ import java.util.Arrays;
 
 /**
  * Counts and identifies the elements in the transport with four REV Color Sensor V3 named CS1 to CS4, numbered along the
- * track: intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel (CS4 is deepest, nearest the flywheel and the gate arm). The count
+ * track: intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel (CS4 is deepest, nearest the flywheel and the pusher arm). The count
  * is the number of sensors that see an element. The stack fills from the CS4 end, so the run of elements in a row from
  * CS4 is a check: an element seen without a neighbor toward the flywheel is still moving (or a misread) and sets
  * {@link #hasGap()}, but it still counts as held.
  *
- * Each sensor's slot is EMPTY, POLLEN, RED_NECTAR, BLUE_NECTAR, OTHER, or GATE_ARM (CS4 sees the arm; it is not an
+ * Each sensor's slot is EMPTY, POLLEN, RED_NECTAR, BLUE_NECTAR, OTHER, or PUSHER_ARM (CS4 sees the arm; it is not an
  * element). Presence is decided by how far the color shares move from the sensor's own EMPTY readings (the empty views
  * differ from sensor to sensor and brightness contrast against a near wall is small), then the alpha ratio and a nearer
  * distance, with separate on and off thresholds and a debounce so a pollen near a threshold does not flicker. The kind
@@ -40,7 +40,7 @@ import java.util.Arrays;
 @Config
 public class ElementCounter {
 
-    public enum Slot { EMPTY, POLLEN, RED_NECTAR, BLUE_NECTAR, OTHER, GATE_ARM }
+    public enum Slot { EMPTY, POLLEN, RED_NECTAR, BLUE_NECTAR, OTHER, PUSHER_ARM }
 
     /** Software gain: a multiplier clipped at 1.0 (no signal is added), so keep it 1.0. */
     public static double GAIN = 1.0;
@@ -74,7 +74,7 @@ public class ElementCounter {
     public static double BLUE_NECTAR_MIN_BLUE = 0.44;
     public static double BLUE_NECTAR_MIN_BLUE_OVER_GREEN = 0.08;
     public static double BLUE_NECTAR_MAX_RED = 0.25;
-    /** Gate arm: bluish with GREEN CLOSE TO BLUE (about 0.23 / 0.38 / 0.39); a dim blue nectar has blue well above green. */
+    /** Pusher arm: bluish with GREEN CLOSE TO BLUE (about 0.23 / 0.38 / 0.39); a dim blue nectar has blue well above green. */
     public static double ARM_MIN_BLUE = 0.36;
     public static double ARM_MAX_RED = 0.28;
     public static double ARM_MAX_GREEN_BLUE_GAP = 0.06;
@@ -143,7 +143,7 @@ public class ElementCounter {
     /** What a PRESENT object is, from its color shares (and distance, for the arm). */
     public static Slot classify(int sensor, double red, double green, double blue, double distCm) {
         if ((ARM_ANY_SENSOR || sensor == ARM_SENSOR) && (!ARM_REQUIRE_DISTANCE || distCm >= ARM_MIN_DIST_CM)
-                && blue >= ARM_MIN_BLUE && red <= ARM_MAX_RED && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return Slot.GATE_ARM;
+                && blue >= ARM_MIN_BLUE && red <= ARM_MAX_RED && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return Slot.PUSHER_ARM;
         if (red >= RED_NECTAR_MIN_RED && red >= green - 0.01 && blue < RED_NECTAR_MAX_BLUE) return Slot.RED_NECTAR;
         if (blue >= BLUE_NECTAR_MIN_BLUE && blue - green >= BLUE_NECTAR_MIN_BLUE_OVER_GREEN && red <= BLUE_NECTAR_MAX_RED) return Slot.BLUE_NECTAR;
         if (green >= POLLEN_MIN_GREEN_OVER_BLUE * blue && red <= POLLEN_MAX_RED) return Slot.POLLEN;
@@ -193,10 +193,10 @@ public class ElementCounter {
     }
 
     private boolean isElement(int i) {
-        return slot[i] != Slot.EMPTY && slot[i] != Slot.GATE_ARM;
+        return slot[i] != Slot.EMPTY && slot[i] != Slot.PUSHER_ARM;
     }
 
-    /** Sensors that currently see an element (not the gate arm). */
+    /** Sensors that currently see an element (not the pusher arm). */
     private int elementsSeen() {
         int n = 0;
         for (int i = 0; i < N; i++) if (isElement(i)) n++;
@@ -254,9 +254,9 @@ public class ElementCounter {
         return n;
     }
 
-    /** True while CS4 sees the gate arm (for the gate position check). */
-    public boolean gateArmSeen() {
-        return slot[ARM_SENSOR] == Slot.GATE_ARM;
+    /** True while CS4 sees the pusher arm (for the pusher position check). */
+    public boolean pusherArmSeen() {
+        return slot[ARM_SENSOR] == Slot.PUSHER_ARM;
     }
 
     /** The first sensor (1 to 4, from the intake) holding the OPPONENT's nectar, or 0 if none. */
@@ -271,7 +271,7 @@ public class ElementCounter {
             case POLLEN: return "P";
             case RED_NECTAR: return "R";
             case BLUE_NECTAR: return "B";
-            case GATE_ARM: return "A";
+            case PUSHER_ARM: return "A";
             case OTHER: return "O";
             default: return ".";
         }
@@ -288,6 +288,6 @@ public class ElementCounter {
         telemetry.addData("Elements held", "%d%s   next out: %s   %s", stableCount, isFull() ? " (FULL)" : "",
                 next(), isValid() ? "" : "   SENSORS NOT READ RECENTLY");
         telemetry.addData("Stack (P pollen, R red nectar, B blue nectar, O other, A arm)", "%s%s%s", stackString(),
-                hasGap() ? "   (gap: an element is moving)" : "", gateArmSeen() ? "   (CS4 sees the gate arm)" : "");
+                hasGap() ? "   (gap: an element is moving)" : "", pusherArmSeen() ? "   (CS4 sees the pusher arm)" : "");
     }
 }

@@ -10,7 +10,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 
 /**
- * Finds the depollinator's servo positions and its travel time. Uses the raw servos, not the Depollinator
+ * Finds the ramp's servo positions and its travel time. Uses the raw servos, not the Ramp
  * class, so it works before any position is known. The positions are not known yet, so NOTHING is commanded
  * until you press a trigger or a jog button. A trigger snaps both servos to a mirrored end at once, and the
  * first jog snaps that servo to about 0.5, so keep the ramp and your hands clear and make sure BOTH servos are
@@ -29,7 +29,7 @@ import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
  *
  * Find STOWED with the ramp folded inside the starting cube, DEPLOYED with the ramp lowered to just short
  * of the floor / flower opening (not pressing, so a torque servo is not stalled). Then copy the printed
- * values into ChassisProfile (depolStowedLeft, ...) and Depollinator.TRAVEL_SEC. The servos move at their
+ * values into ChassisProfile (rampStowedLeft, ...) and Ramp.TRAVEL_SEC. The servos move at their
  * own full speed, so watch how the ramp lands: if it lands too hard, that is the case for adding a slew back.
  *
  * The two servos are tied together and mirrored, so they are always driven as a pair with OPPOSITE values
@@ -38,8 +38,8 @@ import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
  *
  * Needs servos named "depolLeft" and "depolRight".
  */
-@TeleOp(name = "Depollinator Test", group = "Bring-up")
-public class DepollinatorTest extends LinearOpMode {
+@TeleOp(name = "Ramp Test", group = "Bring-up")
+public class RampTest extends LinearOpMode {
 
     @Override
     public void runOpMode() {
@@ -59,7 +59,7 @@ public class DepollinatorTest extends LinearOpMode {
         boolean prevLeftTrigger = false, prevRightTrigger = false;
 
         telemetry.addData("Chassis profile", profile.label());
-        telemetry.addLine("Depollinator Test. Nothing is commanded until you jog. The first jog snaps that servo to about 0.5.");
+        telemetry.addLine("Ramp Test. Nothing is commanded until you jog. The first jog snaps that servo to about 0.5.");
         telemetry.update();
         waitForStart();
 
@@ -135,8 +135,8 @@ public class DepollinatorTest extends LinearOpMode {
             telemetry.addData("Recorded STOWED L / R", "%.3f / %.3f", stowed[0], stowed[1]);
             telemetry.addData("Recorded DEPLOYED L / R", "%.3f / %.3f", deployed[0], deployed[1]);
             telemetry.addData("Timer", timing ? String.format("%.2f s, press Back when the ramp stops", moveTimer.seconds()) : "idle");
-            telemetry.addLine("--- copy into ChassisProfile and Depollinator.java ---");
-            telemetry.addLine(String.format("depolStowedLeft %.3f, depolStowedRight %.3f, depolDeployedLeft %.3f, depolDeployedRight %.3f",
+            telemetry.addLine("--- copy into ChassisProfile and Ramp.java ---");
+            telemetry.addLine(String.format("rampStowedLeft %.3f, rampStowedRight %.3f, rampDeployedLeft %.3f, rampDeployedRight %.3f",
                     stowed[0], stowed[1], deployed[0], deployed[1]));
             telemetry.addLine(String.format("TRAVEL_SEC = %.2f", travelSec));
             telemetry.addLine("Triggers = mirrored pair ends, A / B record both, bumpers + D-pad fine-tune one servo, X deploy, Y stow, Back stop the timer");

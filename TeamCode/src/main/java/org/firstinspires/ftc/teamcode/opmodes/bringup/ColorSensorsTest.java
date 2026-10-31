@@ -28,7 +28,7 @@ import java.util.Locale;
  *   POLLEN       green clearly above blue (green/blue ratio), modest red   (measured about 0.28-0.31 / 0.44-0.51 / 0.18-0.27)
  *   RED NECTAR   red share high and not below green, little blue            (measured about 0.36-0.47 / 0.32-0.36 / 0.21-0.27)
  *   BLUE NECTAR  blue share high and well above green, little red           (measured about 0.11-0.17 / 0.24-0.37 / 0.45-0.64)
- *   GATE ARM     CS4 only: far (5.5 cm or more), bluish with green close to blue (measured about 0.23 / 0.38 / 0.39, 6.5 cm)
+ *   PUSHER ARM     CS4 only: far (5.5 cm or more), bluish with green close to blue (measured about 0.23 / 0.38 / 0.39, 6.5 cm)
  *   OTHER        anything else (partial views at an edge, shadows)
  * The nectar identities (red and blue alliance nectar) were confirmed by the team. Presence uses the shift in the
  * color shares from the empty baseline first (brightness and distance contrast against a near wall is small), then the
@@ -36,7 +36,7 @@ import java.util.Locale;
  * threshold no longer flickers. All thresholds are in the FTC Dashboard.
  *
  * Layout: the sensors are numbered along the track, intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel (CS4 is deepest, nearest
- * the flywheel and the gate arm; CS1 is nearest the intake). The test shows the pattern as a STACK line, how many are in a
+ * the flywheel and the pusher arm; CS1 is nearest the intake). The test shows the pattern as a STACK line, how many are in a
  * row from the flywheel end, and the element at the deepest slot (it fires first). The fill order (from the flywheel end)
  * is an assumption: a GAP warning means an element is seen without a neighbor toward the flywheel.
  *
@@ -49,7 +49,7 @@ import java.util.Locale;
  *   Back      clear the baseline
  *
  * LABELED TEST (to score the classifier): say what is really in front of each sensor, and it compares every reading
- * with that label. The labels are NOTHING, POLLEN, RED NECTAR, BLUE NECTAR, GATE ARM, OTHER; every sensor starts at NOTHING,
+ * with that label. The labels are NOTHING, POLLEN, RED NECTAR, BLUE NECTAR, PUSHER ARM, OTHER; every sensor starts at NOTHING,
  * so only the sensor you are testing needs a label.
  *   D-pad up / down      select a sensor (shown with a > on the LABELS line)
  *   D-pad left / right   set the selected sensor's label
@@ -72,7 +72,7 @@ public class ColorSensorsTest extends LinearOpMode {
     public static double CAPTURE_SEC = 1.0;
     public static boolean READ_ONE_PER_LOOP = true;
     // The classification thresholds, the gain, the debounce and the presence rules live in ElementCounter (also in the
-    // Dashboard), so this test scores exactly what the robot uses. For the labeled test the gate arm may be held in
+    // Dashboard), so this test scores exactly what the robot uses. For the labeled test the pusher arm may be held in
     // front of any sensor, so this test sets ElementCounter.ARM_ANY_SENSOR on (and ARM_REQUIRE_DISTANCE off) while it
     // runs and puts them back when it ends.
     /** While recording, the confusion table is also written to the log this often (seconds). */
@@ -81,8 +81,8 @@ public class ColorSensorsTest extends LinearOpMode {
     public static double LABEL_SETTLE_MS = 700.0;
 
     /** What the team says is in front of a sensor (the ground truth), and what the classifier can answer (index 0 = empty / nothing). */
-    private static final String[] CLASSES = {"NOTHING", "POLLEN", "RED NECTAR", "BLUE NECTAR", "GATE ARM", "OTHER"};
-    private static final String[] PREDICTIONS = {"EMPTY", "POLLEN", "RED NECTAR", "BLUE NECTAR", "GATE ARM", "OTHER"};
+    private static final String[] CLASSES = {"NOTHING", "POLLEN", "RED NECTAR", "BLUE NECTAR", "PUSHER ARM", "OTHER"};
+    private static final String[] PREDICTIONS = {"EMPTY", "POLLEN", "RED NECTAR", "BLUE NECTAR", "PUSHER ARM", "OTHER"};
 
     private static final String[] NAMES = {"CS1", "CS2", "CS3", "CS4"};
     private static final String LOG_TAG = "ColorSensors";
@@ -94,7 +94,7 @@ public class ColorSensorsTest extends LinearOpMode {
             case POLLEN: return "POLLEN";
             case RED_NECTAR: return "RED NECTAR";
             case BLUE_NECTAR: return "BLUE NECTAR";
-            case GATE_ARM: return "GATE ARM";
+            case PUSHER_ARM: return "PUSHER ARM";
             default: return "OTHER";
         }
     }
@@ -106,7 +106,7 @@ public class ColorSensorsTest extends LinearOpMode {
             case "POLLEN": return 1;
             case "RED NECTAR": return 2;
             case "BLUE NECTAR": return 3;
-            case "GATE ARM": return 4;
+            case "PUSHER ARM": return 4;
             default: return 5;
         }
     }
@@ -147,7 +147,7 @@ public class ColorSensorsTest extends LinearOpMode {
             case "POLLEN": return "P";
             case "RED NECTAR": return "R";
             case "BLUE NECTAR": return "B";
-            case "GATE ARM": return "A";
+            case "PUSHER ARM": return "A";
             default: return "O";
         }
     }
@@ -362,7 +362,7 @@ public class ColorSensorsTest extends LinearOpMode {
                             case "POLLEN": pollenCount++; break;
                             case "RED NECTAR": redCount++; break;
                             case "BLUE NECTAR": blueCount++; break;
-                            case "GATE ARM": armCount++; break;
+                            case "PUSHER ARM": armCount++; break;
                             default: otherCount++; break;
                         }
                     }
@@ -387,7 +387,7 @@ public class ColorSensorsTest extends LinearOpMode {
 
             int elements = presentCount - armCount;
             telemetry.addData("ELEMENTS SEEN", "%d  (pollen %d, red nectar %d, blue nectar %d, other %d)%s", elements, pollenCount, redCount, blueCount, otherCount,
-                    armCount > 0 ? "   [CS4 sees the gate arm: not counted]" : "");
+                    armCount > 0 ? "   [CS4 sees the pusher arm: not counted]" : "");
 
             // The track runs intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel, and the stack is expected to fill from the
             // flywheel end. Show the pattern, the contiguous run from CS4, and the element at the deepest slot (it fires first).
@@ -401,7 +401,7 @@ public class ColorSensorsTest extends LinearOpMode {
             }
             stack.append("> flywheel");
             for (int i = N - 1; i >= 0; i--) {
-                boolean element = haveBase[i] && present[i] && !"GATE ARM".equals(cls[i]);
+                boolean element = haveBase[i] && present[i] && !"PUSHER ARM".equals(cls[i]);
                 if (unbroken && element) {
                     contiguous++;
                     if (head.equals("-")) head = cls[i];

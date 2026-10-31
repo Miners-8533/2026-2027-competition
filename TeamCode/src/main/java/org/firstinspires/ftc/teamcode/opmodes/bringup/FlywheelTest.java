@@ -15,7 +15,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
  *
  *   A                  spin on / off
  *   D-pad up / down    setpoint up / down by STEP ticks/s
- *   Y                  arm a dip measurement, then feed a ball (by hand or with the gate)
+ *   Y                  arm a dip measurement, then feed a ball (by hand or with the pusher)
  *   Back             clear the last measurement and any fault
  *
  * The motor ("fly_motor_enc"; the second motor "fly_follow" is commented out in Flywheel) runs with no hub encoder loop.
