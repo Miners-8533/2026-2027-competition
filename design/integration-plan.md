@@ -72,7 +72,7 @@ Exit: configuration active, profile decision made, branch created.
 
 - [ ] **Wiring.** Every connector seated and strain-relieved; no wire near the gate arm, flywheel or intake; Pinpoint cable and pods secure; no wire that can be caught by the depollinator ramp.
 - [ ] **Mechanical.** Gate arm turns freely through a full turn by hand with no element in the track; flywheel spins freely by hand; intake rotates freely; ramp servos move without binding (by hand with power off, gently). Fasteners tight; thread locker where appropriate.
-- [ ] **Size.** With the depollinator **stowed**, the robot fits the starting cube (rule R102, 18 x 18 x 18 in) in the starting configuration. Footprint **measured: 17 deep x 13.75 wide** and entered into `ROBOT_1` (the autos, the TeleOp and the shot-map tuner all derive their start X from the depth, so the start is now x = -63.5). **Still to measure: the height** with the depollinator stowed, and that the whole robot fits the 18 in cube in the real starting configuration.
+- [x] **Size.** (Confirmed 2026-10-31: the robot fits the 18 in cube with the depollinator stowed.) With the depollinator **stowed**, the robot fits the starting cube (rule R102, 18 x 18 x 18 in) in the starting configuration. Footprint **measured: 17 deep x 13.75 wide** and entered into `ROBOT_1` (the autos, the TeleOp and the shot-map tuner all derive their start X from the depth, so the start is now x = -63.5). The height was not recorded as a number, only confirmed to fit.
 - [ ] **Power-up smoke test.** Battery in, hub boots, Driver Station connects, **Chassis Info** shows the expected profile, nothing moves on its own. *Pass: no unexpected motion, no warnings.*
 
 Exit: robot powers up safely and the footprint is recorded.

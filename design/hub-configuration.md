@@ -17,7 +17,7 @@ Read over USB from the robot's Control Hub (serial `5462f57f0f18d316`). The only
 | Control Hub | servo 0, 2 | `hood`, `stop` | **stale** (last year's), delete |
 | Control Hub | I2C bus 1 | `pinpoint` | keep |
 | Control Hub | I2C bus 0 | `imu` | not used by our code |
-| Ethernet | | `limelight` | **stale**, delete |
+| Ethernet | | `limelight` | **keep on purpose**: a Limelight will be added later; no code uses it yet |
 
 **Missing for the robot:** `leftFront`, `leftBack`, `rightBack`, `depolLeft`, `depolRight`.
 
@@ -53,7 +53,7 @@ Ports above were read by Hardware Check on 2026-10-31 (battery 12.2 V). Pinpoint
 
 - [ ] Open **Configure Robot**, create a **New** configuration, and scan/select the **Control Hub Portal** (and the Expansion Hub).
 - [ ] Add each device from the table, with the **exact name** and the type that matches the real part. For the motors, pick the actual model (it sets the encoder metadata; our code runs the motors without the hub's closed-loop modes).
-- [ ] Do **not** carry over the stale entries from `test.xml` (`transport`, `fly_follow`, `hood`, `stop`, `limelight`).
+- [ ] Do **not** carry over the stale entries from `test.xml` (`transport`, `fly_follow`, `hood`, `stop`). `limelight` is kept on purpose for later.
 - [ ] Save it with a clear name (for example `ROBOT_1`) and **activate** it.
 - [ ] Fill in the **Hub** and **Port** columns above, or copy them from Hardware Check (next section), and photograph the wiring.
 
@@ -61,7 +61,7 @@ Ports above were read by Hardware Check on 2026-10-31 (battery 12.2 V). Pinpoint
 
 Run each opmode in order. All three only read.
 
-- [x] **Hardware Check** (passed 2026-10-31: all ten devices present, ports recorded above, Pinpoint READY, turning the flywheel by hand moved only `fly_motor_enc` and turning the gate arm moved only `gate`; remaining: delete the stale `limelight` and `stop` entries)
+- [x] **Hardware Check** (passed 2026-10-31: all ten devices present, ports recorded above, Pinpoint READY, turning the flywheel by hand moved only `fly_motor_enc` and turning the gate arm moved only `gate`; remaining: delete the stale `stop` entry; `limelight` stays on purpose, so expect it in the "configured but not used" list)
   - `RESULT: all required devices are present`. A `MISSING` or `WRONG TYPE` line names the problem entry.
   - Every device line shows the hub and port you expected. Copy them into the port table above.
   - Turn each part **by hand** and watch the encoders: the flywheel by hand changes only `fly_motor_enc`, the gate arm changes only `gate`. If two encoders move together, or the wrong name moves, two cables are crossed.
