@@ -25,7 +25,7 @@ import java.util.Locale;
  * color), the age of the reading, and, once an EMPTY baseline is captured, whether something is PRESENT and what it
  * looks like:
  *   POLLEN       green clearly above blue (green/blue ratio), modest red   (measured about 0.28-0.31 / 0.44-0.51 / 0.18-0.27)
- *   RED NECTAR   red share high and above green                             (measured about 0.40-0.47 / 0.32-0.36 / 0.21-0.24)
+ *   RED NECTAR   red share high and not below green, little blue            (measured about 0.36-0.47 / 0.32-0.36 / 0.21-0.27)
  *   BLUE NECTAR  blue share high and well above green, little red           (measured about 0.11-0.17 / 0.24-0.37 / 0.45-0.64)
  *   GATE ARM     CS4 only: far (5.5 cm or more), bluish with green close to blue (measured about 0.23 / 0.38 / 0.39, 6.5 cm)
  *   OTHER        anything else (partial views at an edge, shadows)
@@ -86,9 +86,12 @@ public class ColorSensorsTest extends LinearOpMode {
     /** A new state must persist this long before it is reported. */
     public static double DEBOUNCE_MS = 150.0;
 
-    public static double POLLEN_MIN_GREEN_OVER_BLUE = 1.65;
+    /** Pollen: green at least this many times blue (a dim or far pollen reads about 1.5; the empty views read 1.25-1.45), modest red. */
+    public static double POLLEN_MIN_GREEN_OVER_BLUE = 1.5;
     public static double POLLEN_MAX_RED = 0.35;
-    public static double RED_NECTAR_MIN_RED = 0.38;
+    /** Red nectar: red share at least this (0.36-0.38 when it sits further from the sensor, 0.40-0.47 close), red not below green, and little blue. */
+    public static double RED_NECTAR_MIN_RED = 0.35;
+    public static double RED_NECTAR_MAX_BLUE = 0.30;
     /** Blue nectar: blue share at least this, and at least BLUE_NECTAR_MIN_BLUE_OVER_GREEN above the green share, with little red. */
     public static double BLUE_NECTAR_MIN_BLUE = 0.44;
     public static double BLUE_NECTAR_MIN_BLUE_OVER_GREEN = 0.08;
@@ -119,7 +122,7 @@ public class ColorSensorsTest extends LinearOpMode {
     static String classify(int sensor, double red, double green, double blue, double distCm) {
         if ((ARM_ANY_SENSOR || sensor == ARM_SENSOR) && (!ARM_REQUIRE_DISTANCE || distCm >= ARM_MIN_DIST_CM)
                 && blue >= ARM_MIN_BLUE && red <= ARM_MAX_RED && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return "GATE ARM";
-        if (red >= RED_NECTAR_MIN_RED && red > green) return "RED NECTAR";
+        if (red >= RED_NECTAR_MIN_RED && red >= green - 0.01 && blue < RED_NECTAR_MAX_BLUE) return "RED NECTAR";
         if (blue >= BLUE_NECTAR_MIN_BLUE && blue - green >= BLUE_NECTAR_MIN_BLUE_OVER_GREEN && red <= BLUE_NECTAR_MAX_RED) return "BLUE NECTAR";
         if (green >= POLLEN_MIN_GREEN_OVER_BLUE * blue && red <= POLLEN_MAX_RED) return "POLLEN";
         return "OTHER";
