@@ -245,8 +245,10 @@ public class GateSensorTest extends LinearOpMode {
         boolean autoCal = false;
         double calMin = 0, calMax = 0, calStartAngle = 0, lastLoggedAngle = 0;
         String note = "-";
-        int ratePreset = 0;
-        String rateStatus = "SDK default (not changed): " + RATE_NAMES[0];
+        // start on the FAST preset: the SDK default (100 ms) is too slow to locate the arm (the app resets to it after every install)
+        int ratePreset = 1;
+        String rateStatus = applyRates(sensor, ratePreset);
+        RobotLog.ii(LOG_TAG, String.format(Locale.US, "RATE at start: %s (software gain %.1f, LED %s)", rateStatus, gain, led ? "on" : "off"));
         double lastMetricValue = Double.NaN;
         int sweepFresh = 0;
 
