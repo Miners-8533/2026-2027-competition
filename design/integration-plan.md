@@ -163,7 +163,7 @@ Run **TeleOp - Draft (mechanisms)**. Each row passes three times in a row.
 | R3 | Fire (A) with the flywheel cold | Spins up, then fires the moment it is ready |
 | R3b | Fire with the flywheel already spinning | Fires at once |
 | R3c | Fire when the flywheel cannot reach the setpoint (set it too high) | Drops after the timeout with a NOTICE, no stuck state |
-| R3d | After a salvo | The flywheel stops about 0.5 s later by itself |
+| R3d | After a salvo | In TeleOp - Competition the flywheel keeps running (it runs from Start; left bumper stops it, right bumper restarts it). The 0.5 s auto-stop still applies where it is left on (the autos) |
 | R4 | Reject (B) with elements | Gate reverses with outtake for the whole move, then both stop |
 | R4b | Press reject or fire while a salvo or reject is running | Ignored, no stuck state |
 | R5 | Stow (Y) while under each of the **four flowers** | Stow waits ("Stow waiting"), then happens once the robot drives clear |

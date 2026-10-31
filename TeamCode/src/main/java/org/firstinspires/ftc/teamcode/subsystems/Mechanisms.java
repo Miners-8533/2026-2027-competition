@@ -26,7 +26,8 @@ import java.util.List;
  *      turn from the nearest HOLD), with a timeout.
  *   4. A reject is a gate reverse plus an intake outtake for the whole reject move.
  *   5. A stow requested under a flower is remembered and happens once the pose shows the robot is clear.
- *   Also: the flywheel stops by itself shortly after a salvo ends.
+ *   Also: the flywheel stops by itself shortly after a salvo ends (unless setAutoStopAfterSalvo(false), which the
+ *   competition TeleOp uses to keep the flywheel running the whole time).
  *
  * Any mechanism the robot does not have yet (no matching hardware-config entry) is null and skipped, so this
  * works on a partially built chassis. Call {@link #update(Pose2d)} once per loop; autos pass it to
@@ -52,6 +53,7 @@ public class Mechanisms {
     private boolean salvoActive = false;
     private boolean rejectActive = false;
     private boolean spinRequested = false;
+    private boolean autoStopAfterSalvo = true;   // the competition TeleOp turns this off and keeps the flywheel running
     private boolean stopScheduled = false;
     private boolean stowPending = false;
     private boolean useShotMap = true;
@@ -143,6 +145,17 @@ public class Mechanisms {
         if (!spinRequested && !fireQueued && !salvoActive) stopScheduled = false;
     }
 
+    /** Ask for the flywheel to run (or not), the same as the operator's spin toggle. */
+    public void setSpinRequested(boolean requested) {
+        spinRequested = requested;
+        if (requested) stopScheduled = false;
+    }
+
+    /** True (the default): the flywheel stops by itself shortly after a salvo. False: it keeps running until told to stop. */
+    public void setAutoStopAfterSalvo(boolean autoStop) {
+        autoStopAfterSalvo = autoStop;
+    }
+
     public void stopFlywheel() {
         spinRequested = false;
         stopScheduled = false;
@@ -205,8 +218,10 @@ public class Mechanisms {
             if (rejectActive && gateIdle) rejectActive = false;
             if (salvoActive && gateIdle) {
                 salvoActive = false;
-                stopScheduled = true;
-                stopTimer.reset();
+                if (autoStopAfterSalvo) {
+                    stopScheduled = true;
+                    stopTimer.reset();
+                }
             }
             if (gate.isStalled()) {
                 salvoActive = false;

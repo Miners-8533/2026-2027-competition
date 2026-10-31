@@ -44,8 +44,8 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   A                    fire a salvo (spins up and fires when ready)
  *   B                    reject (gate reverse + outtake)
  *   X / Y                deploy / stow the depollinator ramp (stow waits until clear of a flower)
- *   right bumper         flywheel spin up / down (toggle)
- *   left bumper          flywheel stop
+ *   right bumper         flywheel on / off (toggle). It runs by default, from Start, and keeps running after salvos
+ *   left bumper          flywheel stop (the right bumper turns it back on)
  *   D-pad up / down      manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   D-pad left or right  the open CELL is the HIVE's other side (after a tip)
  *   Back                 clear a gate fault
@@ -116,6 +116,8 @@ public class TeleOpCompetition extends LinearOpMode {
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, TransportGate.Reference.CONTINUE);
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
+        mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
+        mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
 
         boolean prevIntakeTrigger = false;
         boolean backDown = false, reseeded = false;
