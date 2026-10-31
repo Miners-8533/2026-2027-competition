@@ -25,7 +25,8 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *
  * Gamepad 1 (driver):
  *   left stick / right stick X   drive / turn (robot oriented)     right bumper: precision (30%)
- *   Options                      reseed the pose to the start pose
+ *   Options                      reseed the pose to the start pose (the Start button on a Logitech or Xbox-style
+ *                                controller: the SDK treats Start as Options)
  *
  * Gamepad 2 (operator):
  *   right trigger (hold)         intake (waits for the gate to be at HOLD)
@@ -36,7 +37,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   right bumper / left bumper   flywheel spin up / stop
  *   D-pad up / down              manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   D-pad left or right          the open CELL is the HIVE's other side (after a tip)
- *   Options                      clear a gate stall
+ *   Options                      clear a gate stall (the Start button on a Logitech or Xbox-style controller)
  *
  * Not yet done: the pose is not carried over from an auto (it starts at the start pose below), and the
  * chassis is robot oriented, not field oriented.

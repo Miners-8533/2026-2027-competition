@@ -104,7 +104,8 @@ public final class ChassisProfile {
     /**
      * The assembled robot with all four mechanisms (intake, flywheel, gate, depollinator). Starts as a copy of
      * DRAFT_1: drive and pod directions are verified on that chassis, but the pod offsets are NOT yet tuned for this
-     * robot, the intake direction is unverified, and the depollinator positions are not measured. The footprint
+     * robot and the depollinator positions are not measured. The intake direction was flipped to FORWARD on
+     * 2026-10-31 (it ran backwards with REVERSE; not yet re-checked after the flip). The footprint
      * (17 deep x 13.75 wide, depollinator stowed) was measured on 2026-10-31. See design/integration-plan.md,
      * Phases 1 and 2. Hub: serial and Android id read over adb.
      */
@@ -112,7 +113,7 @@ public final class ChassisProfile {
             Arrays.asList("5462f57f0f18d316", "7c789032eb35f27b"),
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD,
-            -55.0, -75.6, 17.0, 13.75, DcMotorSimple.Direction.REVERSE,
+            -55.0, -75.6, 17.0, 13.75, DcMotorSimple.Direction.FORWARD,
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
             Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
