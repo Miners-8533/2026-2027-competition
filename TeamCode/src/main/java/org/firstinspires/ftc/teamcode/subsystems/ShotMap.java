@@ -8,7 +8,7 @@ import java.util.List;
  * map, minus the hood angle.
  *
  * {@link #TABLE} is EMPTY until it is measured on the real robot. While it is empty the coordinator uses the
- * operator's manual setpoint (Mechanisms.manualSetpoint, starting at 1400 ticks/s, tuned with the D-pad). Use the
+ * operator's manual setpoint (Mechanisms.manualSetpoint, starting at 1350 ticks/s, tuned with the D-pad). Use the
  * Shot Map Tuner opmode to find a working speed at each distance; it prints lines to paste in. Once the table
  * has any point, the coordinator uses it and the D-pad speed keys are ignored.
  */
