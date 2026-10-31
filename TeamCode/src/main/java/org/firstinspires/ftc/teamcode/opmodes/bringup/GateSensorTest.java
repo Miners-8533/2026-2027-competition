@@ -18,6 +18,7 @@ import com.qualcomm.hardware.broadcom.BroadcomColorSensorImpl;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
+import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
 import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
 
 import java.lang.reflect.Method;
@@ -46,6 +47,9 @@ import java.util.Locale;
  *   D-pad up/down    sensor gain +/- 0.5 (affects the color readings; distance is unaffected)
  *   D-pad left/right condition label: empty / pollen / nectar / pollen+nectar (for comparing runs; goes in the log)
  *   Left bumper      next sweep power (0.15, 0.2, 0.3, 0.45, 0.6: include 0.3, the salvo's SWEEP_POWER)
+ *   Left trigger     flywheel on / off (toggle), FLYWHEEL_SPEED ticks/s (400). It also runs by itself during a sweep
+ *                    (FLYWHEEL_DURING_SWEEP): a slow flywheel keeps a pollen the arm pushes from jamming against a
+ *                    stopped wheel. Needs "fly_motor_enc"; without it the test just runs without the flywheel.
  *   Right bumper     start / stop the automatic SWEEP. With X and Y captured it uses them; without, it learns the alpha
  *                    range itself during the first turn (AUTO_CAL_DEG), then counts passes
  *   Right stick click  next sensor rate preset: SDK default (color and proximity refresh every 100 ms), medium, fast
@@ -82,6 +86,9 @@ public class GateSensorTest extends LinearOpMode {
      * hardware gain is 3x, set at start-up, and the SDK offers no public setter for it.
      */
     public static double GAIN = 1.0;
+    /** A slow flywheel keeps a pollen the arm pushes forward from jamming against a stopped wheel. 0 = leave it off. */
+    public static double FLYWHEEL_SPEED = 400.0;
+    public static boolean FLYWHEEL_DURING_SWEEP = true;
     public static int SWEEP_PASSES = 12;
     public static double SWEEP_MAX_SEC = 90.0;
     public static double SWEEP_ABORT_STICK = 0.3;
@@ -208,6 +215,10 @@ public class GateSensorTest extends LinearOpMode {
         sensor.setGain((float) gain);
         sensor.enableLed(led);
 
+        // optional: the flywheel, run slowly so a pollen pushed forward by the arm does not jam against it
+        Flywheel flywheel = hardwareMap.tryGet(DcMotorEx.class, "fly_motor_enc") != null ? new Flywheel(hardwareMap) : null;
+        boolean flywheelManual = false, flywheelWasOn = false, prevLeftTrigger = false;
+
         int markTicks = gate.getCurrentPosition();
         Stats background = new Stats(), gateSeen = new Stats(), pollenSeen = new Stats(), capturing = null;
         int captureTarget = 0;   // 1 = background, 2 = arm in front, 3 = pollen in front
@@ -264,6 +275,9 @@ public class GateSensorTest extends LinearOpMode {
             if (gamepad1.dpadRightWasPressed()) condition = (condition + 1) % CONDITIONS.length;
             if (gamepad1.dpadLeftWasPressed()) condition = (condition + CONDITIONS.length - 1) % CONDITIONS.length;
             if (gamepad1.leftBumperWasPressed() && !sweeping) powerIndex = (powerIndex + 1) % SWEEP_POWERS.length;
+            boolean leftTrigger = gamepad1.left_trigger > 0.5;
+            if (leftTrigger && !prevLeftTrigger) flywheelManual = !flywheelManual;
+            prevLeftTrigger = leftTrigger;
             if (gamepad1.rightStickButtonWasPressed() && !sweeping && captureTarget == 0) {
                 ratePreset = (ratePreset + 1) % RATE_NAMES.length;
                 rateStatus = applyRates(sensor, ratePreset);
@@ -408,7 +422,8 @@ public class GateSensorTest extends LinearOpMode {
                     lastAngleForSpeed = angle;
                     moveRefAngle = angle;
                     moveTimer.reset();
-                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "SWEEP START label=%s power=%.2f autoCal=%b software gain %.1f, LED %s, %s", CONDITIONS[condition], SWEEP_POWERS[powerIndex], autoCal, gain, led ? "on" : "off", RATE_NAMES[ratePreset]));
+                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "SWEEP START label=%s power=%.2f autoCal=%b software gain %.1f, LED %s, %s, flywheel %s", CONDITIONS[condition], SWEEP_POWERS[powerIndex], autoCal, gain, led ? "on" : "off", RATE_NAMES[ratePreset],
+                            flywheel == null || FLYWHEEL_SPEED <= 0 ? "off" : String.format(Locale.US, "%.0f ticks/s", FLYWHEEL_SPEED)));
                 }
             }
 
@@ -531,6 +546,19 @@ public class GateSensorTest extends LinearOpMode {
             }
             gate.setPower(power);
 
+            // the flywheel: on while toggled on, or during a sweep; stopped as soon as neither applies
+            boolean flywheelWanted = flywheel != null && FLYWHEEL_SPEED > 0 && (flywheelManual || (sweeping && FLYWHEEL_DURING_SWEEP));
+            if (flywheel != null) {
+                if (flywheelWanted) {
+                    flywheel.setTargetVelocity(FLYWHEEL_SPEED);
+                    flywheel.update();
+                    flywheelWasOn = true;
+                } else if (flywheelWasOn) {
+                    flywheel.stop();
+                    flywheelWasOn = false;
+                }
+            }
+
             // the phone keeps only 256 KB of log: write often only while something is changing, so the sweep lines survive
             boolean moving = sweeping || Math.abs(angle - lastLoggedAngle) > 0.5 || Math.abs(stick) > 0.05;
             double logEveryMs = sweeping ? 500.0 : moving ? 150.0 : 1000.0;
@@ -555,6 +583,10 @@ public class GateSensorTest extends LinearOpMode {
             telemetry.addData("Captures taken", "background %d, arm %d, pollen %d samples", background.n, gateSeen.n, pollenSeen.n);
             telemetry.addData("Note", note);
             telemetry.addData("Sensor rate (right stick click changes)", rateStatus);
+            telemetry.addData("Flywheel (left trigger toggles; also on during a sweep)", flywheel == null ? "no fly_motor_enc in the configuration"
+                    : flywheelWanted ? String.format(Locale.US, "ON, target %.0f ticks/s, speed %.0f%s", FLYWHEEL_SPEED, flywheel.getVelocity(),
+                    flywheel.isFaulted() ? "   FAULT: encoder reads backward (Flywheel.ENCODER_SIGN)" : "")
+                    : "off");
             if (background.n > 0 && gateSeen.n > 0) {
                 for (int i = 0; i < N; i++) {
                     double sep = Math.abs(gateSeen.mean(i) - background.mean(i)) / (background.std(i) + gateSeen.std(i) + 1e-6);
@@ -581,5 +613,6 @@ public class GateSensorTest extends LinearOpMode {
             telemetry.update();
         }
         gate.setPower(0.0);
+        if (flywheel != null) flywheel.stop();
     }
 }
