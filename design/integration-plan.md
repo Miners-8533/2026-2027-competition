@@ -11,6 +11,25 @@ Ground rules
 
 ---
 
+## Status, 2026-10-31
+
+**Reported by the team:** integration is finished for TeleOp. The `stop` servo entry is deleted from the hub configuration.
+
+**Deferred on purpose (affects autos only, not TeleOp):** finish the Pinpoint localization (pod offsets for `ROBOT_1` are still the prototype's) and the DriveToPose PID tuning. The autos also still use simulated shots instead of the real mechanisms (Phase 6).
+
+**What was checked from the code side right after that report** (so the claim is not simply taken on trust):
+- The repo has **no commits or edits beyond the integration branch's own**, and `ShotMap.TABLE` is **still empty**. Nothing tuned during integration has been written into the code.
+- The Dashboard on the robot hub showed every tunable at its **code default**: gate `COAST_LOOKAHEAD_S` 0 and `SWEEP_POWER` 0.6, flywheel `FEED_FORWARD` 0.2, `DriveToPose` gains unchanged. Dashboard values reset on every app install or restart, so tuned values only survive if they are written into the code.
+- The build installed on the hub was **older than the latest commits**: the Dashboard listed no `TeleOpCompetition`, and `SWEEP_POWER` still read 0.6 (the repo has 0.3).
+
+So the numbers to commit (below) still need to be recorded, and the competition TeleOp has not been run yet.
+
+## Values still to write into the code (Phase 5, "final values committed")
+
+Anything tuned live is lost on the next install. For each, record the final value and commit it: gate `TICKS_PER_REV`, `ENCODER_SIGN`, `SWEEP_POWER`, `APPROACH_POWER`, `STOP_EARLY_DEG`, `COAST_LOOKAHEAD_S`, `REJECT_POWER`; flywheel `FEED_FORWARD` and `ENCODER_SIGN`; `Mechanisms` manual setpoint start and fire timeout; the shot map points; depollinator `CLEAR_DISTANCE_IN`; any drive, intake, gate or flywheel direction changes in `ROBOT_1`.
+
+---
+
 ## Where we are starting from
 
 | Area | Status | Source |
