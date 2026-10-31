@@ -39,6 +39,9 @@ import java.util.Locale;
  *   A                mark the gate angle as 0 here (local to this test)
  *   X                capture BACKGROUND: jog the arm AWAY from the sensor first, hold still while it averages
  *   Y                capture GATE: jog the arm IN FRONT of the sensor first, hold still while it averages
+ *   Left stick click capture POLLEN: put a yellow pollen in front of the sensor (the arm away), hold still. With it,
+ *                    detection picks a reading where the ARM is an extreme among background, arm and pollen (pollen
+ *                    reads much brighter than the arm, so alpha alone mistakes it; color shares tell them apart)
  *   B                sensor LED on / off
  *   D-pad up/down    sensor gain +/- 0.5 (affects the color readings; distance is unaffected)
  *   D-pad left/right condition label: empty / pollen / nectar / pollen+nectar (for comparing runs; goes in the log)
@@ -84,7 +87,7 @@ public class GateSensorTest extends LinearOpMode {
     private static final double[] SWEEP_POWERS = {0.15, 0.2, 0.3, 0.45, 0.6};
     private static final String[] CONDITIONS = {"empty", "pollen", "nectar", "pollen+nectar"};
     private static final String SENSOR_NAME = "CS4";
-    private static final String[] METRICS = {"distance cm", "red", "green", "blue", "alpha"};
+    private static final String[] METRICS = {"distance cm", "red", "green", "blue", "alpha", "red share", "green share", "blue share"};
     private static final int N = METRICS.length;
     private static final String LOG_TAG = "GateSensor";
 
@@ -201,8 +204,10 @@ public class GateSensorTest extends LinearOpMode {
         sensor.enableLed(led);
 
         int markTicks = gate.getCurrentPosition();
-        Stats background = new Stats(), gateSeen = new Stats(), capturing = null;
-        int captureTarget = 0;   // 1 = background, 2 = gate
+        Stats background = new Stats(), gateSeen = new Stats(), pollenSeen = new Stats(), capturing = null;
+        int captureTarget = 0;   // 1 = background, 2 = arm in front, 3 = pollen in front
+        ElapsedTime moveTimer = new ElapsedTime();
+        double moveRefAngle = 0;
         ElapsedTime captureTimer = new ElapsedTime();
         ElapsedTime logTimer = new ElapsedTime();
         ElapsedTime loopTimer = new ElapsedTime();
@@ -259,6 +264,7 @@ public class GateSensorTest extends LinearOpMode {
                 rateStatus = applyRates(sensor, ratePreset);
                 background = new Stats();
                 gateSeen = new Stats();
+                pollenSeen = new Stats();
                 best = -1;
                 seen = false;
                 note = "sensor rate changed: the readings rescale, so redo X / Y or let RB self-calibrate";
@@ -267,6 +273,7 @@ public class GateSensorTest extends LinearOpMode {
             if (gamepad1.backWasPressed()) {
                 background = new Stats();
                 gateSeen = new Stats();
+                pollenSeen = new Stats();
                 best = -1;
                 seen = false;
                 sweeping = false;
@@ -280,12 +287,14 @@ public class GateSensorTest extends LinearOpMode {
 
             boolean captureBackground = gamepad1.xWasPressed();
             boolean captureGate = gamepad1.yWasPressed();
-            if (captureBackground || captureGate) {
+            boolean capturePollen = gamepad1.leftStickButtonWasPressed();
+            if (captureBackground || captureGate || capturePollen) {
                 if (captureTarget == 0 && !sweeping) {
-                    captureTarget = captureBackground ? 1 : 2;
-                    capturing = captureTarget == 1 ? (background = new Stats()) : (gateSeen = new Stats());
+                    captureTarget = captureBackground ? 1 : captureGate ? 2 : 3;
+                    capturing = captureTarget == 1 ? (background = new Stats())
+                            : captureTarget == 2 ? (gateSeen = new Stats()) : (pollenSeen = new Stats());
                     captureTimer.reset();
-                    note = (captureBackground ? "BACKGROUND" : "GATE") + " capture started: hold still";
+                    note = (captureTarget == 1 ? "BACKGROUND" : captureTarget == 2 ? "ARM" : "POLLEN") + " capture started: hold still";
                 } else {
                     note = "capture ignored: wait until the current capture or the sweep has finished";
                 }
@@ -298,31 +307,54 @@ public class GateSensorTest extends LinearOpMode {
             v[2] = c.green;
             v[3] = c.blue;
             v[4] = c.alpha;
+            double colorSum = c.red + c.green + c.blue + 1e-9;
+            v[5] = c.red / colorSum;
+            v[6] = c.green / colorSum;
+            v[7] = c.blue / colorSum;
 
             if (captureTarget != 0) {
                 capturing.add(v);
                 if (captureTimer.seconds() >= CAPTURE_SEC) {
-                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "CAPTURE %s done: %d samples, distance %.2f, alpha %.4f (+/-%.4f), r %.4f g %.4f b %.4f",
-                            captureTarget == 1 ? "BACKGROUND" : "GATE", capturing.n, capturing.mean(0), capturing.mean(4), capturing.std(4),
-                            capturing.mean(1), capturing.mean(2), capturing.mean(3)));
-                    note = (captureTarget == 1 ? "BACKGROUND" : "GATE") + " captured. "
-                            + (captureTarget == 1 ? (gateSeen.n > 0 ? "Both done: RB starts the sweep." : "Now do Y.")
-                            : (background.n > 0 ? "Both done: RB starts the sweep." : "Now do X."));
+                    String captureName = captureTarget == 1 ? "BACKGROUND" : captureTarget == 2 ? "ARM" : "POLLEN";
+                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "CAPTURE %s done: %d samples, distance %.2f, alpha %.4f (+/-%.4f), r %.4f g %.4f b %.4f, shares %.3f/%.3f/%.3f",
+                            captureName, capturing.n, capturing.mean(0), capturing.mean(4), capturing.std(4),
+                            capturing.mean(1), capturing.mean(2), capturing.mean(3), capturing.mean(5), capturing.mean(6), capturing.mean(7)));
                     captureTarget = 0;
                     capturing = null;
                     if (background.n > 0 && gateSeen.n > 0) {
-                        double bestSep = -1;
+                        // pick the reading that separates the ARM best. With a pollen capture the arm must be an EXTREME among
+                        // background, arm and pollen (one threshold cannot isolate it otherwise), and the score is the weaker of
+                        // its two separations (from the background, from the pollen).
+                        double bestScore = -1;
+                        best = -1;
                         for (int i = 0; i < N; i++) {
-                            double sep = Math.abs(gateSeen.mean(i) - background.mean(i)) / (background.std(i) + gateSeen.std(i) + 1e-6);
-                            if (sep > bestSep) {
-                                bestSep = sep;
+                            double arm = gateSeen.mean(i), bg = background.mean(i);
+                            double score = Math.abs(arm - bg) / (background.std(i) + gateSeen.std(i) + 1e-6);
+                            if (pollenSeen.n > 0) {
+                                double pol = pollenSeen.mean(i);
+                                if (!((arm > bg && arm > pol) || (arm < bg && arm < pol))) continue;
+                                score = Math.min(score, Math.abs(arm - pol) / (pollenSeen.std(i) + gateSeen.std(i) + 1e-6));
+                            }
+                            if (score > bestScore) {
+                                bestScore = score;
                                 best = i;
                             }
                         }
-                        threshold = (gateSeen.mean(best) + background.mean(best)) / 2.0;
-                        band = 0.15 * Math.abs(gateSeen.mean(best) - background.mean(best));
-                        gateHigher = gateSeen.mean(best) > background.mean(best);
-                        havePrev = false;
+                        if (best >= 0) {
+                            double arm = gateSeen.mean(best), bg = background.mean(best);
+                            double other = bg;
+                            if (pollenSeen.n > 0) other = arm > bg ? Math.max(bg, pollenSeen.mean(best)) : Math.min(bg, pollenSeen.mean(best));
+                            threshold = (arm + other) / 2.0;
+                            band = 0.15 * Math.abs(arm - other);
+                            gateHigher = arm > other;
+                            havePrev = false;
+                            note = captureName + " captured. Detecting the arm with " + METRICS[best] + ". RB starts the sweep.";
+                        } else {
+                            note = captureName + " captured, but no single reading separates the arm from both the background and the pollen.";
+                        }
+                    } else {
+                        note = captureName + " captured. Still needed: X (background) and Y (arm in front)."
+                                + " L3 adds a pollen capture so pollen is not mistaken for the arm.";
                     }
                 }
             }
@@ -349,7 +381,8 @@ public class GateSensorTest extends LinearOpMode {
                         calMin = Double.POSITIVE_INFINITY;
                         calMax = Double.NEGATIVE_INFINITY;
                         calStartAngle = angle;
-                        note = "no X / Y captures: the sweep self-calibrates on alpha during its first turn (" + (int) AUTO_CAL_DEG + " deg)";
+                        note = "no X / Y captures: the sweep self-calibrates on alpha during its first turn (" + (int) AUTO_CAL_DEG
+                                + " deg). Pollen in view can fool this (it is brighter than the arm): then use X, Y and L3 instead.";
                     } else {
                         note = "sweep using your X / Y captures";
                     }
@@ -367,6 +400,8 @@ public class GateSensorTest extends LinearOpMode {
                     sweepStatus = autoCal ? "calibrating" : "running";
                     sweepSummary = "-";
                     lastAngleForSpeed = angle;
+                    moveRefAngle = angle;
+                    moveTimer.reset();
                     RobotLog.ii(LOG_TAG, String.format(Locale.US, "SWEEP START label=%s power=%.2f autoCal=%b", CONDITIONS[condition], SWEEP_POWERS[powerIndex], autoCal));
                 }
             }
@@ -438,9 +473,16 @@ public class GateSensorTest extends LinearOpMode {
                     havePrev = true;
                 }
 
+                if (Math.abs(angle - moveRefAngle) > 2.0) {
+                    moveRefAngle = angle;
+                    moveTimer.reset();
+                }
                 if (Math.abs(stick) > SWEEP_ABORT_STICK) {
                     sweeping = false;
                     sweepStatus = "aborted by the stick";
+                } else if (moveTimer.seconds() > 1.0) {
+                    sweeping = false;
+                    sweepStatus = "GATE NOT MOVING for 1 s (blocked, for example by a pollen?): stopped";
                 } else if (sweepTimer.seconds() > SWEEP_MAX_SEC) {
                     sweeping = false;
                     sweepStatus = "timed out";
@@ -503,16 +545,21 @@ public class GateSensorTest extends LinearOpMode {
             telemetry.addData("LED / gain / condition", "%s / %.1f / %s", led ? "on" : "off", gain, CONDITIONS[condition]);
             telemetry.addData("Capture", captureTarget == 0 ? "idle"
                     : String.format(Locale.US, "%s: hold still %.1f s", captureTarget == 1 ? "BACKGROUND" : "GATE", CAPTURE_SEC - captureTimer.seconds()));
-            telemetry.addData("Captures taken", "background %d samples, gate %d samples", background.n, gateSeen.n);
+            telemetry.addData("Captures taken", "background %d, arm %d, pollen %d samples", background.n, gateSeen.n, pollenSeen.n);
             telemetry.addData("Note", note);
             telemetry.addData("Sensor rate (right stick click changes)", rateStatus);
             if (background.n > 0 && gateSeen.n > 0) {
                 for (int i = 0; i < N; i++) {
                     double sep = Math.abs(gateSeen.mean(i) - background.mean(i)) / (background.std(i) + gateSeen.std(i) + 1e-6);
+                    String pollenPart = "";
+                    if (pollenSeen.n > 0) {
+                        double sepPollen = Math.abs(gateSeen.mean(i) - pollenSeen.mean(i)) / (pollenSeen.std(i) + gateSeen.std(i) + 1e-6);
+                        pollenPart = String.format(Locale.US, "  pollen %.4f  arm-vs-pollen separation %.1f", pollenSeen.mean(i), sepPollen);
+                    }
                     telemetry.addData((i == best ? "BEST  " : "      ") + METRICS[i],
-                            "background %.4f (+/-%.4f)  gate %.4f (+/-%.4f)  separation %.1f%s",
+                            "background %.4f (+/-%.4f)  arm %.4f (+/-%.4f)  separation %.1f%s%s",
                             background.mean(i), background.std(i), gateSeen.mean(i), gateSeen.std(i), sep,
-                            sep < MIN_SEPARATION ? "  (weak)" : "");
+                            sep < MIN_SEPARATION ? "  (weak)" : "", pollenPart);
                 }
                 telemetry.addData("DETECTION", best < 0 ? "-" : String.format(Locale.US, "%s using %s (threshold %.4f, gate reads %s)",
                         seen ? "SEEN" : "not seen", METRICS[best], threshold, gateHigher ? "HIGHER" : "LOWER"));
