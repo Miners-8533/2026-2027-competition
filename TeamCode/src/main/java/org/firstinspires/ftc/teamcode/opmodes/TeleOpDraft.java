@@ -25,8 +25,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *
  * Gamepad 1 (driver):
  *   left stick / right stick X   drive / turn (robot oriented)     right bumper: precision (30%)
- *   Options                      reseed the pose to the start pose (the Start button on a Logitech or Xbox-style
- *                                controller: the SDK treats Start as Options)
+ *   Back                         reseed the pose to the start pose
  *
  * Gamepad 2 (operator):
  *   right trigger (hold)         intake (waits for the gate to be at HOLD)
@@ -37,7 +36,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   right bumper / left bumper   flywheel spin up / stop
  *   D-pad up / down              manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   D-pad left or right          the open CELL is the HIVE's other side (after a tip)
- *   Options                      clear a gate stall (the Start button on a Logitech or Xbox-style controller)
+ *   Back                         clear a gate stall
  *
  * Not yet done: the pose is not carried over from an auto (it starts at the start pose below), and the
  * chassis is robot oriented, not field oriented.
@@ -86,7 +85,7 @@ public class TeleOpDraft extends LinearOpMode {
             drive.setDrivePowers(new PoseVelocity2d(
                     new Vector2d(-gamepad1.left_stick_y * scale, -gamepad1.left_stick_x * scale),
                     -gamepad1.right_stick_x * TURN_SCALE * scale));
-            if (gamepad1.optionsWasPressed()) drive.setPose(startPose);
+            if (gamepad1.backWasPressed()) drive.setPose(startPose);
 
             mechanisms.setIntakeRequested(gamepad2.right_trigger > TRIGGER_THRESHOLD);
             mechanisms.setManualOuttake(gamepad2.left_trigger > TRIGGER_THRESHOLD);
@@ -101,7 +100,7 @@ public class TeleOpDraft extends LinearOpMode {
             if (gamepad2.dpadLeftWasPressed() || gamepad2.dpadRightWasPressed()) {
                 mechanisms.setOpenCell(mechanisms.getOpenCell().otherSide());
             }
-            if (gamepad2.optionsWasPressed()) mechanisms.clearGateStall();
+            if (gamepad2.backWasPressed()) mechanisms.clearGateStall();
 
             mechanisms.update(pose);
 

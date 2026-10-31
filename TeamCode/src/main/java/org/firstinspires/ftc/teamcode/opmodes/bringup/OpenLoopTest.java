@@ -22,7 +22,7 @@ import org.firstinspires.ftc.teamcode.math.Vector2d;
  *   Left / right bumper rotate counterclockwise / clockwise
  *   X / B               power down / up by 0.1, between 0.1 and 1.0 (while idle)
  *   A                   toggle HOLD (runs while held) / PULSE (runs PULSE_SEC per press)
- *   Options             clear the results table and zero the pose
+ *   Back             clear the results table and zero the pose
  *
  * Two inputs at once output nothing. A run ends when the input is released (or the pulse
  * ends); the drive brakes, waits SETTLE_SEC for the robot to stop, then the Pinpoint's start-to-end
@@ -129,7 +129,7 @@ public class OpenLoopTest extends LinearOpMode {
             Cmd cmd = readCommand();
             if (cmd == Cmd.NONE && inputCount == 0) armed = true;
 
-            if (gamepad1.optionsWasPressed()) {
+            if (gamepad1.backWasPressed()) {
                 results = new String[6];
                 drive.setPose(new Pose2d(0, 0, 0));
             }
@@ -179,7 +179,7 @@ public class OpenLoopTest extends LinearOpMode {
             for (int i = 0; i < 6; i++) {
                 telemetry.addData(names[i], results[i] == null ? "-" : results[i]);
             }
-            telemetry.addLine("Dpad = drive, bumpers = rotate, X/B = power, A = hold/pulse, Options = clear");
+            telemetry.addLine("Dpad = drive, bumpers = rotate, X/B = power, A = hold/pulse, Back = clear");
             telemetry.update();
         }
         drive.stop();

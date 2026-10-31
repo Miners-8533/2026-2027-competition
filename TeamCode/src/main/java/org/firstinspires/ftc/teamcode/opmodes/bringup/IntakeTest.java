@@ -15,7 +15,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Intake;
  *   A (hold)           take elements IN
  *   B (hold)           spit elements OUT
  *   D-pad up / down    power scale up / down by 0.1 (0.1 to 1.0)
- *   Options            reset the peak-current reading
+ *   Back            reset the peak-current reading
  *
  * Checks, in order:
  *   1. Hold A: the roller pulls elements toward the transport. If it spits them out instead,
@@ -49,7 +49,7 @@ public class IntakeTest extends LinearOpMode {
         while (opModeIsActive()) {
             if (gamepad1.dpadUpWasPressed()) scale = Math.min(1.0, scale + 0.1);
             if (gamepad1.dpadDownWasPressed()) scale = Math.max(0.1, scale - 0.1);
-            if (gamepad1.optionsWasPressed()) peakAmps = 0;
+            if (gamepad1.backWasPressed()) peakAmps = 0;
             intake.setPowerScale(scale);
 
             Intake.Mode wanted = Intake.Mode.OFF;
@@ -65,7 +65,7 @@ public class IntakeTest extends LinearOpMode {
             telemetry.addData("Power scale", "%.1f   (IN %.2f, OUT %.2f at full scale)",
                     scale, Intake.IN_POWER, Intake.OUT_POWER);
             telemetry.addData("Peak current since reset (A)", "%.2f", peakAmps);
-            telemetry.addLine("Hold A = in, B = out. D-pad up/down = power scale. Options = reset peak.");
+            telemetry.addLine("Hold A = in, B = out. D-pad up/down = power scale. Back = reset peak.");
             telemetry.update();
         }
         intake.setMode(Intake.Mode.OFF);

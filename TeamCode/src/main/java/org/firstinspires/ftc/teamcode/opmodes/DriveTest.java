@@ -24,7 +24,7 @@ import org.firstinspires.ftc.teamcode.math.Vector2d;
  *   left stick   - translate (forward / strafe)
  *   right stick X - turn
  *   right bumper - hold for precision (30% power)
- *   options      - reset pose to (0, 0, 0)
+ *   back         - reset pose to (0, 0, 0)
  */
 @TeleOp(name = "Drive Test - Mecanum", group = "Drivetrain")
 public class DriveTest extends LinearOpMode {
@@ -52,7 +52,7 @@ public class DriveTest extends LinearOpMode {
 
             drive.setDrivePowers(new PoseVelocity2d(new Vector2d(forward, strafe), turn));
 
-            if (gamepad1.optionsWasPressed()) {
+            if (gamepad1.backWasPressed()) {
                 drive.setPose(new Pose2d(0, 0, 0));
             }
 

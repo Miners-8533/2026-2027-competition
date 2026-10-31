@@ -25,7 +25,7 @@ import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
  *   B                     record both as DEPLOYED
  *   X / Y                 send both servos to their recorded DEPLOYED / STOWED positions and start a timer
  *                         (needs STOWED and DEPLOYED recorded and both servos commanded once)
- *   Options               press when the ramp has stopped moving: records the elapsed time as TRAVEL_SEC
+ *   Back               press when the ramp has stopped moving: records the elapsed time as TRAVEL_SEC
  *
  * Find STOWED with the ramp folded inside the starting cube, DEPLOYED with the ramp lowered to just short
  * of the floor / flower opening (not pressing, so a torque servo is not stalled). Then copy the printed
@@ -122,7 +122,7 @@ public class DepollinatorTest extends LinearOpMode {
                 moveTimer.reset();
                 timing = true;
             }
-            if (gamepad1.optionsWasPressed() && timing) {
+            if (gamepad1.backWasPressed() && timing) {
                 travelSec = moveTimer.seconds();
                 timing = false;
             }
@@ -134,12 +134,12 @@ public class DepollinatorTest extends LinearOpMode {
                     commanded[1] ? String.format("%.3f", position[1]) : "not commanded");
             telemetry.addData("Recorded STOWED L / R", "%.3f / %.3f", stowed[0], stowed[1]);
             telemetry.addData("Recorded DEPLOYED L / R", "%.3f / %.3f", deployed[0], deployed[1]);
-            telemetry.addData("Timer", timing ? String.format("%.2f s, press Options when the ramp stops", moveTimer.seconds()) : "idle");
+            telemetry.addData("Timer", timing ? String.format("%.2f s, press Back when the ramp stops", moveTimer.seconds()) : "idle");
             telemetry.addLine("--- copy into ChassisProfile and Depollinator.java ---");
             telemetry.addLine(String.format("depolStowedLeft %.3f, depolStowedRight %.3f, depolDeployedLeft %.3f, depolDeployedRight %.3f",
                     stowed[0], stowed[1], deployed[0], deployed[1]));
             telemetry.addLine(String.format("TRAVEL_SEC = %.2f", travelSec));
-            telemetry.addLine("Triggers = mirrored pair ends, A / B record both, bumpers + D-pad fine-tune one servo, X deploy, Y stow, Options stop the timer");
+            telemetry.addLine("Triggers = mirrored pair ends, A / B record both, bumpers + D-pad fine-tune one servo, X deploy, Y stow, Back stop the timer");
             telemetry.update();
         }
     }

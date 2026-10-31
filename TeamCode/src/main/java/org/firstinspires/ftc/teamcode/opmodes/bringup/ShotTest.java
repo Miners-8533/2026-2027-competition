@@ -25,7 +25,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   LB                 gate back to the nearest HOLD
  *   Left stick         jog the gate (up = forward) to place it, then B to set HOLD there
  *   B                  declare the gate's current position to be HOLD
- *   Options            clear a gate or flywheel fault, and cancel a queued fire
+ *   Back            clear a gate or flywheel fault, and cancel a queued fire
  *
  * After each salvo it shows the flywheel speed when the gate started, the lowest speed during the salvo, and
  * the salvo time: that is the data for choosing the shot speed. The gate's TICKS_PER_REV, powers and
@@ -124,7 +124,7 @@ public class ShotTest extends LinearOpMode {
                     lastEvent = "Fire queued: waiting for the flywheel and the gate.";
                 }
             }
-            if (gamepad1.optionsWasPressed()) {
+            if (gamepad1.backWasPressed()) {
                 gate.clearStall();
                 flywheel.clearFault();
                 fireQueued = false;
@@ -176,7 +176,7 @@ public class ShotTest extends LinearOpMode {
             telemetry.addData("Loop (ms)", "%.1f avg, %.1f recent max", loopMs, loopMaxMs);
             telemetry.addData("Last shot", lastShot);
             telemetry.addData("Last event", lastEvent);
-            telemetry.addLine("A flywheel, D-pad speed, Y fire, RB dry salvo, X reverse, LB hold, stick jog, B set HOLD, Options clear");
+            telemetry.addLine("A flywheel, D-pad speed, Y fire, RB dry salvo, X reverse, LB hold, stick jog, B set HOLD, Back clear");
             telemetry.update();
         }
         flywheel.stop();

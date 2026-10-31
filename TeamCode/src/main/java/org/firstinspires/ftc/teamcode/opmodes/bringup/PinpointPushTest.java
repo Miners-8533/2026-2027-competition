@@ -20,9 +20,9 @@ import org.firstinspires.ftc.teamcode.math.Rotation2d;
  *   3. rotate CCW ~45 deg   -> expect + heading (counterclockwise seen from above)
  * Each step reports PASS or a likely cause. Raw pod ticks are always shown. The pods and
  * offsets come from {@link PinpointLocalizer#PARAMS}; edit them live in the FTC Dashboard
- * and press Options to re-apply them and rerun the check.
+ * and press Back to re-apply them and rerun the check.
  *
- * Gamepad 1:  A = skip the current step   Options = re-apply PARAMS, zero the pose, restart
+ * Gamepad 1:  A = skip the current step   Back = re-apply PARAMS, zero the pose, restart
  */
 @TeleOp(name = "Pinpoint Push Test", group = "Bring-up")
 public class PinpointPushTest extends LinearOpMode {
@@ -64,7 +64,7 @@ public class PinpointPushTest extends LinearOpMode {
             headingAccum += Rotation2d.normalize(h - lastHeading);
             lastHeading = h;
 
-            if (gamepad1.optionsWasPressed()) {
+            if (gamepad1.backWasPressed()) {
                 loc.applyParams();
                 loc.setPose(new Pose2d(0, 0, 0));
                 step = 0;
@@ -92,11 +92,11 @@ public class PinpointPushTest extends LinearOpMode {
             telemetry.addData("heading (deg)", "%.1f", Math.toDegrees(h));
             telemetry.addData("raw pod ticks X / Y", "%d / %d", loc.pinpoint.getEncoderX(), loc.pinpoint.getEncoderY());
             telemetry.addLine("---");
-            telemetry.addData("Now", step < 3 ? STEP_TEXT[step] : "All steps done. Options = rerun.");
+            telemetry.addData("Now", step < 3 ? STEP_TEXT[step] : "All steps done. Back = rerun.");
             for (int i = 0; i < 3; i++) {
                 telemetry.addData("Step " + (i + 1), verdicts[i] == null ? "-" : verdicts[i]);
             }
-            telemetry.addLine("A = skip step   Options = re-apply PARAMS and restart");
+            telemetry.addLine("A = skip step   Back = re-apply PARAMS and restart");
             telemetry.update();
         }
     }

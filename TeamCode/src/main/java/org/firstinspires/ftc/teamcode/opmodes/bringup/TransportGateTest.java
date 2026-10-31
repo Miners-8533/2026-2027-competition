@@ -17,14 +17,14 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   1. Jog the arm (left stick, up = forward) to the position where its back limits the transport to 4
  *      elements. This is HOLD. Press A to declare "HOLD is here".
  *   2. Jog FORWARD a whole number of full revolutions back to the same mark, press B: records TICKS_PER_REV.
- *      Back picks 1, 5 or 10 revolutions; more is more precise. Check the direction first: forward must be
+ *      D-pad right picks 1, 5 or 10 revolutions; more is more precise. Check the direction first: forward must be
  *      the way the arm pushes elements toward the flywheel (if not, flip gateDirection in ChassisProfile).
  *   3. Y runs a full salvo (HOLD, one turn forward, HOLD), RB a reject, LB returns to the nearest HOLD.
  *      After each move read "Error to nearest HOLD" once the arm stops: + means it stopped SHORT of the
  *      mark, - means it went PAST. Adjust and repeat.
  *   4. X selects which setting the D-pad up / down changes: sweep power, approach power, stop-early degrees,
  *      reject power. If it stops short, lower STOP_EARLY_DEG or raise APPROACH_POWER a little; if it goes
- *      past, raise STOP_EARLY_DEG or lower the powers. Options clears a fault.
+ *      past, raise STOP_EARLY_DEG or lower the powers. Back clears a fault.
  *
  * The values last only for this session: copy the printed lines into TransportGate.java. Needs a motor named
  * "gate". Jog slowly; the arm has no stops, so mind the elements and the ramp.
@@ -91,7 +91,7 @@ public class TransportGateTest extends LinearOpMode {
                 gate.markHoldHere();
                 lastEvent = "HOLD marked here (zero set).";
             }
-            if (gamepad1.backWasPressed()) calRevs = calRevs == 1 ? 5 : calRevs == 5 ? 10 : 1;
+            if (gamepad1.dpadRightWasPressed()) calRevs = calRevs == 1 ? 5 : calRevs == 5 ? 10 : 1;
             if (gamepad1.bWasPressed()) {
                 double ticks = Math.abs(gate.getUnwrappedTicks());
                 if (ticks < 100) {
@@ -113,7 +113,7 @@ public class TransportGateTest extends LinearOpMode {
                 gate.hold();
                 lastEvent = "Going to the nearest HOLD.";
             }
-            if (gamepad1.optionsWasPressed()) {
+            if (gamepad1.backWasPressed()) {
                 gate.clearStall();
                 lastEvent = "Fault cleared.";
             }
@@ -138,7 +138,7 @@ public class TransportGateTest extends LinearOpMode {
                 telemetry.addData("Revolutions (ticks / TICKS_PER_REV)", "%.3f   (jog N full turns to the mark: this should read N)",
                         gate.getUnwrappedTicks() / TransportGate.TICKS_PER_REV);
             }
-            telemetry.addData("B records ticks per rev over", "%d revolution(s)   (Back changes it: 1, 5, 10)", calRevs);
+            telemetry.addData("B records ticks per rev over", "%d revolution(s)   (D-pad right changes it: 1, 5, 10)", calRevs);
             telemetry.addData("D-pad up/down changes", "%s = %.2f   (X selects)", SETTING_NAMES[setting], getSetting(setting));
             telemetry.addData("Last event", lastEvent);
             telemetry.addLine("--- copy into TransportGate.java when happy ---");
@@ -146,7 +146,7 @@ public class TransportGateTest extends LinearOpMode {
                     TransportGate.TICKS_PER_REV, TransportGate.SWEEP_POWER, TransportGate.APPROACH_POWER));
             telemetry.addLine(String.format("APPROACH_DEG = %.0f;   STOP_EARLY_DEG = %.0f;   REJECT_POWER = %.2f;",
                     TransportGate.APPROACH_DEG, TransportGate.STOP_EARLY_DEG, TransportGate.REJECT_POWER));
-            telemetry.addLine("Stick jog, A mark HOLD, B ticks/rev, Y salvo, RB reject, LB hold, X setting, D-pad up/down adjust, Options clear fault");
+            telemetry.addLine("Stick jog, A mark HOLD, B ticks/rev, Y salvo, RB reject, LB hold, X setting, D-pad up/down adjust, Back clear fault");
             telemetry.update();
         }
         gate.jog(0.0);

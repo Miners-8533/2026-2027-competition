@@ -30,7 +30,7 @@ import java.util.List;
  *   B                            record (distance, setpoint) as a point (replaces a point within 1 in)
  *   A                            remove the most recently recorded point
  *   Left bumper                  auto speed on / off: the setpoint follows the recorded points
- *   Options                      reseed the pose to the start pose below
+ *   Back                      reseed the pose to the start pose below
  *
  * Distance comes from the Pinpoint pose to the target (set the start pose to where you place the robot),
  * or set MANUAL_DISTANCE_IN above 0 in the Dashboard to type a measured distance instead.
@@ -79,7 +79,7 @@ public class ShotMapTuner extends LinearOpMode {
                     new Vector2d(-gamepad1.left_stick_y * scale, -gamepad1.left_stick_x * scale),
                     -gamepad1.right_stick_x * TURN_SCALE * scale));
 
-            if (gamepad1.optionsWasPressed()) {
+            if (gamepad1.backWasPressed()) {
                 drive.setPose(new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG)));
             }
             if (gamepad1.xWasPressed()) spinning = !spinning;
@@ -122,7 +122,7 @@ public class ShotMapTuner extends LinearOpMode {
             for (double[] p : points) {
                 telemetry.addLine(String.format("        {%.1f, %.0f},", p[0], p[1]));
             }
-            telemetry.addLine("X spin, Y target, B record, A undo, LB auto speed, D-pad speed, Options reseed pose");
+            telemetry.addLine("X spin, Y target, B record, A undo, LB auto speed, D-pad speed, Back reseed pose");
             telemetry.update();
         }
         drive.stop();

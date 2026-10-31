@@ -191,7 +191,7 @@ public class Flywheel {
         // telemetry.addData("Flywheel current (A)", "%.2f%s", getCurrentAmps(), follower != null
         //         ? String.format("   follower %.2f", followerCurrentA) : "");
         if (faulted) {
-            telemetry.addLine("FLYWHEEL FAULT: the encoder reads BACKWARD while spinning. Set Flywheel.ENCODER_SIGN = -1 (Options clears).");
+            telemetry.addLine("FLYWHEEL FAULT: the encoder reads BACKWARD while spinning. Set Flywheel.ENCODER_SIGN = -1 (Back clears).");
         }
     }
 

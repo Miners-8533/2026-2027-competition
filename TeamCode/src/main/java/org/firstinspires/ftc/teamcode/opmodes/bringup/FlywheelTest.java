@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
  *   A                  spin on / off
  *   D-pad up / down    setpoint up / down by STEP ticks/s
  *   Y                  arm a dip measurement, then feed a ball (by hand or with the gate)
- *   Options             clear the last measurement and any fault
+ *   Back             clear the last measurement and any fault
  *
  * The motor ("fly_motor_enc"; the second motor "fly_follow" is commented out in Flywheel) runs with no hub encoder loop.
  *
@@ -68,7 +68,7 @@ public class FlywheelTest extends LinearOpMode {
             }
             if (gamepad1.dpadUpWasPressed()) setpoint += STEP;
             if (gamepad1.dpadDownWasPressed()) setpoint = Math.max(0.0, setpoint - STEP);
-            if (gamepad1.optionsWasPressed()) {
+            if (gamepad1.backWasPressed()) {
                 lastMeasurement = "-";
                 flywheel.clearFault();
             }
@@ -103,7 +103,7 @@ public class FlywheelTest extends LinearOpMode {
             flywheel.log(telemetry);
             telemetry.addData("Dip measurement", measuring ? (dipped ? "dipped, waiting to recover..." : "armed, feed a ball") : "idle");
             telemetry.addData("Last measurement", lastMeasurement);
-            telemetry.addLine("A = spin, D-pad up/down = setpoint, Y = arm dip, Options = clear");
+            telemetry.addLine("A = spin, D-pad up/down = setpoint, Y = arm dip, Back = clear");
             telemetry.update();
         }
         flywheel.stop();

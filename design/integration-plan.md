@@ -147,8 +147,8 @@ Run **TeleOp - Draft (mechanisms)**. Each row passes three times in a row.
 | R4 | Reject (B) with elements | Gate reverses with outtake for the whole move, then both stop |
 | R4b | Press reject or fire while a salvo or reject is running | Ignored, no stuck state |
 | R5 | Stow (Y) while under each of the **four flowers** | Stow waits ("Stow waiting"), then happens once the robot drives clear |
-| F1 | Gate fault (Options clears) | Warning shown, salvos blocked until cleared, clears cleanly |
-| F2 | Flywheel encoder fault | Flywheel stops with a message; clears with Options |
+| F1 | Gate fault (Back clears) | Warning shown, salvos blocked until cleared, clears cleanly |
+| F2 | Flywheel encoder fault | Flywheel stops with a message; clears with Back |
 | F3 | Remove a mechanism from the hub configuration (for example the depollinator) | Coordinator keeps running with that mechanism skipped |
 | D1 | Drive while firing | Pose stays correct, mechanisms respond, no lockups |
 | D2 | Open-cell switch (D-pad left/right) after a tip | Distance and setpoint now aim at the other side's cell |

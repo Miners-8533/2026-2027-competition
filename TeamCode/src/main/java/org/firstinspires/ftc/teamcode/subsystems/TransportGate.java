@@ -452,7 +452,7 @@ public class TransportGate {
         telemetry.addData("Gate last move result", lastResult);
         telemetry.addData("Gate last settle", lastSettle);
         telemetry.addData("Gate ENCODER_SIGN", "%+.0f", ENCODER_SIGN);
-        if (isStalled()) telemetry.addLine("GATE FAULT (Options clears): " + faultReason);
+        if (isStalled()) telemetry.addLine("GATE FAULT (Back clears): " + faultReason);
     }
 
     /** Action: run one salvo and finish when the gate has stopped, or has faulted, or times out. */
