@@ -111,9 +111,9 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 
 ## Cross-actuator rules (confirmed 2026-10-22)
 
-1. **Decided:** the intake runs only while the gate is at HOLD, because HOLD is what limits capacity to 4. If the driver holds intake while the gate is away from HOLD (mid-salvo or returning), the intake stays off until the gate is back at HOLD, then starts if the driver is still holding. (If the gate is not calibrated yet, this interlock cannot be enforced and is disabled with a warning.)
-2. **Decided:** deploying the depollinator turns the intake on. Stowing turns it off, unless the driver is holding intake. If the ramp is deployed while the gate is not at HOLD, the ramp deploys normally and the intake waits, then starts by itself when the gate returns to HOLD (rule 1 wins).
-3. **Decided:** the flywheel must be up to speed before a salvo starts (first ball only). A Fire pressed too early is queued: it spins up if needed and fires automatically the moment the flywheel is ready, with a timeout. One button does spin-up and fire.
+1. **Removed (2026-10-31):** the intake was gated on the gate being at HOLD (HOLD limits capacity to 4). The gate rests a few degrees past HOLD after a salvo and nothing drives that back, so the check ("within 8 deg of HOLD") locked out both the intake and the next salvo. The intake is no longer gated on the gate's position. Capacity then depends on the arm physically sitting at or near HOLD, which the gate's landing accuracy (Phase 2.3 of the integration plan) has to keep true.
+2. **Decided:** deploying the depollinator turns the intake on. Stowing turns it off, unless the driver is holding intake.
+3. **Decided:** the flywheel must be up to speed before a salvo starts (first ball only). A Fire pressed too early is queued: it spins up if needed and fires automatically the moment the flywheel is ready and the gate has stopped (a salvo is a full turn from the nearest HOLD, so it can start from wherever the gate rests), with a timeout. One button does spin-up and fire.
 4. **Decided:** a rejection is a gate reverse plus an intake outtake, together. The outtake runs for the whole reject move (reverse, then forward back to HOLD), then the intake turns off.
 5. **Decided:** a stow requested while the robot is still under a flower is remembered, and the ramp stows automatically once the pose shows the robot has driven out. A warning shows meanwhile.
 

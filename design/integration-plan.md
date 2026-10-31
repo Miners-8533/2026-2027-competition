@@ -33,8 +33,8 @@ Ground rules
 
 These come from reading the code; each one can make a later test fail for a reason that looks like something else.
 
-1. **The coordinator needs the gate to land within 8 deg of HOLD, and the gate does not yet.**
-   `Mechanisms.update` uses `gate.atHold()` to finish a salvo (`Mechanisms.java:198`), to start the next one (`:221`), and to allow the intake (`:242`). On the bench the gate came to rest 5-12 deg past HOLD, and `HOLD_TOLERANCE_DEG` is 8. A salvo that rests past 8 deg leaves the coordinator reading "SALVO running" forever: the flywheel never auto-stops, the intake never restarts, and the next fire never starts. **Fix before Phase 4**: either tune the landing inside the tolerance (Phase 2.3) or change the coordinator to use `gate.isStopped()` for the salvo start and completion checks and keep `atHold()` only for the intake interlock. Decide with the data from Phase 2.3.
+1. **RESOLVED 2026-10-31: the coordinator no longer needs the gate to land within 8 deg of HOLD.**
+   `Mechanisms.update` used `gate.atHold()` to finish a salvo, to start the next one, and to allow the intake. The gate rests a few degrees past HOLD after a salvo (5-12 deg on the bench), and `HOLD_TOLERANCE_DEG` is 8, so a salvo that rested past 8 deg locked the coordinator out ("SALVO running" forever, no intake, no next fire), and nothing drives an overshoot back. **Fix (done):** the intake is no longer gated on the gate position at all (rule 1 removed), and fire and "salvo finished" use `gate.isStopped()` (idle and not moving, wherever it rests). A salvo is a full turn from the nearest HOLD, so it works from any resting position. Landing close to HOLD is still worth tuning (Phase 2.3) but nothing locks up if it does not.
 2. **`COAST_LOOKAHEAD_S` includes loop delay, so it depends on the loop time.** The bench loop was 27 ms. The full robot adds the Pinpoint I2C read, four drive writes and the intake. Calibrate the gate landing **in the final TeleOp loop** (Phase 4), not only in Shot Test.
 3. **The gate's zero is "assumed at HOLD" at init.** The encoder is relative. The gate must be physically at HOLD when the robot is initialized (or after an auto, the saved reference is used). Write this into the pit power-on checklist (Phase 7), and test the failure: initialize with the gate away from HOLD and see what the driver sees.
 4. **Registering a hub changes what the bench hubs do.** Once any hub id is registered in `ChassisProfile`, every unregistered hub **throws** instead of falling back to the default. The temporary gate and flywheel bench hubs must keep running until the benches are retired. See the Phase 0 decision.
@@ -96,13 +96,13 @@ Run the existing bring-up opmodes. The bench numbers are a starting point, **not
 - [ ] **With real elements**: both pollen and nectar feed in cleanly, no jam on the way to the gate, none escape behind the robot.
 - [ ] **Record intake current** while running free and while pulling an element, for a future jam detector (the team decided the driver handles jams for now but wants current-based detection later).
 
-### 2.3 Transport gate (**the gate's calibration decides Risk 1**)
+### 2.3 Transport gate
 - [ ] **Sign check** (Transport Gate Test): a positive command counts forward revolutions; velocity sign right. Set `ENCODER_SIGN` if not.
 - [ ] **TICKS_PER_REV** with the 10-turn procedure on the **installed** gate (bench value 751.8; the robot may have different gearing).
 - [ ] **Mark HOLD** at the physical HOLD position (the arm at the back, limiting entry to 4).
 - [ ] **Tune** `SWEEP_POWER`, `APPROACH_POWER`, `STOP_EARLY_DEG`, then `COAST_LOOKAHEAD_S` from the "Gate last settle" suggestion. Do this **with the gate loaded**: 0, 1, 2 and 4 elements in the track. Loaded salvos can need more power.
 - [ ] **Reject** with elements in the track: reverses and finishes on the nearest HOLD behind.
-- [ ] **Exit**: 10 salvos in a row (including with 4 elements) with no fault, each resting within **±8 deg** of HOLD (read "Error to nearest HOLD"). If landing cannot be held inside 8 deg, use the coordinator change from Risk 1 and record that decision.
+- [ ] **Exit**: 10 salvos in a row (including with 4 elements) with no fault, each resting consistently near HOLD (read "Error to nearest HOLD" and "Gate last settle"; the target is a few degrees, but a salvo that rests a little past HOLD no longer locks anything out, see Risk 1). Record the min and max landing error.
 
 ### 2.4 Flywheel
 - [ ] **Direction and sign**: spins the shooting way, speed reads positive (the bench fix flipped the flywheel direction; re-confirm on the robot).
@@ -136,10 +136,11 @@ Run **TeleOp - Draft (mechanisms)**. Each row passes three times in a row.
 
 | # | Test | Expected |
 |---|---|---|
-| R1 | Hold intake (operator RT) while the gate is mid-salvo or away from HOLD | The intake waits, then starts when the gate is back at HOLD |
+| R1 | Hold intake (operator RT) while the gate is mid-salvo, resting past HOLD, or anywhere else | The intake runs regardless of the gate's position (rule 1 removed) |
 | R1b | Initialize with the gate not at HOLD (Risk 3) | Behavior understood and written into the pit checklist |
+| R1c | Fire several salvos in a row, the gate resting a few degrees past HOLD each time | Each fires; nothing sticks on "SALVO running"; the flywheel auto-stops after each |
 | R2 | Deploy (X), then stow (Y) | Deploy turns the intake on; stow turns it off unless RT is held |
-| R2b | Deploy with the gate away from HOLD | Ramp deploys, the intake waits (rule 1 wins) |
+| R2b | Deploy with the gate away from HOLD | Ramp deploys and the intake turns on (the intake is not gated on the gate) |
 | R3 | Fire (A) with the flywheel cold | Spins up, then fires the moment it is ready |
 | R3b | Fire with the flywheel already spinning | Fires at once |
 | R3c | Fire when the flywheel cannot reach the setpoint (set it too high) | Drops after the timeout with a NOTICE, no stuck state |
@@ -154,7 +155,7 @@ Run **TeleOp - Draft (mechanisms)**. Each row passes three times in a row.
 | D2 | Open-cell switch (D-pad left/right) after a tip | Distance and setpoint now aim at the other side's cell |
 
 Also in this phase:
-- [ ] **Re-tune `COAST_LOOKAHEAD_S` in this loop** (Risk 2) and confirm the salvo lands inside the tolerance the coordinator needs (Risk 1).
+- [ ] **Re-tune `COAST_LOOKAHEAD_S` in this loop** (Risk 2) and confirm the salvo lands consistently near HOLD (Risk 1 is resolved, so this is about repeatability, not a lock-out).
 - [ ] **Driver and operator feel**: precision mode (30%), turn scale, trigger thresholds, button layout. Collect changes from the drivers; do not change several at once.
 - [ ] **Alliance select at INIT** works for both alliances and sets the start pose and the aimed HIVE.
 

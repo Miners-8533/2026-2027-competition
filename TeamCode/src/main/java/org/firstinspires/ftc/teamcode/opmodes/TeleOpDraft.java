@@ -28,7 +28,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   Back                         reseed the pose to the start pose
  *
  * Gamepad 2 (operator):
- *   right trigger (hold)         intake (waits for the gate to be at HOLD)
+ *   right trigger (hold)         intake (not gated on the gate's position)
  *   left trigger (hold)          outtake
  *   A                            fire a salvo (spins up and fires when ready)
  *   B                            reject (gate reverse + outtake)

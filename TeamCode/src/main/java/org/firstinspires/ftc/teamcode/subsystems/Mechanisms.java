@@ -18,19 +18,18 @@ import java.util.List;
 /**
  * Coordinates the four mechanisms and enforces the cross-actuator rules confirmed in design/mechanisms.md:
  *
- *   1. The intake runs only while the gate is at HOLD (HOLD limits capacity to 4). Held while the gate is away,
- *      it waits and starts when the gate returns to HOLD.
+ *   1. REMOVED 2026-10-31: the intake is no longer gated on the gate's position. (The gate can rest a few degrees
+ *      past HOLD after a salvo, and gating the intake and the next salvo on "within 8 deg of HOLD" locked both out.)
  *   2. Deploying the depollinator turns the intake on; stowing turns it off unless the driver holds intake.
- *      If the gate is away from HOLD, the ramp deploys and the intake waits (rule 1 wins).
  *   3. The flywheel must be ready (first ball only) before a salvo. Fire is queued: it spins up if needed and
- *      fires the moment the flywheel is ready, with a timeout.
+ *      fires the moment the flywheel is ready and the gate has stopped (wherever it rests: a salvo is a full
+ *      turn from the nearest HOLD), with a timeout.
  *   4. A reject is a gate reverse plus an intake outtake for the whole reject move.
  *   5. A stow requested under a flower is remembered and happens once the pose shows the robot is clear.
  *   Also: the flywheel stops by itself shortly after a salvo ends.
  *
  * Any mechanism the robot does not have yet (no matching hardware-config entry) is null and skipped, so this
- * works on a partially built chassis. If the gate is not calibrated yet, rule 1 cannot be enforced and is
- * disabled with a warning. Call {@link #update(Pose2d)} once per loop; autos pass it to
+ * works on a partially built chassis. Call {@link #update(Pose2d)} once per loop; autos pass it to
  * Actions.runBlocking as the per-loop callback.
  *
  * Hardware config names: motors "intake", "fly_motor_enc", "gate"; servos "depolLeft", "depolRight".
@@ -193,9 +192,11 @@ public class Mechanisms {
 
         // gate events and warnings
         if (gate != null) {
-            if (!gate.isCalibrated()) warnings.add("Gate not calibrated: intake interlock and salvos disabled");
+            if (!gate.isCalibrated()) warnings.add("Gate not calibrated: salvos and rejects disabled");
             if (gate.isStalled()) warnings.add("Gate STALLED: clear it before the next move");
-            boolean gateIdle = gate.getState() == TransportGate.State.HOLD && gate.atHold();
+            // finished means stopped, wherever it came to rest: not "within the HOLD tolerance", which a salvo that
+            // lands a few degrees past HOLD never satisfies
+            boolean gateIdle = gate.isStopped();
             if (rejectActive && gateIdle) rejectActive = false;
             if (salvoActive && gateIdle) {
                 salvoActive = false;
@@ -218,7 +219,7 @@ public class Mechanisms {
                 notice("Fire dropped: the flywheel was not ready in time.");
             } else {
                 flywheel.setTargetVelocity(lastSetpoint);
-                if (flywheel.isReady() && gate.atHold()) {
+                if (flywheel.isReady() && gate.isStopped()) {
                     gate.startSalvo();
                     salvoActive = true;
                     fireQueued = false;
@@ -237,13 +238,12 @@ public class Mechanisms {
             flywheel.setTargetVelocity(wanted ? lastSetpoint : 0.0);
         }
 
-        // rules 1, 2 and 4: what the intake does
+        // rules 2 and 4: what the intake does (not gated on the gate's position)
         if (intake != null) {
-            boolean gateAllows = gate == null || !gate.isCalibrated() || gate.atHold();
             boolean wantIn = intakeRequested || (depollinator != null && depollinator.isDeployedTarget());
             Intake.Mode mode = Intake.Mode.OFF;
             if (rejectActive || manualOuttake) mode = Intake.Mode.OUT;
-            else if (wantIn && gateAllows) mode = Intake.Mode.IN;
+            else if (wantIn) mode = Intake.Mode.IN;
             intake.setMode(mode);
         }
 
@@ -306,7 +306,7 @@ public class Mechanisms {
         };
     }
 
-    /** Action: ask for the intake on or off (rule 1 still applies). Finishes in the same loop. */
+    /** Action: ask for the intake on or off. Finishes in the same loop. */
     public Action setIntake(boolean on) {
         return new InstantAction(() -> setIntakeRequested(on));
     }
