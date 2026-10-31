@@ -55,7 +55,7 @@ public class Mechanisms {
     private boolean stopScheduled = false;
     private boolean stowPending = false;
     private boolean useShotMap = true;
-    private double manualSetpoint = 400.0;
+    private double manualSetpoint = 1400.0;   // ticks/s; used while the shot map is empty, tuned with the operator's D-pad
     private HiveTarget openCell = HiveTarget.BLUE_REAR;
 
     private final ElapsedTime fireTimer = new ElapsedTime();

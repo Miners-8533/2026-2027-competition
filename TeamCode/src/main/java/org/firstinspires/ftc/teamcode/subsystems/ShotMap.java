@@ -7,16 +7,15 @@ import java.util.List;
  * held beyond the table. The hood is fixed, so there are only two columns. Like last season's launch
  * map, minus the hood angle.
  *
- * {@link #TABLE} is a single placeholder, 1400 ticks/s at every distance (set 2026-10-31), until real points
- * are measured on the robot. Use the Shot Map Tuner opmode to find a working speed at each distance; it prints
- * lines to paste in, replacing the placeholder. While the table is not empty the coordinator uses it and the
- * operator's manual setpoint (D-pad) is ignored.
+ * {@link #TABLE} is EMPTY until it is measured on the real robot. While it is empty the coordinator uses the
+ * operator's manual setpoint (Mechanisms.manualSetpoint, starting at 1400 ticks/s, tuned with the D-pad). Use the
+ * Shot Map Tuner opmode to find a working speed at each distance; it prints lines to paste in. Once the table
+ * has any point, the coordinator uses it and the D-pad speed keys are ignored.
  */
 public final class ShotMap {
 
     /** {distance in inches, flywheel velocity in ticks per second}, ascending distance. */
     public static final double[][] TABLE = {
-            {0.0, 1400.0},   // placeholder: the end value is held at every distance, so this is 1400 everywhere
     };
 
     private ShotMap() {}
