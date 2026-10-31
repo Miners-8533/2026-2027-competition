@@ -76,7 +76,12 @@ public class GateSensorTest extends LinearOpMode {
     public static double JOG_MAX_POWER = 0.25;
     public static double CAPTURE_SEC = 1.0;
     public static double MIN_SEPARATION = 3.0;
-    public static double GAIN = 2.0;
+    /**
+     * SOFTWARE gain: the driver multiplies each normalized reading by this and clips at 1.0. It changes nothing in the
+     * sensor and adds no signal, so keep it at 1.0 (anything brighter than 1/GAIN of full scale clips). The sensor's own
+     * hardware gain is 3x, set at start-up, and the SDK offers no public setter for it.
+     */
+    public static double GAIN = 1.0;
     public static int SWEEP_PASSES = 12;
     public static double SWEEP_MAX_SEC = 90.0;
     public static double SWEEP_ABORT_STICK = 0.3;
@@ -268,7 +273,7 @@ public class GateSensorTest extends LinearOpMode {
                 best = -1;
                 seen = false;
                 note = "sensor rate changed: the readings rescale, so redo X / Y or let RB self-calibrate";
-                RobotLog.ii(LOG_TAG, "RATE " + rateStatus);
+                RobotLog.ii(LOG_TAG, String.format(Locale.US, "RATE %s (software gain %.1f, LED %s)", rateStatus, gain, led ? "on" : "off"));
             }
             if (gamepad1.backWasPressed()) {
                 background = new Stats();
@@ -316,9 +321,10 @@ public class GateSensorTest extends LinearOpMode {
                 capturing.add(v);
                 if (captureTimer.seconds() >= CAPTURE_SEC) {
                     String captureName = captureTarget == 1 ? "BACKGROUND" : captureTarget == 2 ? "ARM" : "POLLEN";
-                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "CAPTURE %s done: %d samples, distance %.2f, alpha %.4f (+/-%.4f), r %.4f g %.4f b %.4f, shares %.3f/%.3f/%.3f",
+                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "CAPTURE %s done: %d samples, distance %.2f, alpha %.4f (+/-%.4f), r %.4f g %.4f b %.4f, shares %.3f/%.3f/%.3f (software gain %.1f, LED %s, %s)",
                             captureName, capturing.n, capturing.mean(0), capturing.mean(4), capturing.std(4),
-                            capturing.mean(1), capturing.mean(2), capturing.mean(3), capturing.mean(5), capturing.mean(6), capturing.mean(7)));
+                            capturing.mean(1), capturing.mean(2), capturing.mean(3), capturing.mean(5), capturing.mean(6), capturing.mean(7),
+                            gain, led ? "on" : "off", RATE_NAMES[ratePreset]));
                     captureTarget = 0;
                     capturing = null;
                     if (background.n > 0 && gateSeen.n > 0) {
@@ -402,7 +408,7 @@ public class GateSensorTest extends LinearOpMode {
                     lastAngleForSpeed = angle;
                     moveRefAngle = angle;
                     moveTimer.reset();
-                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "SWEEP START label=%s power=%.2f autoCal=%b", CONDITIONS[condition], SWEEP_POWERS[powerIndex], autoCal));
+                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "SWEEP START label=%s power=%.2f autoCal=%b software gain %.1f, LED %s, %s", CONDITIONS[condition], SWEEP_POWERS[powerIndex], autoCal, gain, led ? "on" : "off", RATE_NAMES[ratePreset]));
                 }
             }
 
@@ -517,7 +523,8 @@ public class GateSensorTest extends LinearOpMode {
                             passes, SWEEP_POWERS[powerIndex], CONDITIONS[condition],
                             rs[1], rs[2], rs[3], fs[1], fs[2], fs[3], cs[1], cs[2], cs[3], ws[0], ws[1], speedAvg, loopAvg, stepAvg,
                             freshMs, speedAvg * freshMs / 1000.0, RATE_NAMES[ratePreset]);
-                    RobotLog.ii(LOG_TAG, "SWEEP SUMMARY label=" + CONDITIONS[condition] + " " + sweepStatus + ": " + sweepSummary);
+                    RobotLog.ii(LOG_TAG, String.format(Locale.US, "SWEEP SUMMARY label=%s (software gain %.1f, LED %s) %s: %s",
+                            CONDITIONS[condition], gain, led ? "on" : "off", sweepStatus, sweepSummary));
                 }
             } else {
                 power = Math.abs(stick) > 0.05 ? stick * JOG_MAX_POWER : 0.0;
