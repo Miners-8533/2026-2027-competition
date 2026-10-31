@@ -24,7 +24,7 @@ Ground rules
 | Shot map | **Empty** (coordinator falls back to the manual setpoint) | `ShotMap.TABLE` |
 | Coordinator + TeleOp Draft | **Never run on hardware** | `Mechanisms`, `TeleOpDraft` |
 | Autos | Use **simulated shots** (delays), not the real mechanisms | `AutonHiveVolley`, `AutonBlueStudents` |
-| TeleOp | Robot-oriented, **no pose carry-over from auto** | `TeleOpDraft` header |
+| TeleOp | **TeleOp - Competition** written 2026-10-31: field-oriented drive with a heading reset, two controllers, pose carried over from the auto through `PoseStorage`. **Not yet run on the robot** (`TeleOpDraft` stays as the older robot-oriented draft) | `TeleOpCompetition` header |
 | Hub id | Unregistered (see the decision in Phase 0) | `ChassisProfile` |
 
 ---
@@ -179,7 +179,7 @@ Exit: the shot map is populated and the coordinator no longer warns "Shot map em
 - [ ] **Update `tools/autosim`** if the paths or timings change, and re-check the legality and 4 s leg timeouts.
 - [ ] **Start-pose legality** at the field: robot touching the wall, inside its alliance half, not in the loading zone or flower volume (rule G304), in the starting configuration with the depollinator stowed.
 - [ ] **Three consecutive runs of each auto**, from the legal start, without a fault.
-- [ ] **Auto to TeleOp handoff**: carry the pose over (a `PoseStorage` is not written yet) and keep the gate reference (`CONTINUE`). Test: run an auto, then immediately TeleOp; pose and gate zero are still right.
+- [ ] **Auto to TeleOp handoff**: the autos save their final pose to `PoseStorage` and **TeleOp - Competition** starts from it (the INIT screen says "AUTO pose, saved N s ago"; Back on gamepad 1 discards it), keeping the gate reference (`CONTINUE`). Test: run an auto, then immediately TeleOp; pose and gate zero are still right.
 
 Exit: both autos complete three times; the handoff keeps pose and gate zero.
 

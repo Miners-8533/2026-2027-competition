@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
+import org.firstinspires.ftc.teamcode.drive.PoseStorage;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.motion.Action;
@@ -132,9 +133,14 @@ public class AutonBlueStudents extends LinearOpMode {
 
         Actions.runBlocking(this, auto);
 
+        // hand the final pose (and the alliance) to the TeleOp, whether the auto finished or was stopped
+        drive.updatePoseEstimate();
+        PoseStorage.save(drive.getPose(), true);
+
         while (opModeIsActive()) {
             drive.updatePoseEstimate();
             Pose2d p = drive.getPose();
+            PoseStorage.save(p, true);
             telemetry.addLine("Auto complete.");
             telemetry.addData("Final Pinpoint pose (in, in, deg)", "%.2f, %.2f, %.1f",
                     p.position.x, p.position.y, p.heading.toDegrees());
