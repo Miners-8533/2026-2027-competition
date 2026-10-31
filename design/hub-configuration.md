@@ -72,7 +72,7 @@ Run each opmode in order. All three only read.
   - Both hubs listed with a battery voltage that makes sense (a charged battery reads about 12-13 V; note it).
   - The "configured but not used" list is empty (or only holds devices you chose to keep, such as `imu`).
 - [x] **Chassis Info**: `Matched profile: ROBOT_1` (not "NONE"). Hardware Check reported `Chassis profile: ROBOT_1` on 2026-10-31.
-- [ ] **TeleOp - Draft (mechanisms)**, in INIT: the telemetry line `Mechanisms present` reads `intake true, flywheel true, pusher true, ramp true`, and the init screen shows no "no hub registered yet" warning.
+- [ ] **TeleOp - Competition**, after pressing Start: the telemetry line `Mechanisms present` reads `intake true, flywheel true, pusher true, ramp true`, and the INIT screen shows no "no hub registered yet" warning.
 
 ## If something is wrong
 

@@ -56,9 +56,9 @@ Anything tuned live is lost on the next install. For each, record the final valu
 | Intake | **Never run on hardware.** `intakeDirection` is marked unverified | `ChassisProfile` |
 | Ramp | **Never run.** All four servo positions are NaN, so it will not move | `ChassisProfile` |
 | Shot map | **Empty** (coordinator falls back to the manual setpoint) | `ShotMap.TABLE` |
-| Coordinator + TeleOp Draft | **Never run on hardware** | `Mechanisms`, `TeleOpDraft` |
+| Coordinator + TeleOp | **Never run on hardware** | `Mechanisms`, `TeleOpCompetition` |
 | Autos | Use **simulated shots** (delays), not the real mechanisms | `AutonHiveVolley`, `AutonBlueStudents` |
-| TeleOp | **TeleOp - Competition** written 2026-10-31: field-oriented drive with a heading reset, two controllers, pose carried over from the auto through `PoseStorage`. **Not yet run on the robot** (`TeleOpDraft` stays as the older robot-oriented draft) | `TeleOpCompetition` header |
+| TeleOp | **TeleOp - Competition** written 2026-10-31: field-oriented drive with a heading reset, two controllers, pose carried over from the auto through `PoseStorage`. **Not yet run on the robot** (the older robot-oriented `TeleOpDraft` was deleted 2026-10-31) | `TeleOpCompetition` header |
 | Hub id | Unregistered (see the decision in Phase 0) | `ChassisProfile` |
 
 ---
@@ -166,7 +166,7 @@ Exit: the mechanisms work together without a coordinator, and loop time and volt
 
 ## Phase 4: Coordinator and TeleOp (the five rules)
 
-Run **TeleOp - Draft (mechanisms)**. Each row passes three times in a row.
+Run **TeleOp - Competition**. Each row passes three times in a row.
 
 | # | Test | Expected |
 |---|---|---|

@@ -132,7 +132,7 @@ Four REV Color Sensor V3, one per I2C bus, named `CS1` to `CS4` and numbered alo
 
 Also decided: after a salvo finishes, the flywheel stops automatically a short moment later so the last ball clears, and spins up again only when the next Fire is requested. The integrated TeleOp splits the controls between a driver (gamepad 1, drives the chassis) and an operator (gamepad 2, runs the mechanisms), as last year.
 
-**Status:** the coordinator (`subsystems/Mechanisms.java`) and the integrated TeleOp (`opmodes/TeleOpDraft.java`) implement these rules. Any mechanism the robot does not have yet is simply skipped, so the coordinator works on a partially built chassis. Not yet run on hardware.
+**Status:** the coordinator (`subsystems/Mechanisms.java`) and the competition TeleOp (`opmodes/TeleOpCompetition.java`) implement these rules. Any mechanism the robot does not have yet is simply skipped, so the coordinator works on a partially built chassis. Not yet run on hardware.
 
 ## Still to measure or decide
 
