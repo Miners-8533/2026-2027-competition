@@ -18,7 +18,8 @@ import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
  *   Left / right bumper   select the left / right servo
  *   D-pad up / down       selected servo +/- 0.01
  *   D-pad left / right    selected servo -/+ 0.05 (coarse)
- *   A                     record the selected servo's position as STOWED
+ *   Left / right trigger  selected servo straight to 0.0 / 1.0 (to see which end is up; ONE servo at a time)
+ *   A                   record the selected servo's position as STOWED
  *   B                     record it as DEPLOYED
  *   X / Y                 send both servos to their recorded DEPLOYED / STOWED positions and start a timer
  *                         (needs all four recorded and both servos jogged once)
@@ -28,6 +29,9 @@ import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
  * of the floor / flower opening (not pressing, so a torque servo is not stalled). Then copy the printed
  * values into ChassisProfile (depolStowedLeft, ...) and Depollinator.TRAVEL_SEC. The servos move at their
  * own full speed, so watch how the ramp lands: if it lands too hard, that is the case for adding a slew back.
+ *
+ * The two servos probably drive the ramp from opposite sides, so the SAME value can mean opposite directions on
+ * each. Find each servo's ends separately, and do not send both to the same value until you know it is safe.
  *
  * Needs servos named "depolLeft" and "depolRight".
  */
@@ -49,6 +53,7 @@ public class DepollinatorTest extends LinearOpMode {
         ElapsedTime moveTimer = new ElapsedTime();
         boolean timing = false;
         double travelSec = Double.NaN;
+        boolean prevLeftTrigger = false, prevRightTrigger = false;
 
         telemetry.addData("Chassis profile", profile.label());
         telemetry.addLine("Depollinator Test. Nothing is commanded until you jog. The first jog snaps that servo to about 0.5.");
@@ -70,6 +75,21 @@ public class DepollinatorTest extends LinearOpMode {
                 servos[i].setPosition(position[i]);
                 commanded[i] = true;
             }
+
+            boolean leftTrigger = gamepad1.left_trigger > 0.5;
+            boolean rightTrigger = gamepad1.right_trigger > 0.5;
+            if (leftTrigger && !prevLeftTrigger) {
+                position[i] = 0.0;
+                servos[i].setPosition(0.0);
+                commanded[i] = true;
+            }
+            if (rightTrigger && !prevRightTrigger) {
+                position[i] = 1.0;
+                servos[i].setPosition(1.0);
+                commanded[i] = true;
+            }
+            prevLeftTrigger = leftTrigger;
+            prevRightTrigger = rightTrigger;
 
             if (gamepad1.aWasPressed() && commanded[i]) stowed[i] = position[i];
             if (gamepad1.bWasPressed() && commanded[i]) deployed[i] = position[i];
@@ -104,7 +124,7 @@ public class DepollinatorTest extends LinearOpMode {
             telemetry.addLine(String.format("depolStowedLeft %.3f, depolStowedRight %.3f, depolDeployedLeft %.3f, depolDeployedRight %.3f",
                     stowed[0], stowed[1], deployed[0], deployed[1]));
             telemetry.addLine(String.format("TRAVEL_SEC = %.2f", travelSec));
-            telemetry.addLine("Bumpers select, D-pad jog, A stowed, B deployed, X deploy, Y stow, Options stop the timer");
+            telemetry.addLine("Bumpers select, D-pad jog, triggers 0.0 / 1.0, A stowed, B deployed, X deploy, Y stow, Options stop the timer");
             telemetry.update();
         }
     }
