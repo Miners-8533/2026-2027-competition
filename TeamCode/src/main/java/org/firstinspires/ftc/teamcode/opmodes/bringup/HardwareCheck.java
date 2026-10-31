@@ -9,6 +9,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareDevice;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.util.RobotLog;
 
 import org.firstinspires.ftc.robotcore.external.navigation.VoltageUnit;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
@@ -42,6 +44,10 @@ public class HardwareCheck extends LinearOpMode {
     private static final List<String> SERVOS = Arrays.asList("depolLeft", "depolRight");
     private static final String PINPOINT = "pinpoint";
 
+    private static final String LOG_TAG = "HardwareCheck";
+
+    private final ElapsedTime logTimer = new ElapsedTime();
+    private String lastLogged = "";
     private int missing;
     private Set<String> configuredNames;
 
@@ -69,16 +75,17 @@ public class HardwareCheck extends LinearOpMode {
             for (String name : SERVOS) lines.add(checkServo(name));
             lines.add(checkPinpoint());
 
-            telemetry.addData("Chassis profile", profile == null ? "NONE - this hub is not registered" : profile.name);
-            telemetry.addData("RESULT", missing == 0 ? "all required devices are present" : missing + " required device(s) MISSING or the wrong type");
-            for (String[] line : lines) telemetry.addData(line[0], line[1]);
+            StringBuilder report = new StringBuilder();
+            report(report, "Chassis profile", profile == null ? "NONE - this hub is not registered" : profile.name);
+            report(report, "RESULT", missing == 0 ? "all required devices are present" : missing + " required device(s) MISSING or the wrong type");
+            for (String[] line : lines) report(report, line[0], line[1]);
 
             telemetry.addLine("--- hubs ---");
             Set<String> hubNames = new HashSet<>();
             for (LynxModule module : hardwareMap.getAll(LynxModule.class)) {
                 hubNames.addAll(hardwareMap.getNamesOf(module));
-                telemetry.addData("Hub address " + module.getModuleAddress(), "%s, battery %.2f V",
-                        module.isParent() ? "Control Hub" : "Expansion Hub", module.getInputVoltage(VoltageUnit.VOLTS));
+                report(report, "Hub address " + module.getModuleAddress(), String.format("%s, battery %.2f V",
+                        module.isParent() ? "Control Hub" : "Expansion Hub", module.getInputVoltage(VoltageUnit.VOLTS)));
             }
 
             Set<String> unused = new TreeSet<>();
@@ -86,11 +93,26 @@ public class HardwareCheck extends LinearOpMode {
                 if (!expected.contains(name) && !hubNames.contains(name)) unused.add(name);
             }
             telemetry.addLine("--- configured but not used by our code (delete stale ones) ---");
-            telemetry.addLine(unused.isEmpty() ? "(none)" : unused.toString());
+            report(report, "Unused configured devices", unused.isEmpty() ? "(none)" : unused.toString());
             telemetry.addLine("Turn a part by hand and watch its encoder to confirm which name it is wired to.");
             telemetry.update();
+
+            // Also written to the robot log (read it over USB with: adb logcat -s HardwareCheck), at most once a second
+            // and only when something changed.
+            String text = report.toString();
+            if (!text.equals(lastLogged) && logTimer.seconds() > 1.0) {
+                RobotLog.ii(LOG_TAG, "\n" + text);
+                lastLogged = text;
+                logTimer.reset();
+            }
             sleep(250);
         }
+    }
+
+    /** Shows one line on the Driver Station and records it for the log. */
+    private void report(StringBuilder report, String key, String value) {
+        telemetry.addData(key, value);
+        report.append(key).append(": ").append(value).append('\n');
     }
 
     private String[] checkMotor(String role, String name) {
