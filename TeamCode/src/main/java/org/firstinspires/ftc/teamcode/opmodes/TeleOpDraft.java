@@ -45,8 +45,8 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
 @TeleOp(name = "TeleOp - Draft (mechanisms)", group = "TeleOp")
 public class TeleOpDraft extends LinearOpMode {
 
-    public static double START_X_IN = -63.0;
-    public static double START_Y_IN = 12.75;       // blue; red mirrors to the negative
+    private static final double FIELD_HALF_IN = 72.0;
+    public static double START_Y_IN = 12.75;       // blue; red mirrors to the negative. X comes from the profile's depth (touching the rear wall)
     public static double START_HEADING_DEG = 0.0;
 
     private static final double TURN_SCALE = 0.5;
@@ -71,7 +71,8 @@ public class TeleOpDraft extends LinearOpMode {
         }
         if (isStopRequested()) return;
 
-        Pose2d startPose = new Pose2d(START_X_IN, blue ? START_Y_IN : -START_Y_IN, Math.toRadians(START_HEADING_DEG));
+        double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
+        Pose2d startPose = new Pose2d(startX, blue ? START_Y_IN : -START_Y_IN, Math.toRadians(START_HEADING_DEG));
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, TransportGate.Reference.CONTINUE);
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);

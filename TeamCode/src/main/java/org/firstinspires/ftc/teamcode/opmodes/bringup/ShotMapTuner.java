@@ -40,8 +40,8 @@ import java.util.List;
 @TeleOp(name = "Shot Map Tuner", group = "Bring-up")
 public class ShotMapTuner extends LinearOpMode {
 
-    public static double START_X_IN = -63.0;
-    public static double START_Y_IN = 12.75;
+    private static final double FIELD_HALF_IN = 72.0;
+    public static double START_Y_IN = 12.75;   // X comes from the profile's depth (touching the rear wall)
     public static double START_HEADING_DEG = 0.0;
     public static double MANUAL_DISTANCE_IN = 0.0;
     public static double STEP = 25.0;
@@ -54,7 +54,8 @@ public class ShotMapTuner extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        Pose2d startPose = new Pose2d(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
+        double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
+        Pose2d startPose = new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG));
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
         Flywheel flywheel = new Flywheel(hardwareMap);
 
@@ -79,7 +80,7 @@ public class ShotMapTuner extends LinearOpMode {
                     -gamepad1.right_stick_x * TURN_SCALE * scale));
 
             if (gamepad1.optionsWasPressed()) {
-                drive.setPose(new Pose2d(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG)));
+                drive.setPose(new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG)));
             }
             if (gamepad1.xWasPressed()) spinning = !spinning;
             if (gamepad1.yWasPressed()) target = target.next();
