@@ -50,7 +50,7 @@ public class TransportGate {
 
     // placeholders: calibrate on the rig
     /** Forward power for a salvo or a return to HOLD, until APPROACH_DEG from the target. */
-    public static double SWEEP_POWER = 0.6;
+    public static double SWEEP_POWER = 0.3;   // was 0.6; halved 2026-10-31 so the pusher moves slower (try up to 0.5 live in the Dashboard)
     /** Forward power for the last APPROACH_DEG of a move, so it lands gently. */
     public static double APPROACH_POWER = 0.25;
     /** Degrees before the target where the power drops to APPROACH_POWER. 0 turns the slow approach off. */

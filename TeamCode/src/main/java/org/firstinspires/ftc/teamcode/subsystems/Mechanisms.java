@@ -95,6 +95,11 @@ public class Mechanisms {
         intakeRequested = requested;
     }
 
+    /** Flip the intake on or off (the operator's toggle). A stow leaves it on if it was toggled on. */
+    public void toggleIntake() {
+        intakeRequested = !intakeRequested;
+    }
+
     public void setManualOuttake(boolean requested) {
         manualOuttake = requested;
     }

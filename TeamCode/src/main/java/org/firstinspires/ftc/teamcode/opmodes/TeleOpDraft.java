@@ -28,7 +28,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TransportGate;
  *   Back                         reseed the pose to the start pose
  *
  * Gamepad 2 (operator):
- *   right trigger (hold)         intake (not gated on the gate's position)
+ *   right trigger (press)        intake on / off (a toggle; not gated on the gate's position)
  *   left trigger (hold)          outtake
  *   A                            fire a salvo (spins up and fires when ready)
  *   B                            reject (gate reverse + outtake)
@@ -76,6 +76,7 @@ public class TeleOpDraft extends LinearOpMode {
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, TransportGate.Reference.CONTINUE);
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
+        boolean prevIntakeTrigger = false;
 
         while (opModeIsActive()) {
             drive.updatePoseEstimate();
@@ -87,7 +88,9 @@ public class TeleOpDraft extends LinearOpMode {
                     -gamepad1.right_stick_x * TURN_SCALE * scale));
             if (gamepad1.backWasPressed()) drive.setPose(startPose);
 
-            mechanisms.setIntakeRequested(gamepad2.right_trigger > TRIGGER_THRESHOLD);
+            boolean intakeTrigger = gamepad2.right_trigger > TRIGGER_THRESHOLD;
+            if (intakeTrigger && !prevIntakeTrigger) mechanisms.toggleIntake();
+            prevIntakeTrigger = intakeTrigger;
             mechanisms.setManualOuttake(gamepad2.left_trigger > TRIGGER_THRESHOLD);
             if (gamepad2.aWasPressed()) mechanisms.requestFire();
             if (gamepad2.bWasPressed()) mechanisms.requestReject();
@@ -108,7 +111,7 @@ public class TeleOpDraft extends LinearOpMode {
             telemetry.addData("Pose x / y (in), heading (deg)", "%.1f / %.1f / %.1f",
                     pose.position.x, pose.position.y, pose.heading.toDegrees());
             mechanisms.log(telemetry);
-            telemetry.addLine("GP2: RT intake, LT outtake, A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad speed / cell");
+            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad speed / cell");
             telemetry.update();
         }
         drive.stop();
