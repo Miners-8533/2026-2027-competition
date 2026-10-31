@@ -121,11 +121,10 @@ Exit: robot powers up safely and the footprint is recorded.
 
 ## Phase 2: Each subsystem on the real robot
 
-Run the existing bring-up opmodes. The bench numbers are a starting point, **not** a result: the robot's gearing, loading and wiring can differ.
+Run the remaining bring-up opmodes (Motor Map Test, Open Loop Test, Drive Test, Intake Test, Flywheel Test, Pusher Test, Pusher Sensor Test and Ramp Test were deleted 2026-10-31 as done or covered; see git history). The bench numbers are a starting point, **not** a result: the robot's gearing, loading and wiring can differ.
 
 ### 2.1 Drive and localization
-- [ ] **Motor Map Test**: every wheel moves the robot in its labeled direction (forward for the forward test). Fix directions in the profile if not.
-- [ ] **Open Loop Test (D-pad)**: clean forward / back / strafe / rotate, no cross-coupling. Record the drift for each.
+- [x] **Motor directions**: verified by the team (the Motor Map Test and Open Loop Test were deleted).
 - [ ] **Pinpoint Push Test**: every step passes (pod directions and axis signs), following the opmode's own prompts.
 - [ ] **Pinpoint Offset Check**: tune `xOffsetMM`, `yOffsetMM` **for this robot**. Pass: the wobble and the forward and strafe error estimates are as small as on the prototype (its tuned result was a wobble of 0.72 in with estimates near 0).
 - [ ] **Verify autos** (Auton Verify - Forward 48 and back, and Lateral 48 and back): final error acceptable to the team. Record the numbers; the prototype's results were judged acceptable, so use those as the bar.
@@ -137,21 +136,21 @@ Run the existing bring-up opmodes. The bench numbers are a starting point, **not
 - [ ] **Record intake current** while running free and while pulling an element, for a future jam detector (the team decided the driver handles jams for now but wants current-based detection later).
 
 ### 2.3 Pusher
-- [ ] **Sign check** (Pusher Test): a positive command counts forward revolutions; velocity sign right. Set `ENCODER_SIGN` if not.
-- [ ] **TICKS_PER_REV** with the 10-turn procedure on the **installed** pusher (bench value 751.8; the robot may have different gearing).
-- [ ] **Mark HOLD** at the physical HOLD position (the arm at the back, limiting entry to 4).
+- [ ] **Sign check** (Shot Test): a positive command counts forward revolutions; velocity sign right. Set `ENCODER_SIGN` if not.
+- [ ] **TICKS_PER_REV** (bench value 751.8; the robot may have different gearing): confirm it from the logs of the Pusher Sensor Matrix sweeps. The arm is seen at the same angle every turn, so a wrong value shows up as the arc drifting from turn to turn (a large RISE or CENTER std).
+- [ ] **Mark HOLD** (Shot Test: jog, then B) at the physical HOLD position (the arm at the back, limiting entry to 4).
 - [ ] **Tune** `SWEEP_POWER`, `APPROACH_POWER`, `STOP_EARLY_DEG`, then `COAST_LOOKAHEAD_S` from the "Pusher last settle" suggestion. Do this **with the pusher loaded**: 0, 1, 2 and 4 elements in the track. Loaded salvos can need more power.
 - [ ] **Reject** with elements in the track: reverses and finishes on the nearest HOLD behind.
 - [ ] **Exit**: 10 salvos in a row (including with 4 elements) with no fault, each resting consistently near HOLD (read "Error to nearest HOLD" and "Pusher last settle"; the target is a few degrees, but a salvo that rests a little past HOLD no longer locks anything out, see Risk 1). Record the min and max landing error.
 
 ### 2.4 Flywheel
 - [ ] **Direction and sign**: spins the shooting way, speed reads positive (the bench fix flipped the flywheel direction; re-confirm on the robot).
-- [ ] **FEED_FORWARD** tuned at about 600, 1000 and 1500 ticks/s so the hold power is just enough (single motor now).
-- [ ] **Spin-up time** to ready at the speeds you expect to shoot at; **dip and recovery** over a 4-ball burst (use the Y measurement). Record; this is the data that tells us whether one motor is enough.
+- [ ] **FEED_FORWARD** tuned (in Shot Test, through the Dashboard) at about 600, 1000 and 1500 ticks/s so the hold power is just enough (single motor now).
+- [ ] **Spin-up time** to ready at the speeds you expect to shoot at; **dip and recovery** over a 4-ball burst (Shot Test shows the lowest speed during each salvo). Record; this is the data that tells us whether one motor is enough.
 
 ### 2.5 Ramp
-- [ ] **Measure** the four positions (left/right stowed and deployed) with **Ramp Test** and enter them in the profile. Both servos must be in the same mode (positional).
-- [ ] **TRAVEL_SEC**: time from command to settled; set with margin.
+- [x] **Measured** 2026-10-31 (with the Ramp Test, since deleted): the four positions are in `ChassisProfile` and the mirrored pair is verified.
+- [x] **TRAVEL_SEC** = 0.8 s, measured by the team.
 - [ ] **Stowed** position keeps the robot inside the starting cube; **deployed** reaches the flower opening without touching the floor.
 - [ ] **CLEAR_DISTANCE_IN**: measure the real ramp reach from the robot center; set it from that, not the 24 in placeholder.
 

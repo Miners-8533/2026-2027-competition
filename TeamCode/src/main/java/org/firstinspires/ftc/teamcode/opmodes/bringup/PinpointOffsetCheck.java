@@ -42,7 +42,7 @@ import java.util.List;
  * a floor tape line). If not, the heading scale/IMU is off, which offsets cannot fix.
  *
  * Gamepad 1:  A = start / rerun (re-applies PARAMS)   B = stop immediately
- * Needs clear floor around the robot. Run Motor Map Test and Pinpoint Push Test first.
+ * Needs clear floor around the robot. Run Pinpoint Push Test first.
  */
 @Config
 @TeleOp(name = "Pinpoint Offset Check", group = "Bring-up")
@@ -91,7 +91,7 @@ public class PinpointOffsetCheck extends LinearOpMode {
                     drive.stop(); state = State.DONE; outcome = "Finished " + ROTATIONS + " turns.";
                 } else if (unwrapped < Math.toRadians(-30)) {
                     drive.stop(); state = State.DONE;
-                    outcome = "ABORTED: heading went the wrong way. Check Motor Map Test and Pinpoint Push Test.";
+                    outcome = "ABORTED: heading went the wrong way. Check the motor directions and run Pinpoint Push Test.";
                 } else if (clock.seconds() > 2.0 && unwrapped < Math.toRadians(10)) {
                     drive.stop(); state = State.DONE;
                     outcome = "ABORTED: almost no heading change after 2 s. Wheels not turning, or Pinpoint not reporting.";

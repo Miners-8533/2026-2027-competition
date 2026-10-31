@@ -45,7 +45,7 @@ public final class ChassisProfile {
     public final DcMotorSimple.Direction flywheelFollowerDirection;
     /**
      * Ramp servo positions, 0 to 1, for the left and right servo. NaN means not measured yet:
-     * the ramp will not move until they are filled in (use the Ramp Test opmode).
+     * the ramp will not move until they are filled in (the positions were found with the Ramp Test, since deleted; see git history).
      */
     public final double rampStowedLeft, rampStowedRight, rampDeployedLeft, rampDeployedRight;
 
@@ -89,7 +89,7 @@ public final class ChassisProfile {
             Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
     /**
-     * First draft of the new chassis. Motor and pod directions come from Motor Map Test and Pinpoint
+     * First draft of the new chassis. Motor and pod directions come from the Motor Map Test and Pinpoint
      * Push Test. The offsets are the prototype's, NOT yet tuned here (rerun Pinpoint Offset Check),
      * and the 18 x 14 in footprint is assumed.
      */
@@ -105,7 +105,7 @@ public final class ChassisProfile {
      * The assembled robot with all four mechanisms (intake, flywheel, pusher, ramp). Starts as a copy of
      * DRAFT_1: drive and pod directions are verified on that chassis, but the pod offsets are NOT yet tuned for this
      * robot. The ramp pair is mirrored: stowed left 1.0 / right 0.0, deployed left 0.0 / right 1.0 (set
-     * 2026-10-31 from Ramp Test, ramp seen stowed up at left 1.0 / right 0.0; the servos have no feedback, so
+     * 2026-10-31 from the Ramp Test, ramp seen stowed up at left 1.0 / right 0.0; the servos have no feedback, so
      * these are commanded values; TRAVEL_SEC = 0.8 s was measured by the team). The intake direction was flipped to FORWARD on
      * 2026-10-31 (it ran backwards with REVERSE; not yet re-checked after the flip). The footprint
      * (17 deep x 13.75 wide, ramp stowed) was measured on 2026-10-31. See design/integration-plan.md,

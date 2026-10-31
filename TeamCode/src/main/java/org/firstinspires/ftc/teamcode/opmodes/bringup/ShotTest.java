@@ -29,7 +29,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Pusher;
  *
  * After each salvo it shows the flywheel speed when the pusher started, the lowest speed during the salvo, and
  * the salvo time: that is the data for choosing the shot speed. The pusher's TICKS_PER_REV, powers and
- * STOP_EARLY_DEG (see Pusher Test) and the flywheel's FEED_FORWARD come from their classes.
+ * STOP_EARLY_DEG and the flywheel's FEED_FORWARD come from their classes.
  *
  * Starts in a do-nothing pusher state, so press LB (or Y) to bring the pusher to a HOLD. Keep clear of the wheel and
  * the arm; the pusher has no stops.

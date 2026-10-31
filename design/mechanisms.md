@@ -24,7 +24,7 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 - **Decided:** each actuator is a small class with setters that record a target and one `update()` call per loop, the same pattern as last year's subsystems.
 - **Proposed:** autos use the existing `Action` interface and its composition (`SequentialAction`, `ParallelAction`, `SleepAction`, `InstantAction`) in `teamcode.motion`, so each actuator offers action factories such as "spin up and finish when at speed".
 - **Proposed:** values that differ per chassis (motor directions, servo positions) live in `ChassisProfile`, which is already chosen automatically by Control Hub. Tunable numbers use `@Config` so they can be edited live in the FTC Dashboard.
-- **Proposed:** each actuator gets its own bring-up opmode (group "Bring-up") before it is integrated, in the style of Motor Map Test and the Pinpoint tests. A combined mechanisms coordinator and an integrated TeleOp come last.
+- **Proposed:** each actuator gets its own bring-up opmode (group "Bring-up") before it is integrated, in the style of the Pinpoint tests (the bring-up opmodes for the intake, flywheel, pusher and ramp were deleted 2026-10-31 once those were integrated; Shot Test and Comp TeleOp cover them). A combined mechanisms coordinator and an integrated TeleOp come last.
 
 ## 1. Intake
 
@@ -39,9 +39,9 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 - **Open, still being considered:** current-based jam detection. If the motor current stays high for about a quarter second, reverse briefly and automatically.
 - **Open idea:** with one color sensor per slot, the robot could spot an opponent-color nectar (G408) and outtake it automatically.
 
-**Status:** the `Intake` class (`subsystems/Intake.java`) and the bring-up opmode **Intake Test** are built and compile, but have not been run on hardware. The motor direction is in `ChassisProfile.intakeDirection` and is a last-year placeholder (REVERSE) until verified.
+**Status:** the `Intake` class (`subsystems/Intake.java`) are built. The motor direction is in `ChassisProfile.intakeDirection` (FORWARD on `ROBOT_1`, set 2026-10-31).
 
-**Verification:** Intake Test runs it only while a button is held, at 30% power to start (D-pad steps the scale), confirms direction, and shows the motor current with a peak reading. The peak current with and without an element in the roller is the data a jam threshold would come from.
+**Verification:** checked in TeleOp - Competition. The Intake Test (hold-to-run, current reading) was deleted; a jam threshold would need the motor current with and without an element, which would have to be read in Comp TeleOp.
 
 ## 2. Flywheel
 
@@ -65,7 +65,7 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 
 **Status:** built and compiling, not yet run on hardware. `subsystems/Flywheel.java` (bang-bang plus `FEED_FORWARD`, placeholder 0.2; `READY_FRACTION` 0.95; 5-sample filter), `HiveTarget.java` (the four open-cell target points) and `ShotMap.java` (interpolation; the saved `TABLE` is empty until measured). Directions are `ChassisProfile.flywheelDirection` and `flywheelFollowerDirection` (REVERSE, last year's pair), both placeholders. Both motors run without the hub's closed-loop encoder modes and receive the same power, so a power is a plain duty cycle on each (the closed-loop mode would make one number mean a speed target on one motor and a duty on the other, and runs away if an encoder counts opposite to its motor, as the pusher's did). `ENCODER_SIGN` (default +1) fixes a reversed encoder, and a speed that reads strongly negative while spinning stops the flywheel with a fault. The single-motor `Shooter` on the `shooter-prototype` branch is superseded by `Flywheel`.
 
-**Verification:** **Flywheel Test** (set a speed, tune `FEED_FORWARD`, and measure how far a ball dips the speed and how long it takes to recover: the one-vs-two-motors data) and **Shot Map Tuner** (drive to a distance, find a speed that scores, record the pair, test the interpolation live, and print lines for `ShotMap.TABLE`).
+**Verification:** **Shot Test** (set a speed, tune `FEED_FORWARD` through the Dashboard, and read the lowest speed during each salvo; the Flywheel Test was deleted) and **Shot Map Tuner** (drive to a distance, find a speed that scores, record the pair, test the interpolation live, and print lines for `ShotMap.TABLE`).
 
 ## 3. Pusher
 
@@ -88,7 +88,7 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 
 **Status:** built and compiling, not yet run on hardware. `subsystems/Pusher.java`: position thresholding with HOLD at 0 degrees (salvo = one forward turn, return = forward to the nearest HOLD, reject = reverse onto the nearest HOLD behind), stall and no-progress fault detection, and a zero reference saved in a static (`Reference.ASSUME_AT_HOLD` for auto, `CONTINUE` for TeleOp after auto). The encoder is never reset in code. The powers, `STOP_EARLY_DEG` and the stall thresholds are placeholders to calibrate on the rig, and the pusher direction is a `ChassisProfile` placeholder. The hardware name is `gate`. Ran on the bench pusher (branch `pusher-bench`) with the earlier PID version; this thresholding rewrite has not been run yet.
 
-**Verification:** **Pusher Test** walks the calibration (mark HOLD, jog 1, 5 or 10 turns to measure ticks per revolution), then runs a salvo, a reject and a return to HOLD, shows the error to the nearest HOLD after every move, lets you tune the powers and the early-stop angle from the controller, and prints the values to paste into `Pusher.java`.
+**Verification:** **Shot Test** marks HOLD (jog, then B), runs a salvo, a reject and a return to HOLD, and shows where the arm settled after every move; the powers and the early-stop angle are Dashboard values to copy into `Pusher.java`. `TICKS_PER_REV` is confirmed from the Pusher Sensor Matrix logs. The Pusher Test was deleted.
 
 ## 4. Ramp
 
@@ -109,7 +109,7 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 
 **Status:** built and compiling, not yet run on hardware. `subsystems/Ramp.java` (about 110 lines: servos `depolLeft` and `depolRight`, per-servo positions in `ChassisProfile`, direct `deploy()` / `stow()`, `isSettled()` after `TRAVEL_SEC`, and an `isClearOfFlower` check; no per-loop `update()` is needed). **It will not move until the four positions are measured** (they are NaN in `ChassisProfile`). The coordinator holds a stow request until the robot is clear (rule 5). `TRAVEL_SEC` (0.6 s) and `CLEAR_DISTANCE_IN` (24 in) are placeholders: measure the first, and set the second from the real ramp length. It uses the plain `Servo` interface, as last year's hood and stop servos did, so there is no configurable pulse range and no way to switch a servo off. If either turns out to be needed (a goBILDA servo in positional mode may need a wider range than the SDK default, and a torque servo may need to be powered down), go back to `ServoImplEx`.
 
-**Verification:** **Ramp Test** commands nothing until you jog, then finds the stowed and deployed position of each servo by jogging, records them, and sends both servos to the recorded deployed and stowed positions so you can watch how the ramp lands. It times the move (press Back when the ramp stops) and prints the positions for `ChassisProfile` and the value for `Ramp.TRAVEL_SEC`.
+**Verification:** the Ramp Test found the stowed and deployed positions and `TRAVEL_SEC` on 2026-10-31 and was then deleted; the values are in `ChassisProfile` and `Ramp`.
 
 ## Cross-actuator rules (confirmed 2026-10-22)
 

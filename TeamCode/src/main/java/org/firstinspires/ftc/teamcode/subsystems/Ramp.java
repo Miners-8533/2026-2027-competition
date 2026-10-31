@@ -17,7 +17,7 @@ import org.firstinspires.ftc.teamcode.math.Pose2d;
  * Deliberately plain, like last year's hood and stop servos: each command sets both servos straight to
  * their position (the plain Servo interface, no slew, no pulse range). Each servo has its own stowed and
  * deployed position (0 to 1) in {@link ChassisProfile}; they are NaN until measured, and until they are
- * filled in the ramp will not move (use the Ramp Test opmode). With no position feedback,
+ * filled in the ramp will not move (set from the Ramp Test, since deleted). With no position feedback,
  * "settled" simply means TRAVEL_SEC has passed since the last command, so TRAVEL_SEC is measured once.
  *
  * The robot starts STOWED (it must fit the 18 in starting cube), so the constructor commands the stowed
@@ -29,7 +29,7 @@ import org.firstinspires.ftc.teamcode.math.Pose2d;
 @Config
 public class Ramp {
 
-    /** Seconds after a command until the ramp counts as in place. Measured 2026-10-31 with the Ramp Test: 0.8 s up or down (no servo feedback, so this is only a timer). */
+    /** Seconds after a command until the ramp counts as in place. Measured 2026-10-31 with the Ramp Test (since deleted): 0.8 s up or down (no servo feedback, so this is only a timer). */
     public static double TRAVEL_SEC = 0.8;
     /** Robot-center distance from a flower center beyond which the ramp is considered clear. Placeholder: set from the real ramp length. */
     public static double CLEAR_DISTANCE_IN = 24.0;
