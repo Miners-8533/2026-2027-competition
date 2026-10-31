@@ -26,6 +26,9 @@ import java.util.List;
  *      turn from the nearest HOLD), with a timeout.
  *   4. A reject is a gate reverse plus an intake outtake for the whole reject move.
  *   5. A stow requested under a flower is remembered and happens once the pose shows the robot is clear.
+ *   6. With the element counter (CS1 to CS4), the intake stops by itself when the robot holds CAPACITY (4) elements and
+ *      the operator's intake toggle is cleared (they press it again after a salvo). Opponent nectar in the robot only
+ *      raises a warning (reject is still the operator's call).
  *   Also: the flywheel stops by itself shortly after a salvo ends (unless setAutoStopAfterSalvo(false), which the
  *   competition TeleOp uses to keep the flywheel running the whole time).
  *
@@ -41,11 +44,15 @@ public class Mechanisms {
     public static double FIRE_TIMEOUT_SEC = 3.0;
     public static double FLYWHEEL_STOP_DELAY_SEC = 0.5;
     public static double NOTICE_SEC = 4.0;
+    /** Rule 6: stop the intake when the element counter reports a full robot. */
+    public static boolean AUTO_STOP_INTAKE_AT_FULL = true;
 
     public final Intake intake;
     public final Flywheel flywheel;
     public final TransportGate gate;
     public final Depollinator depollinator;
+    /** Counts and identifies the elements with CS1 to CS4; null if those sensors are not in the configuration. */
+    public final ElementCounter counter;
 
     private boolean intakeRequested = false;
     private boolean manualOuttake = false;
@@ -59,6 +66,7 @@ public class Mechanisms {
     private boolean useShotMap = true;
     private double manualSetpoint = 1350.0;   // ticks/s; used while the shot map is empty, tuned with the operator's D-pad
     private HiveTarget openCell = HiveTarget.BLUE_REAR;
+    private boolean blueAlliance = true;
 
     private final ElapsedTime fireTimer = new ElapsedTime();
     private final ElapsedTime stopTimer = new ElapsedTime();
@@ -69,10 +77,15 @@ public class Mechanisms {
     private double lastSetpoint = 0.0;
 
     public Mechanisms(Intake intake, Flywheel flywheel, TransportGate gate, Depollinator depollinator) {
+        this(intake, flywheel, gate, depollinator, null);
+    }
+
+    public Mechanisms(Intake intake, Flywheel flywheel, TransportGate gate, Depollinator depollinator, ElementCounter counter) {
         this.intake = intake;
         this.flywheel = flywheel;
         this.gate = gate;
         this.depollinator = depollinator;
+        this.counter = counter;
     }
 
     /** Builds whichever mechanisms the hardware configuration contains. */
@@ -83,12 +96,13 @@ public class Mechanisms {
                 ? new TransportGate(hardwareMap, gateReference) : null;
         Depollinator depollinator = hardwareMap.tryGet(Servo.class, "depolLeft") != null
                 && hardwareMap.tryGet(Servo.class, "depolRight") != null ? new Depollinator(hardwareMap) : null;
-        return new Mechanisms(intake, flywheel, gate, depollinator);
+        ElementCounter counter = ElementCounter.tryCreate(hardwareMap);
+        return new Mechanisms(intake, flywheel, gate, depollinator, counter);
     }
 
     public String describe() {
         return "intake " + (intake != null) + ", flywheel " + (flywheel != null)
-                + ", gate " + (gate != null) + ", depollinator " + (depollinator != null);
+                + ", gate " + (gate != null) + ", depollinator " + (depollinator != null) + ", element counter " + (counter != null);
     }
 
     // ---- commands ----
@@ -165,6 +179,11 @@ public class Mechanisms {
         manualSetpoint = Math.max(0.0, manualSetpoint + delta);
     }
 
+    /** Which alliance this is, so the element counter knows which nectar is the opponent's. */
+    public void setBlueAlliance(boolean blue) {
+        blueAlliance = blue;
+    }
+
     public void setOpenCell(HiveTarget cell) {
         openCell = cell;
     }
@@ -189,6 +208,16 @@ public class Mechanisms {
 
     public void update(Pose2d pose) {
         warnings.clear();
+
+        // the element counter reads one sensor every READ_PERIOD_MS (never more than one per loop)
+        boolean full = false;
+        if (counter != null) {
+            counter.update();
+            full = counter.isValid() && counter.isFull();
+            if (full) warnings.add("FULL: " + counter.count() + " elements held");
+            int opponentAt = counter.opponentNectarAt(blueAlliance);
+            if (opponentAt > 0) warnings.add("OPPONENT NECTAR at sensor " + opponentAt + " (CS" + opponentAt + "): reject (B)");
+        }
 
         lastDistance = openCell.distanceFrom(pose);
         boolean mapAvailable = useShotMap && !ShotMap.isEmpty();
@@ -260,10 +289,16 @@ public class Mechanisms {
 
         // rules 2 and 4: what the intake does (not gated on the gate's position)
         if (intake != null) {
+            // rule 6: a full robot stops the intake and clears the operator's toggle (they press it again after a salvo)
+            boolean stopForFull = full && AUTO_STOP_INTAKE_AT_FULL;
+            if (stopForFull && intakeRequested) {
+                intakeRequested = false;
+                notice("Intake stopped: " + counter.count() + " elements held.");
+            }
             boolean wantIn = intakeRequested || (depollinator != null && depollinator.isDeployedTarget());
             Intake.Mode mode = Intake.Mode.OFF;
             if (rejectActive || manualOuttake) mode = Intake.Mode.OUT;
-            else if (wantIn) mode = Intake.Mode.IN;
+            else if (wantIn && !stopForFull) mode = Intake.Mode.IN;
             intake.setMode(mode);
         }
 
@@ -288,6 +323,7 @@ public class Mechanisms {
         if (flywheel != null) flywheel.log(telemetry);
         if (gate != null) gate.log(telemetry);
         if (depollinator != null) depollinator.log(telemetry);
+        if (counter != null) counter.log(telemetry);
         for (String w : warnings) telemetry.addLine("WARNING: " + w);
         if (!notice.isEmpty() && noticeTimer.seconds() < NOTICE_SEC) telemetry.addLine("NOTICE: " + notice);
     }

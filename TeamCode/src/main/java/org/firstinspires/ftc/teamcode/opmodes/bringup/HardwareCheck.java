@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareDevice;
+import com.qualcomm.robotcore.hardware.NormalizedColorSensor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
@@ -34,7 +35,7 @@ import java.util.TreeSet;
  * voltage; and any configured device our code does not use (stale entries to delete).
  *
  * Required names: leftFront, leftBack, rightFront, rightBack, intake, fly_motor_enc, gate (motors); depolLeft,
- * depolRight (servos); pinpoint (goBILDA Pinpoint).
+ * depolRight (servos); CS1 to CS4 (REV Color Sensor V3, one per I2C bus); pinpoint (goBILDA Pinpoint).
  */
 @TeleOp(name = "Hardware Check", group = "Bring-up")
 public class HardwareCheck extends LinearOpMode {
@@ -42,6 +43,7 @@ public class HardwareCheck extends LinearOpMode {
     private static final List<String> DRIVE_MOTORS = Arrays.asList("leftFront", "leftBack", "rightFront", "rightBack");
     private static final List<String> MECHANISM_MOTORS = Arrays.asList("intake", "fly_motor_enc", "gate");
     private static final List<String> SERVOS = Arrays.asList("depolLeft", "depolRight");
+    private static final List<String> COLOR_SENSORS = Arrays.asList("CS1", "CS2", "CS3", "CS4");
     private static final String PINPOINT = "pinpoint";
 
     private static final String LOG_TAG = "HardwareCheck";
@@ -60,6 +62,7 @@ public class HardwareCheck extends LinearOpMode {
         expected.addAll(DRIVE_MOTORS);
         expected.addAll(MECHANISM_MOTORS);
         expected.addAll(SERVOS);
+        expected.addAll(COLOR_SENSORS);
         expected.add(PINPOINT);
 
         telemetry.addLine("Hardware Check ready. It only reads; nothing will move.");
@@ -73,6 +76,7 @@ public class HardwareCheck extends LinearOpMode {
             for (String name : DRIVE_MOTORS) lines.add(checkMotor("Drive", name));
             for (String name : MECHANISM_MOTORS) lines.add(checkMotor("Mechanism", name));
             for (String name : SERVOS) lines.add(checkServo(name));
+            for (String name : COLOR_SENSORS) lines.add(checkColorSensor(name));
             lines.add(checkPinpoint());
 
             StringBuilder report = new StringBuilder();
@@ -125,6 +129,12 @@ public class HardwareCheck extends LinearOpMode {
         Servo servo = hardwareMap.tryGet(Servo.class, name);
         if (servo == null) return absent(name, Servo.class);
         return new String[]{name, String.format("OK   %s   [Depollinator]", servo.getConnectionInfo())};
+    }
+
+    private String[] checkColorSensor(String name) {
+        NormalizedColorSensor sensor = hardwareMap.tryGet(NormalizedColorSensor.class, name);
+        if (sensor == null) return absent(name, NormalizedColorSensor.class);
+        return new String[]{name, String.format("OK   %s   [element counter]", sensor.getConnectionInfo())};
     }
 
     private String[] checkPinpoint() {

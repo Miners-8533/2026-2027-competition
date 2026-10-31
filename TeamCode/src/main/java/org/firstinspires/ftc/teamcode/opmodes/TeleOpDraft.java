@@ -76,6 +76,7 @@ public class TeleOpDraft extends LinearOpMode {
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, TransportGate.Reference.CONTINUE);
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
+        mechanisms.setBlueAlliance(blue);
         boolean prevIntakeTrigger = false;
 
         while (opModeIsActive()) {

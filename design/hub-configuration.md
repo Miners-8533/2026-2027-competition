@@ -39,6 +39,7 @@ Names are case-sensitive and must match exactly.
 | Gate | `gate` | motor, goBILDA 5203 series (26.9:1) | Expansion Hub (2) | motor 0 | **encoder cable plugged in** (position and velocity) |
 | Depollinator, left | `depolLeft` | Servo | Control Hub (173) | servo 5 | positional mode, not continuous |
 | Depollinator, right | `depolRight` | Servo | Control Hub (173) | servo 4 | same mode as the left one |
+| Element counter | `CS1`, `CS2`, `CS3`, `CS4` | REV Color Sensor V3 | (see Hardware Check) | one I2C bus each | numbered along the track: intake, CS1, CS2, CS3, CS4, flywheel. They all have the same I2C address, so each must be on its own bus |
 
 Ports above were read by Hardware Check on 2026-10-31 (battery 12.2 V). Pinpoint: status READY, loop 637-662 us. **Note:** the gate and flywheel are on the **Expansion Hub**, where the benches had them on the Control Hub, so the loop time and the gate's `COAST_LOOKAHEAD_S` must be re-measured here (the benches' numbers do not carry over).
 

@@ -167,6 +167,11 @@ Run **TeleOp - Draft (mechanisms)**. Each row passes three times in a row.
 | R4 | Reject (B) with elements | Gate reverses with outtake for the whole move, then both stop |
 | R4b | Press reject or fire while a salvo or reject is running | Ignored, no stuck state |
 | R5 | Stow (Y) while under each of the **four flowers** | Stow waits ("Stow waiting"), then happens once the robot drives clear |
+| C1 | Element counter: put 1, 2, 3, 4 elements in the transport one at a time | The screen shows the stack filling from CS4, the count rises 1 to 4, and "FULL" appears |
+| C2 | With the intake toggled on, add the fourth element | The intake stops about half a second later, the toggle is cleared, a notice says "Intake stopped", and the outtake still works |
+| C3 | Fire a salvo from a full robot | The count falls to 0; the operator presses the intake trigger again to resume |
+| C4 | Put the opponent's nectar in (red on blue alliance, or the reverse) | A warning names the sensor (CS1 to CS4) and no automatic action follows |
+| C5 | Look at the loop time with the counter on | The added cost is one sensor read (about 13 ms) every 40 ms; note the loop ms and re-check the gate landing |
 | F1 | Gate fault (Back clears) | Warning shown, salvos blocked until cleared, clears cleanly |
 | F2 | Flywheel encoder fault | Flywheel stops with a message; clears with Back |
 | F3 | Remove a mechanism from the hub configuration (for example the depollinator) | Coordinator keeps running with that mechanism skipped |

@@ -13,6 +13,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.teamcode.subsystems.ElementCounter;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -68,42 +69,12 @@ import java.util.Locale;
 @TeleOp(name = "Color Sensors Test (CS1-CS4)", group = "Bring-up")
 public class ColorSensorsTest extends LinearOpMode {
 
-    /** Software gain: a multiplier clipped at 1.0, so keep it at 1.0. */
-    public static double GAIN = 1.0;
     public static double CAPTURE_SEC = 1.0;
     public static boolean READ_ONE_PER_LOOP = true;
-
-    /** Presence turns ON when the color shares move this far from the empty baseline (distance in share space) ... */
-    public static double COLOR_SHIFT_ON = 0.05;
-    /** ... or alpha is this many times the empty level (and this much above it) ... */
-    public static double ALPHA_RATIO_ON = 2.0;
-    public static double ALPHA_MIN_RISE = 0.02;
-    /** ... or the object is this much nearer than the empty distance. It turns OFF only when all three are below the OFF values. */
-    public static double DIST_DROP_ON_CM = 1.5;
-    public static double COLOR_SHIFT_OFF = 0.03;
-    public static double ALPHA_RATIO_OFF = 1.6;
-    public static double DIST_DROP_OFF_CM = 0.8;
-    /** A new state must persist this long before it is reported. */
-    public static double DEBOUNCE_MS = 150.0;
-
-    /** Pollen: green at least this many times blue (a dim or far pollen reads about 1.5; the empty views read 1.25-1.45), modest red. */
-    public static double POLLEN_MIN_GREEN_OVER_BLUE = 1.5;
-    public static double POLLEN_MAX_RED = 0.35;
-    /** Red nectar: red share at least this (0.36-0.38 when it sits further from the sensor, 0.40-0.47 close), red not below green, and little blue. */
-    public static double RED_NECTAR_MIN_RED = 0.35;
-    public static double RED_NECTAR_MAX_BLUE = 0.30;
-    /** Blue nectar: blue share at least this, and at least BLUE_NECTAR_MIN_BLUE_OVER_GREEN above the green share, with little red. */
-    public static double BLUE_NECTAR_MIN_BLUE = 0.44;
-    public static double BLUE_NECTAR_MIN_BLUE_OVER_GREEN = 0.08;
-    public static double BLUE_NECTAR_MAX_RED = 0.25;
-    /** Gate arm (CS4 only): far, bluish, with GREEN CLOSE TO BLUE (about 0.38 / 0.39); a dim blue nectar has blue well above green. */
-    public static double ARM_MIN_DIST_CM = 5.5;
-    public static double ARM_MIN_BLUE = 0.36;
-    public static double ARM_MAX_RED = 0.28;
-    public static double ARM_MAX_GREEN_BLUE_GAP = 0.06;
-    /** The arm normally only appears at CS4. For the labeled test it may be held in front of any sensor, and the distance test is off. */
-    public static boolean ARM_ANY_SENSOR = true;
-    public static boolean ARM_REQUIRE_DISTANCE = false;
+    // The classification thresholds, the gain, the debounce and the presence rules live in ElementCounter (also in the
+    // Dashboard), so this test scores exactly what the robot uses. For the labeled test the gate arm may be held in
+    // front of any sensor, so this test sets ElementCounter.ARM_ANY_SENSOR on (and ARM_REQUIRE_DISTANCE off) while it
+    // runs and puts them back when it ends.
     /** While recording, the confusion table is also written to the log this often (seconds). */
     public static double SNAPSHOT_SEC = 20.0;
     /** Readings are not scored for this long after a sensor's label changes (the classifier lags by its debounce). */
@@ -116,16 +87,16 @@ public class ColorSensorsTest extends LinearOpMode {
     private static final String[] NAMES = {"CS1", "CS2", "CS3", "CS4"};
     private static final String LOG_TAG = "ColorSensors";
     private static final int N = NAMES.length;
-    private static final int ARM_SENSOR = 3;   // CS4 is the one that also looks at the gate arm
 
-    /** The class of a present object, from its color shares and distance. */
+    /** The class name the test shows and scores, from ElementCounter's classifier. */
     static String classify(int sensor, double red, double green, double blue, double distCm) {
-        if ((ARM_ANY_SENSOR || sensor == ARM_SENSOR) && (!ARM_REQUIRE_DISTANCE || distCm >= ARM_MIN_DIST_CM)
-                && blue >= ARM_MIN_BLUE && red <= ARM_MAX_RED && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return "GATE ARM";
-        if (red >= RED_NECTAR_MIN_RED && red >= green - 0.01 && blue < RED_NECTAR_MAX_BLUE) return "RED NECTAR";
-        if (blue >= BLUE_NECTAR_MIN_BLUE && blue - green >= BLUE_NECTAR_MIN_BLUE_OVER_GREEN && red <= BLUE_NECTAR_MAX_RED) return "BLUE NECTAR";
-        if (green >= POLLEN_MIN_GREEN_OVER_BLUE * blue && red <= POLLEN_MAX_RED) return "POLLEN";
-        return "OTHER";
+        switch (ElementCounter.classify(sensor, red, green, blue, distCm)) {
+            case POLLEN: return "POLLEN";
+            case RED_NECTAR: return "RED NECTAR";
+            case BLUE_NECTAR: return "BLUE NECTAR";
+            case GATE_ARM: return "GATE ARM";
+            default: return "OTHER";
+        }
     }
 
     /** Index into PREDICTIONS (0 = nothing seen). */
@@ -185,12 +156,14 @@ public class ColorSensorsTest extends LinearOpMode {
     public void runOpMode() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
+        ElementCounter.ARM_ANY_SENSOR = true;
+        ElementCounter.ARM_REQUIRE_DISTANCE = false;
         NormalizedColorSensor[] color = new NormalizedColorSensor[N];
         DistanceSensor[] distance = new DistanceSensor[N];
         for (int i = 0; i < N; i++) {
             color[i] = hardwareMap.tryGet(NormalizedColorSensor.class, NAMES[i]);
             distance[i] = hardwareMap.tryGet(DistanceSensor.class, NAMES[i]);
-            if (color[i] != null) color[i].setGain((float) GAIN);
+            if (color[i] != null) color[i].setGain((float) ElementCounter.GAIN);
         }
         boolean led = true;
         setLeds(color, led);
@@ -370,16 +343,14 @@ public class ColorSensorsTest extends LinearOpMode {
                 if (haveBase[i]) {
                     double shift = Math.sqrt(Math.pow(sr[i] - bR[i], 2) + Math.pow(sg[i] - bG[i], 2) + Math.pow(sb[i] - bB[i], 2));
                     double ratio = alpha[i] / Math.max(bAlpha[i], 1e-6);
-                    double rise = alpha[i] - bAlpha[i];
                     double drop = Double.isNaN(dist[i]) ? 0.0 : bDist[i] - dist[i];
-                    boolean on = shift >= COLOR_SHIFT_ON || (ratio >= ALPHA_RATIO_ON && rise >= ALPHA_MIN_RISE) || drop >= DIST_DROP_ON_CM;
-                    boolean off = shift < COLOR_SHIFT_OFF && ratio < ALPHA_RATIO_OFF && drop < DIST_DROP_OFF_CM;
-                    boolean raw = present[i] ? !off : on;
+                    boolean raw = ElementCounter.presenceNext(present[i], sr[i], sg[i], sb[i], alpha[i], dist[i],
+                            bR[i], bG[i], bB[i], bAlpha[i], bDist[i]);
                     if (raw != candidate[i]) {
                         candidate[i] = raw;
                         candidateSince[i] = now;
                     }
-                    if (candidate[i] != present[i] && (now - candidateSince[i]) / 1e6 >= DEBOUNCE_MS) present[i] = candidate[i];
+                    if (candidate[i] != present[i] && (now - candidateSince[i]) / 1e6 >= ElementCounter.DEBOUNCE_MS) present[i] = candidate[i];
                     cls[i] = present[i] ? classify(i, sr[i], sg[i], sb[i], dist[i]) : "-";
                     state = present[i] ? "PRESENT: " + cls[i] : "empty";
                     if (recording && readNow[i] && (now - labelSince[i]) / 1e6 >= LABEL_SETTLE_MS) {
@@ -470,6 +441,8 @@ public class ColorSensorsTest extends LinearOpMode {
             }
         }
         setLeds(color, false);
+        ElementCounter.ARM_ANY_SENSOR = false;
+        ElementCounter.ARM_REQUIRE_DISTANCE = true;
     }
 
     private static void setLeds(NormalizedColorSensor[] sensors, boolean on) {

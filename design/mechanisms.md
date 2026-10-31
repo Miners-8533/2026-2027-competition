@@ -116,6 +116,17 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 3. **Decided:** the flywheel must be up to speed before a salvo starts (first ball only). A Fire pressed too early is queued: it spins up if needed and fires automatically the moment the flywheel is ready and the gate has stopped (a salvo is a full turn from the nearest HOLD, so it can start from wherever the gate rests), with a timeout. One button does spin-up and fire.
 4. **Decided:** a rejection is a gate reverse plus an intake outtake, together. The outtake runs for the whole reject move (reverse, then forward back to HOLD), then the intake turns off.
 5. **Decided:** a stow requested while the robot is still under a flower is remembered, and the ramp stows automatically once the pose shows the robot has driven out. A warning shows meanwhile.
+6. **Decided (2026-10-31):** with the element counter, the intake stops by itself when the robot holds 4 elements (rule G407) and the operator's intake toggle is cleared, so they press it again after a salvo. The outtake still works. Opponent nectar in the robot only raises a warning with its sensor position; reject stays the operator's decision.
+
+## Element counter (CS1 to CS4)
+
+Four REV Color Sensor V3, one per I2C bus, named `CS1` to `CS4` and numbered along the track: intake, CS1, CS2, CS3, CS4, flywheel (CS4 is deepest and also sees the gate arm). `ElementCounter` reads **one sensor every 40 ms** (each read is about 13 ms of blocking I2C, and the sensors refresh every 100 ms) and reports, per sensor, EMPTY, POLLEN, RED NECTAR, BLUE NECTAR, OTHER or GATE ARM.
+
+- **Presence** comes from the shift of the color shares from each sensor's own empty baseline (the empty views differ per sensor and the contrast against a near wall is small), then alpha and distance, with hysteresis and a debounce.
+- **Count** = sensors that see an element (not the arm), reported only after it has been steady (150 ms going up, 300 ms going down). A fourth element is reported about 0.4 s after it is first seen. An element without a neighbor toward the flywheel sets a *gap* flag but still counts.
+- **Baseline:** the empty readings in `ElementCounter` were measured 2026-10-31. Lighting changes them, so re-measure in the pit with Color Sensors Test (**A** with the track empty) and copy the BASELINE line into the table. It cannot be captured at match start, because the robot may already hold elements.
+- **Measured on the robot:** four pollen read 100% correct on all four sensors (3,298 samples); blue nectar and the gate arm classified correctly in the logs; red nectar worked up close and was loosened for distance (not yet re-run live). Thresholds are accepted for now.
+- **Not done yet:** a live run of the counter inside TeleOp - Competition, and the gate position check that uses `gateArmSeen()` on CS4.
 
 Also decided: after a salvo finishes, the flywheel stops automatically a short moment later so the last ball clears, and spins up again only when the next Fire is requested. The integrated TeleOp splits the controls between a driver (gamepad 1, drives the chassis) and an operator (gamepad 2, runs the mechanisms), as last year.
 
