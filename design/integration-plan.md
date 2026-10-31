@@ -59,7 +59,8 @@ These come from reading the code; each one can make a later test fail for a reas
 
   `fly_follow` is no longer used. *Pass: the Driver Station shows the configuration active, no "device not found" on any opmode init.*
 - [ ] **Port map.** Write down (and photograph) which port each device is on, and which hub. If an Expansion Hub is used, note it; its commands cost extra loop time.
-- [ ] **Decision: robot profile and hub id.** Run **Chassis Info** on the robot hub. Then choose: register this hub on `DRAFT_1`, or create a new profile for this robot (recommended if its dimensions or offsets differ, since Phase 2.1 will change them). Resolve the bench-hub effect from Risk 4 at the same time (register the bench hubs on a profile too, or leave this robot hub unregistered until the benches are retired).
+- [x] **Decision: robot profile and hub id.** Done: a new `ROBOT_1` profile (copied from `DRAFT_1`, to be tuned in Phases 1-2) is registered to the robot's hub (serial `5462f57f0f18d316`, Android id `7c789032eb35f27b`). The gate and flywheel benches are retired.
+- [ ] **Register the other test chassis' hub.** Because a hub is now registered, the remaining test chassis' hub **throws** ("Unrecognized Control Hub") on its next opmode run until its ids are added to a profile (`PROTOTYPE` or `DRAFT_1`, whichever it is). Run **Chassis Info** on it (it still runs unregistered) or connect it over USB and read the ids, then add them.
 - [ ] **Safety setup.** Robot on blocks; gate and flywheel guarded; stop procedure agreed (who holds the Driver Station Stop); battery strap and wiring strain relief checked.
 - [ ] **Record sheet started** (end of this file).
 

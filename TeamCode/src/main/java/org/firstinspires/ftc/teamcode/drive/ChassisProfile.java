@@ -101,7 +101,21 @@ public final class ChassisProfile {
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
             Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
-    private static final ChassisProfile[] ALL = {PROTOTYPE, DRAFT_1};
+    /**
+     * The assembled robot with all four mechanisms (intake, flywheel, gate, depollinator). Starts as a copy of
+     * DRAFT_1: drive and pod directions are verified on that chassis, but the pod offsets are NOT yet tuned for this
+     * robot, the 18 x 14 in footprint is assumed, the intake direction is unverified, and the depollinator positions
+     * are not measured. See design/integration-plan.md, Phases 1 and 2. Hub: serial and Android id read over adb.
+     */
+    public static final ChassisProfile ROBOT_1 = new ChassisProfile("ROBOT_1",
+            Arrays.asList("5462f57f0f18d316", "7c789032eb35f27b"),
+            DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
+            GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD,
+            -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
+            DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
+            Double.NaN, Double.NaN, Double.NaN, Double.NaN);
+
+    private static final ChassisProfile[] ALL = {PROTOTYPE, DRAFT_1, ROBOT_1};
     private static final ChassisProfile DEFAULT = DRAFT_1;
     private static boolean lastMatched = true;
 
