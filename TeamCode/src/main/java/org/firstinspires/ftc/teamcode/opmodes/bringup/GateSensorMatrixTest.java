@@ -43,6 +43,8 @@ import java.util.Locale;
  * The hardware gain and the rate are set by reflection on protected SDK methods: test-only code.
  *
  *   Left stick       jog the gate (up = forward) before starting, JOG_MAX_POWER at full deflection
+ *   A                mark the gate angle as 0 here. Put the arm at HOLD first: the results then say where the arc is,
+ *                    in degrees AHEAD of HOLD, at each sweep speed (the team expects about 90 deg)
  *   Right bumper     start the whole run (any stick push, Back or a gate that stops moving ends it)
  *   Back             stop the run / clear the results
  *
@@ -60,6 +62,8 @@ public class GateSensorMatrixTest extends LinearOpMode {
     public static double ABORT_STICK = 0.3;
     public static double MAX_SEC_PER_SETTING = 60.0;
     public static boolean TEST_LED_OFF = false;
+    /** Only the SDK default hardware gain (3x), which the first matrix run recommended; false steps through 1x to 18x as before. */
+    public static boolean ONLY_DEFAULT_GAIN = true;
     /** Alpha (software gain 1.0) at or above this counts as saturated: the sensor ran out of range. */
     public static double SATURATION_ALPHA = 0.98;
     /** The arm must raise alpha by at least this much over the empty level, or the setting is reported as "arm not seen". */
@@ -123,8 +127,14 @@ public class GateSensorMatrixTest extends LinearOpMode {
         int passes;
         double bgMean, bgStd, armMean, armStd, separation;
         double riseStd = Double.NaN, centerStd = Double.NaN, widthMean = Double.NaN, widthStd = Double.NaN;
+        /** Where the arc is, in degrees AHEAD of the mark (HOLD), 0 to 360: where it starts, where it ends, and its center. */
+        double riseAbs = Double.NaN, fallAbs = Double.NaN, centerAbs = Double.NaN;
         double speed = Double.NaN, loopMs = Double.NaN, freshMs = Double.NaN;
         double armMax = Double.NaN;
+    }
+
+    private static double norm360(double degrees) {
+        return ((degrees % 360.0) + 360.0) % 360.0;
     }
 
     private static double wrap180(double degrees) {
@@ -242,6 +252,12 @@ public class GateSensorMatrixTest extends LinearOpMode {
             boolean isFresh = alpha != lastMetric;
             if (isFresh) lastMetric = alpha;
 
+            if (gamepad1.aWasPressed() && (phase == Phase.IDLE || phase == Phase.DONE)) {
+                markTicks = ticks;
+                angle = 0.0;
+                RobotLog.ii(LOG_TAG, "MARK: the gate angle is now 0 here (HOLD)");
+                runStatus = "HOLD marked here: the arc positions in the results are measured from this mark";
+            }
             boolean abort = false;
             String abortWhy = "";
             if (gamepad1.backWasPressed()) {
@@ -265,6 +281,7 @@ public class GateSensorMatrixTest extends LinearOpMode {
                         combos.clear();
                         results.clear();
                         for (int g = 0; g < GAINS.length; g++) {
+                            if (ONLY_DEFAULT_GAIN && g != 1) continue;
                             for (int led = 0; led < (TEST_LED_OFF ? 2 : 1); led++) {
                                 for (double p : POWERS) combos.add(new Combo(g, led == 0, p));
                             }
@@ -408,6 +425,11 @@ public class GateSensorMatrixTest extends LinearOpMode {
                                 r.centerStd = std(centerPhase);
                                 r.widthMean = mean(widths);
                                 r.widthStd = std(widths);
+                                // absolute position of the arc relative to the mark (A): the first rise plus the mean phases
+                                double riseMeanPhase = mean(risePhase);
+                                r.riseAbs = norm360(rises.get(0) + riseMeanPhase);
+                                r.fallAbs = norm360(rises.get(0) + riseMeanPhase + r.widthMean);
+                                r.centerAbs = norm360(rises.get(0) + mean(centerPhase));
                             }
                             double seconds = Math.max(1e-3, phaseTimer.seconds());
                             r.speed = Math.abs(angle - measureStartAngle) / seconds;
@@ -417,9 +439,9 @@ public class GateSensorMatrixTest extends LinearOpMode {
                             r.status = enough ? (r.saturated ? "SATURATED" : "ok") : "LOST THE ARM after " + r.passes + " passes";
                             results.add(r);
                             RobotLog.ii(LOG_TAG, String.format(Locale.US,
-                                    "MATRIX %s: %s; passes %d; empty alpha %.4f (+/-%.4f); arm alpha %.4f (+/-%.4f), max %.3f; separation %.1f; RISE std %.2f deg; CENTER std %.2f deg; width %.1f +/- %.2f; speed %.0f deg/s; %.1f ms per loop; value changed every %.0f ms",
+                                    "MATRIX %s: %s; passes %d; empty alpha %.4f (+/-%.4f); arm alpha %.4f (+/-%.4f), max %.3f; separation %.1f; RISE std %.2f deg; CENTER std %.2f deg; width %.1f +/- %.2f; ARC %.1f to %.1f deg ahead of the mark (center %.1f); speed %.0f deg/s; %.1f ms per loop; value changed every %.0f ms",
                                     r.label, r.status, r.passes, r.bgMean, r.bgStd, r.armMean, r.armStd, r.armMax, r.separation,
-                                    r.riseStd, r.centerStd, r.widthMean, r.widthStd, r.speed, r.loopMs, r.freshMs));
+                                    r.riseStd, r.centerStd, r.widthMean, r.widthStd, r.riseAbs, r.fallAbs, r.centerAbs, r.speed, r.loopMs, r.freshMs));
                             combo = null;
                             phase = Phase.SETTLE;     // advance below
                             comboIndex++;
@@ -490,8 +512,8 @@ public class GateSensorMatrixTest extends LinearOpMode {
             for (int i = from; i < results.size(); i++) {
                 Result r = results.get(i);
                 telemetry.addData((i + 1) + ". " + r.label,
-                        "%s  empty %.3f / arm %.3f  sep %.0f  rise std %.2f  center std %.2f  width %.1f",
-                        r.status, r.bgMean, r.armMean, r.separation, r.riseStd, r.centerStd, r.widthMean);
+                        "%s  empty %.3f / arm %.3f  sep %.0f  rise std %.2f  center std %.2f  width %.1f  arc center %.1f deg ahead of the mark",
+                        r.status, r.bgMean, r.armMean, r.separation, r.riseStd, r.centerStd, r.widthMean, r.centerAbs);
             }
             if (phase == Phase.DONE) telemetry.addData("Ranking", ranking);
             telemetry.addLine("Right bumper: start the run   Left stick: jog (before) / abort (during)   Back: stop or clear");
