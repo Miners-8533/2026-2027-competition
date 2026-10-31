@@ -37,6 +37,12 @@ Work that is deliberately not scheduled yet. Each one is a runnable checklist; r
 | 5 | **Element counter baseline** in the pit: the empty readings depend on lighting | TeleOp (the 4-element stop) | Color Sensors Test: track empty, **A**, then copy the BASELINE log line into the table in `ElementCounter` |
 | 6 | **Commit the tuned pusher, flywheel and ramp values** (see the list below) | TeleOp | read them from the Dashboard after a tuned run and write them into the code |
 
+**Decided 2026-10-31 (no dedicated opmodes for these):**
+- Items 4, 5 and 6 are small tasks, not opmodes: pick the slip target, copy the baseline in the pit, commit the values.
+- **`COAST_LOOKAHEAD_S`:** settle it during the pusher sweep calibration, from the logs of those runs; either find the value there or remove the lookahead.
+- **Flywheel:** only needs the shot map and a `FEED_FORWARD` value, which can be tied to the minimum shot speed.
+- **Intake auto-stop at 4 and the ramp `CLEAR_DISTANCE_IN`:** checked while testing `TeleOp - Competition`. The ramp `TRAVEL_SEC` (0.8 s) was measured by the team.
+
 Then, once 3 and 4 are known, build the pusher check: after a salvo, with the track empty (the counter reports 0), turn the pusher to the CS4 position, look for the arm, and if it is not seen do a slow re-home sweep, check again, and return to HOLD.
 
 ## Values still to write into the code (Phase 5, "final values committed")

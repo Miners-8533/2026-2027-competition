@@ -106,7 +106,7 @@ public final class ChassisProfile {
      * DRAFT_1: drive and pod directions are verified on that chassis, but the pod offsets are NOT yet tuned for this
      * robot. The ramp pair is mirrored: stowed left 1.0 / right 0.0, deployed left 0.0 / right 1.0 (set
      * 2026-10-31 from Ramp Test, ramp seen stowed up at left 1.0 / right 0.0; the servos have no feedback, so
-     * these are commanded values; TRAVEL_SEC is still the unmeasured placeholder). The intake direction was flipped to FORWARD on
+     * these are commanded values; TRAVEL_SEC = 0.8 s was measured by the team). The intake direction was flipped to FORWARD on
      * 2026-10-31 (it ran backwards with REVERSE; not yet re-checked after the flip). The footprint
      * (17 deep x 13.75 wide, ramp stowed) was measured on 2026-10-31. See design/integration-plan.md,
      * Phases 1 and 2. Hub: serial and Android id read over adb.
