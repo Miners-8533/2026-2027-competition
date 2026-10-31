@@ -26,10 +26,10 @@ import java.util.Locale;
  * looks like:
  *   POLLEN       green clearly above blue (green/blue ratio), modest red   (measured about 0.28-0.31 / 0.44-0.51 / 0.18-0.27)
  *   RED NECTAR   red share high and above green                             (measured about 0.40-0.47 / 0.32-0.36 / 0.21-0.24)
- *   BLUE NECTAR  blue share high and above green                            (measured about 0.15 / 0.29 / 0.56)
- *   GATE ARM     CS4 only: bluish, far (5.5 cm or more)                     (measured about 0.23 / 0.38 / 0.39, 6.5 cm)
- *   OTHER        anything else
- * The nectar identities are an inference (the two non-yellow colors seen); confirm them. Presence uses the shift in the
+ *   BLUE NECTAR  blue share high and well above green, little red           (measured about 0.11-0.17 / 0.24-0.37 / 0.45-0.64)
+ *   GATE ARM     CS4 only: far (5.5 cm or more), bluish with green close to blue (measured about 0.23 / 0.38 / 0.39, 6.5 cm)
+ *   OTHER        anything else (partial views at an edge, shadows)
+ * The nectar identities (red and blue alliance nectar) were confirmed by the team. Presence uses the shift in the
  * color shares from the empty baseline first (brightness and distance contrast against a near wall is small), then the
  * alpha ratio and the nearer distance, with hysteresis (separate on / off thresholds) and a debounce, so a pollen near a
  * threshold no longer flickers. All thresholds are in the FTC Dashboard.
@@ -76,10 +76,15 @@ public class ColorSensorsTest extends LinearOpMode {
     public static double POLLEN_MIN_GREEN_OVER_BLUE = 1.65;
     public static double POLLEN_MAX_RED = 0.35;
     public static double RED_NECTAR_MIN_RED = 0.38;
-    public static double BLUE_NECTAR_MIN_BLUE = 0.48;
+    /** Blue nectar: blue share at least this, and at least BLUE_NECTAR_MIN_BLUE_OVER_GREEN above the green share, with little red. */
+    public static double BLUE_NECTAR_MIN_BLUE = 0.44;
+    public static double BLUE_NECTAR_MIN_BLUE_OVER_GREEN = 0.08;
+    public static double BLUE_NECTAR_MAX_RED = 0.25;
+    /** Gate arm (CS4 only): far, bluish, with GREEN CLOSE TO BLUE (about 0.38 / 0.39); a dim blue nectar has blue well above green. */
     public static double ARM_MIN_DIST_CM = 5.5;
     public static double ARM_MIN_BLUE = 0.36;
     public static double ARM_MAX_RED = 0.28;
+    public static double ARM_MAX_GREEN_BLUE_GAP = 0.06;
 
     private static final String[] NAMES = {"CS1", "CS2", "CS3", "CS4"};
     private static final String LOG_TAG = "ColorSensors";
@@ -88,9 +93,10 @@ public class ColorSensorsTest extends LinearOpMode {
 
     /** The class of a present object, from its color shares and distance. */
     static String classify(int sensor, double red, double green, double blue, double distCm) {
-        if (sensor == ARM_SENSOR && distCm >= ARM_MIN_DIST_CM && blue >= ARM_MIN_BLUE && red <= ARM_MAX_RED) return "GATE ARM";
+        if (sensor == ARM_SENSOR && distCm >= ARM_MIN_DIST_CM && blue >= ARM_MIN_BLUE && red <= ARM_MAX_RED
+                && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return "GATE ARM";
         if (red >= RED_NECTAR_MIN_RED && red > green) return "RED NECTAR";
-        if (blue >= BLUE_NECTAR_MIN_BLUE && blue > green) return "BLUE NECTAR";
+        if (blue >= BLUE_NECTAR_MIN_BLUE && blue - green >= BLUE_NECTAR_MIN_BLUE_OVER_GREEN && red <= BLUE_NECTAR_MAX_RED) return "BLUE NECTAR";
         if (green >= POLLEN_MIN_GREEN_OVER_BLUE * blue && red <= POLLEN_MAX_RED) return "POLLEN";
         return "OTHER";
     }
