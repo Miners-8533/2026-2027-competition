@@ -9,6 +9,7 @@ import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
+import org.firstinspires.ftc.teamcode.util.RunLog;
 
 /**
  * Drives the robot to a target field pose and holds it, using three independent PID
@@ -77,6 +78,10 @@ public final class DriveToPose implements Action {
             xCtrl.reset();
             yCtrl.reset();
             hCtrl.reset();
+            Pose2d from = drive.getPose();
+            RunLog.event(String.format("DRIVE start: (%.1f, %.1f, %.0f deg) -> (%.1f, %.1f, %.0f deg)",
+                    from.position.x, from.position.y, from.heading.toDegrees(),
+                    target.position.x, target.position.y, target.heading.toDegrees()));
         }
         applyGains();
 
@@ -118,6 +123,8 @@ public final class DriveToPose implements Action {
 
         if (done) {
             drive.stop();
+            RunLog.event(String.format("DRIVE %s after %.2f s: error %.2f in (x %+.2f, y %+.2f), heading %+.1f deg",
+                    inTolerance ? "settled" : "TIMED OUT", timeout.seconds(), posError, errX, errY, Math.toDegrees(errH)));
         }
         return !done;
     }

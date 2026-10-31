@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
+import org.firstinspires.ftc.teamcode.util.RunLog;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.Actions;
@@ -65,7 +66,10 @@ public class AutonBlueStudents extends LinearOpMode {
     }
 
     private Action note(String message) {
-        return new InstantAction(() -> telemetry.log().add(message));
+        return new InstantAction(() -> {
+            telemetry.log().add(message);
+            RunLog.event("AUTO " + message);
+        });
     }
 
     private Action shoot(String label) {
@@ -78,6 +82,18 @@ public class AutonBlueStudents extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+        RunLog.open(RunLog.Kind.AUTO, "Auton - Blue Students", hardwareMap);
+        try {
+            runAuto();
+        } catch (Throwable t) {
+            RunLog.crash(t);
+            throw t;
+        } finally {
+            RunLog.close();
+        }
+    }
+
+    private void runAuto() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
@@ -112,6 +128,13 @@ public class AutonBlueStudents extends LinearOpMode {
             telemetry.update();
         }
         if (isStopRequested()) return;
+        RunLog.started();
+        RunLog.event(String.format("SETUP profile %s, start pose %.1f, %.1f, %.1f deg", profile.name,
+                drive.getPose().position.x, drive.getPose().position.y, drive.getPose().heading.toDegrees()));
+        RunLog.setSampler("x,y,hdg_deg", 100, () -> {
+            Pose2d p = drive.getPose();
+            return String.format("%.2f,%.2f,%.1f", p.position.x, p.position.y, p.heading.toDegrees());
+        });
 
         Action auto = new SequentialAction(
                 shoot("preload, tip 1"),
@@ -132,6 +155,7 @@ public class AutonBlueStudents extends LinearOpMode {
         );
 
         Actions.runBlocking(this, auto);
+        RunLog.event(isStopRequested() ? "AUTO stopped before it finished" : "AUTO actions finished");
 
         // hand the final pose (and the alliance) to the TeleOp, whether the auto finished or was stopped
         drive.updatePoseEstimate();
@@ -141,6 +165,7 @@ public class AutonBlueStudents extends LinearOpMode {
             drive.updatePoseEstimate();
             Pose2d p = drive.getPose();
             PoseStorage.save(p, true);
+            RunLog.tick();
             telemetry.addLine("Auto complete.");
             telemetry.addData("Final Pinpoint pose (in, in, deg)", "%.2f, %.2f, %.1f",
                     p.position.x, p.position.y, p.heading.toDegrees());

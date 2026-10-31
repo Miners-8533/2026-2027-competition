@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
+import org.firstinspires.ftc.teamcode.util.RunLog;
 
 /** Helpers for running {@link Action}s from a LinearOpMode. */
 public final class Actions {
@@ -32,6 +33,7 @@ public final class Actions {
             TelemetryPacket packet = new TelemetryPacket();
             running = action.run(packet);
             everyLoop.run();
+            RunLog.tick();
             dashboard.sendTelemetryPacket(packet);
         }
     }

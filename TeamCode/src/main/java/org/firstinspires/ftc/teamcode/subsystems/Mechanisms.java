@@ -9,11 +9,13 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
+import org.firstinspires.ftc.teamcode.util.RunLog;
 import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Coordinates the four mechanisms and enforces the cross-actuator rules confirmed in design/mechanisms.md:
@@ -79,6 +81,14 @@ public class Mechanisms {
     private double lastDistance = Double.NaN;
     private double lastSetpoint = 0.0;
 
+    // for the run log
+    private final List<String> prevWarnings = new ArrayList<>();
+    private int prevCount = -1;
+    private Pusher.State prevPusherState = null;
+    private Intake.Mode prevIntakeMode = null;
+    private boolean prevManualOuttake = false;
+    private double salvoMinSpeed = Double.NaN;
+
     public Mechanisms(Intake intake, Flywheel flywheel, Pusher pusher, Ramp ramp) {
         this(intake, flywheel, pusher, ramp, null);
     }
@@ -117,10 +127,15 @@ public class Mechanisms {
     /** Flip the intake on or off (the operator's toggle). A stow leaves it on if it was toggled on. */
     public void toggleIntake() {
         intakeRequested = !intakeRequested;
+        RunLog.event("OPERATOR intake toggle -> " + (intakeRequested ? "ON" : "off") + " (" + heldText() + ")");
     }
 
     public void setManualOuttake(boolean requested) {
         manualOuttake = requested;
+        if (requested != prevManualOuttake) {
+            prevManualOuttake = requested;
+            RunLog.event("OPERATOR manual outtake " + (requested ? "held" : "released"));
+        }
     }
 
     /** Queue a salvo (rule 3). */
@@ -129,9 +144,14 @@ public class Mechanisms {
             notice("Fire ignored: needs the flywheel and the pusher.");
             return;
         }
-        if (fireQueued || salvoActive || rejectActive) return;
+        if (fireQueued || salvoActive || rejectActive) {
+            RunLog.event("OPERATOR fire ignored: " + (fireQueued ? "already queued" : salvoActive ? "salvo running" : "reject running"));
+            return;
+        }
         fireQueued = true;
         fireTimer.reset();
+        RunLog.event(String.format(Locale.US, "OPERATOR fire queued: flywheel %.0f of %.0f ticks/s, %s",
+                flywheel.getFilteredVelocity(), lastSetpoint, heldText()));
     }
 
     /** Start a reject (rule 4). */
@@ -140,25 +160,32 @@ public class Mechanisms {
             notice("Reject ignored: the pusher is missing or not calibrated.");
             return;
         }
-        if (salvoActive || rejectActive || fireQueued || pusher.isStalled()) return;
+        if (salvoActive || rejectActive || fireQueued || pusher.isStalled()) {
+            RunLog.event("OPERATOR reject ignored: " + (pusher.isStalled() ? "pusher stalled" : fireQueued ? "fire queued" : "pusher busy"));
+            return;
+        }
         pusher.startReject();
         rejectActive = true;
+        RunLog.event("OPERATOR reject started (" + heldText() + "): " + pusher.getLastCommand());
     }
 
     public void requestDeploy() {
         if (ramp == null) return;
         stowPending = false;
         ramp.deploy();
+        RunLog.event("OPERATOR ramp deploy");
     }
 
     /** Request a stow (rule 5): done at once if clear of a flower, otherwise remembered until clear. */
     public void requestStow() {
         if (ramp == null) return;
         stowPending = true;
+        RunLog.event("OPERATOR ramp stow requested");
     }
 
     public void toggleSpin() {
         spinRequested = !spinRequested;
+        RunLog.event("OPERATOR flywheel spin -> " + (spinRequested ? "ON" : "off"));
         if (!spinRequested && !fireQueued && !salvoActive) stopScheduled = false;
     }
 
@@ -174,12 +201,14 @@ public class Mechanisms {
     }
 
     public void stopFlywheel() {
+        if (spinRequested) RunLog.event("OPERATOR flywheel stop");
         spinRequested = false;
         stopScheduled = false;
     }
 
     public void adjustManualSetpoint(double delta) {
         manualSetpoint = Math.max(0.0, manualSetpoint + delta);
+        RunLog.event(String.format(Locale.US, "OPERATOR manual setpoint -> %.0f ticks/s", manualSetpoint));
     }
 
     /** Which alliance this is, so the element counter knows which nectar is the opponent's. */
@@ -188,6 +217,7 @@ public class Mechanisms {
     }
 
     public void setOpenCell(HiveTarget cell) {
+        if (cell != openCell) RunLog.event("OPEN CELL -> " + cell);
         openCell = cell;
     }
 
@@ -200,6 +230,7 @@ public class Mechanisms {
     }
 
     public void clearPusherStall() {
+        if (pusher != null && pusher.isStalled()) RunLog.event("OPERATOR cleared the pusher fault");
         if (pusher != null) pusher.clearStall();
     }
 
@@ -222,6 +253,11 @@ public class Mechanisms {
             if (opponentAt > 0) warnings.add("OPPONENT NECTAR at sensor " + opponentAt + " (CS" + opponentAt + "): reject (B)");
         }
 
+        if (counter != null && counter.isValid() && counter.count() != prevCount) {
+            if (prevCount >= 0) RunLog.event("ELEMENTS " + prevCount + " -> " + counter.count() + "  stack " + counter.slotsCompact() + " (CS1..CS4)");
+            prevCount = counter.count();
+        }
+
         lastDistance = openCell.distanceFrom(pose);
         boolean mapAvailable = useShotMap && !ShotMap.isEmpty();
         lastSetpoint = mapAvailable ? ShotMap.velocityFor(lastDistance) : manualSetpoint;
@@ -234,6 +270,7 @@ public class Mechanisms {
                 if (Ramp.isClearOfFlower(pose)) {
                     ramp.stow();
                     stowPending = false;
+                    RunLog.event("RAMP stowing (clear of the flowers)");
                 } else {
                     warnings.add("Stow waiting: robot not clear of a flower yet");
                 }
@@ -247,17 +284,30 @@ public class Mechanisms {
             // finished means stopped, wherever it came to rest: not "within the HOLD tolerance", which a salvo that
             // lands a few degrees past HOLD never satisfies
             boolean pusherIdle = pusher.isStopped();
-            if (rejectActive && pusherIdle) rejectActive = false;
+            if (salvoActive && flywheel != null) salvoMinSpeed = Math.min(salvoMinSpeed, flywheel.getVelocity());
+            if (rejectActive && pusherIdle) {
+                rejectActive = false;
+                RunLog.event("REJECT done: " + pusher.getLastResult() + " | " + pusher.getLastSettle());
+            }
             if (salvoActive && pusherIdle) {
                 salvoActive = false;
+                RunLog.event(String.format(Locale.US, "SALVO done: lowest flywheel speed %.0f ticks/s | %s | %s",
+                        salvoMinSpeed, pusher.getLastResult(), pusher.getLastSettle()));
                 if (autoStopAfterSalvo) {
                     stopScheduled = true;
                     stopTimer.reset();
                 }
             }
             if (pusher.isStalled()) {
+                if (salvoActive || rejectActive) {
+                    RunLog.event("PUSHER STALLED during a " + (salvoActive ? "salvo" : "reject") + ": " + pusher.getLastResult());
+                }
                 salvoActive = false;
                 rejectActive = false;
+            }
+            if (pusher.getState() != prevPusherState) {
+                RunLog.event("PUSHER state " + prevPusherState + " -> " + pusher.getState());
+                prevPusherState = pusher.getState();
             }
         }
 
@@ -274,6 +324,9 @@ public class Mechanisms {
                 if (flywheel.isReady() && pusher.isStopped()) {
                     pusher.startSalvo();
                     salvoActive = true;
+                    salvoMinSpeed = flywheel.getVelocity();
+                    RunLog.event(String.format(Locale.US, "SALVO started: flywheel %.0f of %.0f ticks/s, %s | %s",
+                            flywheel.getFilteredVelocity(), lastSetpoint, heldText(), pusher.getLastCommand()));
                     fireQueued = false;
                     stopScheduled = false;
                 }
@@ -303,16 +356,53 @@ public class Mechanisms {
             if (rejectActive || manualOuttake) mode = Intake.Mode.OUT;
             else if (wantIn && !stopForFull) mode = Intake.Mode.IN;
             intake.setMode(mode);
+            if (mode != prevIntakeMode) {
+                RunLog.event("INTAKE mode " + prevIntakeMode + " -> " + mode);
+                prevIntakeMode = mode;
+            }
         }
 
         if (intake != null) intake.update();
         if (flywheel != null) flywheel.update();
         if (pusher != null) pusher.update();
+
+        for (String w : warnings) if (!prevWarnings.contains(w)) RunLog.event("WARNING " + w);
+        for (String w : prevWarnings) if (!warnings.contains(w)) RunLog.event("WARNING cleared: " + w);
+        prevWarnings.clear();
+        prevWarnings.addAll(warnings);
     }
 
     private void notice(String message) {
+        RunLog.event("NOTICE " + message);
         notice = message;
         noticeTimer.reset();
+    }
+
+    /** For example "3 held (.PRB)". */
+    private String heldText() {
+        return counter == null ? "no element counter" : counter.count() + " held (" + counter.slotsCompact() + ")";
+    }
+
+    /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,fire,warnings";
+
+    /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
+    public String sampleRow() {
+        String fire = fireQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
+        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d",
+                lastSetpoint,
+                flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
+                flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getVelocity()),
+                flywheel == null ? "" : flywheel.isReady(),
+                pusher == null ? "" : pusher.getState(),
+                pusher == null ? "" : String.format(Locale.US, "%.1f", pusher.getAngleDeg()),
+                pusher == null ? "" : String.format(Locale.US, "%.0f", pusher.getVelocityTicksPerSec()),
+                pusher == null ? "" : String.format(Locale.US, "%.2f", pusher.getCurrentAmps()),
+                intake == null ? "" : intake.getMode(),
+                ramp == null ? "" : (ramp.isDeployedTarget() ? "deployed" : "stowed"),
+                counter == null ? "" : counter.count(),
+                counter == null ? "" : counter.slotsCompact(),
+                fire, warnings.size());
     }
 
     public void log(Telemetry telemetry) {

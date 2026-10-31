@@ -277,6 +277,13 @@ public class ElementCounter {
         }
     }
 
+    /** For example ".PRB" (CS1 to CS4; P pollen, R red nectar, B blue nectar, O other, A arm, . empty). */
+    public String slotsCompact() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < N; i++) sb.append(symbol(slot[i]));
+        return sb.toString();
+    }
+
     /** For example "intake > [.] [P] [R] [B] > flywheel". */
     public String stackString() {
         StringBuilder sb = new StringBuilder("intake > ");

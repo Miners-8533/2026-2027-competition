@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
+import org.firstinspires.ftc.teamcode.util.RunLog;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.Actions;
@@ -71,6 +72,18 @@ public class AutonHiveVolley extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+        RunLog.open(RunLog.Kind.AUTO, "Auton - Hive Volley (Blue)", hardwareMap);
+        try {
+            runAuto();
+        } catch (Throwable t) {
+            RunLog.crash(t);
+            throw t;
+        } finally {
+            RunLog.close();
+        }
+    }
+
+    private void runAuto() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
@@ -99,16 +112,30 @@ public class AutonHiveVolley extends LinearOpMode {
             telemetry.update();
         }
         if (isStopRequested()) return;
+        RunLog.started();
+        RunLog.event(String.format("SETUP profile %s, start pose %.1f, %.1f, %.1f deg", profile.name,
+                drive.getPose().position.x, drive.getPose().position.y, drive.getPose().heading.toDegrees()));
+        RunLog.setSampler("x,y,hdg_deg", 100, () -> {
+            Pose2d p = drive.getPose();
+            return String.format("%.2f,%.2f,%.1f", p.position.x, p.position.y, p.heading.toDegrees());
+        });
 
         Action auto = new SequentialAction(
                 new DriveToPose(drive, leavePose),           // LEAVE
-                new InstantAction(() -> telemetry.log().add("Simulated spin-up...")),
+                new InstantAction(() -> {
+                    telemetry.log().add("Simulated spin-up...");
+                    RunLog.event("AUTO simulated spin-up");
+                }),
                 new SleepAction(SPIN_UP_SEC),
-                new InstantAction(() -> telemetry.log().add("Simulated fire x4 (preload -> blue CELL)")),
+                new InstantAction(() -> {
+                    telemetry.log().add("Simulated fire x4 (preload -> blue CELL)");
+                    RunLog.event("AUTO simulated fire x4 (preload -> blue CELL)");
+                }),
                 new SleepAction(FIRE_SEC)
         );
 
         Actions.runBlocking(this, auto);
+        RunLog.event(isStopRequested() ? "AUTO stopped before it finished" : "AUTO actions finished");
 
         // hand the final pose (and the alliance) to the TeleOp, whether the auto finished or was stopped
         drive.updatePoseEstimate();

@@ -441,6 +441,19 @@ public class Pusher {
         }
     }
 
+    /** The last command and how it went, as text (for logs). */
+    public String getLastCommand() {
+        return lastCommand;
+    }
+
+    public String getLastResult() {
+        return lastResult;
+    }
+
+    public String getLastSettle() {
+        return lastSettle;
+    }
+
     public void log(Telemetry telemetry) {
         telemetry.addData("Pusher state", state + (referenceFromSaved ? "   (zero from saved auto reference)" : "   (zero assumed at init)"));
         telemetry.addData("Pusher angle (deg from HOLD)", isCalibrated() ? String.format("%.1f", getAngleDeg()) : "not calibrated (TICKS_PER_REV = 0)");

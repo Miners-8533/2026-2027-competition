@@ -17,6 +17,7 @@ import org.firstinspires.ftc.teamcode.math.Vector2d;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
+import org.firstinspires.ftc.teamcode.util.RunLog;
 
 /**
  * The competition TeleOp: a driver (gamepad 1) drives the chassis FIELD-oriented and an operator (gamepad 2) runs
@@ -50,6 +51,9 @@ import org.firstinspires.ftc.teamcode.subsystems.Pusher;
  *   D-pad left or right  the open CELL is the HIVE's other side (after a tip)
  *   Back                 clear a pusher fault
  *
+ * Log: the run is written to /sdcard/FIRST/runlogs/teleop.log (the one before it to teleop_prev.log; see
+ * {@link RunLog}), so it can be read after the match.
+ *
  * "Away from the driver" is a field direction fixed by the alliance: drivers stand behind their alliance wall, so
  * blue faces -Y (-90 deg) and red faces +Y (+90 deg). If a stick direction is wrong at the field, correct
  * BLUE_DRIVER_FORWARD_DEG / RED_DRIVER_FORWARD_DEG in the Dashboard.
@@ -70,8 +74,13 @@ public class TeleOpCompetition extends LinearOpMode {
     public static double PRECISION_SCALE = 0.30;
     public static double TRIGGER_THRESHOLD = 0.3;
     public static double SETPOINT_STEP = 25.0;
+    /** How often the log writes a sample row (events are written when they happen). */
+    public static long SAMPLE_PERIOD_MS = 100;
 
     private static final double FIELD_HALF_IN = 72.0;
+
+    /** What the driver is commanding and where the robot is, for the log's sample rows. */
+    private double logX, logY, logHeadingDeg, cmdForward, cmdLeft, cmdTurn;
 
     private static boolean assigned(Gamepad gamepad) {
         return gamepad.getGamepadId() != Gamepad.ID_UNASSOCIATED;
@@ -79,6 +88,18 @@ public class TeleOpCompetition extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+        RunLog.open(RunLog.Kind.TELEOP, "TeleOp - Competition", hardwareMap);
+        try {
+            runCompetition();
+        } catch (Throwable t) {
+            RunLog.crash(t);
+            throw t;
+        } finally {
+            RunLog.close();
+        }
+    }
+
+    private void runCompetition() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
@@ -107,6 +128,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.update();
         }
         if (isStopRequested()) return;
+        RunLog.started();
 
         double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
         Pose2d defaultStart = new Pose2d(startX, blue ? START_Y_IN : -START_Y_IN, Math.toRadians(START_HEADING_DEG));
@@ -119,6 +141,17 @@ public class TeleOpCompetition extends LinearOpMode {
         mechanisms.setBlueAlliance(blue);
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
         mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
+
+        RunLog.event(String.format("SETUP profile %s, alliance %s, start pose %s (%.1f, %.1f, %.1f deg), driver forward %.0f deg; %s",
+                profile.name, blue ? "BLUE" : "RED", useAutoPose ? "from the AUTO" : "default",
+                startPose.position.x, startPose.position.y, startPose.heading.toDegrees(), Math.toDegrees(driverForwardRad),
+                mechanisms.describe()));
+        RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + ", gamepad 2 "
+                + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED"));
+        RunLog.setSampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
+                () -> String.format("%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%s", logX, logY, logHeadingDeg, cmdForward, cmdLeft, cmdTurn,
+                        mechanisms.sampleRow()));
+        boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
         boolean prevIntakeTrigger = false;
         boolean backDown = false, reseeded = false;
@@ -138,10 +171,25 @@ public class TeleOpCompetition extends LinearOpMode {
             double fieldY = up * Math.sin(driverForwardRad) + right * Math.sin(driverForwardRad - Math.PI / 2.0);
             double robotForward = fieldX * Math.cos(heading) + fieldY * Math.sin(heading);
             double robotLeft = -fieldX * Math.sin(heading) + fieldY * Math.cos(heading);
-            drive.setDrivePowers(new PoseVelocity2d(new Vector2d(robotForward, robotLeft),
-                    -gamepad1.right_stick_x * TURN_SCALE * scale));
+            cmdForward = robotForward;
+            cmdLeft = robotLeft;
+            cmdTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
+            drive.setDrivePowers(new PoseVelocity2d(new Vector2d(robotForward, robotLeft), cmdTurn));
+            logX = pose.position.x;
+            logY = pose.position.y;
+            logHeadingDeg = pose.heading.toDegrees();
 
-            if (gamepad1.yWasPressed()) drive.setPose(new Pose2d(pose.position, driverForwardRad));
+            if (assigned(gamepad1) != gamepad1Was || assigned(gamepad2) != gamepad2Was) {
+                gamepad1Was = assigned(gamepad1);
+                gamepad2Was = assigned(gamepad2);
+                RunLog.event("GAMEPAD assignment changed: gamepad 1 " + (gamepad1Was ? "assigned" : "NOT ASSIGNED")
+                        + ", gamepad 2 " + (gamepad2Was ? "assigned" : "NOT ASSIGNED"));
+            }
+
+            if (gamepad1.yWasPressed()) {
+                drive.setPose(new Pose2d(pose.position, driverForwardRad));
+                RunLog.event(String.format("DRIVER heading reset: was %.1f deg, now %.1f deg", pose.heading.toDegrees(), Math.toDegrees(driverForwardRad)));
+            }
             if (gamepad1.back) {
                 if (!backDown) {
                     backDown = true;
@@ -151,6 +199,8 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (!reseeded && backHold.seconds() >= RESEED_HOLD_SEC) {
                     drive.setPose(defaultStart);
                     reseeded = true;
+                    RunLog.event(String.format("DRIVER pose reseeded to the default start (was %.1f, %.1f, %.1f deg)",
+                            pose.position.x, pose.position.y, pose.heading.toDegrees()));
                 }
             } else {
                 backDown = false;
@@ -175,6 +225,7 @@ public class TeleOpCompetition extends LinearOpMode {
             if (gamepad2.backWasPressed()) mechanisms.clearPusherStall();
 
             mechanisms.update(pose);
+            RunLog.tick();
 
             telemetry.addData("Alliance", blue ? "BLUE" : "RED");
             telemetry.addData("Pose x / y (in), heading (deg)", "%.1f / %.1f / %.1f",
@@ -192,5 +243,6 @@ public class TeleOpCompetition extends LinearOpMode {
         mechanisms.setManualOuttake(false);
         mechanisms.stopFlywheel();
         mechanisms.update(drive.getPose());
+        RunLog.event("STOPPED by the driver station");
     }
 }
