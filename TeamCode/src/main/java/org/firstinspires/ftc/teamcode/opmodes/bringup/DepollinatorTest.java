@@ -12,17 +12,19 @@ import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 /**
  * Finds the depollinator's servo positions and its travel time. Uses the raw servos, not the Depollinator
  * class, so it works before any position is known. The positions are not known yet, so NOTHING is commanded
- * until you press a jog button, and the first jog snaps that servo to about 0.5 (the 0.5 start plus that
- * press), so keep the ramp and your hands clear and make sure BOTH servos are set to the same mode.
+ * until you press a trigger or a jog button. A trigger snaps both servos to a mirrored end at once, and the
+ * first jog snaps that servo to about 0.5, so keep the ramp and your hands clear and make sure BOTH servos are
+ * set to the same mode.
  *
  *   Left / right bumper   select the left / right servo
  *   D-pad up / down       selected servo +/- 0.01
  *   D-pad left / right    selected servo -/+ 0.05 (coarse)
- *   Left / right trigger  selected servo straight to 0.0 / 1.0 (to see which end is up; ONE servo at a time)
- *   A                   record the selected servo's position as STOWED
- *   B                     record it as DEPLOYED
+ *   Left / right trigger  BOTH servos to a mirrored end: left trigger = (left 0.0, right 1.0), right trigger =
+ *                         (left 1.0, right 0.0), to see which end is up
+ *   A                     record BOTH servos' current positions as STOWED
+ *   B                     record both as DEPLOYED
  *   X / Y                 send both servos to their recorded DEPLOYED / STOWED positions and start a timer
- *                         (needs all four recorded and both servos jogged once)
+ *                         (needs STOWED and DEPLOYED recorded and both servos commanded once)
  *   Options               press when the ramp has stopped moving: records the elapsed time as TRAVEL_SEC
  *
  * Find STOWED with the ramp folded inside the starting cube, DEPLOYED with the ramp lowered to just short
