@@ -1,0 +1,86 @@
+# Hub configuration checklist (ROBOT_1)
+
+Phase 0 of [integration-plan.md](integration-plan.md). The code finds every device **by name** in the Driver Station's active configuration, and the coordinator **silently skips** a mechanism whose name it cannot find. So a misspelled name looks like "the mechanism does nothing", not like an error. This checklist exists to rule that out, and the **Hardware Check** opmode verifies it.
+
+## What is on the hub today
+
+Read over USB from the robot's Control Hub (serial `5462f57f0f18d316`). The only saved configuration is `test.xml` (the old bench setup):
+
+| Hub | Port | Name in `test.xml` | Verdict |
+|---|---|---|---|
+| Expansion Hub 2 | motor 0 | `intake` | keep the name |
+| Expansion Hub 2 | motor 1 | `transport` | **stale**, delete (nothing uses it) |
+| Control Hub | motor 0 | `gate` | keep |
+| Control Hub | motor 1 | `fly_motor_enc` | keep |
+| Control Hub | motor 2 | `fly_follow` | **stale**, the second motor was removed |
+| Control Hub | motor 3 | `rightFront` | keep (only one drive motor present) |
+| Control Hub | servo 0, 2 | `hood`, `stop` | **stale** (last year's), delete |
+| Control Hub | I2C bus 1 | `pinpoint` | keep |
+| Control Hub | I2C bus 0 | `imu` | not used by our code |
+| Ethernet | | `limelight` | **stale**, delete |
+
+**Missing for the robot:** `leftFront`, `leftBack`, `rightBack`, `depolLeft`, `depolRight`.
+
+The old configuration also shows an **Expansion Hub** (address 2). Seven motors (four drive, intake, flywheel, gate) do not fit on one hub, so both hubs are needed.
+
+## Required configuration
+
+Names are case-sensitive and must match exactly.
+
+| Device | Name | Config type | Hub | Port | Notes |
+|---|---|---|---|---|---|
+| Drive, left front | `leftFront` | motor (the actual model) | | | no encoder needed |
+| Drive, left back | `leftBack` | motor | | | |
+| Drive, right front | `rightFront` | motor | | | |
+| Drive, right back | `rightBack` | motor | | | |
+| Odometry | `pinpoint` | goBILDA Pinpoint | Control Hub | I2C bus | needs both pods plugged into the Pinpoint |
+| Intake | `intake` | motor | | | no encoder needed |
+| Flywheel | `fly_motor_enc` | motor | | | **encoder cable plugged in** (the code reads its velocity) |
+| Gate | `gate` | motor, goBILDA 5203 series (26.9:1) | | | **encoder cable plugged in** (position and velocity) |
+| Depollinator, left | `depolLeft` | Servo | | | positional mode, not continuous |
+| Depollinator, right | `depolRight` | Servo | | | same mode as the left one |
+
+`fly_follow` must **not** be configured (the code no longer uses it, and Hardware Check flags it as stale).
+
+### Where to plug things in
+
+- **Keep the latency-sensitive devices on the Control Hub:** the gate and flywheel (their encoder reads set the gate's landing accuracy and the flywheel's speed check) and the Pinpoint. Commands to the Expansion Hub travel over a serial link through the Control Hub, so we expect them to be a little slower. That is unmeasured, so it is a preference, not a rule.
+- This is advice for planning; if the robot is already wired, **record what it is** and move on. Rewire only if Phase 3 shows a loop-time problem.
+
+## Steps on the Driver Station
+
+- [ ] Open **Configure Robot**, create a **New** configuration, and scan/select the **Control Hub Portal** (and the Expansion Hub).
+- [ ] Add each device from the table, with the **exact name** and the type that matches the real part. For the motors, pick the actual model (it sets the encoder metadata; our code runs the motors without the hub's closed-loop modes).
+- [ ] Do **not** carry over the stale entries from `test.xml` (`transport`, `fly_follow`, `hood`, `stop`, `limelight`).
+- [ ] Save it with a clear name (for example `ROBOT_1`) and **activate** it.
+- [ ] Fill in the **Hub** and **Port** columns above, or copy them from Hardware Check (next section), and photograph the wiring.
+
+## Verify (the robot on blocks, nothing moves)
+
+Run each opmode in order. All three only read.
+
+- [ ] **Hardware Check**
+  - `RESULT: all required devices are present`. A `MISSING` or `WRONG TYPE` line names the problem entry.
+  - Every device line shows the hub and port you expected. Copy them into the port table above.
+  - Turn each part **by hand** and watch the encoders: the flywheel by hand changes only `fly_motor_enc`, the gate arm changes only `gate`. If two encoders move together, or the wrong name moves, two cables are crossed.
+  - `pinpoint`: `status READY`, and a loop time of 500-1100 us. `FAULT_*` means a pod is not detected.
+  - Both hubs listed with a battery voltage that makes sense (a charged battery reads about 12-13 V; note it).
+  - The "configured but not used" list is empty (or only holds devices you chose to keep, such as `imu`).
+- [ ] **Chassis Info**: `Matched profile: ROBOT_1` (not "NONE").
+- [ ] **TeleOp - Draft (mechanisms)**, in INIT: the telemetry line `Mechanisms present` reads `intake true, flywheel true, gate true, depollinator true`, and the init screen shows no "no hub registered yet" warning.
+
+## If something is wrong
+
+| Hardware Check says | Likely cause | Fix |
+|---|---|---|
+| `MISSING from the hub configuration` | Typo, wrong case, or the device was never added | Rename it in Configure Robot, save, **re-activate**, re-run |
+| `WRONG TYPE` | A servo configured as a motor (or the reverse), or the Pinpoint as a generic I2C device | Delete the entry and re-add it with the right type |
+| A device is present but the part does nothing | Configured on a different port than the cable | Compare the Hardware Check port with the real cable; move one or the other |
+| Encoder counts do not change for the right part | Encoder cable on the wrong motor port, or unplugged | Re-plug; spinning the part by hand must change only its own name |
+| Pinpoint `FAULT_*` or no response | Pod cable, I2C cable, or wrong bus | Re-seat; check it is on an I2C bus of the Control Hub |
+| An opmode throws `Unrecognized Control Hub` | That hub is not registered in `ChassisProfile` | Run Chassis Info on it and add its id (see integration-plan.md, Phase 0) |
+
+## After it passes
+
+- [ ] Commit the filled-in port table in this file.
+- [ ] Back up the configuration file. Once it is saved on the hub, copy `/sdcard/FIRST/<name>.xml` into the repo (for example `design/hub-config/ROBOT_1.xml`) so a replaced hub can be set up identically. Ask me and I will pull it over USB.

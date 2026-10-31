@@ -46,7 +46,7 @@ These come from reading the code; each one can make a later test fail for a reas
 ## Phase 0: Prepare
 
 - [ ] **Branch.** Create `integration` from `flywheel-bench` (it already contains `main` plus the gate and flywheel work). `main` stays as is until Phase 3 passes. *Pass: `git log` shows the gate and flywheel commits on the branch.*
-- [ ] **Hub configuration.** On the robot's Control Hub, create one configuration with exactly these names (the code looks them up by name):
+- [ ] **Hub configuration.** See [hub-configuration.md](hub-configuration.md) for the step-by-step checklist and the **Hardware Check** opmode that verifies it. On the robot's Control Hub, create one configuration with exactly these names (the code looks them up by name):
 
   | Device | Name | Type |
   |---|---|---|
