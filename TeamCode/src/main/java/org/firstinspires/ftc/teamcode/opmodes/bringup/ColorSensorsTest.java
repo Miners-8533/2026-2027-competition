@@ -47,6 +47,19 @@ import java.util.Locale;
  *   X         read mode: one sensor per loop (default) / all four every loop (to compare the loop time)
  *   Back      clear the baseline
  *
+ * LABELED TEST (to score the classifier): say what is really in front of each sensor, and it compares every reading
+ * with that label. The labels are NOTHING, POLLEN, RED NECTAR, BLUE NECTAR, GATE ARM, OTHER; every sensor starts at NOTHING,
+ * so only the sensor you are testing needs a label.
+ *   D-pad up / down      select a sensor (shown with a > on the LABELS line)
+ *   D-pad left / right   set the selected sensor's label
+ *   Left bumper          set every label to NOTHING
+ *   Y                    start / stop RECORDING: while recording, each reading is scored against its sensor's label, the
+ *                        log is written twice a second with the labels, and the confusion table is logged every
+ *                        SNAPSHOT_SEC and when recording stops
+ *   Right bumper         clear the confusion counts
+ * Set the label AFTER the item is in place and back to NOTHING before it leaves: the debounce makes the classifier lag a
+ * moment, and a wrong label scores a correct answer as an error.
+ *
  * Needs four REV Color Sensor V3 named CS1, CS2, CS3, CS4, each on its own I2C bus (they share an address). Uses the SDK
  * default sensor rate (100 ms refresh), where the distance reading is calibrated. Everything is also written to the robot
  * log (tag ColorSensors): once a second, and at once whenever a sensor's PRESENT state or class changes.
@@ -85,6 +98,15 @@ public class ColorSensorsTest extends LinearOpMode {
     public static double ARM_MIN_BLUE = 0.36;
     public static double ARM_MAX_RED = 0.28;
     public static double ARM_MAX_GREEN_BLUE_GAP = 0.06;
+    /** The arm normally only appears at CS4. For the labeled test it may be held in front of any sensor, and the distance test is off. */
+    public static boolean ARM_ANY_SENSOR = true;
+    public static boolean ARM_REQUIRE_DISTANCE = false;
+    /** While recording, the confusion table is also written to the log this often (seconds). */
+    public static double SNAPSHOT_SEC = 20.0;
+
+    /** What the team says is in front of a sensor (the ground truth), and what the classifier can answer (index 0 = empty / nothing). */
+    private static final String[] CLASSES = {"NOTHING", "POLLEN", "RED NECTAR", "BLUE NECTAR", "GATE ARM", "OTHER"};
+    private static final String[] PREDICTIONS = {"EMPTY", "POLLEN", "RED NECTAR", "BLUE NECTAR", "GATE ARM", "OTHER"};
 
     private static final String[] NAMES = {"CS1", "CS2", "CS3", "CS4"};
     private static final String LOG_TAG = "ColorSensors";
@@ -93,12 +115,55 @@ public class ColorSensorsTest extends LinearOpMode {
 
     /** The class of a present object, from its color shares and distance. */
     static String classify(int sensor, double red, double green, double blue, double distCm) {
-        if (sensor == ARM_SENSOR && distCm >= ARM_MIN_DIST_CM && blue >= ARM_MIN_BLUE && red <= ARM_MAX_RED
-                && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return "GATE ARM";
+        if ((ARM_ANY_SENSOR || sensor == ARM_SENSOR) && (!ARM_REQUIRE_DISTANCE || distCm >= ARM_MIN_DIST_CM)
+                && blue >= ARM_MIN_BLUE && red <= ARM_MAX_RED && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return "GATE ARM";
         if (red >= RED_NECTAR_MIN_RED && red > green) return "RED NECTAR";
         if (blue >= BLUE_NECTAR_MIN_BLUE && blue - green >= BLUE_NECTAR_MIN_BLUE_OVER_GREEN && red <= BLUE_NECTAR_MAX_RED) return "BLUE NECTAR";
         if (green >= POLLEN_MIN_GREEN_OVER_BLUE * blue && red <= POLLEN_MAX_RED) return "POLLEN";
         return "OTHER";
+    }
+
+    /** Index into PREDICTIONS (0 = nothing seen). */
+    private static int predictionIndex(boolean present, String cls) {
+        if (!present) return 0;
+        switch (cls) {
+            case "POLLEN": return 1;
+            case "RED NECTAR": return 2;
+            case "BLUE NECTAR": return 3;
+            case "GATE ARM": return 4;
+            default: return 5;
+        }
+    }
+
+    /** One line per truth class with samples: how the classifier answered, as percentages, over the sensors in {@code sensors}. */
+    private static String confusionLine(int[][][] counts, int truthClass, int[] sensors) {
+        int total = 0;
+        int[] byPrediction = new int[PREDICTIONS.length];
+        for (int s : sensors) {
+            for (int p = 0; p < PREDICTIONS.length; p++) {
+                byPrediction[p] += counts[s][truthClass][p];
+                total += counts[s][truthClass][p];
+            }
+        }
+        if (total == 0) return null;
+        StringBuilder sb = new StringBuilder(String.format(Locale.US, "%d samples -> ", total));
+        for (int p = 0; p < PREDICTIONS.length; p++) {
+            if (byPrediction[p] > 0) sb.append(String.format(Locale.US, "%s %.0f%%  ", PREDICTIONS[p], 100.0 * byPrediction[p] / total));
+        }
+        return sb.toString();
+    }
+
+    private static void logConfusion(int[][][] counts, String reason) {
+        RobotLog.ii(LOG_TAG, "CONFUSION (" + reason + "): truth -> what the classifier said");
+        int[] all = {0, 1, 2, 3};
+        for (int t = 0; t < CLASSES.length; t++) {
+            String line = confusionLine(counts, t, all);
+            if (line != null) RobotLog.ii(LOG_TAG, "CONFUSION   " + CLASSES[t] + " (all sensors): " + line);
+            for (int s = 0; s < N; s++) {
+                String per = confusionLine(counts, t, new int[]{s});
+                if (per != null) RobotLog.ii(LOG_TAG, "CONFUSION     " + CLASSES[t] + " on " + NAMES[s] + ": " + per);
+            }
+        }
     }
 
     private static String symbolFor(String cls) {
@@ -143,6 +208,13 @@ public class ColorSensorsTest extends LinearOpMode {
         Arrays.fill(cls, "-");
         Arrays.fill(lastLoggedState, "");
 
+        // labeled test: what the team says is in front of each sensor, and how the classifier did against it
+        int[] truth = new int[N];                      // index into CLASSES, per sensor; default NOTHING
+        int selected = 0;
+        boolean recording = false;
+        int[][][] counts = new int[N][CLASSES.length][PREDICTIONS.length];
+        ElapsedTime snapshotTimer = new ElapsedTime();
+
         boolean capturing = false;
         ElapsedTime captureTimer = new ElapsedTime();
         ElapsedTime logTimer = new ElapsedTime();
@@ -167,6 +239,26 @@ public class ColorSensorsTest extends LinearOpMode {
                 setLeds(color, led);
             }
             if (gamepad1.xWasPressed()) READ_ONE_PER_LOOP = !READ_ONE_PER_LOOP;
+            if (gamepad1.dpadUpWasPressed()) selected = (selected + N - 1) % N;
+            if (gamepad1.dpadDownWasPressed()) selected = (selected + 1) % N;
+            if (gamepad1.dpadRightWasPressed()) truth[selected] = (truth[selected] + 1) % CLASSES.length;
+            if (gamepad1.dpadLeftWasPressed()) truth[selected] = (truth[selected] + CLASSES.length - 1) % CLASSES.length;
+            if (gamepad1.leftBumperWasPressed()) Arrays.fill(truth, 0);
+            if (gamepad1.rightBumperWasPressed()) {
+                for (int[][] perSensor : counts) for (int[] perTruth : perSensor) Arrays.fill(perTruth, 0);
+                note = "confusion counts cleared";
+            }
+            if (gamepad1.yWasPressed()) {
+                recording = !recording;
+                snapshotTimer.reset();
+                if (recording) {
+                    note = "RECORDING: samples are scored against the labels and the log is written twice a second";
+                    RobotLog.ii(LOG_TAG, "RECORDING STARTED");
+                } else {
+                    note = "recording stopped";
+                    logConfusion(counts, "recording stopped");
+                }
+            }
             if (gamepad1.backWasPressed()) {
                 Arrays.fill(haveBase, false);
                 Arrays.fill(present, false);
@@ -248,7 +340,7 @@ public class ColorSensorsTest extends LinearOpMode {
 
             // state, class and the live display
             int presentCount = 0, pollenCount = 0, redCount = 0, blueCount = 0, otherCount = 0, armCount = 0;
-            boolean logNow = logTimer.milliseconds() > 1000.0;
+            boolean logNow = logTimer.milliseconds() > (recording ? 500.0 : 1000.0);
             StringBuilder logLine = new StringBuilder();
             for (int i = 0; i < N; i++) {
                 if (color[i] == null) {
@@ -275,6 +367,7 @@ public class ColorSensorsTest extends LinearOpMode {
                     if (candidate[i] != present[i] && (now - candidateSince[i]) / 1e6 >= DEBOUNCE_MS) present[i] = candidate[i];
                     cls[i] = present[i] ? classify(i, sr[i], sg[i], sb[i], dist[i]) : "-";
                     state = present[i] ? "PRESENT: " + cls[i] : "empty";
+                    if (recording && readNow[i]) counts[i][truth[i]][predictionIndex(present[i], cls[i])]++;
                     if (present[i]) {
                         presentCount++;
                         switch (cls[i]) {
@@ -292,7 +385,7 @@ public class ColorSensorsTest extends LinearOpMode {
                     }
                 }
                 if (logNow) {
-                    logLine.append(String.format(Locale.US, "%s[%s d%.1f a%.3f s%.2f/%.2f/%.2f] ", NAMES[i],
+                    logLine.append(String.format(Locale.US, "%s[truth %s, said %s, d%.1f a%.3f s%.2f/%.2f/%.2f] ", NAMES[i], CLASSES[truth[i]],
                             !haveBase[i] ? "?" : present[i] ? cls[i] : "-", dist[i], alpha[i], sr[i], sg[i], sb[i]));
                 }
 
@@ -331,10 +424,27 @@ public class ColorSensorsTest extends LinearOpMode {
             telemetry.addData("STACK (. empty, P pollen, R red nectar, B blue nectar, O other, A arm)", stack.toString());
             telemetry.addData("From the flywheel end", "%d in a row (CS4 back toward CS1); next out: %s%s", contiguous, head,
                     elements != contiguous ? String.format(Locale.US, "   GAP: %d element(s) seen but only %d in a row (still moving, or a misread)", elements, contiguous) : "");
+            // the labels, and how the classifier is scoring against them
+            StringBuilder labels = new StringBuilder();
+            for (int i = 0; i < N; i++) {
+                labels.append(i == selected ? ">" : " ").append(NAMES[i]).append("=").append(CLASSES[truth[i]]).append("   ");
+            }
+            telemetry.addData("LABELS (what is really in front; > = selected)", labels.toString());
+            telemetry.addData("Scoring", recording ? "RECORDING (Y stops and logs the table)" : "not recording (Y starts)");
+            int[] allSensors = {0, 1, 2, 3};
+            for (int t = 0; t < CLASSES.length; t++) {
+                String line = confusionLine(counts, t, allSensors);
+                if (line != null) telemetry.addData("   truth " + CLASSES[t], line);
+            }
             telemetry.addData("Note", note);
             telemetry.addData("Read mode / LEDs / loop", "%s / %s / %.1f ms", READ_ONE_PER_LOOP ? "one sensor per loop" : "all four every loop", led ? "on" : "off", loopMs);
-            telemetry.addLine("A baseline (all empty), B LEDs, X read mode, Back clear. Thresholds are in the Dashboard (ColorSensorsTest).");
+            telemetry.addLine("A baseline (all empty), B LEDs, X read mode, Back clear baseline | D-pad up/down pick a sensor, left/right set its label, LB all NOTHING, Y record, RB clear counts");
             telemetry.update();
+
+            if (recording && snapshotTimer.seconds() >= SNAPSHOT_SEC) {
+                snapshotTimer.reset();
+                logConfusion(counts, "snapshot");
+            }
 
             if (logNow) {
                 logTimer.reset();
