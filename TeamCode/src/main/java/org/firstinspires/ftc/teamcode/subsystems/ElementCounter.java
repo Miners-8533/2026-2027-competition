@@ -140,6 +140,12 @@ public class ElementCounter {
         return wasPresent ? !off : on;
     }
 
+    /** True if a reading looks like sensor i's EMPTY baseline: nothing in the track in front of it, and the lighting as measured (for the pit check). */
+    public static boolean looksEmpty(int sensor, double shareR, double shareG, double shareB, double alpha, double dist) {
+        return !presenceNext(false, shareR, shareG, shareB, alpha, dist,
+                BASE_SHARES[sensor][0], BASE_SHARES[sensor][1], BASE_SHARES[sensor][2], BASE_ALPHA[sensor], BASE_DIST[sensor]);
+    }
+
     /** What a PRESENT object is, from its color shares (and distance, for the arm). */
     public static Slot classify(int sensor, double red, double green, double blue, double distCm) {
         if ((ARM_ANY_SENSOR || sensor == ARM_SENSOR) && (!ARM_REQUIRE_DISTANCE || distCm >= ARM_MIN_DIST_CM)

@@ -38,7 +38,7 @@ Work that is deliberately not scheduled yet. Each one is a runnable checklist; r
 | 6 | **Commit the tuned pusher, flywheel and ramp values** (see the list below) | TeleOp | read them from the Dashboard after a tuned run and write them into the code |
 
 **Decided 2026-10-31 (code review):**
-- **Flywheel reversed-encoder fault removed.** Wiring and sign problems belong to a **pit check opmode** (to be built; it should exercise each mechanism briefly, with the robot on blocks, and report encoder signs, directions and sensor readings). Hardware Check is read-only and covers presence only.
+- **Flywheel reversed-encoder fault removed.** Wiring and sign problems belong to the **pit check opmode** (built 2026-11-01, see [pit-check.md](pit-check.md); not yet run on the robot). Hardware Check is read-only and covers presence only.
 - **Pinpoint reset moved to INIT** in TeleOp - Competition, like the autos; the INIT screen shows the Pinpoint status and pose check, the mechanisms found and whether the element counter is reading.
 - **Pusher zero:** TeleOp keeps trusting the saved zero (`CONTINUE`) until the dynamic pusher check (CS4 sees the arm) exists, which will catch a wrong zero.
 - **Open question:** `Pusher.hold()` (Shot Test LB, `holdAction`) turns nearly a full turn forward when the arm rests more than 8 deg past HOLD, which fires the stack; the team is thinking about it.

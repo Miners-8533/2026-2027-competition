@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * A log file of the last auto and the last TeleOp, for looking at after the match (copy it off the hub with
- * {@code adb pull /sdcard/FIRST/runlogs}). One run of each kind is kept as {@code auto.log} / {@code teleop.log}; the
+ * {@code adb pull /sdcard/FIRST/runlogs}). One run of each kind (auto, teleop, pitcheck) is kept as {@code auto.log} / {@code teleop.log}; the
  * run before it is kept as {@code auto_prev.log} / {@code teleop_prev.log}. Starting an opmode rotates the files, so
  * the auto and the TeleOp never touch each other's, and an opmode that crashes and is started again leaves the crash
  * in {@code *_prev.log} and the rest of the run in {@code *.log}. The only run that is discarded is one that was
@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 public final class RunLog {
 
     public enum Kind {
-        AUTO("auto"), TELEOP("teleop");
+        AUTO("auto"), TELEOP("teleop"), PITCHECK("pitcheck");
 
         final String baseName;
 
