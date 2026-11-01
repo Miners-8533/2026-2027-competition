@@ -131,14 +131,14 @@ public class Mechanisms {
     /** Flip the intake on or off (the operator's toggle). A stow leaves it on if it was toggled on. */
     public void toggleIntake() {
         intakeRequested = !intakeRequested;
-        RunLog.event("OPERATOR intake toggle -> " + (intakeRequested ? "ON" : "off") + " (" + heldText() + ")");
+        RunLog.event("COMMAND intake toggle -> " + (intakeRequested ? "ON" : "off") + " (" + heldText() + ")");
     }
 
     public void setManualOuttake(boolean requested) {
         manualOuttake = requested;
         if (requested != prevManualOuttake) {
             prevManualOuttake = requested;
-            RunLog.event("OPERATOR manual outtake " + (requested ? "held" : "released"));
+            RunLog.event("COMMAND manual outtake " + (requested ? "held" : "released"));
         }
     }
 
@@ -149,12 +149,12 @@ public class Mechanisms {
             return;
         }
         if (fireQueued || salvoActive || rejectActive) {
-            RunLog.event("OPERATOR fire ignored: " + (fireQueued ? "already queued" : salvoActive ? "salvo running" : "reject running"));
+            RunLog.event("COMMAND fire ignored: " + (fireQueued ? "already queued" : salvoActive ? "salvo running" : "reject running"));
             return;
         }
         fireQueued = true;
         fireTimer.reset();
-        RunLog.event(String.format(Locale.US, "OPERATOR fire queued: flywheel %.0f of %.0f ticks/s, %s",
+        RunLog.event(String.format(Locale.US, "COMMAND fire queued: flywheel %.0f of %.0f ticks/s, %s",
                 flywheel.getFilteredVelocity(), lastSetpoint, heldText()));
     }
 
@@ -165,31 +165,42 @@ public class Mechanisms {
             return;
         }
         if (salvoActive || rejectActive || fireQueued || pusher.isStalled()) {
-            RunLog.event("OPERATOR reject ignored: " + (pusher.isStalled() ? "pusher stalled" : fireQueued ? "fire queued" : "pusher busy"));
+            RunLog.event("COMMAND reject ignored: " + (pusher.isStalled() ? "pusher stalled" : fireQueued ? "fire queued" : "pusher busy"));
             return;
         }
         pusher.startReject();
         rejectActive = true;
-        RunLog.event("OPERATOR reject started (" + heldText() + "): " + pusher.getLastCommand());
+        RunLog.event("COMMAND reject started (" + heldText() + "): " + pusher.getLastCommand());
     }
 
     public void requestDeploy() {
         if (ramp == null) return;
         stowPending = false;
         ramp.deploy();
-        RunLog.event("OPERATOR ramp deploy");
+        RunLog.event("COMMAND ramp deploy");
     }
 
     /** Request a stow (rule 5): done at once if clear of a flower, otherwise remembered until clear. */
     public void requestStow() {
         if (ramp == null) return;
         stowPending = true;
-        RunLog.event("OPERATOR ramp stow requested");
+        RunLog.event("COMMAND ramp stow requested");
+    }
+
+    /**
+     * Stow at once, without waiting for the pose to show the robot is clear of a flower. For an auto whose path guarantees
+     * the ramp is clear when it calls this (the operator's stow, {@link #requestStow}, checks the pose instead).
+     */
+    public void requestStowNow() {
+        if (ramp == null) return;
+        stowPending = false;
+        ramp.stow();
+        RunLog.event("COMMAND ramp stow now (no flower check)");
     }
 
     public void toggleSpin() {
         spinRequested = !spinRequested;
-        RunLog.event("OPERATOR flywheel spin -> " + (spinRequested ? "ON" : "off"));
+        RunLog.event("COMMAND flywheel spin -> " + (spinRequested ? "ON" : "off"));
         if (!spinRequested && !fireQueued && !salvoActive) stopScheduled = false;
     }
 
@@ -205,14 +216,14 @@ public class Mechanisms {
     }
 
     public void stopFlywheel() {
-        if (spinRequested) RunLog.event("OPERATOR flywheel stop");
+        if (spinRequested) RunLog.event("COMMAND flywheel stop");
         spinRequested = false;
         stopScheduled = false;
     }
 
     public void adjustManualSetpoint(double delta) {
         manualSetpoint = Math.max(0.0, manualSetpoint + delta);
-        RunLog.event(String.format(Locale.US, "OPERATOR manual setpoint -> %.0f ticks/s", manualSetpoint));
+        RunLog.event(String.format(Locale.US, "COMMAND manual setpoint -> %.0f ticks/s", manualSetpoint));
     }
 
     /** Which alliance this is, so the element counter knows which nectar is the opponent's. */
@@ -263,7 +274,7 @@ public class Mechanisms {
     }
 
     public void clearPusherStall() {
-        if (pusher != null && pusher.isStalled()) RunLog.event("OPERATOR cleared the pusher fault");
+        if (pusher != null && pusher.isStalled()) RunLog.event("COMMAND cleared the pusher fault");
         if (pusher != null) pusher.clearStall();
     }
 
@@ -512,6 +523,22 @@ public class Mechanisms {
                 if (!started) {
                     started = true;
                     requestDeploy();
+                }
+                return ramp != null && ramp.isConfigured() && !ramp.isSettled();
+            }
+        };
+    }
+
+    /** Action: stow the ramp at once, with no flower check (the path must already be clear), and finish once it has settled. */
+    public Action stowNow() {
+        return new Action() {
+            private boolean started = false;
+
+            @Override
+            public boolean run(TelemetryPacket packet) {
+                if (!started) {
+                    started = true;
+                    requestStowNow();
                 }
                 return ramp != null && ramp.isConfigured() && !ramp.isSettled();
             }

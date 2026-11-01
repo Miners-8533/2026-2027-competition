@@ -19,10 +19,15 @@ import org.firstinspires.ftc.teamcode.motion.DriveToPose;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
 import org.firstinspires.ftc.teamcode.motion.SequentialAction;
 import org.firstinspires.ftc.teamcode.motion.SleepAction;
+import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
+import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
+import org.firstinspires.ftc.teamcode.subsystems.Pusher;
+
+import java.util.Locale;
 
 /**
- * Solo Blue auto designed by the students. No launcher or intake exists on this chassis yet,
- * so shots and intake are simulated (log line + sleep); the driving is real.
+ * Solo Blue auto designed by the students. The shots, the intake and the ramp are the real mechanisms (the
+ * {@link Mechanisms} coordinator, updated every loop). The flywheel spins from Start; a salvo fires as soon as it is ready.
  *
  * Plan, in field coordinates (origin at field center, X toward the audience, Y toward the
  * Blue Wall, heading 0 = +X, counterclockwise positive):
@@ -39,6 +44,12 @@ import org.firstinspires.ftc.teamcode.motion.SleepAction;
  *   6. Drive to (51, 24), intake ON, drive to (59, 24) facing 180 deg at the audience-wall
  *      FLOWER, intake OFF, collecting its 4 POLLEN.
  *   7. Back to the shooting spot, shoot 4 again (8 equivalents in the cell, tip 2). End.
+ *
+ * Mechanisms: the intake stops by itself at 4 elements (the element counter). The ramp is deployed on the way to the
+ * flower (deploying turns the intake on) and stowed at the shooting spot, which the path puts clear of the flower, without
+ * the pose check the operator's stow uses. The open CELL is set to the rear side for the first volley and the audience
+ * side after the first tip. The pusher is assumed to be at HOLD at INIT (so it must be, at power-on) and keeps that zero
+ * for the TeleOp.
  *
  * Wall-touching coordinates come from the chassis profile's robot depth: a robot of depth D
  * touching a wall has its center D/2 from it, so "rear wall" is X = -(72 - D/2) and the corner
@@ -58,8 +69,8 @@ public class AutonBlueStudents extends LinearOpMode {
     public static double TURN_CLEARANCE_IN = 0.0;
     public static double GARDEN_HEADING_DEG = -90.0;   // back intake leads toward +Y; 90 = shooter end leads
 
-    public static double SPIN_UP_SEC = 1.5;
-    public static double FIRE_SEC = 1.0;
+    /** Seconds to keep driving the intake in after reaching the flower, before leaving. */
+    public static double FLOWER_DWELL_SEC = 0.8;
 
     private static Pose2d pose(double x, double y, double headingDeg) {
         return new Pose2d(x, y, Math.toRadians(headingDeg));
@@ -72,12 +83,10 @@ public class AutonBlueStudents extends LinearOpMode {
         });
     }
 
-    private Action shoot(String label) {
+    private Action shoot(Mechanisms mechanisms, String label) {
         return new SequentialAction(
-                note("Simulated spin-up: " + label),
-                new SleepAction(SPIN_UP_SEC),
-                note("Simulated fire x4: " + label),
-                new SleepAction(FIRE_SEC));
+                note("Fire: " + label),
+                mechanisms.fire());
     }
 
     @Override
@@ -110,9 +119,11 @@ public class AutonBlueStudents extends LinearOpMode {
 
         MecanumDrive drive = new MecanumDrive(hardwareMap, start);
         PinpointLocalizer loc = (PinpointLocalizer) drive.localizer;
+        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.ASSUME_AT_HOLD);
 
         while (!isStarted() && !isStopRequested()) {
             drive.updatePoseEstimate();
+            if (mechanisms.counter != null) mechanisms.counter.update();   // reads only; nothing moves in INIT
             Pose2d p = drive.getPose();
             boolean poseOk = loc.seedConfirmed
                     && Math.hypot(p.position.x - start.position.x, p.position.y - start.position.y) < 1.5
@@ -124,6 +135,10 @@ public class AutonBlueStudents extends LinearOpMode {
                     p.position.x, p.position.y, p.heading.toDegrees());
             telemetry.addData("Expected start pose", "%.2f, %.2f, %.1f",
                     start.position.x, start.position.y, start.heading.toDegrees());
+            telemetry.addData("Mechanisms present", mechanisms.describe());
+            telemetry.addData("Preload", mechanisms.counter == null ? "no element counter"
+                    : mechanisms.counter.isValid() ? mechanisms.counter.count() + " elements seen (expect 4)   " + mechanisms.counter.stackString()
+                    : "counter NOT READING");
             telemetry.addLine(poseOk ? "Pose OK." : "WARNING: Pinpoint pose does not match the start pose. Do NOT start; restart the opmode.");
             telemetry.update();
         }
@@ -131,30 +146,41 @@ public class AutonBlueStudents extends LinearOpMode {
         RunLog.started();
         RunLog.event(String.format("SETUP profile %s, start pose %.1f, %.1f, %.1f deg", profile.name,
                 drive.getPose().position.x, drive.getPose().position.y, drive.getPose().heading.toDegrees()));
-        RunLog.setSampler("x,y,hdg_deg", 100, () -> {
+        RunLog.setSampler("x,y,hdg_deg," + Mechanisms.SAMPLE_COLUMNS, 100, () -> {
             Pose2d p = drive.getPose();
-            return String.format("%.2f,%.2f,%.1f", p.position.x, p.position.y, p.heading.toDegrees());
+            return String.format(Locale.US, "%.2f,%.2f,%.1f,%s", p.position.x, p.position.y, p.heading.toDegrees(), mechanisms.sampleRow());
         });
 
+        mechanisms.setBlueAlliance(true);
+        mechanisms.setOpenCell(HiveTarget.BLUE_REAR);   // as staged; the first tip flips it
+        mechanisms.setAutoStopAfterSalvo(false);        // the flywheel stays up for the next volley ...
+        mechanisms.setSpinRequested(true);              // ... and spins from Start so the first volley fires at once
+
         Action auto = new SequentialAction(
-                shoot("preload, tip 1"),
+                shoot(mechanisms, "preload, tip 1"),
                 new DriveToPose(drive, facingBlue),
                 new DriveToPose(drive, gardenStart),
                 note("Intake ON: blue garden"),
+                mechanisms.setIntake(true),
                 new DriveToPose(drive, gardenEnd),
                 note("Intake OFF"),
+                mechanisms.setIntake(false),
                 new DriveToPose(drive, clearOfHive),
+                new InstantAction(() -> mechanisms.setOpenCell(HiveTarget.BLUE_AUDIENCE)),   // the tip flipped the cell
                 new DriveToPose(drive, shootSpot),
-                shoot("volley 2"),
+                shoot(mechanisms, "volley 2"),
+                new InstantAction(mechanisms::requestDeploy),   // deploys while driving; deploying turns the intake on
                 new DriveToPose(drive, flowerNear),
-                note("Intake ON: flower"),
+                note("Ramp deployed, intake ON: flower"),
                 new DriveToPose(drive, flowerAt),
-                note("Intake OFF"),
+                new SleepAction(FLOWER_DWELL_SEC),
+                note("Leaving the flower"),
                 new DriveToPose(drive, shootSpot),
-                shoot("volley 3, tip 2")
+                mechanisms.stowNow(),
+                shoot(mechanisms, "volley 3, tip 2")
         );
 
-        Actions.runBlocking(this, auto);
+        Actions.runBlocking(this, auto, () -> mechanisms.update(drive.getPose()));
         RunLog.event(isStopRequested() ? "AUTO stopped before it finished" : "AUTO actions finished");
 
         // hand the final pose (and the alliance) to the TeleOp, whether the auto finished or was stopped
@@ -165,6 +191,7 @@ public class AutonBlueStudents extends LinearOpMode {
             drive.updatePoseEstimate();
             Pose2d p = drive.getPose();
             PoseStorage.save(p, true);
+            mechanisms.update(p);
             RunLog.tick();
             telemetry.addLine("Auto complete.");
             telemetry.addData("Final Pinpoint pose (in, in, deg)", "%.2f, %.2f, %.1f",

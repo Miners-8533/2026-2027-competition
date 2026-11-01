@@ -18,13 +18,16 @@ import org.firstinspires.ftc.teamcode.motion.Actions;
 import org.firstinspires.ftc.teamcode.motion.DriveToPose;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
 import org.firstinspires.ftc.teamcode.motion.SequentialAction;
-import org.firstinspires.ftc.teamcode.motion.SleepAction;
+import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
+import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
+import org.firstinspires.ftc.teamcode.subsystems.Pusher;
+
+import java.util.Locale;
 
 /**
- * Rudimentary BIOBUZZ auto: drive off the wall (LEAVE), then stand in for a launch
- * volley with sleeps (no launcher/intake exists on this chassis yet - see the separate
- * {@code shooter-prototype} branch). Assumes the eventual launcher can make the first
- * shot from the starting position itself - no approach-to-the-HIVE drive needed.
+ * Rudimentary BIOBUZZ auto: drive off the wall (LEAVE), then fire the preload with the real flywheel and pusher (the
+ * {@link Mechanisms} coordinator, updated every loop; the flywheel spins from Start). Assumes the launcher can make the first
+ * shot from near the starting position itself - no approach-to-the-HIVE drive needed.
  * Drivetrain + sequencing only; this is a bring-up test for {@link DriveToPose} as much
  * as it is a real auto skeleton.
  *
@@ -66,10 +69,6 @@ public class AutonHiveVolley extends LinearOpMode {
     // --- tunable waypoint (placeholder - re-tune once there's real field/robot access) ---
     public static double LEAVE_DISTANCE_IN = 6.0;     // just enough to clear the perimeter wall
 
-    // --- simulated volley timing (placeholders, stand in for a real launcher) ---
-    public static double SPIN_UP_SEC = 1.5;
-    public static double FIRE_SEC = 1.0;
-
     @Override
     public void runOpMode() {
         RunLog.open(RunLog.Kind.AUTO, "Auton - Hive Volley (Blue)", hardwareMap);
@@ -95,8 +94,10 @@ public class AutonHiveVolley extends LinearOpMode {
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
 
         PinpointLocalizer loc = (PinpointLocalizer) drive.localizer;
+        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.ASSUME_AT_HOLD);
         while (!isStarted() && !isStopRequested()) {
             drive.updatePoseEstimate();
+            if (mechanisms.counter != null) mechanisms.counter.update();   // reads only; nothing moves in INIT
             Pose2d p = drive.getPose();
             boolean poseOk = loc.seedConfirmed
                     && Math.hypot(p.position.x - startPose.position.x, p.position.y - startPose.position.y) < 1.5
@@ -108,6 +109,10 @@ public class AutonHiveVolley extends LinearOpMode {
                     p.position.x, p.position.y, p.heading.toDegrees());
             telemetry.addData("Expected start pose", "%.2f, %.2f, %.1f",
                     startPose.position.x, startPose.position.y, startPose.heading.toDegrees());
+            telemetry.addData("Mechanisms present", mechanisms.describe());
+            telemetry.addData("Preload", mechanisms.counter == null ? "no element counter"
+                    : mechanisms.counter.isValid() ? mechanisms.counter.count() + " elements seen (expect 4)   " + mechanisms.counter.stackString()
+                    : "counter NOT READING");
             telemetry.addLine(poseOk ? "Pose OK." : "WARNING: Pinpoint pose does not match the start pose. Do NOT start; restart the opmode.");
             telemetry.update();
         }
@@ -115,26 +120,26 @@ public class AutonHiveVolley extends LinearOpMode {
         RunLog.started();
         RunLog.event(String.format("SETUP profile %s, start pose %.1f, %.1f, %.1f deg", profile.name,
                 drive.getPose().position.x, drive.getPose().position.y, drive.getPose().heading.toDegrees()));
-        RunLog.setSampler("x,y,hdg_deg", 100, () -> {
+        RunLog.setSampler("x,y,hdg_deg," + Mechanisms.SAMPLE_COLUMNS, 100, () -> {
             Pose2d p = drive.getPose();
-            return String.format("%.2f,%.2f,%.1f", p.position.x, p.position.y, p.heading.toDegrees());
+            return String.format(Locale.US, "%.2f,%.2f,%.1f,%s", p.position.x, p.position.y, p.heading.toDegrees(), mechanisms.sampleRow());
         });
+
+        mechanisms.setBlueAlliance(true);
+        mechanisms.setOpenCell(HiveTarget.BLUE_REAR);   // as staged
+        mechanisms.setAutoStopAfterSalvo(false);
+        mechanisms.setSpinRequested(true);              // spins from Start so the volley fires as soon as the robot is in place
 
         Action auto = new SequentialAction(
                 new DriveToPose(drive, leavePose),           // LEAVE
                 new InstantAction(() -> {
-                    telemetry.log().add("Simulated spin-up...");
-                    RunLog.event("AUTO simulated spin-up");
+                    telemetry.log().add("Fire: preload -> blue CELL");
+                    RunLog.event("AUTO fire: preload -> blue CELL");
                 }),
-                new SleepAction(SPIN_UP_SEC),
-                new InstantAction(() -> {
-                    telemetry.log().add("Simulated fire x4 (preload -> blue CELL)");
-                    RunLog.event("AUTO simulated fire x4 (preload -> blue CELL)");
-                }),
-                new SleepAction(FIRE_SEC)
+                mechanisms.fire()
         );
 
-        Actions.runBlocking(this, auto);
+        Actions.runBlocking(this, auto, () -> mechanisms.update(drive.getPose()));
         RunLog.event(isStopRequested() ? "AUTO stopped before it finished" : "AUTO actions finished");
 
         // hand the final pose (and the alliance) to the TeleOp, whether the auto finished or was stopped
