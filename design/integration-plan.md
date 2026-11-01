@@ -2,6 +2,8 @@
 
 How we take the assembled robot from "everything is bolted on" to "match ready". Every item is a checkbox with a pass criterion; record the measured numbers in the **Record sheet** at the end and commit them after each phase.
 
+The day-of sequence, in order, is in [robot-day-runbook.md](robot-day-runbook.md).
+
 Ground rules
 - **One change at a time**, then re-test. Commit after each phase passes (`integration` branch, see Phase 0).
 - **Wheels off the floor** (robot on blocks) for every first run of a mechanism or drive change. The **pusher has no hard stops** and the **flywheel is exposed**: hands and cables clear, eyes protected.
