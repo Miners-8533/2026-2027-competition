@@ -60,8 +60,9 @@ import java.util.Locale;
  *   Back                 clear a pusher fault
  *
  * OVERRIDES, for when a sensor fails in a match (each press toggles; the screen and the log say what is on):
- *   gamepad 1 left stick button    drive robot-oriented (stick up = robot forward), ignoring the heading
- *   gamepad 1 right stick button   ignore the pose: a ramp stow request is carried out without the flower check
+ *   gamepad 1: hold left bumper + X   drive robot-oriented (stick up = robot forward), ignoring the heading
+ *   gamepad 1: hold left bumper + B   ignore the pose: a ramp stow request is carried out without the flower check
+ *   (the driver has no stick-button or Start controls, so nothing can be set off by accident; the left bumper is a guard)
  *   gamepad 2 left stick button    ignore the element counter: no 4-element stop, no element warnings
  *   gamepad 2 right stick button   flywheel open loop: power from the target, ready after a timer, speed sensor ignored
  *
@@ -241,11 +242,13 @@ public class TeleOpCompetition extends LinearOpMode {
                         + ", gamepad 2 " + (gamepad2Was ? "assigned" : "NOT ASSIGNED"));
             }
 
-            if (gamepad1.leftStickButtonWasPressed()) {
+            // read both edges every loop so a press made without the guard cannot trigger an override later
+            boolean overrideDrive = gamepad1.xWasPressed(), overridePose = gamepad1.bWasPressed();
+            if (gamepad1.left_bumper && overrideDrive) {
                 fieldOriented = !fieldOriented;
                 RunLog.event("OVERRIDE drive " + (fieldOriented ? "FIELD-oriented" : "ROBOT-oriented (heading ignored)"));
             }
-            if (gamepad1.rightStickButtonWasPressed()) mechanisms.togglePoseOverride();
+            if (gamepad1.left_bumper && overridePose) mechanisms.togglePoseOverride();
             if (gamepad2.leftStickButtonWasPressed()) mechanisms.toggleCounterOverride();
             if (gamepad2.rightStickButtonWasPressed()) mechanisms.toggleFlywheelOpenLoop();
 
@@ -300,7 +303,7 @@ public class TeleOpCompetition extends LinearOpMode {
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, RB precision, Y reset heading (face away first), Back held = reseed");
             telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad speed / cell, Back clear pusher fault");
-            telemetry.addLine("OVERRIDES (press again to undo): GP1 L3 robot-oriented drive, GP1 R3 ignore pose (ramp stow), GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
+            telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP1 hold LB + B ignore pose (ramp stow), GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();
         }
         drive.stop();

@@ -306,7 +306,7 @@ public class Mechanisms {
         // rule 5: remembered stow
         if (ramp != null) {
             if (!ramp.isConfigured()) warnings.add("Ramp positions not measured: it will not move");
-            if (poseOverride) warnings.add("POSE OVERRIDE (driver R3): the ramp stows without the flower check");
+            if (poseOverride) warnings.add("POSE OVERRIDE (driver LB + B): the ramp stows without the flower check");
             if (stowPending) {
                 if (poseOverride || Ramp.isClearOfFlower(pose)) {
                     ramp.stow();
