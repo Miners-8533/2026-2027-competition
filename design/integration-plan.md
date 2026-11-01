@@ -41,6 +41,8 @@ Work that is deliberately not scheduled yet. Each one is a runnable checklist; r
 
 **Measured 2026-11-01 (item 3, Pusher Sensor Matrix on `ROBOT_1`, two runs):** the arm is seen at about **328 deg ahead of the mark at zero speed (about 32 deg BEHIND the mark)**, arc about 28 deg wide (about 314-342 deg). The center shifts about 15 ms of sensor delay with speed (329.7 / 333.3 / 339.5 deg at powers 0.15 / 0.3 / 0.6). Within a run the center spread is 0.14-0.9 deg, and two runs 21 turns apart agree within 0.6 deg, so `TICKS_PER_REV` 751.8 holds to about 0.03 deg per turn and there was no belt slip. **Not as expected** (about 90 deg ahead of HOLD): confirm the mark was at the true HOLD. HOLD placement by eye was not re-tested (one A mark only).
 
+**Item 4 answered 2026-11-01:** the pusher pulley has 20 teeth, so one skipped tooth is **18 deg** of pusher rotation, wider than the arc's +/-14 deg half-width. A parked check at the arc center therefore catches a one-tooth slip as 'arm not seen' (parked, the default sensor rate is enough), and slips come in 18 deg steps, so a re-home can round the measured offset to a multiple of 18.
+
 **Decided 2026-10-31 (code review):**
 - **Flywheel reversed-encoder fault removed.** Wiring and sign problems belong to the **pit check opmode** (built 2026-11-01, see [pit-check.md](pit-check.md); not yet run on the robot). Hardware Check is read-only and covers presence only.
 - **Pinpoint reset moved to INIT** in TeleOp - Competition, like the autos; the INIT screen shows the Pinpoint status and pose check, the mechanisms found and whether the element counter is reading.
