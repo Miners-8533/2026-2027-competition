@@ -37,6 +37,13 @@ Work that is deliberately not scheduled yet. Each one is a runnable checklist; r
 | 5 | **Element counter baseline** in the pit: the empty readings depend on lighting | TeleOp (the 4-element stop) | Color Sensors Test: track empty, **A**, then copy the BASELINE log line into the table in `ElementCounter` |
 | 6 | **Commit the tuned pusher, flywheel and ramp values** (see the list below) | TeleOp | read them from the Dashboard after a tuned run and write them into the code |
 
+**Decided 2026-10-31 (code review):**
+- **Flywheel reversed-encoder fault removed.** Wiring and sign problems belong to a **pit check opmode** (to be built; it should exercise each mechanism briefly, with the robot on blocks, and report encoder signs, directions and sensor readings). Hardware Check is read-only and covers presence only.
+- **Pinpoint reset moved to INIT** in TeleOp - Competition, like the autos; the INIT screen shows the Pinpoint status and pose check, the mechanisms found and whether the element counter is reading.
+- **Pusher zero:** TeleOp keeps trusting the saved zero (`CONTINUE`) until the dynamic pusher check (CS4 sees the arm) exists, which will catch a wrong zero.
+- **Open question:** `Pusher.hold()` (Shot Test LB, `holdAction`) turns nearly a full turn forward when the arm rests more than 8 deg past HOLD, which fires the stack; the team is thinking about it.
+- **Overrides for sensor failures** are built into TeleOp - Competition (see the F2 row); to be tested on the robot.
+
 **Decided 2026-10-31 (no dedicated opmodes for these):**
 - Items 4, 5 and 6 are small tasks, not opmodes: pick the slip target, copy the baseline in the pit, commit the values.
 - **`COAST_LOOKAHEAD_S`:** settle it during the pusher sweep calibration, from the logs of those runs; either find the value there or remove the lookahead.
@@ -193,7 +200,7 @@ Run **TeleOp - Competition**. Each row passes three times in a row.
 | C4 | Put the opponent's nectar in (red on blue alliance, or the reverse) | A warning names the sensor (CS1 to CS4) and no automatic action follows |
 | C5 | Look at the loop time with the counter on | The added cost is one sensor read (about 13 ms) every 40 ms; note the loop ms and re-check the pusher landing |
 | F1 | Pusher fault (Back clears) | Warning shown, salvos blocked until cleared, clears cleanly |
-| F2 | Flywheel encoder fault | Flywheel stops with a message; clears with Back |
+| F2 | Overrides (each press toggles): operator L3 (element counter), operator R3 (flywheel open loop), driver L3 (robot-oriented drive), driver R3 (ignore pose for the ramp stow) | Each shows on the screen and as an `OVERRIDE` event in the log. With the counter overridden the intake does not stop at 4. In open loop the flywheel still reaches a usable speed (compare the `fly_vel` column) and Fire waits about 1.5 s. Robot-oriented drive ignores the heading. Pressing again restores the sensor-based behavior |
 | F3 | Remove a mechanism from the hub configuration (for example the ramp) | Coordinator keeps running with that mechanism skipped |
 | D1 | Drive while firing | Pose stays correct, mechanisms respond, no lockups |
 | D2 | Open-cell switch (D-pad left/right) after a tip | Distance and setpoint now aim at the other side's cell |

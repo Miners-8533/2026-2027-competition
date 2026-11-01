@@ -87,6 +87,10 @@ public class Mechanisms {
     private Pusher.State prevPusherState = null;
     private Intake.Mode prevIntakeMode = null;
     private boolean prevManualOuttake = false;
+
+    // overrides: the operator or driver switches off an automatic behavior that depends on a sensor that has failed
+    private boolean counterOverride = false;   // ignore the element counter: no 4-element stop, no element warnings
+    private boolean poseOverride = false;      // ignore the pose: the ramp stows without waiting to be clear of a flower
     private double salvoMinSpeed = Double.NaN;
 
     public Mechanisms(Intake intake, Flywheel flywheel, Pusher pusher, Ramp ramp) {
@@ -229,6 +233,35 @@ public class Mechanisms {
         useShotMap = use;
     }
 
+    /** Override: ignore the element counter (a sensor failed). The intake then runs until the operator turns it off. */
+    public void toggleCounterOverride() {
+        counterOverride = !counterOverride;
+        RunLog.event("OVERRIDE element counter " + (counterOverride ? "ON (ignored)" : "off (used again)"));
+    }
+
+    /** Override: ignore the pose (the Pinpoint is unreliable). A stow request is then carried out at once. */
+    public void togglePoseOverride() {
+        poseOverride = !poseOverride;
+        RunLog.event("OVERRIDE pose " + (poseOverride ? "ON (ramp stows without the flower check)" : "off (flower check used again)"));
+    }
+
+    /** Override: run the flywheel open loop (its speed sensor failed). */
+    public void toggleFlywheelOpenLoop() {
+        if (flywheel == null) return;
+        flywheel.setOpenLoop(!flywheel.isOpenLoop());
+        RunLog.event("OVERRIDE flywheel open loop " + (flywheel.isOpenLoop() ? "ON (speed sensor ignored)" : "off (speed sensor used again)"));
+    }
+
+    public boolean isCounterOverridden() {
+        return counterOverride;
+    }
+
+    /** The active overrides as letters for the log (C counter, P pose, F flywheel open loop), or "-". */
+    private String overridesCode() {
+        String s = (counterOverride ? "C" : "") + (poseOverride ? "P" : "") + (flywheel != null && flywheel.isOpenLoop() ? "F" : "");
+        return s.isEmpty() ? "-" : s;
+    }
+
     public void clearPusherStall() {
         if (pusher != null && pusher.isStalled()) RunLog.event("OPERATOR cleared the pusher fault");
         if (pusher != null) pusher.clearStall();
@@ -247,10 +280,16 @@ public class Mechanisms {
         boolean full = false;
         if (counter != null) {
             counter.update();
-            full = counter.isValid() && counter.isFull();
-            if (full) warnings.add("FULL: " + counter.count() + " elements held");
-            int opponentAt = counter.opponentNectarAt(blueAlliance);
-            if (opponentAt > 0) warnings.add("OPPONENT NECTAR at sensor " + opponentAt + " (CS" + opponentAt + "): reject (B)");
+            if (counterOverride) {
+                warnings.add("COUNTER OVERRIDE (operator L3): no 4-element stop and no element warnings; the intake runs until you turn it off");
+            } else if (!counter.isValid()) {
+                warnings.add("ELEMENT COUNTER NOT READING: there is no 4-element stop (operator L3 = override and count by eye)");
+            } else {
+                full = counter.isFull();
+                if (full) warnings.add("FULL: " + counter.count() + " elements held");
+                int opponentAt = counter.opponentNectarAt(blueAlliance);
+                if (opponentAt > 0) warnings.add("OPPONENT NECTAR at sensor " + opponentAt + " (CS" + opponentAt + "): reject (B)");
+            }
         }
 
         if (counter != null && counter.isValid() && counter.count() != prevCount) {
@@ -262,15 +301,17 @@ public class Mechanisms {
         boolean mapAvailable = useShotMap && !ShotMap.isEmpty();
         lastSetpoint = mapAvailable ? ShotMap.velocityFor(lastDistance) : manualSetpoint;
         if (flywheel != null && !mapAvailable) warnings.add("Shot map empty: using the manual setpoint");
+        if (flywheel != null && flywheel.isOpenLoop()) warnings.add("FLYWHEEL OPEN LOOP (operator R3): the speed sensor is ignored, ready is a timer");
 
         // rule 5: remembered stow
         if (ramp != null) {
             if (!ramp.isConfigured()) warnings.add("Ramp positions not measured: it will not move");
+            if (poseOverride) warnings.add("POSE OVERRIDE (driver R3): the ramp stows without the flower check");
             if (stowPending) {
-                if (Ramp.isClearOfFlower(pose)) {
+                if (poseOverride || Ramp.isClearOfFlower(pose)) {
                     ramp.stow();
                     stowPending = false;
-                    RunLog.event("RAMP stowing (clear of the flowers)");
+                    RunLog.event(poseOverride ? "RAMP stowing (pose override)" : "RAMP stowing (clear of the flowers)");
                 } else {
                     warnings.add("Stow waiting: robot not clear of a flower yet");
                 }
@@ -384,12 +425,12 @@ public class Mechanisms {
     }
 
     /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
-    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,fire,warnings";
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,fire,warnings,overrides";
 
     /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
     public String sampleRow() {
         String fire = fireQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
-        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d",
+        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s",
                 lastSetpoint,
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getVelocity()),
@@ -402,11 +443,12 @@ public class Mechanisms {
                 ramp == null ? "" : (ramp.isDeployedTarget() ? "deployed" : "stowed"),
                 counter == null ? "" : counter.count(),
                 counter == null ? "" : counter.slotsCompact(),
-                fire, warnings.size());
+                fire, warnings.size(), overridesCode());
     }
 
     public void log(Telemetry telemetry) {
         telemetry.addData("Mechanisms present", describe());
+        telemetry.addData("Overrides active", overridesCode().equals("-") ? "none" : overridesCode() + "  (C counter, P pose, F flywheel open loop)");
         telemetry.addData("Open cell / distance (in)", "%s / %.1f", openCell, lastDistance);
         telemetry.addData("Flywheel setpoint (ticks/s)", "%.0f   (%s)", lastSetpoint,
                 useShotMap && !ShotMap.isEmpty() ? "shot map" : "manual");

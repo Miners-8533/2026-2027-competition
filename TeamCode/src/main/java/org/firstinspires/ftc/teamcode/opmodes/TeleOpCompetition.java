@@ -10,14 +10,18 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
+import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
+import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 import org.firstinspires.ftc.teamcode.util.RunLog;
+
+import java.util.Locale;
 
 /**
  * The competition TeleOp: a driver (gamepad 1) drives the chassis FIELD-oriented and an operator (gamepad 2) runs
@@ -27,6 +31,10 @@ import org.firstinspires.ftc.teamcode.util.RunLog;
  * auto saved in {@link PoseStorage}; otherwise from the alliance's default start pose. The INIT screen says which.
  * It also reports whether both gamepads are assigned (Start + A on the driver's controller, Start + B on the
  * operator's), because a gamepad that is not assigned silently does nothing.
+ *
+ * The drive, the Pinpoint and the mechanisms are built in INIT (the Pinpoint resets and recalibrates there, so do not move the
+ * robot after INIT). The INIT screen checks the Pinpoint pose against the start pose, which mechanisms were found, and
+ * whether the element counter is reading.
  *
  * INIT (gamepad 1):
  *   D-pad right / left   BLUE / RED alliance (only when there is no auto pose; an auto pose fixes the alliance)
@@ -50,6 +58,12 @@ import org.firstinspires.ftc.teamcode.util.RunLog;
  *   D-pad up / down      manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   D-pad left or right  the open CELL is the HIVE's other side (after a tip)
  *   Back                 clear a pusher fault
+ *
+ * OVERRIDES, for when a sensor fails in a match (each press toggles; the screen and the log say what is on):
+ *   gamepad 1 left stick button    drive robot-oriented (stick up = robot forward), ignoring the heading
+ *   gamepad 1 right stick button   ignore the pose: a ramp stow request is carried out without the flower check
+ *   gamepad 2 left stick button    ignore the element counter: no 4-element stop, no element warnings
+ *   gamepad 2 right stick button   flywheel open loop: power from the target, ready after a timer, speed sensor ignored
  *
  * Log: the run is written to /sdcard/FIRST/runlogs/teleop.log (the one before it to teleop_prev.log; see
  * {@link RunLog}), so it can be read after the match.
@@ -82,8 +96,17 @@ public class TeleOpCompetition extends LinearOpMode {
     /** What the driver is commanding and where the robot is, for the log's sample rows. */
     private double logX, logY, logHeadingDeg, cmdForward, cmdLeft, cmdTurn;
 
+    /** Driver override: false drives robot-oriented (stick up = robot forward), for when the heading is unreliable. */
+    private boolean fieldOriented = true;
+
     private static boolean assigned(Gamepad gamepad) {
         return gamepad.getGamepadId() != Gamepad.ID_UNASSOCIATED;
+    }
+
+    /** Where the robot starts: the pose the auto saved, or the alliance's default pose against the rear wall. */
+    private static Pose2d expectedStart(boolean fromAuto, boolean blue, double startX) {
+        return fromAuto ? PoseStorage.pose()
+                : new Pose2d(startX, blue ? START_Y_IN : -START_Y_IN, Math.toRadians(START_HEADING_DEG));
     }
 
     @Override
@@ -103,9 +126,20 @@ public class TeleOpCompetition extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
+        double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
 
         boolean useAutoPose = PoseStorage.isFresh(AUTO_POSE_MAX_AGE_SEC);
         boolean blue = useAutoPose ? PoseStorage.isBlue() : true;
+
+        // Everything is built here, in INIT, like the autos: the Pinpoint resets and recalibrates its IMU while the robot is
+        // still, and the INIT screen can check the pose, the mechanisms and the element counter before Start. The robot
+        // must not be moved from here until Start. The motors are not driven in INIT (the counter only reads).
+        boolean seededAuto = useAutoPose, seededBlue = blue;
+        Pose2d expected = expectedStart(useAutoPose, blue, startX);
+        MecanumDrive drive = new MecanumDrive(hardwareMap, expected);
+        PinpointLocalizer loc = (PinpointLocalizer) drive.localizer;
+        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
+
         while (!isStarted() && !isStopRequested()) {
             if (gamepad1.backWasPressed() && useAutoPose) {
                 useAutoPose = false;
@@ -116,11 +150,29 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (gamepad1.dpad_right) blue = true;
                 if (gamepad1.dpad_left) blue = false;
             }
+            if (useAutoPose != seededAuto || blue != seededBlue) {
+                seededAuto = useAutoPose;
+                seededBlue = blue;
+                expected = expectedStart(useAutoPose, blue, startX);
+                drive.setPose(expected);
+            }
+            drive.updatePoseEstimate();
+            if (mechanisms.counter != null) mechanisms.counter.update();
+            Pose2d p = drive.getPose();
+            boolean poseOk = Math.hypot(p.position.x - expected.position.x, p.position.y - expected.position.y) < 1.5
+                    && Math.abs(Math.toDegrees(Rotation2d.normalize(p.heading.toDouble() - expected.heading.toDouble()))) < 3.0;
             telemetry.addData("Chassis profile", profile.label());
             telemetry.addData("Alliance", blue ? "BLUE" : "RED");
             telemetry.addData("Start pose", useAutoPose
                     ? String.format("AUTO pose, saved %.0f s ago (Back on gamepad 1 discards it)", PoseStorage.ageSec())
                     : "default start pose (rear wall)");
+            telemetry.addData("Pinpoint", "%s   pose %.1f, %.1f, %.0f deg   %s", loc.getDeviceStatus(),
+                    p.position.x, p.position.y, p.heading.toDegrees(),
+                    poseOk && loc.seedConfirmed ? "OK" : "WARNING: does not match the start pose (do not move the robot after INIT; restart the opmode)");
+            telemetry.addData("Mechanisms present", mechanisms.describe());
+            telemetry.addData("Element counter", mechanisms.counter == null ? "not configured"
+                    : mechanisms.counter.isValid() ? "reading   " + mechanisms.counter.stackString()
+                    : "NOT READING (all four sensors must answer; use the operator's L3 override in the match if it stays this way)");
             telemetry.addData("Gamepad 1 (driver)", assigned(gamepad1) ? "assigned" : "NOT ASSIGNED: press Start + A on it");
             telemetry.addData("Gamepad 2 (operator)", assigned(gamepad2) ? "assigned" : "NOT ASSIGNED: press Start + B on it");
             telemetry.addLine(useAutoPose ? "Press Start on the Driver Station when ready."
@@ -130,13 +182,10 @@ public class TeleOpCompetition extends LinearOpMode {
         if (isStopRequested()) return;
         RunLog.started();
 
-        double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
-        Pose2d defaultStart = new Pose2d(startX, blue ? START_Y_IN : -START_Y_IN, Math.toRadians(START_HEADING_DEG));
-        Pose2d startPose = useAutoPose ? PoseStorage.pose() : defaultStart;
+        Pose2d defaultStart = expectedStart(false, blue, startX);
+        Pose2d startPose = expected;
         double driverForwardRad = Math.toRadians(blue ? BLUE_DRIVER_FORWARD_DEG : RED_DRIVER_FORWARD_DEG);
 
-        MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
-        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
@@ -148,9 +197,9 @@ public class TeleOpCompetition extends LinearOpMode {
                 mechanisms.describe()));
         RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + ", gamepad 2 "
                 + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED"));
-        RunLog.setSampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
-                () -> String.format("%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%s", logX, logY, logHeadingDeg, cmdForward, cmdLeft, cmdTurn,
-                        mechanisms.sampleRow()));
+        RunLog.setSampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn,drive_mode," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
+                () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%s,%s", logX, logY, logHeadingDeg, cmdForward, cmdLeft,
+                        cmdTurn, fieldOriented ? "field" : "robot", mechanisms.sampleRow()));
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
         boolean prevIntakeTrigger = false;
@@ -167,10 +216,16 @@ public class TeleOpCompetition extends LinearOpMode {
             double scale = gamepad1.right_bumper ? PRECISION_SCALE : 1.0;
             double up = -gamepad1.left_stick_y * scale;
             double right = gamepad1.left_stick_x * scale;
-            double fieldX = up * Math.cos(driverForwardRad) + right * Math.cos(driverForwardRad - Math.PI / 2.0);
-            double fieldY = up * Math.sin(driverForwardRad) + right * Math.sin(driverForwardRad - Math.PI / 2.0);
-            double robotForward = fieldX * Math.cos(heading) + fieldY * Math.sin(heading);
-            double robotLeft = -fieldX * Math.sin(heading) + fieldY * Math.cos(heading);
+            double robotForward, robotLeft;
+            if (fieldOriented) {
+                double fieldX = up * Math.cos(driverForwardRad) + right * Math.cos(driverForwardRad - Math.PI / 2.0);
+                double fieldY = up * Math.sin(driverForwardRad) + right * Math.sin(driverForwardRad - Math.PI / 2.0);
+                robotForward = fieldX * Math.cos(heading) + fieldY * Math.sin(heading);
+                robotLeft = -fieldX * Math.sin(heading) + fieldY * Math.cos(heading);
+            } else {
+                robotForward = up;
+                robotLeft = -right;
+            }
             cmdForward = robotForward;
             cmdLeft = robotLeft;
             cmdTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
@@ -185,6 +240,14 @@ public class TeleOpCompetition extends LinearOpMode {
                 RunLog.event("GAMEPAD assignment changed: gamepad 1 " + (gamepad1Was ? "assigned" : "NOT ASSIGNED")
                         + ", gamepad 2 " + (gamepad2Was ? "assigned" : "NOT ASSIGNED"));
             }
+
+            if (gamepad1.leftStickButtonWasPressed()) {
+                fieldOriented = !fieldOriented;
+                RunLog.event("OVERRIDE drive " + (fieldOriented ? "FIELD-oriented" : "ROBOT-oriented (heading ignored)"));
+            }
+            if (gamepad1.rightStickButtonWasPressed()) mechanisms.togglePoseOverride();
+            if (gamepad2.leftStickButtonWasPressed()) mechanisms.toggleCounterOverride();
+            if (gamepad2.rightStickButtonWasPressed()) mechanisms.toggleFlywheelOpenLoop();
 
             if (gamepad1.yWasPressed()) {
                 drive.setPose(new Pose2d(pose.position, driverForwardRad));
@@ -233,9 +296,11 @@ public class TeleOpCompetition extends LinearOpMode {
             if (gamepad1.back && !reseeded) {
                 telemetry.addData("Reseed pose", "keep holding Back... %.1f s", RESEED_HOLD_SEC - backHold.seconds());
             }
+            telemetry.addData("Drive", fieldOriented ? "field-oriented" : "ROBOT-ORIENTED (override: heading ignored)");
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive (field), RB precision, Y reset heading (face away first), Back held = reseed");
-            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad speed / cell, Back clear fault");
+            telemetry.addLine("GP1: stick drive, RB precision, Y reset heading (face away first), Back held = reseed");
+            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad speed / cell, Back clear pusher fault");
+            telemetry.addLine("OVERRIDES (press again to undo): GP1 L3 robot-oriented drive, GP1 R3 ignore pose (ramp stow), GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();
         }
         drive.stop();

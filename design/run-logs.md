@@ -40,12 +40,13 @@ Plain text, one line each, first field says what it is:
 | `S` | a sample every 100 ms: seconds since the log opened, average and worst loop time since the last sample (ms), battery volts (refreshed once a second), then the opmode's columns |
 | `E` | an event: seconds, then text |
 
-TeleOp sample columns: pose (`x`, `y`, `hdg_deg`), the drive command (`cmd_fwd`, `cmd_left`, `cmd_turn`), then the mechanisms' columns: `setpoint`, `fly_target`, `fly_vel`, `fly_ready`, `pusher_state`, `pusher_deg`, `pusher_vel`, `pusher_amps`, `intake_mode`, `ramp`, `count`, `slots` (CS1 to CS4: P pollen, R red nectar, B blue nectar, O other, A pusher arm, . empty), `fire`, `warnings` (how many are active). Auto samples hold the pose only.
+TeleOp sample columns: pose (`x`, `y`, `hdg_deg`), the drive command (`cmd_fwd`, `cmd_left`, `cmd_turn`), then the mechanisms' columns: `setpoint`, `fly_target`, `fly_vel`, `fly_ready`, `pusher_state`, `pusher_deg`, `pusher_vel`, `pusher_amps`, `intake_mode`, `ramp`, `count`, `slots` (CS1 to CS4: P pollen, R red nectar, B blue nectar, O other, A pusher arm, . empty), `fire`, `warnings` (how many are active), `overrides` (letters: C element counter ignored, P pose ignored, F flywheel open loop, - none). The TeleOp also has `drive_mode` (field or robot) after the drive command. Auto samples hold the pose only.
 
 Events written when they happen:
 - **Operator commands** (`OPERATOR ...`): intake toggle, fire queued, reject, ramp, flywheel, setpoint. Each notes the element count.
 - **Salvos:** `SALVO started` and `SALVO done` (lowest flywheel speed, how far the pusher coasted and where it rested).
 - **State changes:** pusher state, intake mode, element count, warnings that appear or clear.
+- **Overrides** (`OVERRIDE ...`): each time one is switched on or off.
 - **Driver commands:** heading reset, pose reseed.
 - **Gamepad assignment changes** (a controller that disconnects mid-match).
 - **Slow loops** (`SLOW LOOP`, over 80 ms).

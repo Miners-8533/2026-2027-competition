@@ -126,9 +126,8 @@ public class ShotTest extends LinearOpMode {
             }
             if (gamepad1.backWasPressed()) {
                 pusher.clearStall();
-                flywheel.clearFault();
                 fireQueued = false;
-                lastEvent = "Faults cleared, fire cancelled.";
+                lastEvent = "Pusher fault cleared, fire cancelled.";
             }
 
             flywheel.setTargetVelocity(spinning ? setpoint : 0.0);

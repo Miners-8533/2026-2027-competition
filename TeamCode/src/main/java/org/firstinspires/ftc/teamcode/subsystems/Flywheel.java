@@ -26,8 +26,10 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * The motor runs WITHOUT the hub's closed-loop encoder modes, so a power is a plain duty cycle (a closed-loop mode
  * would turn the same number into a speed target, and runs away if the encoder counts opposite to its motor). The
  * encoder is only a sensor:
- * ENCODER_SIGN makes the speed positive when the wheel turns the shooting way, and a speed that reads
- * strongly negative while spinning stops the flywheel with a fault instead of letting it run at full power.
+ * ENCODER_SIGN makes the speed positive when the wheel turns the shooting way. A dead or reversed encoder is a
+ * wiring problem for the pit check to find, not something this class watches for. If the speed sensor fails in a
+ * match, the operator's OVERRIDE ({@link #setOpenLoop}) runs the motor at a power worked out from the target
+ * instead of from the measured speed.
  *
  * Call {@link #update()} once per loop (autos pass it to Actions.runBlocking). Velocity is in encoder ticks
  * per second.
@@ -41,9 +43,10 @@ public class Flywheel {
     public static double READY_FRACTION = 0.95;
     /** +1 if the SDK encoder count rises when the wheel turns the shooting way, -1 if it falls. */
     public static double ENCODER_SIGN = 1.0;
-    /** A speed below minus this (ticks/s) for REVERSED_TIME_S while spinning is taken as a reversed encoder. */
-    public static double REVERSED_TICKS_PER_SEC = 100.0;
-    public static double REVERSED_TIME_S = 0.5;
+    /** Open-loop override: power = target / this (about the speed at full power, measured on the bench). */
+    public static double OPEN_LOOP_TOP_SPEED = 2200.0;
+    /** Open-loop override: seconds after the flywheel is turned on until it counts as ready (there is no speed to check). */
+    public static double OPEN_LOOP_READY_SEC = 1.5;
     /** How often (ms) the motor currents are refreshed for the display. */
     public static double CURRENT_REFRESH_MS = 250.0;
 
@@ -54,12 +57,12 @@ public class Flywheel {
     // marked "fly_follow" put it back.
     // private final DcMotorEx follower;   // null when there is no "fly_follow" motor
     private final double[] window = new double[FILTER_SAMPLES];
-    private final ElapsedTime reversedTimer = new ElapsedTime();
+    private final ElapsedTime openLoopTimer = new ElapsedTime();
     private int windowIndex = 0;
     private double windowSum = 0.0;
     private double targetVelocity = 0.0;
-    private boolean reversedSeen = false;
-    private boolean faulted = false;
+    private boolean openLoop = false;
+    private boolean openLoopSpinning = false;
 
     // Hub calls are blocking round trips, so the hub is read in one place (the velocity, at the top of update(), and the
     // currents a few times a second for the display) and written only when the power changes.
@@ -130,17 +133,23 @@ public class Flywheel {
 
     /** True once the filtered speed has reached READY_FRACTION of a nonzero setpoint. */
     public boolean isReady() {
-        return !faulted && targetVelocity > 0.0 && getFilteredVelocity() >= targetVelocity * READY_FRACTION;
+        if (openLoop) return targetVelocity > 0.0 && openLoopSpinning && openLoopTimer.seconds() >= OPEN_LOOP_READY_SEC;
+        return targetVelocity > 0.0 && getFilteredVelocity() >= targetVelocity * READY_FRACTION;
     }
 
-    /** True if the flywheel was stopped because the encoder reads backward while spinning. */
-    public boolean isFaulted() {
-        return faulted;
+    /**
+     * The override for a failed speed sensor: run at a power set from the target (target / OPEN_LOOP_TOP_SPEED) and treat the
+     * flywheel as ready OPEN_LOOP_READY_SEC after it is turned on, ignoring the measured speed.
+     */
+    public void setOpenLoop(boolean on) {
+        if (on != openLoop) {
+            openLoop = on;
+            openLoopSpinning = false;
+        }
     }
 
-    public void clearFault() {
-        faulted = false;
-        reversedSeen = false;
+    public boolean isOpenLoop() {
+        return openLoop;
     }
 
     /** Call once per loop. Reads the encoder once, up front; getVelocity() and the filter use that reading. */
@@ -155,19 +164,17 @@ public class Flywheel {
         window[windowIndex] = velocity;
         windowIndex = (windowIndex + 1) % FILTER_SAMPLES;
 
-        if (targetVelocity > 0.0 && velocity < -REVERSED_TICKS_PER_SEC) {
-            if (!reversedSeen) {
-                reversedSeen = true;
-                reversedTimer.reset();
-            } else if (reversedTimer.seconds() > REVERSED_TIME_S) {
-                faulted = true;
-            }
-        } else {
-            reversedSeen = false;
+        if (targetVelocity <= 0.0) {
+            openLoopSpinning = false;
+        } else if (openLoop && !openLoopSpinning) {
+            openLoopSpinning = true;
+            openLoopTimer.reset();
         }
 
-        if (faulted || targetVelocity <= 0.0) {
+        if (targetVelocity <= 0.0) {
             setPower(0.0);
+        } else if (openLoop) {
+            setPower(Math.max(0.0, Math.min(1.0, targetVelocity / OPEN_LOOP_TOP_SPEED)));
         } else if (velocity > targetVelocity) {
             setPower(Math.max(0.0, Math.min(1.0, FEED_FORWARD)));
         } else {
@@ -190,8 +197,8 @@ public class Flywheel {
         // telemetry.addData("Flywheel power (+/-%FS)", "%.2f   (%s)", lastPower, follower != null ? "2 motors" : "1 motor");
         // telemetry.addData("Flywheel current (A)", "%.2f%s", getCurrentAmps(), follower != null
         //         ? String.format("   follower %.2f", followerCurrentA) : "");
-        if (faulted) {
-            telemetry.addLine("FLYWHEEL FAULT: the encoder reads BACKWARD while spinning. Set Flywheel.ENCODER_SIGN = -1 (Back clears).");
+        if (openLoop) {
+            telemetry.addLine("FLYWHEEL OPEN LOOP (override): the speed sensor is ignored");
         }
     }
 
@@ -210,7 +217,7 @@ public class Flywheel {
                 }
                 packet.put("flywheel/velocity", getFilteredVelocity());
                 packet.put("flywheel/target", targetVelocity);
-                return !isReady() && !faulted && timer.seconds() < timeoutSeconds;
+                return !isReady() && timer.seconds() < timeoutSeconds;
             }
         };
     }
