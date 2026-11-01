@@ -46,7 +46,7 @@ Work that is deliberately not scheduled yet. Each one is a runnable checklist; r
 **Decided 2026-10-31 (code review):**
 - **Flywheel reversed-encoder fault removed.** Wiring and sign problems belong to the **pit check opmode** (built 2026-11-01, see [pit-check.md](pit-check.md); not yet run on the robot). Hardware Check is read-only and covers presence only.
 - **Pinpoint reset moved to INIT** in TeleOp - Competition, like the autos; the INIT screen shows the Pinpoint status and pose check, the mechanisms found and whether the element counter is reading.
-- **Pusher zero:** TeleOp keeps trusting the saved zero (`CONTINUE`) until the dynamic pusher check (CS4 sees the arm) exists, which will catch a wrong zero.
+- **Pusher zero:** TeleOp keeps trusting the saved zero (`CONTINUE`); the pusher check (built 2026-11-01) now catches a wrong zero after each salvo.
 - **Open question:** `Pusher.hold()` (Shot Test LB, `holdAction`) turns nearly a full turn forward when the arm rests more than 8 deg past HOLD, which fires the stack; the team is thinking about it.
 - **Overrides for sensor failures** are built into TeleOp - Competition (see the F2 row); to be tested on the robot.
 
@@ -56,7 +56,7 @@ Work that is deliberately not scheduled yet. Each one is a runnable checklist; r
 - **Flywheel:** only needs the shot map and a `FEED_FORWARD` value, which can be tied to the minimum shot speed.
 - **Intake auto-stop at 4 and the ramp `CLEAR_DISTANCE_IN`:** checked while testing `TeleOp - Competition`. The ramp `TRAVEL_SEC` (0.8 s) was measured by the team.
 
-Then, once 3 and 4 are known, build the pusher check: after a salvo, with the track empty (the counter reports 0), turn the pusher to the CS4 position, look for the arm, and if it is not seen do a slow re-home sweep, check again, and return to HOLD.
+**The pusher check is built (2026-11-01, not yet run on the robot)**, in `subsystems/PusherCheck.java`, run automatically by the coordinator after a salvo when the counter reads 0 and the intake, fire and reject are idle (Dashboard: `Mechanisms.AUTO_PUSHER_CHECK`). It reverses the arm to the measured arc center (`ARM_CENTER_DEG` 326.7, 33 deg behind HOLD), waits for fresh CS4 reads, and if the arm is seen the zero is right. If not, it tries 1, 2 and 3 teeth (18 deg each; the pulley has 20 teeth) either side, correcting the zero where the arm is seen; if still not seen it does one slow forward sweep, corrects the zero from the arc's center, and looks again; otherwise LOST (a warning, the zero is not trusted). It then sends the arm forward to HOLD. Any fire, reject, intake or ramp request, or an element in the robot, aborts it and sends the arm home. Tested on the PC against a simulated arm and sensor (no slip, +/-1, +/-3 and +/-5 teeth, a dead sensor); about 1 s when the zero is right, 1.5-6 s for a few teeth, 12-14 s with the sweep. Bring-up opmode: **Pusher Check Test (CS4)** (A runs it, X/Y fake a slip of one tooth, RB/LB fake five teeth).
 
 ## Values still to write into the code (Phase 5, "final values committed")
 
@@ -205,6 +205,12 @@ Run **TeleOp - Competition**. Each row passes three times in a row.
 | C3 | Fire a salvo from a full robot | The count falls to 0; the operator presses the intake trigger again to resume |
 | C4 | Put the opponent's nectar in (red on blue alliance, or the reverse) | A warning names the sensor (CS1 to CS4) and no automatic action follows |
 | C5 | Look at the loop time with the counter on | The added cost is one sensor read (about 13 ms) every 40 ms; note the loop ms and re-check the pusher landing |
+| P1 | Pusher Check Test (CS4): arm at HOLD at INIT, track empty, **A** | The arm goes back about 33 deg, the screen says CS4 sees the arm, it returns to HOLD, result OK in about 1-2 s |
+| P2 | Pusher Check Test: **X** (fake +1 tooth) then **A**, then **A** again; same with **Y** (-1) | The first A reports a correction of one tooth; the second reports OK; the arm lands at the real HOLD |
+| P3 | Pusher Check Test: **RB** (fake +5 teeth) then **A** | Not seen within 3 teeth, a slow sweep finds the arc, the zero is corrected (result SWEEP), a second A reports OK; check by eye that the arm returns to the real HOLD |
+| P4 | Cover CS4 (or unplug it) and press A | LOST with a reason, a warning in TeleOp; the arm is not left jammed |
+| P5 | TeleOp: fire a full robot empty, wait (intake off) | After the salvo the `check` log column goes seek, look, return, ok; `PUSHER CHECK OK` in the log; the next fire is not delayed beyond about 1.5 s |
+| P6 | TeleOp: start a check, then press fire, reject or the intake trigger | The check aborts at once (`PUSHER CHECK aborted` in the log), the arm goes forward to HOLD, the request is carried out |
 | F1 | Pusher fault (Back clears) | Warning shown, salvos blocked until cleared, clears cleanly |
 | F2 | Overrides (each press toggles): operator L3 (element counter), operator R3 (flywheel open loop), driver LB + X (robot-oriented drive), driver LB + B (ignore pose for the ramp stow) | Each shows on the screen and as an `OVERRIDE` event in the log. With the counter overridden the intake does not stop at 4. In open loop the flywheel still reaches a usable speed (compare the `fly_vel` column) and Fire waits about 1.5 s. Robot-oriented drive ignores the heading. Pressing again restores the sensor-based behavior |
 | F3 | Remove a mechanism from the hub configuration (for example the ramp) | Coordinator keeps running with that mechanism skipped |

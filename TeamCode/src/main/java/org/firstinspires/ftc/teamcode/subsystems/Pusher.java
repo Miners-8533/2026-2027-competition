@@ -72,6 +72,8 @@ public class Pusher {
     public static double STOP_SPEED_TICKS_PER_SEC = 30.0;
     /** If it comes to rest short of HOLD by more than the tolerance but less than this, it nudges forward. 0 turns the nudge off. */
     public static double AUTO_CORRECT_MAX_DEG = 45.0;
+    /** Default power for a seek (a short move to a given position, either direction). */
+    public static double SEEK_POWER = 0.2;
 
     /** How often (ms) the motor current is refreshed for the display when no stall check needs it. */
     public static double CURRENT_DISPLAY_REFRESH_MS = 250.0;
@@ -84,8 +86,8 @@ public class Pusher {
     public static double PROGRESS_TIMEOUT_S = 1.5;
     public static double PROGRESS_MIN_GAIN_DEG = 2.0;
 
-    /** HOLD = idle and braked; SALVO and RETURN are forward moves; REJECT reverses; JOG is open loop for bring-up. */
-    public enum State { HOLD, SALVO, RETURN, REJECT, JOG, STALLED }
+    /** HOLD = idle and braked; SALVO and RETURN are forward moves; REJECT reverses; SEEK goes to a given position either way (the pusher check); JOG is open loop for bring-up. */
+    public enum State { HOLD, SALVO, RETURN, REJECT, SEEK, JOG, STALLED }
 
     public enum Reference { ASSUME_AT_HOLD, CONTINUE }
 
@@ -101,6 +103,9 @@ public class Pusher {
     private final boolean referenceFromSaved;
     private State state = State.HOLD;
     private double jogPower = 0.0;
+    private boolean autoCorrect = true;
+    private double seekDir = 1.0;
+    private double seekPower = 0.2;
     private double targetTicks = 0.0;
     private boolean stalling = false;
     private String faultReason = "";
@@ -179,7 +184,7 @@ public class Pusher {
     }
 
     private boolean isCommanded() {
-        return state == State.SALVO || state == State.RETURN || state == State.REJECT
+        return state == State.SALVO || state == State.RETURN || state == State.REJECT || state == State.SEEK
                 || (state == State.JOG && Math.abs(jogPower) >= STALL_MIN_JOG_POWER);
     }
 
@@ -220,6 +225,11 @@ public class Pusher {
 
     private double nearestHoldTicks() {
         return Math.round(getUnwrappedTicks() / TICKS_PER_REV) * TICKS_PER_REV;
+    }
+
+    /** The unwrapped ticks of the HOLD nearest to the arm (for planning a seek). */
+    public double getNearestHoldTicks() {
+        return nearestHoldTicks();
     }
 
     /** Degrees to the nearest HOLD: positive = still short of it (needs to go forward), negative = past it. NaN until calibrated. */
@@ -298,6 +308,54 @@ public class Pusher {
         resetProgress();
     }
 
+    /**
+     * Go to a given position (unwrapped ticks, from {@link #getNearestHoldTicks} plus an offset), forward or in reverse, at the
+     * given power, stopping STOP_EARLY_DEG short like the other moves. For the pusher check, which parks the arm in front of CS4.
+     * Ignored until calibrated, or while faulted.
+     */
+    public void startSeek(double target, double power) {
+        if (!isCalibrated() || state == State.STALLED) return;
+        double diff = target - getUnwrappedTicks();
+        if (Math.abs(diff) < 1.0) {
+            stopHere();
+            return;
+        }
+        seekDir = diff > 0 ? 1.0 : -1.0;
+        seekPower = power;
+        targetTicks = target;
+        lastCommand = String.format("seek to %+.1f deg from the nearest HOLD at %.2f power, now %.0f ticks, target %.0f ticks",
+                (target - nearestHoldTicks()) * 360.0 / TICKS_PER_REV, power, getUnwrappedTicks(), target);
+        state = State.SEEK;
+        pendingSettle = false;
+        moveStartTicks = getUnwrappedTicks();
+        moveTimer.reset();
+        resetProgress();
+    }
+
+    /** Stops a seek where it is (the arm stays put). Other moves are left alone. */
+    public void abortSeek() {
+        if (state == State.SEEK) stopHere();
+    }
+
+    /** False stops the small forward nudge to HOLD (the pusher check parks the arm short of HOLD on purpose). */
+    public void setAutoCorrect(boolean on) {
+        autoCorrect = on;
+    }
+
+    /**
+     * Redefines the zero. The arm was at {@code unwrappedTicksThen} (by the old zero) when it was truly {@code trueAngleDeg}
+     * ahead of HOLD; afterwards it reads that angle. The revolution count is kept (the smallest correction).
+     * The new zero is saved for the next opmode, like {@link #markHoldHere}.
+     */
+    public void resyncAngle(double unwrappedTicksThen, double trueAngleDeg) {
+        double desired = trueAngleDeg * TICKS_PER_REV / 360.0;
+        double delta = desired - unwrappedTicksThen;
+        delta -= TICKS_PER_REV * Math.round(delta / TICKS_PER_REV);
+        homeRaw -= (int) Math.round(ENCODER_SIGN * delta);
+        savedHomeRaw = homeRaw;
+        savedReferenceValid = true;
+    }
+
     public void clearStall() {
         stalling = false;
         faultReason = "";
@@ -370,7 +428,7 @@ public class Pusher {
         readSensors();
         double unwrapped = getUnwrappedTicks();
         double ticksPerDeg = TICKS_PER_REV / 360.0;
-        boolean moving = state == State.SALVO || state == State.RETURN || state == State.REJECT;
+        boolean moving = state == State.SALVO || state == State.RETURN || state == State.REJECT || state == State.SEEK;
 
         if (moving && !isCalibrated()) {
             stopHere();
@@ -384,7 +442,7 @@ public class Pusher {
                         && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC) {
                     recordSettle();
                 }
-                if (isCalibrated() && AUTO_CORRECT_MAX_DEG > 0.0 && restTimer.seconds() > 0.3
+                if (autoCorrect && isCalibrated() && AUTO_CORRECT_MAX_DEG > 0.0 && restTimer.seconds() > 0.3
                         && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC) {
                     double error = getHoldErrorDeg();
                     if (error > HOLD_TOLERANCE_DEG && error <= AUTO_CORRECT_MAX_DEG) hold();
@@ -412,6 +470,18 @@ public class Pusher {
                 } else {
                     setMotorPower(-(APPROACH_DEG > 0.0 && remainingDeg <= APPROACH_DEG ? APPROACH_POWER : REJECT_POWER));
                     monitorProgress(-unwrapped / ticksPerDeg);
+                }
+                break;
+            }
+            case SEEK: {
+                double remainingDeg = seekDir * (targetTicks - unwrapped) / ticksPerDeg;
+                double speedDegPerSec = Math.max(0.0, seekDir * getVelocityTicksPerSec()) / ticksPerDeg;
+                if (remainingDeg <= STOP_EARLY_DEG + speedDegPerSec * COAST_LOOKAHEAD_S) {
+                    recordFinish(remainingDeg, speedDegPerSec, seekDir);
+                    stopHere();
+                } else {
+                    setMotorPower(seekDir * seekPower);
+                    monitorProgress(seekDir * unwrapped / ticksPerDeg);
                 }
                 break;
             }

@@ -99,6 +99,7 @@ public class ElementCounter {
     private final long[] candidateSinceNs = new long[N];
     private final Slot[] slot = new Slot[N];
     private final long[] readAtNs = new long[N];
+    private final int[] readCount = new int[N];
     private final double[] lastAlpha = new double[N];
     private final double[] lastDist = new double[N];
     private final double[][] lastShares = new double[N][3];
@@ -187,6 +188,7 @@ public class ElementCounter {
         lastShares[i][1] = shareG;
         lastShares[i][2] = shareB;
         readAtNs[i] = now;
+        readCount[i]++;
 
         boolean raw = presenceNext(present[i], shareR, shareG, shareB, c.alpha, d,
                 BASE_SHARES[i][0], BASE_SHARES[i][1], BASE_SHARES[i][2], BASE_ALPHA[i], BASE_DIST[i]);
@@ -258,6 +260,23 @@ public class ElementCounter {
         int n = 0;
         for (int i = 0; i < N; i++) if (slot[i] == kind) n++;
         return n;
+    }
+
+    /** How many times sensor i has been read so far (the pusher check waits for fresh reads after the arm stops). */
+    public int readCount(int i) {
+        return readCount[i];
+    }
+
+    /**
+     * Reads CS4 right now (about 13 ms) and says whether it sees the pusher arm, without touching the counter's own state. For the
+     * pusher check's sweep, which cannot wait for the counter's one-sensor-per-40-ms schedule. The sensor still only refreshes every 100 ms.
+     */
+    public boolean armSeenNow() {
+        NormalizedRGBA c = color[ARM_SENSOR].getNormalizedColors();
+        double d = distance[ARM_SENSOR] != null ? distance[ARM_SENSOR].getDistance(DistanceUnit.CM) : Double.NaN;
+        double sum = c.red + c.green + c.blue + 1e-9;
+        double r = c.red / sum, g = c.green / sum, b = c.blue / sum;
+        return !looksEmpty(ARM_SENSOR, r, g, b, c.alpha, d) && classify(ARM_SENSOR, r, g, b, d) == Slot.PUSHER_ARM;
     }
 
     /** True while CS4 sees the pusher arm (for the pusher position check). */

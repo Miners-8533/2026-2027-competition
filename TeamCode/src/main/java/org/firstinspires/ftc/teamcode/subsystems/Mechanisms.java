@@ -51,6 +51,11 @@ public class Mechanisms {
     public static double NOTICE_SEC = 4.0;
     /** Rule 6: stop the intake when the element counter reports a full robot. */
     public static boolean AUTO_STOP_INTAKE_AT_FULL = true;
+    /** After a salvo, when the robot is empty and idle, check the pusher's zero against CS4 and correct a belt slip (see PusherCheck). */
+    public static boolean AUTO_PUSHER_CHECK = true;
+    /** The check waits this long after the salvo for the arm to rest and the count to read 0, then gives up. */
+    public static double CHECK_WAIT_SEC = 2.0;
+    public static double CHECK_SETTLE_SEC = 0.4;
 
     public final Intake intake;
     public final Flywheel flywheel;
@@ -58,6 +63,8 @@ public class Mechanisms {
     public final Ramp ramp;
     /** Counts and identifies the elements with CS1 to CS4; null if those sensors are not in the configuration. */
     public final ElementCounter counter;
+    /** Checks the pusher's zero against CS4 after a salvo; null without the pusher or the counter. */
+    private final PusherCheck pusherCheck;
 
     private boolean intakeRequested = false;
     private boolean manualOuttake = false;
@@ -87,6 +94,8 @@ public class Mechanisms {
     private Pusher.State prevPusherState = null;
     private Intake.Mode prevIntakeMode = null;
     private boolean prevManualOuttake = false;
+    private boolean checkPending = false;
+    private final ElapsedTime checkTimer = new ElapsedTime();
 
     // overrides: the operator or driver switches off an automatic behavior that depends on a sensor that has failed
     private boolean counterOverride = false;   // ignore the element counter: no 4-element stop, no element warnings
@@ -103,6 +112,7 @@ public class Mechanisms {
         this.pusher = pusher;
         this.ramp = ramp;
         this.counter = counter;
+        this.pusherCheck = pusher != null && counter != null ? new PusherCheck(pusher, counter) : null;
     }
 
     /** Builds whichever mechanisms the hardware configuration contains. */
@@ -148,6 +158,7 @@ public class Mechanisms {
             notice("Fire ignored: needs the flywheel and the pusher.");
             return;
         }
+        if (pusherCheck != null && pusherCheck.isActive()) pusherCheck.abort("a fire was requested");
         if (fireQueued || salvoActive || rejectActive) {
             RunLog.event("COMMAND fire ignored: " + (fireQueued ? "already queued" : salvoActive ? "salvo running" : "reject running"));
             return;
@@ -164,6 +175,7 @@ public class Mechanisms {
             notice("Reject ignored: the pusher is missing or not calibrated.");
             return;
         }
+        if (pusherCheck != null && pusherCheck.isActive()) pusherCheck.abort("a reject was requested");
         if (salvoActive || rejectActive || fireQueued || pusher.isStalled()) {
             RunLog.event("COMMAND reject ignored: " + (pusher.isStalled() ? "pusher stalled" : fireQueued ? "fire queued" : "pusher busy"));
             return;
@@ -345,6 +357,10 @@ public class Mechanisms {
                 salvoActive = false;
                 RunLog.event(String.format(Locale.US, "SALVO done: lowest flywheel speed %.0f ticks/s | %s | %s",
                         salvoMinSpeed, pusher.getLastResult(), pusher.getLastSettle()));
+                if (AUTO_PUSHER_CHECK && pusherCheck != null) {
+                    checkPending = true;
+                    checkTimer.reset();
+                }
                 if (autoStopAfterSalvo) {
                     stopScheduled = true;
                     stopTimer.reset();
@@ -360,6 +376,32 @@ public class Mechanisms {
             if (pusher.getState() != prevPusherState) {
                 RunLog.event("PUSHER state " + prevPusherState + " -> " + pusher.getState());
                 prevPusherState = pusher.getState();
+            }
+        }
+
+        // the pusher check: after a salvo, once the robot is empty and idle, look for the arm at CS4 and correct a slipped zero
+        if (pusherCheck != null && pusher != null) {
+            boolean busy = fireQueued || salvoActive || rejectActive || intakeRequested || manualOuttake || counterOverride
+                    || pusher.isStalled() || (ramp != null && ramp.isDeployedTarget());
+            boolean counterOk = counter != null && counter.isValid();
+            if (pusherCheck.isActive()) {
+                if (busy) pusherCheck.abort("the robot is busy again");
+                else if (counterOk && counter.count() > 0) pusherCheck.abort("an element is in the robot");
+                else pusherCheck.update();
+            } else if (checkPending) {
+                if (busy) {
+                    checkPending = false;
+                    RunLog.event("PUSHER CHECK skipped: the robot is busy");
+                } else if (counterOk && counter.count() == 0 && pusher.isStopped() && checkTimer.seconds() >= CHECK_SETTLE_SEC) {
+                    checkPending = false;
+                    if (!pusherCheck.start()) RunLog.event("PUSHER CHECK could not start");
+                } else if (checkTimer.seconds() > CHECK_WAIT_SEC) {
+                    checkPending = false;
+                    RunLog.event("PUSHER CHECK skipped: the robot did not read empty within " + CHECK_WAIT_SEC + " s");
+                }
+            }
+            if (pusherCheck.isLost()) {
+                warnings.add("PUSHER ZERO UNCERTAIN: the pusher check could not find the arm (" + pusherCheck.lastDetail() + ")");
             }
         }
 
@@ -436,12 +478,12 @@ public class Mechanisms {
     }
 
     /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
-    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,fire,warnings,overrides";
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,fire,warnings,overrides,check";
 
     /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
     public String sampleRow() {
         String fire = fireQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
-        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s",
+        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s",
                 lastSetpoint,
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getVelocity()),
@@ -454,7 +496,7 @@ public class Mechanisms {
                 ramp == null ? "" : (ramp.isDeployedTarget() ? "deployed" : "stowed"),
                 counter == null ? "" : counter.count(),
                 counter == null ? "" : counter.slotsCompact(),
-                fire, warnings.size(), overridesCode());
+                fire, warnings.size(), overridesCode(), pusherCheck == null ? "" : pusherCheck.statusCode());
     }
 
     public void log(Telemetry telemetry) {
@@ -468,6 +510,9 @@ public class Mechanisms {
         if (intake != null) intake.log(telemetry);
         if (flywheel != null) flywheel.log(telemetry);
         if (pusher != null) pusher.log(telemetry);
+        if (pusherCheck != null) {
+            telemetry.addData("Pusher check", "%s   last: %s (%s)", pusherCheck.statusCode(), pusherCheck.lastResult(), pusherCheck.lastDetail());
+        }
         if (ramp != null) ramp.log(telemetry);
         if (counter != null) counter.log(telemetry);
         for (String w : warnings) telemetry.addLine("WARNING: " + w);

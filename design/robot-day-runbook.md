@@ -61,7 +61,8 @@ Redo this in the pit at each venue if the lighting changes.
 5. **Item 4:** choose the smallest belt slip worth catching, in degrees (a skipped tooth is 360 / the number of teeth on the pusher pulley). It decides whether the parked check (about +/-15 deg) is enough.
 6. Put the arm back at HOLD.
 
-Only after 2 and 5 is the pusher check and re-home routine worth building. Note the numbers; the build is offline work.
+7. **Pusher Check Test (CS4)** (the pusher check, built from these numbers): the arm at HOLD at INIT, track empty. **A** runs it (expect OK in about 1-2 s); **X** or **Y** fakes a one-tooth slip, then **A** (expect a correction), then **A** again (expect OK); **RB** fakes five teeth, then **A** (expect the sweep to find the arc and correct the zero). Rows P1 to P6 in the plan. If the arm is not at the arc, tune `PusherCheck.ARM_CENTER_DEG` and `SWEEP_LATENCY_SEC` in the Dashboard and commit the values.
+8. If the check is slow or the arm is misjudged, `Mechanisms.AUTO_PUSHER_CHECK` (Dashboard) turns the automatic check off.
 
 ### Block D: Shot Test with real elements (plan Phase 3)
 
@@ -168,7 +169,7 @@ Rebuild and reinstall after committing, and confirm the Dashboard shows the new 
 | "ELEMENT COUNTER NOT READING" | A color sensor dropped off its bus or the cable is loose | Pit Check lines CS1-CS4; use the operator L3 override in a match |
 | Count wrong or "FULL" with an empty track | The baseline does not match today's lighting | Block B |
 | Fire is dropped ("flywheel not ready in time") | Setpoint too high, battery low, or the encoder is dead | `fly_vel` in `teleop.log`; Pit Check "Flywheel encoder"; operator R3 override |
-| Pusher angles or salvos look off after a run | Stale zero (belt slip, or the arm moved) | put the arm at HOLD and restart the app; the dynamic check is still to be built |
+| Pusher angles or salvos look off after a run | Stale zero (belt slip, or the arm moved) | the pusher check corrects it after the next salvo (`PUSHER CHECK` lines in the log; a LOST warning means it could not); otherwise put the arm at HOLD and restart the app |
 | "SALVO running" never ends, or "Pusher STALLED" | Jam, or the pusher fault | Back clears; read `last settle` and the log's `PUSHER` lines |
 | Stow does not happen | The pose says the robot is still within `CLEAR_DISTANCE_IN` of a flower | drive clear; driver LB + B overrides the pose check |
 | Field-oriented sticks feel wrong | Heading drift or the wrong driver-forward direction | **Y** to reset heading; driver LB + X for robot-oriented; correct `*_DRIVER_FORWARD_DEG` |
@@ -180,6 +181,6 @@ Rebuild and reinstall after committing, and confirm the Dashboard shows the new 
 - **`Pusher.hold()` / Shot Test LB:** turns nearly a full turn forward when the arm rests more than 8 deg past HOLD (fires the stack); salvos land 5-12 deg past. Decide the behavior.
 - **`COAST_LOOKAHEAD_S`:** find a value from the logs, or remove the lookahead.
 - **Smallest belt slip to catch (item 4):** picks the pusher check's tolerance.
-- **Pusher zero in TeleOp:** it trusts the saved zero until the dynamic pusher check exists.
+- **Pusher zero in TeleOp:** it trusts the saved zero; the automatic pusher check now corrects a slip after a salvo (not yet run on the robot).
 - **Autos' time budget** with the real mechanisms against the auto period, and whether to stow at the shooting spot without the pose check (it does now) once the real ramp reach is known.
 - Whether the operator's stick-button overrides are too easy to press by accident.
