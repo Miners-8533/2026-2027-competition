@@ -39,6 +39,8 @@ Work that is deliberately not scheduled yet. Each one is a runnable checklist; r
 | 5 | **Element counter baseline** in the pit: the empty readings depend on lighting | TeleOp (the 4-element stop) | Color Sensors Test: track empty, **A**, then copy the BASELINE log line into the table in `ElementCounter` |
 | 6 | **Commit the tuned pusher, flywheel and ramp values** (see the list below) | TeleOp | read them from the Dashboard after a tuned run and write them into the code |
 
+**Measured 2026-11-01 (item 3, Pusher Sensor Matrix on `ROBOT_1`, two runs):** the arm is seen at about **328 deg ahead of the mark at zero speed (about 32 deg BEHIND the mark)**, arc about 28 deg wide (about 314-342 deg). The center shifts about 15 ms of sensor delay with speed (329.7 / 333.3 / 339.5 deg at powers 0.15 / 0.3 / 0.6). Within a run the center spread is 0.14-0.9 deg, and two runs 21 turns apart agree within 0.6 deg, so `TICKS_PER_REV` 751.8 holds to about 0.03 deg per turn and there was no belt slip. **Not as expected** (about 90 deg ahead of HOLD): confirm the mark was at the true HOLD. HOLD placement by eye was not re-tested (one A mark only).
+
 **Decided 2026-10-31 (code review):**
 - **Flywheel reversed-encoder fault removed.** Wiring and sign problems belong to the **pit check opmode** (built 2026-11-01, see [pit-check.md](pit-check.md); not yet run on the robot). Hardware Check is read-only and covers presence only.
 - **Pinpoint reset moved to INIT** in TeleOp - Competition, like the autos; the INIT screen shows the Pinpoint status and pose check, the mechanisms found and whether the element counter is reading.
