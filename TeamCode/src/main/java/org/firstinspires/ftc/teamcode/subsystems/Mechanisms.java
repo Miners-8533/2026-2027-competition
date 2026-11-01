@@ -394,7 +394,7 @@ public class Mechanisms {
                     RunLog.event("PUSHER CHECK skipped: the robot is busy");
                 } else if (counterOk && counter.count() == 0 && pusher.isStopped() && checkTimer.seconds() >= CHECK_SETTLE_SEC) {
                     checkPending = false;
-                    if (!pusherCheck.start()) RunLog.event("PUSHER CHECK could not start");
+                    if (!pusherCheck.start()) RunLog.event("PUSHER CHECK could not start: " + pusherCheck.startRefusal());
                 } else if (checkTimer.seconds() > CHECK_WAIT_SEC) {
                     checkPending = false;
                     RunLog.event("PUSHER CHECK skipped: the robot did not read empty within " + CHECK_WAIT_SEC + " s");

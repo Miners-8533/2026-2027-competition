@@ -67,7 +67,6 @@ public class PusherCheckTest extends LinearOpMode {
             return;
         }
         PusherCheck check = new PusherCheck(pusher, counter);
-        pusher.jog(0.0);
 
         telemetry.addData("Chassis profile", profile.label());
         telemetry.addLine("Pusher Check Test. The arm must be at HOLD now, and the track EMPTY. Press Start.");
@@ -76,23 +75,30 @@ public class PusherCheckTest extends LinearOpMode {
         RunLog.started();
 
         String lastShown = "";
+        String lastEvent = "-";
         while (opModeIsActive()) {
             counter.update();
 
             double stick = -gamepad1.left_stick_y;
             boolean free = !check.isActive() && (pusher.getState() == Pusher.State.JOG || pusher.getState() == Pusher.State.HOLD);
             if (free && Math.abs(stick) > 0.05) pusher.jog(stick * JOG_MAX_POWER);
-            else if (pusher.getState() == Pusher.State.JOG) pusher.jog(0.0);
+            else if (pusher.getState() == Pusher.State.JOG) pusher.stopInPlace();
 
             if (gamepad1.backWasPressed() && free) {
                 pusher.markHoldHere();
                 RunLog.event("HOLD marked here");
             }
             if (gamepad1.aWasPressed()) {
-                boolean started = check.start();
-                RunLog.event(started ? "check started by the operator" : "check could not start (arm moving, not calibrated, or the counter not reading)");
+                if (pusher.getState() == Pusher.State.JOG) pusher.stopInPlace();
+                String refusal = check.startRefusal();
+                lastEvent = refusal == null ? "check started" : "check NOT started: " + refusal;
+                if (refusal == null) check.start();
+                RunLog.event(lastEvent);
             }
-            if (gamepad1.bWasPressed()) check.abort("aborted by the operator");
+            if (gamepad1.bWasPressed()) {
+                check.abort("aborted by the operator");
+                lastEvent = "abort pressed";
+            }
             if (!check.isActive()) {
                 if (gamepad1.xWasPressed()) fakeSlip(pusher, SLIP_TEETH_SMALL);
                 if (gamepad1.yWasPressed()) fakeSlip(pusher, -SLIP_TEETH_SMALL);
@@ -110,6 +116,7 @@ public class PusherCheckTest extends LinearOpMode {
             }
 
             telemetry.addData("Check", "%s   last: %s", check.statusCode(), lastShown.isEmpty() ? "-" : lastShown);
+            telemetry.addData("Last button", lastEvent);
             telemetry.addData("Pusher", "%s   angle %.1f deg ahead of HOLD   error to nearest HOLD %+.1f deg",
                     pusher.getState(), pusher.getAngleDeg(), pusher.getHoldErrorDeg());
             telemetry.addData("CS4", "%s   reads %d   arm seen %s", counter.isValid() ? "reading" : "NOT READING",
@@ -119,7 +126,7 @@ public class PusherCheckTest extends LinearOpMode {
             telemetry.addLine("A check, B abort, X/Y fake +/-1 tooth, RB/LB fake +/-5 teeth, stick jog, Back mark HOLD");
             telemetry.update();
         }
-        pusher.jog(0.0);
+        pusher.stopInPlace();
         pusher.update();
     }
 

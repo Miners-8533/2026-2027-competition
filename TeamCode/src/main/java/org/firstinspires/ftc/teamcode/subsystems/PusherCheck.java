@@ -125,9 +125,18 @@ public class PusherCheck {
         return Pusher.TICKS_PER_REV / 360.0;
     }
 
-    /** Starts a check. False if the arm is not at rest, the pusher is not calibrated or the counter is not reading. */
+    /** Why a check cannot start now, or null if it can. */
+    public String startRefusal() {
+        if (isActive()) return "a check is already running";
+        if (!pusher.isCalibrated()) return "the pusher is not calibrated (TICKS_PER_REV)";
+        if (!pusher.isStopped()) return "the arm is not at rest (pusher state " + pusher.getState() + ")";
+        if (!counter.isValid()) return "the element counter is not reading all four sensors";
+        return null;
+    }
+
+    /** Starts a check. False (see {@link #startRefusal}) if the arm is not at rest, the pusher is not calibrated or the counter is not reading. */
     public boolean start() {
-        if (isActive() || !pusher.isCalibrated() || !pusher.isStopped() || !counter.isValid()) return false;
+        if (startRefusal() != null) return false;
         pusher.setAutoCorrect(false);
         total.reset();
         viaSweep = false;

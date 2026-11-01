@@ -332,6 +332,11 @@ public class Pusher {
         resetProgress();
     }
 
+    /** Ends a jog where it is: the state goes back to HOLD (so {@link #isStopped} can be true) without moving to a HOLD. */
+    public void stopInPlace() {
+        if (state == State.JOG) stopHere();
+    }
+
     /** Stops a seek where it is (the arm stays put). Other moves are left alone. */
     public void abortSeek() {
         if (state == State.SEEK) stopHere();
