@@ -98,6 +98,8 @@ public class TeleOpCompetition extends LinearOpMode {
     public static double RESEED_HOLD_SEC = 1.0;
     /** Target lock engages by itself when the robot holds a full load (it stays on until the salvo is done). The operator's right bumper engages it by hand regardless. */
     public static boolean AUTO_LOCK_WHEN_FULL = true;
+    /** One rumble pulse on both controllers each time the robot becomes full (4 elements, confirmed). Needs a gamepad with rumble. */
+    public static int FULL_RUMBLE_MS = 250;
     public static double TURN_SCALE = 0.5;
     public static double PRECISION_SCALE = 0.30;
     public static double TRIGGER_THRESHOLD = 0.3;
@@ -113,6 +115,14 @@ public class TeleOpCompetition extends LinearOpMode {
 
     /** Driver override: false drives robot-oriented (stick up = robot forward), for when the heading is unreliable. */
     private boolean fieldOriented = true;
+
+    /**
+     * One rumble pulse. The Logitech F310 has no rumble motors, so it is skipped; any other gamepad type (Xbox 360, PS4, or one the SDK
+     * calls UNKNOWN) is asked to rumble, and the SDK ignores the request if it cannot. The SDK has no way to ask a gamepad whether it can.
+     */
+    private static void buzz(Gamepad gamepad, int ms) {
+        if (gamepad.type() != Gamepad.Type.LOGITECH_F310) gamepad.rumble(ms);
+    }
 
     private static boolean assigned(Gamepad gamepad) {
         return gamepad.getGamepadId() != Gamepad.ID_UNASSOCIATED;
@@ -216,8 +226,8 @@ public class TeleOpCompetition extends LinearOpMode {
                 profile.name, blue ? "BLUE" : "RED", useAutoPose ? "from the AUTO" : "default",
                 startPose.position.x, startPose.position.y, startPose.heading.toDegrees(), Math.toDegrees(driverForwardRad),
                 mechanisms.describe()));
-        RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + ", gamepad 2 "
-                + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED"));
+        RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad1.type() + "), gamepad 2 "
+                + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad2.type() + ")");
         RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
                 () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%s,%.1f,%s", logX, logY, logHeadingDeg, logUp, logRight, cmdForward, cmdLeft,
                         cmdTurn, fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow()));
@@ -225,7 +235,7 @@ public class TeleOpCompetition extends LinearOpMode {
 
         boolean reseedDown = false, reseeded = false;
         ElapsedTime reseedHold = new ElapsedTime();
-        boolean lockOn = false, lockWasAligned = false, autoLockLatched = false;
+        boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, wasFull = false;
         ElapsedTime loopClock = new ElapsedTime();
 
         while (opModeIsActive()) {
@@ -257,7 +267,13 @@ public class TeleOpCompetition extends LinearOpMode {
             double manualTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
             // auto lock: from the moment the robot is full until its salvo is done; manual lock: operator right bumper held, full or not
             boolean manualLock = gamepad2.right_bumper;
-            if (mechanisms.isFull()) autoLockLatched = true;
+            boolean fullNow = mechanisms.isFull();
+            if (fullNow && !wasFull && FULL_RUMBLE_MS > 0) {
+                buzz(gamepad1, FULL_RUMBLE_MS);
+                buzz(gamepad2, FULL_RUMBLE_MS);
+            }
+            wasFull = fullNow;
+            if (fullNow) autoLockLatched = true;
             else if (!mechanisms.isFireBusy()) autoLockLatched = false;
             boolean lockWanted = manualLock || (AUTO_LOCK_WHEN_FULL && autoLockLatched);
             if (lockWanted) {
@@ -274,7 +290,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 lockErrDeg = targetLock.errorDeg();
                 boolean aligned = targetLock.isAligned();
                 if (aligned && !lockWasAligned) {
-                    gamepad1.rumble(120);
+                    buzz(gamepad1, 120);
                     RunLog.event(String.format(Locale.US, "TARGET LOCK aligned: error %+.1f deg, nudge %+.1f deg, %.1f in from %s, bearing %.1f deg, robot pose (%.1f, %.1f, %.1f deg)",
                             lockErrDeg, targetLock.trimDeg(), lockTarget.distanceFrom(pose), lockTarget, targetLock.bearingDeg(),
                             pose.position.x, pose.position.y, pose.heading.toDegrees()));
