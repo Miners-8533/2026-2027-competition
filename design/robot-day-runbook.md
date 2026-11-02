@@ -157,7 +157,7 @@ Rebuild and reinstall after committing, and confirm the Dashboard shows the new 
 
 **INIT (gamepad 1):** D-pad right = BLUE, D-pad left = RED (only when there is no auto pose); Back = discard the auto pose.
 
-**Driver (gamepad 1):** left stick drives (field-oriented, up = away from the driver); right stick X turns; right bumper held = precision (30%); **Y** = reset the heading (point the robot away first); **Back held 1 s** = reseed the pose; **hold left bumper + X** = robot-oriented drive; **hold left bumper + B** = ignore the pose for the ramp stow.
+**Driver (gamepad 1):** left stick drives (field-oriented, up = away from the driver); right stick X turns; right bumper held = precision (30%); **hold right trigger** = target lock (the robot turns to point its front at the open cell while you keep driving; the turn stick nudges the aim up to 15 deg; a buzz and ALIGNED mean on target); **Y** = reset the heading (point the robot away first); **Back held 1 s** = reseed the pose; **hold left bumper + X** = robot-oriented drive; **hold left bumper + B** = ignore the pose for the ramp stow.
 
 **Operator (gamepad 2):** right trigger = intake on/off; left trigger held = outtake; **A** fire; **B** reject; **X** deploy ramp; **Y** stow ramp; **hold Back + Y** pusher calibration sweep (track empty, intake off); right bumper = flywheel on/off; left bumper = flywheel stop; D-pad up/down = setpoint +/- 25 ticks/s; D-pad left or right = the other side's cell; **Back** = clear a pusher fault; **left stick button** = ignore the element counter; **right stick button** = flywheel open loop.
 

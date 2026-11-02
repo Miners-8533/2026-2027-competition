@@ -12,6 +12,7 @@ import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
+import org.firstinspires.ftc.teamcode.drive.TargetLock;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
@@ -45,6 +46,9 @@ import java.util.Locale;
  *   right stick X        turn
  *   right bumper (hold)  precision mode (30%)
  *   Y                    reset the heading: point the robot AWAY from you first, then press
+ *   right trigger (hold) TARGET LOCK: the robot turns itself to point its front (intake and shooter end) at the open CELL while
+ *                        you keep driving; the turn stick nudges the aim up to 15 deg; a short buzz and ALIGNED on the screen
+ *                        say it is on target. Released = back to your turn stick. Ignored while the pose override is on.
  *   Back (hold 1 s)      reseed the pose to the default start pose (held, so it cannot happen by accident)
  *
  * Gamepad 2 (operator):
@@ -96,7 +100,8 @@ public class TeleOpCompetition extends LinearOpMode {
     private static final double FIELD_HALF_IN = 72.0;
 
     /** What the driver is commanding and where the robot is, for the log's sample rows. */
-    private double logX, logY, logHeadingDeg, cmdForward, cmdLeft, cmdTurn;
+    private double logX, logY, logHeadingDeg, cmdForward, cmdLeft, cmdTurn, lockErrDeg = Double.NaN;
+    private final TargetLock targetLock = new TargetLock();
 
     /** Driver override: false drives robot-oriented (stick up = robot forward), for when the heading is unreliable. */
     private boolean fieldOriented = true;
@@ -199,17 +204,21 @@ public class TeleOpCompetition extends LinearOpMode {
                 mechanisms.describe()));
         RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + ", gamepad 2 "
                 + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED"));
-        RunLog.setSampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn,drive_mode," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
-                () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%s,%s", logX, logY, logHeadingDeg, cmdForward, cmdLeft,
-                        cmdTurn, fieldOriented ? "field" : "robot", mechanisms.sampleRow()));
+        RunLog.setSampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
+                () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%s,%.1f,%s", logX, logY, logHeadingDeg, cmdForward, cmdLeft,
+                        cmdTurn, fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow()));
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
         boolean prevIntakeTrigger = false;
         boolean backDown = false, reseeded = false;
         ElapsedTime backHold = new ElapsedTime();
+        boolean lockOn = false, lockWasAligned = false, lockRefusalLogged = false;
+        ElapsedTime loopClock = new ElapsedTime();
 
         while (opModeIsActive()) {
-            drive.updatePoseEstimate();
+            double dt = loopClock.seconds();
+            loopClock.reset();
+            PoseVelocity2d measured = drive.updatePoseEstimate();
             Pose2d pose = drive.getPose();
             PoseStorage.save(pose, blue);
             double heading = pose.heading.toDouble();
@@ -230,7 +239,36 @@ public class TeleOpCompetition extends LinearOpMode {
             }
             cmdForward = robotForward;
             cmdLeft = robotLeft;
-            cmdTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
+            double manualTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
+            boolean lockWanted = gamepad1.right_trigger > TRIGGER_THRESHOLD;
+            boolean lockUsable = lockWanted && !mechanisms.isPoseOverridden();
+            if (lockUsable) {
+                HiveTarget lockTarget = mechanisms.getOpenCell();
+                if (!lockOn) {
+                    lockOn = true;
+                    lockWasAligned = false;
+                    RunLog.event(String.format(Locale.US, "TARGET LOCK on: %s, %.1f in away", lockTarget, lockTarget.distanceFrom(pose)));
+                }
+                cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget, gamepad1.right_stick_x, dt);
+                lockErrDeg = targetLock.errorDeg();
+                boolean aligned = targetLock.isAligned();
+                if (aligned && !lockWasAligned) {
+                    gamepad1.rumble(120);
+                    RunLog.event(String.format(Locale.US, "TARGET LOCK aligned: error %+.1f deg, nudge %+.1f deg, %.1f in from %s",
+                            lockErrDeg, targetLock.trimDeg(), lockTarget.distanceFrom(pose), lockTarget));
+                }
+                lockWasAligned = aligned;
+            } else {
+                if (lockOn) {
+                    lockOn = false;
+                    targetLock.release();
+                    RunLog.event("TARGET LOCK off");
+                }
+                if (lockWanted && !lockRefusalLogged) RunLog.event("TARGET LOCK refused: the pose override is on");
+                lockRefusalLogged = lockWanted;
+                lockErrDeg = Double.NaN;
+                cmdTurn = manualTurn;
+            }
             drive.setDrivePowers(new PoseVelocity2d(new Vector2d(robotForward, robotLeft), cmdTurn));
             logX = pose.position.x;
             logY = pose.position.y;
@@ -278,7 +316,13 @@ public class TeleOpCompetition extends LinearOpMode {
             if (intakeTrigger && !prevIntakeTrigger) mechanisms.toggleIntake();
             prevIntakeTrigger = intakeTrigger;
             mechanisms.setManualOuttake(gamepad2.left_trigger > TRIGGER_THRESHOLD);
-            if (gamepad2.aWasPressed()) mechanisms.requestFire();
+            if (gamepad2.aWasPressed()) {
+                if (lockOn) {
+                    RunLog.event(String.format(Locale.US, "FIRE requested with the lock %s (error %+.1f deg)",
+                            targetLock.isAligned() ? "ALIGNED" : "not aligned", targetLock.errorDeg()));
+                }
+                mechanisms.requestFire();
+            }
             if (gamepad2.bWasPressed()) mechanisms.requestReject();
             if (gamepad2.xWasPressed()) mechanisms.requestDeploy();
             boolean operatorY = gamepad2.yWasPressed();   // read once: with Back held, Y is the pusher calibration instead of the stow
@@ -303,8 +347,12 @@ public class TeleOpCompetition extends LinearOpMode {
                 telemetry.addData("Reseed pose", "keep holding Back... %.1f s", RESEED_HOLD_SEC - backHold.seconds());
             }
             telemetry.addData("Drive", fieldOriented ? "field-oriented" : "ROBOT-ORIENTED (override: heading ignored)");
+            telemetry.addData("Target lock (hold driver RT)", lockOn
+                    ? String.format(Locale.US, "ON -> %s, bearing %.1f deg, error %+.1f deg%s", mechanisms.getOpenCell(), targetLock.bearingDeg(),
+                            targetLock.errorDeg(), targetLock.isAligned() ? "   ALIGNED" : "")
+                    : "off");
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive, RB precision, Y reset heading (face away first), Back held = reseed");
+            telemetry.addLine("GP1: stick drive, RB precision, hold RT target lock, Y reset heading (face away first), Back held = reseed");
             telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad speed / cell, Back clear pusher fault, hold Back + Y pusher calibration sweep");
             telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP1 hold LB + B ignore pose (ramp stow), GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();

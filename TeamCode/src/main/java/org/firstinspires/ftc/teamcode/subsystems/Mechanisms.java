@@ -299,6 +299,11 @@ public class Mechanisms {
         RunLog.event("OVERRIDE flywheel open loop " + (flywheel.isOpenLoop() ? "ON (speed sensor ignored)" : "off (speed sensor used again)"));
     }
 
+    /** True while the pose override is on (the pose cannot be trusted, so nothing should aim by it). */
+    public boolean isPoseOverridden() {
+        return poseOverride;
+    }
+
     public boolean isCounterOverridden() {
         return counterOverride;
     }
