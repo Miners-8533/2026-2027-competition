@@ -58,7 +58,7 @@ import java.util.Locale;
  * Gamepad 2 (operator):
  *   right trigger        intake on / off (a toggle)
  *   left trigger (hold)  outtake
- *   A                    fire a salvo (spins up and fires when ready)
+ *   A                    fire a salvo (spins up and fires when ready); also cancels a running reject, the way out of a jam the other way
  *   B                    reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued fire
  *   X / Y                deploy / stow the ramp (stow waits until clear of a flower)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)

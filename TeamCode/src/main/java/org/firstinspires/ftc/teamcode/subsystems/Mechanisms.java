@@ -175,9 +175,15 @@ public class Mechanisms {
             return;
         }
         if (pusherCheck != null && pusherCheck.isActive()) pusherCheck.abort("a fire was requested");
-        if (fireQueued || salvoActive || rejectActive) {
-            RunLog.event("COMMAND fire ignored: " + (fireQueued ? "already queued" : salvoActive ? "salvo running" : "reject running"));
+        if (fireQueued || salvoActive) {
+            RunLog.event("COMMAND fire ignored: " + (fireQueued ? "already queued" : "salvo running"));
             return;
+        }
+        if (rejectActive) {
+            // the operator's way out of a jam in the other direction (there are no pusher faults): a fire cancels a running reject
+            RunLog.event("COMMAND fire cancels the reject");
+            rejectActive = false;
+            pusher.cancelMove();
         }
         fireQueued = true;
         fireTimer.reset();

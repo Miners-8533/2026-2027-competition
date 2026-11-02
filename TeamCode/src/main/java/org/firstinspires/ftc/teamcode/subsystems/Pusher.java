@@ -364,6 +364,14 @@ public class Pusher {
         if (state == State.JOG) stopHere();
     }
 
+    /** Stops a salvo, return, reject or seek where it is and releases the motor (state HOLD), for a new command that replaces it, e.g. to work a jam out the other way. */
+    public void cancelMove() {
+        if (state == State.SALVO || state == State.RETURN || state == State.REJECT || state == State.SEEK) {
+            pendingSettle = false;
+            stopHere();
+        }
+    }
+
     /** Stops a seek where it is (the arm stays put). Other moves are left alone. */
     public void abortSeek() {
         if (state == State.SEEK) stopHere();
