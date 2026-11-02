@@ -17,7 +17,8 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * The pusher: ONE pusher arm that rotates around the curved track the elements ride, driven by
  * one motor with a RELATIVE encoder and NO hard stops (it spins continuously, almost always forward).
  * The back of the arm limits how many elements enter (the 4 cap) while it sits at HOLD; a salvo takes
- * it one full turn forward, pushing the stack to the flywheel. Design notes: design/mechanisms.md.
+ * it SALVO_DEG (400, a full turn and 40 deg more) forward from the nearest HOLD, pushing the stack to the flywheel, so it rests
+ * about 40 deg past a HOLD; the pusher check (PusherCheck) then parks it at CS4 and brings it back to HOLD. Design notes: design/mechanisms.md.
  *
  * Control is deliberately plain: every move runs the motor at a calibratable power and cuts it when the
  * position crosses a threshold, and the brake does the rest. No PID, no velocity loop.
@@ -64,6 +65,12 @@ public class Pusher {
      */
     public static double COAST_LOOKAHEAD_S = 0.0;
     public static double REJECT_POWER = 0.6;
+    /**
+     * How far a salvo turns the arm, in degrees forward from the nearest HOLD: a full turn (360) and a margin so the last element is
+     * surely out. The arm rests this far (less 360) past a HOLD, and the next salvo targets the nearest HOLD plus this again, so
+     * nothing accumulates when the pusher check does not run in between.
+     */
+    public static double SALVO_DEG = 400.0;
     /** A reject reverses about this far and finishes on the nearest HOLD behind (330 leaves it 30 deg short of a full turn, so it finishes a full reverse turn). */
     public static double REJECT_DEG = 330.0;
     /** Within this many degrees of a HOLD counts as "at HOLD". */
@@ -272,7 +279,7 @@ public class Pusher {
         jogPower = Math.max(-1.0, Math.min(1.0, power));
     }
 
-    /** One full forward turn, from the nearest HOLD to the next. Ignored until calibrated, or while faulted. */
+    /** A salvo: forward to SALVO_DEG past the nearest HOLD (400 deg, so it rests about 40 deg past a HOLD). Ignored until calibrated, or while faulted. */
     public void startSalvo() {
         if (!isCalibrated()) {
             lastCommand = "salvo IGNORED: TICKS_PER_REV is not set";
@@ -282,7 +289,7 @@ public class Pusher {
             lastCommand = "salvo IGNORED: the pusher is faulted (" + faultReason + "); clear it first";
             return;
         }
-        double target = nearestHoldTicks() + TICKS_PER_REV;
+        double target = nearestHoldTicks() + SALVO_DEG * TICKS_PER_REV / 360.0;
         lastCommand = String.format("salvo from %s, %+.1f deg to nearest HOLD, now %.0f ticks, target %.0f ticks",
                 state, getHoldErrorDeg(), getUnwrappedTicks(), target);
         beginForwardMove(State.SALVO, target);

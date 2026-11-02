@@ -43,6 +43,8 @@ Work that is deliberately not scheduled yet. Each one is a runnable checklist; r
 
 **Item 4 answered 2026-11-01:** the pusher pulley has 20 teeth, so one skipped tooth is **18 deg** of pusher rotation, wider than the arc's +/-14 deg half-width. A parked check at the arc center therefore catches a one-tooth slip as 'arm not seen' (parked, the default sensor rate is enough), and slips come in 18 deg steps, so a re-home can round the measured offset to a multiple of 18.
 
+**Decided 2026-11-01 (salvo 400 deg):** a salvo now turns the arm `Pusher.SALVO_DEG` = 400 deg forward from the nearest HOLD (was 360), so the last element is surely out and the arm rests about 40 deg past a HOLD; the pusher check (park at CS4, then forward to HOLD) brings it back. The target is the nearest HOLD plus 400, not 400 from where the arm is, so when the check does not run the arm simply rests 40 deg past a HOLD again and nothing accumulates (the next salvo then travels about 355 deg). **Consequence:** `Pusher.hold()` (Shot Test LB, `holdAction`) from that rest position sees the arm more than 8 deg past HOLD and turns nearly a full turn forward; the open question above now matters after every salvo.
+
 **Decided 2026-10-31 (code review):**
 - **Flywheel reversed-encoder fault removed.** Wiring and sign problems belong to the **pit check opmode** (built 2026-11-01, see [pit-check.md](pit-check.md); not yet run on the robot). Hardware Check is read-only and covers presence only.
 - **Pinpoint reset moved to INIT** in TeleOp - Competition, like the autos; the INIT screen shows the Pinpoint status and pose check, the mechanisms found and whether the element counter is reading.
