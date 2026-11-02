@@ -40,6 +40,9 @@ import java.util.Locale;
  *   Left bumper                  auto speed on / off: the setpoint follows the recorded points
  *   Back                         reseed the pose to the start pose below (also clears a pusher fault)
  *
+ * INIT (gamepad 1): D-pad right = BLUE, D-pad left = RED start. The robot starts against the rear wall facing the audience wall, centered on
+ * its alliance's HIVE (Y = +12.75 in blue, -12.75 in red); the target defaults to that HIVE's rear CELL, 42 in away.
+ *
  * Distance comes from the Pinpoint pose to the target (set the start pose to where you place the robot), or set MANUAL_DISTANCE_IN above
  * 0 in the Dashboard to type a measured distance instead. The hood is fixed, so speed depends on distance only. Same speed for pollen and nectar.
  * The pusher is assumed to be where the last opmode left it (the saved zero); the start-up pusher check verifies it after Start if
@@ -50,7 +53,7 @@ import java.util.Locale;
 public class ShotMapTuner extends LinearOpMode {
 
     private static final double FIELD_HALF_IN = 72.0;
-    public static double START_Y_IN = 12.75;   // X comes from the profile's depth (touching the rear wall)
+    public static double START_Y_IN = 12.75;   // blue; red mirrors to the negative. X comes from the profile's depth (touching the rear wall)
     public static double START_HEADING_DEG = 0.0;
     public static double MANUAL_DISTANCE_IN = 0.0;
     public static double STEP = 25.0;
@@ -59,6 +62,11 @@ public class ShotMapTuner extends LinearOpMode {
 
     private static final double TURN_SCALE = 0.5;
     private static final double PRECISION_SCALE = 0.30;
+
+    /** Rear wall, centered on the alliance's HIVE, facing the audience wall. */
+    private static Pose2d startPoseFor(boolean blue, double startX) {
+        return new Pose2d(startX, blue ? START_Y_IN : -START_Y_IN, Math.toRadians(START_HEADING_DEG));
+    }
 
     @Override
     public void runOpMode() {
@@ -78,13 +86,12 @@ public class ShotMapTuner extends LinearOpMode {
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
-        Pose2d startPose = new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG));
-        MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
+        MecanumDrive drive = new MecanumDrive(hardwareMap, startPoseFor(true, startX));
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
         mechanisms.setUseShotMap(false);            // the tuner sets the speed itself
         mechanisms.setAutoStopAfterSalvo(false);    // the flywheel stays on between shots until X
-        mechanisms.setBlueAlliance(true);
 
+        boolean blue = true;
         HiveTarget target = HiveTarget.BLUE_REAR;
         boolean spinning = false, autoSpeed = false, prevIntakeTrigger = false;
         double setpoint = START_SETPOINT;
@@ -94,11 +101,33 @@ public class ShotMapTuner extends LinearOpMode {
 
         telemetry.addData("Chassis profile", profile.label());
         telemetry.addData("Mechanisms present", mechanisms.describe());
-        telemetry.addLine("Shot Map Tuner. Keep still while the Pinpoint calibrates; the pusher is assumed at its saved zero.");
-        telemetry.update();
-        waitForStart();
+        boolean seededBlue = true;
+        while (!isStarted() && !isStopRequested()) {
+            if (gamepad1.dpad_right) blue = true;
+            if (gamepad1.dpad_left) blue = false;
+            if (blue != seededBlue) {
+                seededBlue = blue;
+                drive.setPose(startPoseFor(blue, startX));
+                target = blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_REAR;
+            }
+            drive.updatePoseEstimate();
+            if (mechanisms.counter != null) mechanisms.counter.update();   // reads only; nothing moves in INIT
+            Pose2d p = drive.getPose();
+            Pose2d want = startPoseFor(blue, startX);
+            boolean poseOk = Math.hypot(p.position.x - want.position.x, p.position.y - want.position.y) < 1.5;
+            telemetry.addData("Chassis profile", profile.label());
+            telemetry.addData("Alliance (D-pad right = BLUE, left = RED)", blue ? "BLUE" : "RED");
+            telemetry.addData("Start pose to use", "X %.1f, Y %.2f in, heading %.0f deg: back against the rear wall, centered on the %s HIVE, facing the audience wall",
+                    want.position.x, want.position.y, Math.toDegrees(want.heading.toDouble()), blue ? "BLUE" : "RED");
+            telemetry.addData("Pinpoint pose", "%.1f, %.1f, %.0f deg   %s", p.position.x, p.position.y, p.heading.toDegrees(), poseOk ? "OK" : "WARNING: not at the start pose");
+            telemetry.addData("Mechanisms present", mechanisms.describe());
+            telemetry.addLine("Keep still while the Pinpoint calibrates; the pusher is assumed at its saved zero. Then press Start.");
+            telemetry.update();
+        }
+        if (isStopRequested()) return;
+        mechanisms.setBlueAlliance(blue);
         RunLog.started();
-        RunLog.event("SETUP " + mechanisms.describe());
+        RunLog.event("SETUP " + (blue ? "BLUE" : "RED") + " start, " + mechanisms.describe());
 
         while (opModeIsActive()) {
             drive.updatePoseEstimate();
@@ -110,7 +139,7 @@ public class ShotMapTuner extends LinearOpMode {
                     -gamepad1.right_stick_x * TURN_SCALE * scale));
 
             if (gamepad1.backWasPressed()) {
-                drive.setPose(new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG)));
+                drive.setPose(startPoseFor(blue, startX));
                 mechanisms.clearPusherStall();
             }
             if (gamepad1.xWasPressed()) spinning = !spinning;
