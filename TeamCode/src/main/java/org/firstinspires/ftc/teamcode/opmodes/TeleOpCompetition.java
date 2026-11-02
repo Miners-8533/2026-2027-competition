@@ -55,8 +55,9 @@ import java.util.Locale;
  *   left + right bumper  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident)
  *
  * Gamepad 2 (operator):
- *   right trigger        intake on / off (a toggle)
- *   left trigger (hold)  outtake
+ *   (the intake has no toggle: it runs IN until the robot holds 4 elements, then OUT so a fifth is never taken)
+ *   right trigger (hold) force the intake IN, even when full
+ *   left trigger (hold)  force the intake OUT
  *   A                    fire a salvo (spins up and fires when ready); also cancels a running reject, the way out of a jam the other way
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued fire
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
@@ -203,6 +204,7 @@ public class TeleOpCompetition extends LinearOpMode {
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
         mechanisms.setAutoTarget(true);            // the target is the closer of the alliance's own two cells: nothing to pick
+        mechanisms.setIntakeAlwaysOn(true);        // the intake runs IN until the robot holds 4, then OUT; the operator's triggers override
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
         mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
 
@@ -217,7 +219,6 @@ public class TeleOpCompetition extends LinearOpMode {
                         cmdTurn, fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow()));
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
-        boolean prevIntakeTrigger = false;
         boolean reseedDown = false, reseeded = false;
         ElapsedTime reseedHold = new ElapsedTime();
         boolean lockOn = false, lockWasAligned = false;
@@ -321,9 +322,7 @@ public class TeleOpCompetition extends LinearOpMode {
             }
 
             // operator
-            boolean intakeTrigger = gamepad2.right_trigger > TRIGGER_THRESHOLD;
-            if (intakeTrigger && !prevIntakeTrigger) mechanisms.toggleIntake();
-            prevIntakeTrigger = intakeTrigger;
+            mechanisms.setManualIntake(gamepad2.right_trigger > TRIGGER_THRESHOLD);
             mechanisms.setManualOuttake(gamepad2.left_trigger > TRIGGER_THRESHOLD);
             if (gamepad2.aWasPressed()) {
                 if (lockOn) {
@@ -357,13 +356,14 @@ public class TeleOpCompetition extends LinearOpMode {
                     : "off");
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, RB precision, hold RT target lock, LB + Y reset heading (face away first), hold LB + RB = reseed pose");
-            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, hold LB + B reject, X deploy, Y stow, D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
+            telemetry.addLine("GP2: intake automatic (IN, OUT when full), hold RT = force in, hold LT = force out, A fire, hold LB + B reject, X deploy, Y stow, D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
             telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();
         }
         drive.stop();
         mechanisms.setIntakeRequested(false);
         mechanisms.setManualOuttake(false);
+        mechanisms.setManualIntake(false);
         mechanisms.stopFlywheel();
         mechanisms.update(drive.getPose());
         RunLog.event("STOPPED by the driver station");

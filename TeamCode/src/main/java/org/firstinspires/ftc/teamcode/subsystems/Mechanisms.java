@@ -77,6 +77,8 @@ public class Mechanisms {
 
     private boolean intakeRequested = false;
     private boolean manualOuttake = false;
+    private boolean manualIntake = false;
+    private boolean intakeAlwaysOn = false;
     private boolean fireQueued = false;
     private boolean salvoActive = false;
     private boolean rejectActive = false;
@@ -154,6 +156,21 @@ public class Mechanisms {
     public void toggleIntake() {
         intakeRequested = !intakeRequested;
         RunLog.event("COMMAND intake toggle -> " + (intakeRequested ? "ON" : "off") + " (" + heldText() + ")");
+    }
+
+    /**
+     * True (TeleOp - Competition): the intake is never off. It runs IN while the robot holds fewer than CAPACITY elements and OUT once it
+     * holds CAPACITY (so a fifth is never taken in); the toggle and AUTO_STOP_INTAKE_AT_FULL are not used. The operator overrides it by
+     * holding {@link #setManualIntake} (IN even when full) or {@link #setManualOuttake} (OUT). False (the default, as in the autos):
+     * the toggle and the ramp decide, and a full robot stops the intake.
+     */
+    public void setIntakeAlwaysOn(boolean on) {
+        intakeAlwaysOn = on;
+    }
+
+    /** Hold: the intake runs IN whatever the count says (only with {@link #setIntakeAlwaysOn}). The outtake wins if both are held. */
+    public void setManualIntake(boolean requested) {
+        manualIntake = requested;
     }
 
     public void setManualOuttake(boolean requested) {
@@ -398,7 +415,7 @@ public class Mechanisms {
                 full = counter.isFull();
                 if (full) warnings.add("FULL: " + counter.count() + " elements held");
                 int opponentAt = counter.opponentNectarAt(blueAlliance);
-                if (opponentAt > 0) warnings.add("OPPONENT NECTAR at sensor " + opponentAt + " (CS" + opponentAt + "): reject (B)");
+                if (opponentAt > 0) warnings.add("OPPONENT NECTAR at sensor " + opponentAt + " (CS" + opponentAt + "): reject (LB + B)");
             }
         }
 
@@ -551,7 +568,7 @@ public class Mechanisms {
         if (intake != null) {
             // rule 6: a full robot stops the intake and clears the operator's toggle (they press it again after a salvo)
             boolean stopForFull = full && AUTO_STOP_INTAKE_AT_FULL;
-            if (stopForFull && intakeRequested) {
+            if (stopForFull && intakeRequested && !intakeAlwaysOn) {
                 intakeRequested = false;
                 notice("Intake stopped: " + counter.count() + " elements held.");
             }
@@ -559,6 +576,11 @@ public class Mechanisms {
             Intake.Mode mode = Intake.Mode.OFF;
             if (rejectActive || manualOuttake) mode = Intake.Mode.OUT;
             else if (wantIn && !stopForFull) mode = Intake.Mode.IN;
+            if (intakeAlwaysOn) {
+                if (rejectActive || manualOuttake) mode = Intake.Mode.OUT;
+                else if (manualIntake) mode = Intake.Mode.IN;
+                else mode = full ? Intake.Mode.OUT : Intake.Mode.IN;
+            }
             intake.setMode(mode);
             if (mode != prevIntakeMode) {
                 RunLog.event("INTAKE mode " + prevIntakeMode + " -> " + mode);
