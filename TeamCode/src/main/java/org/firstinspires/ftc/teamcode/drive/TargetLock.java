@@ -17,7 +17,9 @@ import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
  *
  * It reports {@link #isAligned()} (within ALIGNED_DEG and nearly stopped) so the driver can fire at the right moment. The gains are a
  * starting point from a simulation of the measured turn response (about 335 deg/s per unit of power): tune them on the robot.
- * AIM_OFFSET_DEG corrects a shooter whose line is not exactly the robot's forward.
+ * AIM_OFFSET_DEG corrects a shooter whose line is not exactly the robot's forward. The shooter fires along a line parallel to the
+ * front but SHOOTER_OFFSET_LEFT_IN to the side of the pose point (ROBOT_1: 2.5 in to the right), so the robot aims that line, not
+ * its centerline, at the target: the heading is the bearing minus asin(offset / distance).
  */
 @Config
 public final class TargetLock {
@@ -35,6 +37,8 @@ public final class TargetLock {
     public static double ALIGNED_MAX_RATE_DEG_PER_S = 25.0;
     /** The shooter's line relative to the robot's forward (positive = counterclockwise). Calibrate from where shots land. */
     public static double AIM_OFFSET_DEG = 0.0;
+    /** Sideways position of the shooter's line from the robot's centerline, inches, positive = to the robot's left. ROBOT_1's shooter is 2.5 in to the right. */
+    public static double SHOOTER_OFFSET_LEFT_IN = -2.5;
     public static double STICK_TRIM_DEG_PER_S = 40.0;
     public static double MAX_TRIM_DEG = 15.0;
     /** Closer than this to the target the bearing is meaningless (and jumps), so no turn is commanded. */
@@ -66,7 +70,9 @@ public final class TargetLock {
         }
         trimDeg = clamp(trimDeg - stickX * STICK_TRIM_DEG_PER_S * dtSec, -MAX_TRIM_DEG, MAX_TRIM_DEG);
         double bearing = Math.atan2(dy, dx);
-        double aim = bearing + Math.toRadians(AIM_OFFSET_DEG + trimDeg);
+        // the shooter's line sits SHOOTER_OFFSET_LEFT_IN to the side of the pose point, so turn until THAT line passes through the target
+        double parallax = Math.asin(clamp(SHOOTER_OFFSET_LEFT_IN / Math.hypot(dx, dy), -0.9, 0.9));
+        double aim = bearing - parallax + Math.toRadians(AIM_OFFSET_DEG + trimDeg);
         double error = Rotation2d.normalize(aim - pose.heading.toDouble());
         bearingDeg = Math.toDegrees(bearing);
         errorDeg = Math.toDegrees(error);
