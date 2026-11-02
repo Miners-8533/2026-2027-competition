@@ -383,8 +383,8 @@ public class Mechanisms {
 
         // the pusher check: after a salvo, once the robot is empty and idle, look for the arm at CS4 and correct a slipped zero
         if (pusherCheck != null && pusher != null) {
-            boolean busy = fireQueued || salvoActive || rejectActive || intakeRequested || manualOuttake || counterOverride
-                    || pusher.isStalled() || (ramp != null && ramp.isDeployedTarget());
+            // the intake may be running (the operator's toggle, or the ramp deployed): the check still runs, and aborts if an element shows up
+            boolean busy = fireQueued || salvoActive || rejectActive || manualOuttake || counterOverride || pusher.isStalled();
             boolean counterOk = counter != null && counter.isValid();
             counter.ignoreArmSensorCount(pusherCheck.isActive());
             if (pusherCheck.isActive()) {
