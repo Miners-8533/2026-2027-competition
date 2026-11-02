@@ -2,9 +2,9 @@
 """
 Pull the robot's run logs off the Control Hub, keep every run, and index them.
 
-The robot (util/RunLog.java) keeps only the last two runs of each kind on the hub, in /sdcard/FIRST/runlogs/
-(auto, teleop, pitcheck, bringup; each as NAME.log and NAME_prev.log). This tool copies them off over adb and files each run
-by the time it was opened, so nothing is lost when the hub rotates them:
+The robot (util/RunLog.java) keeps the last 10 runs of each kind on the hub, in /sdcard/FIRST/runlogs/ (auto, teleop,
+pitcheck, bringup; as NAME.log, NAME_prev.log, NAME_prev2.log ... NAME_prev9.log). This tool copies them off over adb and files each
+run by the time it was opened, so nothing is lost when the hub rotates them:
 
     robot-logs/
       index.md                     one row per run, newest first, with a summary of each
@@ -14,13 +14,16 @@ by the time it was opened, so nothing is lost when the hub rotates them:
       2026-11-02/233015_teleop.log every run, by the date and time on its first line (the hub's clock)
       matchlogs/                   the SDK's own match logs, when --matchlogs is given
 
-Running it again is safe: a run already stored is skipped, a run that was still being written is replaced by the longer copy,
-and nothing is ever deleted from the hub or from robot-logs.
+Running it again is safe: a run already stored is skipped, and a run that was still being written is replaced by the longer copy.
+After filing, it DELETES from the hub every log it has confirmed is stored here (the stored file is read back and must contain the
+pulled bytes) AND is finished (it has its end marker, or it has not been written to for 5 minutes, e.g. the robot lost power). A log
+that may still be written to is left on the hub. Nothing is ever deleted from robot-logs. Use --keep-on-hub to delete nothing.
 
 Usage (hub on USB, from the repo root):
     python tools/logs/pull_logs.py
     python tools/logs/pull_logs.py --list                  just print the index
-    python tools/logs/pull_logs.py --from-dir SOME_FOLDER  file logs from a folder you already pulled (no hub needed)
+    python tools/logs/pull_logs.py --from-dir SOME_FOLDER  file logs from a folder you already pulled (no hub needed; deletes nothing)
+    python tools/logs/pull_logs.py --keep-on-hub           pull and file, but leave the logs on the hub
     python tools/logs/pull_logs.py --matchlogs             also pull /sdcard/FIRST/matchlogs
     python tools/logs/pull_logs.py --serial 5462f57f0f18d316   when more than one device is attached
     python tools/logs/pull_logs.py --dest D:/robot-logs    store somewhere else
@@ -41,6 +44,8 @@ import tempfile
 HUB_RUNLOGS = "/sdcard/FIRST/runlogs"
 HUB_MATCHLOGS = "/sdcard/FIRST/matchlogs"
 KINDS = ("auto", "teleop", "pitcheck", "bringup")
+LOG_NAME_RE = re.compile(r"^(?P<kind>auto|teleop|pitcheck|bringup)(?:_prev\d*)?\.log$")
+IDLE_SECONDS = 300   # a log with no end marker that has not been written to for this long is treated as finished (power loss)
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DEFAULT_DEST = os.path.join(REPO, "robot-logs")
 
@@ -97,10 +102,8 @@ def pull(adb, serial, hub_path, into):
 # ---------------------------------------------------------------- reading one log
 
 def kind_of(filename):
-    stem = os.path.splitext(os.path.basename(filename))[0]
-    if stem.endswith("_prev"):
-        stem = stem[:-5]
-    return stem if stem in KINDS else None
+    m = LOG_NAME_RE.match(os.path.basename(filename))
+    return m.group("kind") if m else None
 
 
 def read_lines(path):
@@ -191,7 +194,7 @@ def stored_name(kind, opened):
 
 
 def file_in(dest, source_path, kind):
-    """Copy one log into the store. Returns 'new', 'updated' or 'skipped'."""
+    """Copy one log into the store. Returns ('new' | 'updated' | 'skipped', its path inside the store)."""
     lines = read_lines(source_path)
     m = HEADER_RE.match(lines[0]) if lines else None
     if not m:
@@ -208,6 +211,64 @@ def file_in(dest, source_path, kind):
         shutil.copyfile(source_path, target)
         return "updated", rel
     return "skipped", rel
+
+
+def is_complete(lines):
+    """True when the run wrote its end marker (it ended or crashed), so nothing more will be added to it."""
+    return any(line.startswith("E,") and (",RUN ENDED" in line or ",CRASH:" in line) for line in lines)
+
+
+def stored_has(dest, rel, pulled_path):
+    """True when the stored file starts with exactly the bytes that were pulled (it is the same run, as long or longer)."""
+    with open(pulled_path, "rb") as f:
+        pulled = f.read()
+    stored_path = os.path.join(dest, rel)
+    if not os.path.isfile(stored_path):
+        return False
+    with open(stored_path, "rb") as f:
+        stored = f.read()
+    return len(pulled) > 0 and stored.startswith(pulled)
+
+
+def hub_stat(adb, serial, hub_path):
+    """(size, modified seconds) of a file on the hub, or None when the hub's stat command is not usable."""
+    out = run_adb(adb, serial, "shell", "stat", "-c", "%s %Y", hub_path)
+    parts = out.stdout.split()
+    if out.returncode != 0 or len(parts) != 2 or not all(p.isdigit() for p in parts):
+        return None
+    return int(parts[0]), int(parts[1])
+
+
+def hub_now(adb, serial):
+    out = run_adb(adb, serial, "shell", "date", "+%s").stdout.strip()
+    return int(out) if out.isdigit() else None
+
+
+def delete_from_hub(adb, serial, dest, filed):
+    """Delete from the hub the logs confirmed stored here that are finished. `filed` is a list of (hub file name, pulled path, stored path)."""
+    deleted, left = [], []
+    now = hub_now(adb, serial)
+    for name, pulled_path, rel in filed:
+        hub_path = HUB_RUNLOGS + "/" + name
+        if not stored_has(dest, rel, pulled_path):
+            left.append((name, "not confirmed stored"))
+            continue
+        pulled_size = os.path.getsize(pulled_path)
+        stat = hub_stat(adb, serial, hub_path)
+        if stat is not None and stat[0] != pulled_size:
+            left.append((name, "changed on the hub since it was pulled (still running?)"))
+            continue
+        if not is_complete(read_lines(pulled_path)):
+            idle = (now - stat[1]) if (stat is not None and now is not None) else None
+            if idle is None or idle < IDLE_SECONDS:
+                left.append((name, "no end marker yet (may still be running)"))
+                continue
+        result = run_adb(adb, serial, "shell", "rm", "-f", hub_path)
+        if result.returncode == 0:
+            deleted.append(name)
+        else:
+            left.append((name, "rm failed: " + (result.stderr or result.stdout).strip()))
+    return deleted, left
 
 
 def scan_store(dest):
@@ -291,6 +352,7 @@ def main():
     ap.add_argument("--dest", default=DEFAULT_DEST, help="where to store the logs (default: robot-logs/ in the repo)")
     ap.add_argument("--serial", help="adb serial, when more than one device is attached")
     ap.add_argument("--from-dir", help="file the logs already in this folder (the runlogs folder of an earlier adb pull) instead of using the hub")
+    ap.add_argument("--keep-on-hub", action="store_true", help="do not delete the logs from the hub after they are stored")
     ap.add_argument("--matchlogs", action="store_true", help="also pull the SDK's match logs from the hub")
     ap.add_argument("--list", action="store_true", help="only print the index of what is stored")
     args = ap.parse_args()
@@ -329,12 +391,14 @@ def main():
 
         os.makedirs(dest, exist_ok=True)
         counts = {"new": 0, "updated": 0, "skipped": 0}
+        filed = []
         for name in sorted(os.listdir(source)):
             kind = kind_of(name)
             if not name.endswith(".log") or kind is None:
                 continue
             result, rel = file_in(dest, os.path.join(source, name), kind)
             counts[result] += 1
+            filed.append((name, os.path.join(source, name), rel))
             if result != "skipped":
                 print("%-8s %s  <- %s" % (result, rel, name))
         runs = scan_store(dest)
@@ -343,6 +407,12 @@ def main():
         print("%d new, %d updated, %d already stored. %d run(s) in %s" % (counts["new"], counts["updated"], counts["skipped"], len(runs), dest))
         print()
         print_index(runs)
+        if not args.from_dir and not args.keep_on_hub:
+            deleted, left = delete_from_hub(adb, serial, dest, filed)
+            print()
+            print("Deleted from the hub (confirmed stored here): %s" % (", ".join(deleted) if deleted else "nothing"))
+            for name, why in left:
+                print("Left on the hub: %s (%s)" % (name, why))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

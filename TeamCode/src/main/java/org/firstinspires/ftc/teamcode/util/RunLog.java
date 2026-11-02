@@ -23,12 +23,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * A log file of the last auto and the last TeleOp, for looking at after the match (copy it off the hub with
- * {@code adb pull /sdcard/FIRST/runlogs}). One run of each kind (auto, teleop, pitcheck) is kept as {@code auto.log} / {@code teleop.log}; the
- * run before it is kept as {@code auto_prev.log} / {@code teleop_prev.log}. Starting an opmode rotates the files, so
- * the auto and the TeleOp never touch each other's, and an opmode that crashes and is started again leaves the crash
- * in {@code *_prev.log} and the rest of the run in {@code *.log}. The only run that is discarded is one that was
- * initialized and stopped without ever starting (and did not crash).
+ * Log files of the recent runs, for looking at after the match (copy them off the hub with tools/logs/pull_logs.py, or
+ * {@code adb pull /sdcard/FIRST/runlogs}). The last KEEP_RUNS runs of each kind (auto, teleop, pitcheck, bringup) are kept: the
+ * newest as {@code teleop.log}, the one before it as {@code teleop_prev.log}, then {@code teleop_prev2.log}, {@code teleop_prev3.log}
+ * and so on. Starting an opmode shifts the files back by one, dropping the oldest, so the auto and the TeleOp never touch
+ * each other's, and an opmode that crashes and is started again leaves the crash in {@code *_prev.log} and the rest of the run in
+ * {@code *.log}. The only run that is discarded is one that was initialized and stopped without ever starting (and did not crash).
  *
  * Lines are text, one per line, the first field says what it is:
  *   #   a comment (opmode, date, how the previous run ended)
@@ -127,6 +127,25 @@ public final class RunLog {
         }
     }
 
+    /** How many runs of each kind stay on the hub (the newest plus KEEP_RUNS - 1 earlier ones). A run is a few hundred KB, so this is cheap. */
+    public static final int KEEP_RUNS = 10;
+
+    /** The file for the run {@code n} back from the newest: n = 1 is {@code NAME_prev.log}, n = 2 is {@code NAME_prev2.log}, ... */
+    private static File olderRun(File current, int n) {
+        String base = current.getName().replaceFirst("\\.log$", "");
+        return new File(current.getParentFile(), base + (n == 1 ? "_prev" : "_prev" + n) + ".log");
+    }
+
+    /** Shifts the runs before the newest back by one (prev -> prev2 -> ... ), dropping the oldest, to make room for a new prev. */
+    private static void shiftOlderRuns(File current) {
+        for (int n = KEEP_RUNS - 1; n >= 2; n--) {
+            File to = olderRun(current, n);
+            File from = olderRun(current, n - 1);
+            to.delete();
+            if (from.exists() && !from.renameTo(to)) from.delete();
+        }
+    }
+
     /**
      * Moves the last run of this kind to the "previous" file unless it was only an init that stopped cleanly.
      * Returns how that run ended, for the new log's first line.
@@ -149,6 +168,7 @@ public final class RunLog {
                 : !ended ? "NO END MARKER: the app stopped hard or the robot lost power"
                 : started ? "ended normally" : "init only, stopped before start";
         if (crash || !ended || started) {
+            shiftOlderRuns(current);
             previous.delete();
             if (!current.renameTo(previous)) current.delete();
         } else {

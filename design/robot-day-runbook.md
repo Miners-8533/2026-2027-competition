@@ -122,7 +122,7 @@ Run first with the robot on blocks, then on the floor. Each row of the plan's Ph
 adb pull /sdcard/FIRST/runlogs runlogs
 ```
 
-Gives `pitcheck.log`, `auto.log`, `teleop.log` and their `*_prev.log` (only the last two runs of each kind are kept: pull before a third run). For the test opmodes' own logs:
+Gives `pitcheck.log`, `auto.log`, `teleop.log` and their `*_prev.log` (the last 10 runs of each kind are kept as `*_prev2.log` ... `*_prev9.log`; pull them with tools/logs/pull_logs.py). For the test opmodes' own logs:
 
 | Command | What |
 |---|---|

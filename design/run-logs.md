@@ -12,12 +12,13 @@ They are in `/sdcard/FIRST/runlogs/` on the Control Hub:
 | `auto_prev.log` | the auto run before it |
 | `teleop.log` | the latest TeleOp run |
 | `teleop_prev.log` | the TeleOp run before it |
+| `teleop_prev2.log` ... `teleop_prev9.log` | the runs before that, each one further back (the same for `auto`, `bringup` and `pitcheck`) |
 
-Starting an opmode moves its latest log to `*_prev.log` and starts a new one, so **the auto and the TeleOp never overwrite each other**. If an opmode crashes and is started again, the crash is in `*_prev.log` and the rest of the run is in `*.log`. The first line of the new log says how the previous run of that kind ended (`ended normally`, `CRASHED`, or `NO END MARKER`, meaning the app stopped hard or power was lost).
+Starting an opmode shifts its logs back one place (`*.log` to `*_prev.log`, `*_prev.log` to `*_prev2.log`, and so on, dropping the oldest) and starts a new one, so **the auto and the TeleOp never overwrite each other**. If an opmode crashes and is started again, the crash is in `*_prev.log` and the rest of the run is in `*.log`. The first line of the new log says how the previous run of that kind ended (`ended normally`, `CRASHED`, or `NO END MARKER`, meaning the app stopped hard or power was lost).
 
 The one run that is discarded is an init that was stopped before Start without crashing.
 
-Only the last two runs of each kind are kept, so look at them before running an opmode a third time.
+Only the last 10 runs of each kind are kept (`RunLog.KEEP_RUNS`; a run is a few hundred KB), so pull them (tools/logs/pull_logs.py) before running an opmode a eleventh time.
 
 ## Getting it off the hub
 
@@ -27,7 +28,7 @@ With the hub on USB, from the repo root:
 python tools/logs/pull_logs.py
 ```
 
-(or double-click `tools/logs/pull-logs.cmd`). It copies the logs off the hub and files **every** run, since the hub keeps only the last two of each kind:
+(or double-click `tools/logs/pull-logs.cmd`). It copies the logs off the hub and files **every** run, since the hub keeps only the last 10 of each kind, and then removes them from the hub:
 
 ```
 robot-logs/                    (not in git)
