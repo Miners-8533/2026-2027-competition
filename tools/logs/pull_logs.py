@@ -43,8 +43,8 @@ import tempfile
 
 HUB_RUNLOGS = "/sdcard/FIRST/runlogs"
 HUB_MATCHLOGS = "/sdcard/FIRST/matchlogs"
-KINDS = ("auto", "teleop", "pitcheck", "bringup")
-LOG_NAME_RE = re.compile(r"^(?P<kind>auto|teleop|pitcheck|bringup)(?:_prev\d*)?\.log$")
+KINDS = ("auto", "teleop", "pitcheck", "bringup", "waypoints")
+LOG_NAME_RE = re.compile(r"^(?P<kind>auto|teleop|pitcheck|bringup|waypoints)(?:_prev\d*)?\.log$")
 IDLE_SECONDS = 300   # a log with no end marker that has not been written to for this long is treated as finished (power loss)
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DEFAULT_DEST = os.path.join(REPO, "robot-logs")
@@ -122,7 +122,7 @@ def summarize(lines):
     """Everything the index shows about one run, read from its lines."""
     s = {"name": "", "opened": "", "duration_s": 0.0, "end": "NO END MARKER", "alliance": "", "start": "",
          "salvos": 0, "pusher_checks": 0, "warnings": 0, "slow_loops": 0, "backup_mode": False,
-         "flywheel_encoder_lost": False, "pinpoint_faults": 0, "min_volts": None, "max_loop_ms": 0.0, "events": 0}
+         "flywheel_encoder_lost": False, "pinpoint_faults": 0, "marks": 0, "min_volts": None, "max_loop_ms": 0.0, "events": 0}
     if lines:
         m = HEADER_RE.match(lines[0])
         if m:
@@ -167,6 +167,8 @@ def summarize(lines):
                     s["start"] = "%s (%s)" % (m.group(1), m.group(2))
             elif text.startswith("SALVO started"):
                 s["salvos"] += 1
+            elif text.startswith("MARK "):
+                s["marks"] += 1
             elif text.startswith("PUSHER CHECK") and ("started" in text or "SEEK" in text or "OK" in text):
                 s["pusher_checks"] += 1
             elif text.startswith("WARNING") and "cleared" not in text:
@@ -323,11 +325,11 @@ def write_index(dest, runs):
         json.dump(runs, f, indent=1)
     lines = ["# Robot run logs", "",
              "%d run(s), newest first. Times are the hub's clock (it may be wrong). Run `python tools/logs/pull_logs.py` to add new ones." % len(runs),
-             "", "| Opened | Kind | Opmode | Length | Ended | Alliance | Salvos | Min volts | Max loop ms | Slow loops | Flags | File |",
-             "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+             "", "| Opened | Kind | Opmode | Length | Ended | Alliance | Salvos | Marks | Min volts | Max loop ms | Slow loops | Flags | File |",
+             "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for r in runs:
-        lines.append("| %s | %s | %s | %.0f s | %s | %s | %d | %s | %.0f | %d | %s | [%s](%s) |" % (
-            r["opened"], r["kind"], r["name"], r["duration_s"], r["end"], r["alliance"] or "-", r["salvos"],
+        lines.append("| %s | %s | %s | %.0f s | %s | %s | %d | %d | %s | %.0f | %d | %s | [%s](%s) |" % (
+            r["opened"], r["kind"], r["name"], r["duration_s"], r["end"], r["alliance"] or "-", r["salvos"], r.get("marks", 0),
             "-" if r["min_volts"] is None else "%.1f" % r["min_volts"], r["max_loop_ms"], r["slow_loops"], flags(r) or "-",
             r["file"], r["file"]))
     with open(os.path.join(dest, "index.md"), "w", encoding="utf-8") as f:

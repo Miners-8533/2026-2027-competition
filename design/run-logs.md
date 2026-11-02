@@ -12,6 +12,7 @@ They are in `/sdcard/FIRST/runlogs/` on the Control Hub:
 | `auto_prev.log` | the auto run before it |
 | `teleop.log` | the latest TeleOp run |
 | `teleop_prev.log` | the TeleOp run before it |
+| `waypoints.log` (and `_prev` ...) | the Auto Waypoint Marker's run: its `MARK` lines are the points marked |
 | `teleop_prev2.log` ... `teleop_prev9.log` | the runs before that, each one further back (the same for `auto`, `bringup` and `pitcheck`) |
 
 Starting an opmode shifts its logs back one place (`*.log` to `*_prev.log`, `*_prev.log` to `*_prev2.log`, and so on, dropping the oldest) and starts a new one, so **the auto and the TeleOp never overwrite each other**. If an opmode crashes and is started again, the crash is in `*_prev.log` and the rest of the run is in `*.log`. The first line of the new log says how the previous run of that kind ended (`ended normally`, `CRASHED`, or `NO END MARKER`, meaning the app stopped hard or power was lost).
