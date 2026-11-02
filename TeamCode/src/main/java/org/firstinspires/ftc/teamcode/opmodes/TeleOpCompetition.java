@@ -66,7 +66,7 @@ import java.util.Locale;
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
  *   hold left bumper + D-pad up / down   speed trim +/- 25 ticks/s added to the shot map's speed (the manual setpoint while the map is empty)
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
- *   hold left bumper + Y pusher calibration sweep now (the track must be empty and the intake off; again to stop it); Y alone stows
+ *   hold left bumper + Y pusher calibration sweep now (the track must be empty; the intake is held off by itself until it ends; again to stop it); Y alone stows
  *   (no control clears a pusher fault: the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
  *   (neither controller uses Back or Start)
  *

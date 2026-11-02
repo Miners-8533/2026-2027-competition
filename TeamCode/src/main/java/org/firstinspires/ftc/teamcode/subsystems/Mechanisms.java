@@ -80,6 +80,7 @@ public class Mechanisms {
     private boolean fullNow = false;
     private int salvosDone = 0;
     private boolean flywheelLostSeen = false;
+    private boolean manualCalibration = false;   // the operator's pusher calibration sweep is running: the intake is held off
     private boolean flywheelLostNotice = false;
     private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the shot distance is this, whatever the pose says
     private boolean manualIntake = false;
@@ -387,7 +388,8 @@ public class Mechanisms {
         }
         checkPending = false;
         pusherCheck.startCalibration();
-        RunLog.event("COMMAND pusher calibration sweep");
+        manualCalibration = pusherCheck.isActive();
+        RunLog.event("COMMAND pusher calibration sweep (the intake is held off until it ends)");
     }
 
     public void clearPusherStall() {
@@ -625,6 +627,11 @@ public class Mechanisms {
                 else if (manualIntake) mode = Intake.Mode.IN;
                 else mode = full ? Intake.Mode.OUT : Intake.Mode.IN;
             }
+            if (manualCalibration && (pusherCheck == null || !pusherCheck.isActive())) {
+                manualCalibration = false;
+                RunLog.event("COMMAND pusher calibration sweep over: the intake runs again");
+            }
+            if (manualCalibration) mode = Intake.Mode.OFF;   // a manual calibration sweep needs a still track (a fire or reject aborts it first)
             intake.setMode(mode);
             if (mode != prevIntakeMode) {
                 RunLog.event("INTAKE mode " + prevIntakeMode + " -> " + mode);
