@@ -126,6 +126,12 @@ public class PusherCheck {
         return Pusher.TICKS_PER_REV / 360.0;
     }
 
+    /** The zero's angle for an unwrapped tick count, in [0, 360), for the log. */
+    private double angleOf(double ticks) {
+        double a = ticks / ticksPerDeg();
+        return ((a % 360.0) + 360.0) % 360.0;
+    }
+
     /** Why a check cannot start now, or null if it can. */
     public String startRefusal() {
         if (isActive()) return "a check is already running";
@@ -237,6 +243,8 @@ public class PusherCheck {
     }
 
     private void judgeLook() {
+        RunLog.event(String.format(Locale.US, "PUSHER CHECK look: arm at %.1f deg by the zero (expected %.1f), CS4 %s",
+                angleOf(pusher.getUnwrappedTicks()), ARM_CENTER_DEG, counter.pusherArmSeen() ? "SEES the arm" : "does not see the arm"));
         if (counter.pusherArmSeen()) {
             RunLog.event(verifying ? "PUSHER CHECK: verified, the arm is at the expected position after the correction"
                     : "PUSHER CHECK: the arm is at the expected position");
@@ -286,6 +294,8 @@ public class PusherCheck {
         if (trackCrossing()) {
             forwardCenter = (crossRise + crossFall) / 2.0;
             forwardSpeed = Math.abs(pusher.getVelocityTicksPerSec());
+            RunLog.event(String.format(Locale.US, "PUSHER CHECK forward crossing: seen from %.1f to %.1f deg by the zero (center %.1f, width %.1f), %.0f deg/s",
+                    angleOf(crossRise), angleOf(crossFall), angleOf(forwardCenter), (crossFall - crossRise) / ticksPerDeg(), forwardSpeed / ticksPerDeg()));
             pusher.abortSeek();
             resetCrossing();
             pusher.startSeek(pusher.getUnwrappedTicks() - BACK_DEG * ticksPerDeg(), SWEEP_POWER);
@@ -305,6 +315,8 @@ public class PusherCheck {
     private void sweepBack() {
         if (trackCrossing()) {
             double backCenter = (crossRise + crossFall) / 2.0;
+            RunLog.event(String.format(Locale.US, "PUSHER CHECK back crossing: seen from %.1f to %.1f deg by the zero (center %.1f, width %.1f)",
+                    angleOf(crossRise), angleOf(crossFall), angleOf(backCenter), (crossRise - crossFall) / ticksPerDeg()));
             pusher.abortSeek();
             applyCenter((forwardCenter + backCenter) / 2.0,
                     String.format(Locale.US, "the forward and back crossings (their centers differ by %.1f deg: the sensor's delay)", (backCenter - forwardCenter) / ticksPerDeg()));
