@@ -171,7 +171,7 @@ public class Mechanisms {
             return;
         }
         if (pusher.isStalled()) {
-            notice("Fire ignored: the pusher is faulted (Back clears it).");
+            notice("Fire ignored: the pusher is faulted.");
             return;
         }
         if (pusherCheck != null && pusherCheck.isActive()) pusherCheck.abort("a fire was requested");
@@ -520,7 +520,7 @@ public class Mechanisms {
                 notice("Fire dropped: set the pusher's TICKS_PER_REV first.");
             } else if (fireTimer.seconds() > FIRE_TIMEOUT_SEC) {
                 fireQueued = false;
-                notice(pusher.isStalled() ? "Fire dropped: the pusher is faulted (Back clears it)."
+                notice(pusher.isStalled() ? "Fire dropped: the pusher is faulted."
                         : !pusher.isStopped() ? "Fire dropped: the pusher was still moving."
                         : "Fire dropped: the flywheel was not ready in time.");
             } else {

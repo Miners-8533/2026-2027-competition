@@ -588,7 +588,7 @@ public class Pusher {
         telemetry.addData("Pusher last move result", lastResult);
         telemetry.addData("Pusher last settle", lastSettle);
         telemetry.addData("Pusher ENCODER_SIGN", "%+.0f", ENCODER_SIGN);
-        if (isStalled()) telemetry.addLine("PUSHER FAULT (Back clears): " + faultReason);
+        if (isStalled()) telemetry.addLine("PUSHER FAULT: " + faultReason);
     }
 
     /** Action: run one salvo and finish when the pusher has stopped, or has faulted, or times out. */

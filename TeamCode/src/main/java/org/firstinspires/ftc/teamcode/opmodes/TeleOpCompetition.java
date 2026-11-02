@@ -41,19 +41,18 @@ import java.util.Locale;
  *
  * INIT (gamepad 1):
  *   D-pad right / left   BLUE / RED alliance (only when there is no auto pose; an auto pose fixes the alliance)
- *   Back                 discard the auto pose and use the default start pose (then the D-pad picks the alliance)
+ *   D-pad up             discard the auto pose and use the default start pose (then the D-pad picks the alliance)
  *
  * Gamepad 1 (driver):
  *   left stick           drive, field-oriented: up = away from the driver, right = the driver's right
  *   right stick X        turn
  *   right bumper (hold)  precision mode (30%)
- *   Y                    reset the heading: point the robot AWAY from you first, then press
+ *   left bumper + Y      reset the heading: point the robot AWAY from you first, then press
  *   right trigger (hold) TARGET LOCK: the robot turns itself to point its front (intake and shooter end) at the nearest of your
  *                        alliance's two CELLs while
  *                        you keep driving; the turn stick nudges the aim up to 15 deg; a short buzz and ALIGNED on the screen
  *                        say it is on target. Released = back to your turn stick. Ignored while the pose override is on.
- *   Back (hold 1 s)      reseed the pose to the default start pose (held, so it cannot happen by accident)
- *   D-pad up / down      only writes MARK good / MARK off to the log (pose, heading, target), to flag what you see on the field
+ *   left + right bumper  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident)
  *
  * Gamepad 2 (operator):
  *   right trigger        intake on / off (a toggle)
@@ -64,8 +63,9 @@ import java.util.Locale;
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
  *   D-pad up / down      manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
- *   Back                 clear a pusher fault (the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
- *   hold Back + Y        pusher calibration sweep now (the track must be empty and the intake off; again to stop it)
+ *   hold left bumper + Y pusher calibration sweep now (the track must be empty and the intake off; again to stop it); Y alone stows
+ *   (no control clears a pusher fault: the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
+ *   (neither controller uses Back or Start)
  *
  * OVERRIDES, for when a sensor fails in a match (each press toggles; the screen and the log say what is on):
  *   gamepad 1: hold left bumper + X   drive robot-oriented (stick up = robot forward), ignoring the heading
@@ -156,7 +156,7 @@ public class TeleOpCompetition extends LinearOpMode {
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
 
         while (!isStarted() && !isStopRequested()) {
-            if (gamepad1.backWasPressed() && useAutoPose) {
+            if (gamepad1.dpadUpWasPressed() && useAutoPose) {
                 useAutoPose = false;
                 PoseStorage.clear();
                 blue = true;
@@ -179,7 +179,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Chassis profile", profile.label());
             telemetry.addData("Alliance", blue ? "BLUE" : "RED");
             telemetry.addData("Start pose", useAutoPose
-                    ? String.format("AUTO pose, saved %.0f s ago (Back on gamepad 1 discards it)", PoseStorage.ageSec())
+                    ? String.format("AUTO pose, saved %.0f s ago (D-pad up on gamepad 1 discards it)", PoseStorage.ageSec())
                     : blue ? "default start pose (blue: rear wall, facing +X)" : "default start pose (red: audience wall, facing -X)");
             telemetry.addData("Pinpoint", "%s   pose %.1f, %.1f, %.0f deg   %s", loc.getDeviceStatus(),
                     p.position.x, p.position.y, p.heading.toDegrees(),
@@ -219,8 +219,8 @@ public class TeleOpCompetition extends LinearOpMode {
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
         boolean prevIntakeTrigger = false;
-        boolean backDown = false, reseeded = false;
-        ElapsedTime backHold = new ElapsedTime();
+        boolean reseedDown = false, reseeded = false;
+        ElapsedTime reseedHold = new ElapsedTime();
         boolean lockOn = false, lockWasAligned = false, lockRefusalLogged = false;
         ElapsedTime loopClock = new ElapsedTime();
 
@@ -305,30 +305,24 @@ public class TeleOpCompetition extends LinearOpMode {
             if (gamepad2.leftStickButtonWasPressed()) mechanisms.toggleCounterOverride();
             if (gamepad2.rightStickButtonWasPressed()) mechanisms.toggleFlywheelOpenLoop();
 
-            boolean markGood = gamepad1.dpadUpWasPressed(), markOff = gamepad1.dpadDownWasPressed();
-            if (markGood || markOff) {
-                RunLog.event(String.format(Locale.US, "MARK %s: robot pose (%.1f, %.1f, %.1f deg), alliance %s, target %s, lock %s",
-                        markGood ? "good" : "off", pose.position.x, pose.position.y, pose.heading.toDegrees(), blue ? "BLUE" : "RED",
-                        mechanisms.getOpenCell(), lockOn ? "on" : "off"));
-            }
-            if (gamepad1.yWasPressed()) {
+            if (gamepad1.yWasPressed() && gamepad1.left_bumper) {
                 drive.setPose(new Pose2d(pose.position, driverForwardRad));
                 RunLog.event(String.format("DRIVER heading reset: was %.1f deg, now %.1f deg", pose.heading.toDegrees(), Math.toDegrees(driverForwardRad)));
             }
-            if (gamepad1.back) {
-                if (!backDown) {
-                    backDown = true;
+            if (gamepad1.left_bumper && gamepad1.right_bumper) {
+                if (!reseedDown) {
+                    reseedDown = true;
                     reseeded = false;
-                    backHold.reset();
+                    reseedHold.reset();
                 }
-                if (!reseeded && backHold.seconds() >= RESEED_HOLD_SEC) {
+                if (!reseeded && reseedHold.seconds() >= RESEED_HOLD_SEC) {
                     drive.setPose(defaultStart);
                     reseeded = true;
                     RunLog.event(String.format("DRIVER pose reseeded to the default start (was %.1f, %.1f, %.1f deg)",
                             pose.position.x, pose.position.y, pose.heading.toDegrees()));
                 }
             } else {
-                backDown = false;
+                reseedDown = false;
             }
 
             // operator
@@ -345,12 +339,11 @@ public class TeleOpCompetition extends LinearOpMode {
             }
             if (gamepad2.bWasPressed()) mechanisms.requestReject();
             if (gamepad2.xWasPressed()) mechanisms.requestDeploy();
-            boolean operatorY = gamepad2.yWasPressed();   // read once: with Back held, Y is the pusher calibration instead of the stow
-            if (operatorY && gamepad2.back) mechanisms.requestPusherCalibration();
+            boolean operatorY = gamepad2.yWasPressed();   // read once: with the left bumper held, Y is the pusher calibration instead of the stow
+            if (operatorY && gamepad2.left_bumper) mechanisms.requestPusherCalibration();
             else if (operatorY) mechanisms.requestStow();
             if (gamepad2.dpadUpWasPressed()) mechanisms.adjustManualSetpoint(SETPOINT_STEP);
             if (gamepad2.dpadDownWasPressed()) mechanisms.adjustManualSetpoint(-SETPOINT_STEP);
-            if (gamepad2.backWasPressed()) mechanisms.clearPusherStall();
 
             mechanisms.update(pose);
             RunLog.tick();
@@ -358,8 +351,8 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Alliance", blue ? "BLUE" : "RED");
             telemetry.addData("Pose x / y (in), heading (deg)", "%.1f / %.1f / %.1f",
                     pose.position.x, pose.position.y, pose.heading.toDegrees());
-            if (gamepad1.back && !reseeded) {
-                telemetry.addData("Reseed pose", "keep holding Back... %.1f s", RESEED_HOLD_SEC - backHold.seconds());
+            if (reseedDown && !reseeded) {
+                telemetry.addData("Reseed pose", "keep holding LB + RB... %.1f s", RESEED_HOLD_SEC - reseedHold.seconds());
             }
             telemetry.addData("Drive", fieldOriented ? "field-oriented" : "ROBOT-ORIENTED (override: heading ignored)");
             telemetry.addData("Target lock (hold driver RT)", lockOn
@@ -367,8 +360,8 @@ public class TeleOpCompetition extends LinearOpMode {
                             targetLock.errorDeg(), targetLock.isAligned() ? "   ALIGNED" : "")
                     : "off");
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive, RB precision, hold RT target lock, Y reset heading (face away first), Back held = reseed");
-            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad up/down speed trim, Back clear pusher fault, hold Back + Y pusher calibration sweep");
+            telemetry.addLine("GP1: stick drive, RB precision, hold RT target lock, LB + Y reset heading (face away first), hold LB + RB = reseed pose");
+            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
             telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP1 hold LB + B ignore pose (ramp stow), GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();
         }
