@@ -62,7 +62,7 @@ import java.util.Locale;
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued fire
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
- *   D-pad up / down      manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
+ *   hold left bumper + D-pad up / down   speed trim +/- 25 ticks/s added to the shot map's speed (the manual setpoint while the map is empty)
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
  *   hold left bumper + Y pusher calibration sweep now (the track must be empty and the intake off; again to stop it); Y alone stows
  *   (no control clears a pusher fault: the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
@@ -337,8 +337,9 @@ public class TeleOpCompetition extends LinearOpMode {
             boolean operatorY = gamepad2.yWasPressed();   // read once: with the left bumper held, Y is the pusher calibration instead of the stow
             if (operatorY && gamepad2.left_bumper) mechanisms.requestPusherCalibration();
             else if (operatorY) mechanisms.requestStowNow();   // stow at once: no flower check
-            if (gamepad2.dpadUpWasPressed()) mechanisms.adjustManualSetpoint(SETPOINT_STEP);
-            if (gamepad2.dpadDownWasPressed()) mechanisms.adjustManualSetpoint(-SETPOINT_STEP);
+            boolean trimUp = gamepad2.dpadUpWasPressed(), trimDown = gamepad2.dpadDownWasPressed();   // read every loop; the left bumper must be held
+            if (trimUp && gamepad2.left_bumper) mechanisms.adjustManualSetpoint(SETPOINT_STEP);
+            if (trimDown && gamepad2.left_bumper) mechanisms.adjustManualSetpoint(-SETPOINT_STEP);
 
             mechanisms.update(pose);
             RunLog.tick();
@@ -356,7 +357,7 @@ public class TeleOpCompetition extends LinearOpMode {
                     : "off");
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, RB precision, hold RT target lock, LB + Y reset heading (face away first), hold LB + RB = reseed pose");
-            telemetry.addLine("GP2: intake automatic (IN, OUT when full), hold RT = force in, hold LT = force out, A fire, hold LB + B reject, X deploy, Y stow, D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
+            telemetry.addLine("GP2: intake automatic (IN, OUT when full), hold RT = force in, hold LT = force out, A fire, hold LB + B reject, X deploy, Y stow, hold LB + D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
             telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();
         }
