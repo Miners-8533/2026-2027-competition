@@ -51,15 +51,15 @@ import java.util.Locale;
  *   right trigger (hold) TARGET LOCK: the robot turns itself to point its front (intake and shooter end) at the nearest of your
  *                        alliance's two CELLs while
  *                        you keep driving; the turn stick nudges the aim up to 15 deg; a short buzz and ALIGNED on the screen
- *                        say it is on target. Released = back to your turn stick. Ignored while the pose override is on.
+ *                        say it is on target. Released = back to your turn stick.
  *   left + right bumper  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident)
  *
  * Gamepad 2 (operator):
  *   right trigger        intake on / off (a toggle)
  *   left trigger (hold)  outtake
  *   A                    fire a salvo (spins up and fires when ready); also cancels a running reject, the way out of a jam the other way
- *   B                    reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued fire
- *   X / Y                deploy / stow the ramp (stow waits until clear of a flower)
+ *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued fire
+ *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
  *   D-pad up / down      manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
@@ -69,7 +69,6 @@ import java.util.Locale;
  *
  * OVERRIDES, for when a sensor fails in a match (each press toggles; the screen and the log say what is on):
  *   gamepad 1: hold left bumper + X   drive robot-oriented (stick up = robot forward), ignoring the heading
- *   gamepad 1: hold left bumper + B   ignore the pose: a ramp stow request is carried out without the flower check
  *   (the driver has no stick-button or Start controls, so nothing can be set off by accident; the left bumper is a guard)
  *   gamepad 2 left stick button    ignore the element counter: no 4-element stop, no element warnings
  *   gamepad 2 right stick button   flywheel open loop: power from the target, ready after a timer, speed sensor ignored
@@ -221,7 +220,7 @@ public class TeleOpCompetition extends LinearOpMode {
         boolean prevIntakeTrigger = false;
         boolean reseedDown = false, reseeded = false;
         ElapsedTime reseedHold = new ElapsedTime();
-        boolean lockOn = false, lockWasAligned = false, lockRefusalLogged = false;
+        boolean lockOn = false, lockWasAligned = false;
         ElapsedTime loopClock = new ElapsedTime();
 
         while (opModeIsActive()) {
@@ -252,8 +251,7 @@ public class TeleOpCompetition extends LinearOpMode {
             cmdLeft = robotLeft;
             double manualTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
             boolean lockWanted = gamepad1.right_trigger > TRIGGER_THRESHOLD;
-            boolean lockUsable = lockWanted && !mechanisms.isPoseOverridden();
-            if (lockUsable) {
+            if (lockWanted) {
                 HiveTarget lockTarget = mechanisms.getOpenCell();
                 if (!lockOn) {
                     lockOn = true;
@@ -278,8 +276,6 @@ public class TeleOpCompetition extends LinearOpMode {
                     targetLock.release();
                     RunLog.event("TARGET LOCK off");
                 }
-                if (lockWanted && !lockRefusalLogged) RunLog.event("TARGET LOCK refused: the pose override is on");
-                lockRefusalLogged = lockWanted;
                 lockErrDeg = Double.NaN;
                 cmdTurn = manualTurn;
             }
@@ -296,12 +292,11 @@ public class TeleOpCompetition extends LinearOpMode {
             }
 
             // read both edges every loop so a press made without the guard cannot trigger an override later
-            boolean overrideDrive = gamepad1.xWasPressed(), overridePose = gamepad1.bWasPressed();
+            boolean overrideDrive = gamepad1.xWasPressed();
             if (gamepad1.left_bumper && overrideDrive) {
                 fieldOriented = !fieldOriented;
                 RunLog.event("OVERRIDE drive " + (fieldOriented ? "FIELD-oriented" : "ROBOT-oriented (heading ignored)"));
             }
-            if (gamepad1.left_bumper && overridePose) mechanisms.togglePoseOverride();
             if (gamepad2.leftStickButtonWasPressed()) mechanisms.toggleCounterOverride();
             if (gamepad2.rightStickButtonWasPressed()) mechanisms.toggleFlywheelOpenLoop();
 
@@ -337,11 +332,12 @@ public class TeleOpCompetition extends LinearOpMode {
                 }
                 mechanisms.requestFire();
             }
-            if (gamepad2.bWasPressed()) mechanisms.requestReject();
+            boolean operatorB = gamepad2.bWasPressed();   // read every loop; the reject needs the left bumper held, so it cannot be set off by accident
+            if (operatorB && gamepad2.left_bumper) mechanisms.requestReject();
             if (gamepad2.xWasPressed()) mechanisms.requestDeploy();
             boolean operatorY = gamepad2.yWasPressed();   // read once: with the left bumper held, Y is the pusher calibration instead of the stow
             if (operatorY && gamepad2.left_bumper) mechanisms.requestPusherCalibration();
-            else if (operatorY) mechanisms.requestStow();
+            else if (operatorY) mechanisms.requestStowNow();   // stow at once: no flower check
             if (gamepad2.dpadUpWasPressed()) mechanisms.adjustManualSetpoint(SETPOINT_STEP);
             if (gamepad2.dpadDownWasPressed()) mechanisms.adjustManualSetpoint(-SETPOINT_STEP);
 
@@ -361,8 +357,8 @@ public class TeleOpCompetition extends LinearOpMode {
                     : "off");
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, RB precision, hold RT target lock, LB + Y reset heading (face away first), hold LB + RB = reseed pose");
-            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
-            telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP1 hold LB + B ignore pose (ramp stow), GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
+            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, hold LB + B reject, X deploy, Y stow, D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
+            telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();
         }
         drive.stop();
