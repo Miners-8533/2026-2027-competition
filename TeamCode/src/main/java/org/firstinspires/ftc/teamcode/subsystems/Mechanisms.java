@@ -78,6 +78,7 @@ public class Mechanisms {
     private boolean intakeRequested = false;
     private boolean manualOuttake = false;
     private boolean fullNow = false;
+    private int salvosDone = 0;
     private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the shot distance is this, whatever the pose says
     private boolean manualIntake = false;
     private boolean intakeAlwaysOn = false;
@@ -407,6 +408,11 @@ public class Mechanisms {
         return fixedDistanceIn > 0.0;
     }
 
+    /** How many salvos have finished this run (a cancelled or dropped one does not count). TeleOp watches it to release the target lock. */
+    public int getSalvosDone() {
+        return salvosDone;
+    }
+
     public boolean isFireBusy() {
         return fireQueued || salvoActive;
     }
@@ -490,6 +496,7 @@ public class Mechanisms {
             }
             if (salvoActive && pusherIdle) {
                 salvoActive = false;
+                salvosDone++;
                 RunLog.event(String.format(Locale.US, "SALVO done: lowest flywheel speed %.0f ticks/s | %s | %s",
                         salvoMinSpeed, pusher.getLastResult(), pusher.getLastSettle()));
                 if (AUTO_PUSHER_CHECK && pusherCheck != null) {

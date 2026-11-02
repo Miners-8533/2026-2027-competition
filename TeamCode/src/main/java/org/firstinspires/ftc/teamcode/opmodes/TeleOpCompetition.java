@@ -50,7 +50,7 @@ import java.util.Locale;
  *   right bumper (hold)  precision mode (30%)
  *   A                    fire a salvo (spins up and fires when ready); also cancels a running reject, the way out of a jam the other way.
  *                        Works with any number of elements held, locked or not.
- *   (target lock engages by itself as soon as the robot holds 4 elements and stays on through the salvo; while it is on the robot
+ *   (target lock engages by itself as soon as the robot holds 4 elements and stays on through the salvo, which releases it (a finished salvo also clears the manual toggle; the auto lock then waits until the robot is no longer full before it can engage again); while it is on the robot
  *    turns itself to point its front (intake and shooter end) at the nearest of your alliance's two CELLs while you keep driving;
  *    with the left bumper held the right stick nudges the aim up to 15 deg (without it the stick does nothing while locked); a short buzz and ALIGNED on the screen say it is on target. The operator's right
  *    bumper (hold) engages it by hand, full or not.)
@@ -261,7 +261,8 @@ public class TeleOpCompetition extends LinearOpMode {
                         cmdTurn, backupMode ? "backup" : fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow()));
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
-        boolean reseedDown = false, reseeded = false, backupHeld = false, manualLockOn = false;
+        boolean reseedDown = false, reseeded = false, backupHeld = false, manualLockOn = false, autoLockSuppressed = false;
+        int salvosSeen = 0;
         ElapsedTime backupHold = new ElapsedTime();
         ElapsedTime reseedHold = new ElapsedTime();
         boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, wasFull = false, pinpointBad = false;
@@ -319,10 +320,18 @@ public class TeleOpCompetition extends LinearOpMode {
             cmdForward = robotForward;
             cmdLeft = robotLeft;
             double manualTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
-            // auto lock: from the moment the robot is full until its salvo is done; manual lock: operator right bumper held, full or not
+            // auto lock: from the moment the robot is full until its salvo is done; manual lock: operator A toggles it, full or not.
+            // A finished salvo releases BOTH; the auto lock then waits for the robot to stop being full before it can engage again.
             if (gamepad2.aWasPressed()) {
                 manualLockOn = !manualLockOn;
                 RunLog.event("COMMAND manual target lock -> " + (manualLockOn ? "ON" : "off") + (backupMode ? " (no effect: backup mode)" : ""));
+            }
+            if (mechanisms.getSalvosDone() != salvosSeen) {
+                salvosSeen = mechanisms.getSalvosDone();
+                if (manualLockOn || autoLockLatched) RunLog.event("TARGET LOCK released: the salvo is done" + (manualLockOn ? " (manual lock cleared)" : ""));
+                manualLockOn = false;
+                autoLockLatched = false;
+                autoLockSuppressed = true;
             }
             boolean manualLock = manualLockOn;
             boolean fullNow = mechanisms.isFull();
@@ -331,8 +340,12 @@ public class TeleOpCompetition extends LinearOpMode {
                 buzz(gamepad2, FULL_RUMBLE_MS);
             }
             wasFull = fullNow;
-            if (fullNow) autoLockLatched = true;
-            else if (!mechanisms.isFireBusy()) autoLockLatched = false;
+            if (fullNow) {
+                if (!autoLockSuppressed) autoLockLatched = true;
+            } else {
+                autoLockSuppressed = false;
+                if (!mechanisms.isFireBusy()) autoLockLatched = false;
+            }
             boolean lockWanted = !backupMode && (manualLock || (AUTO_LOCK_WHEN_FULL && autoLockLatched));
             if (lockWanted) {
                 HiveTarget lockTarget = mechanisms.getOpenCell();
