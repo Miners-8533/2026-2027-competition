@@ -11,6 +11,9 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
+import org.firstinspires.ftc.teamcode.util.RunLog;
+
+import java.util.Locale;
 
 /**
  * Hand-push check of the Pinpoint. The drive motors are set to FLOAT and never powered, so
@@ -23,6 +26,9 @@ import org.firstinspires.ftc.teamcode.math.Rotation2d;
  * and press Back to re-apply them and rerun the check.
  *
  * Gamepad 1:  A = skip the current step   Back = re-apply PARAMS, zero the pose, restart
+ *
+ * Everything is also written to runlogs/bringup.log (pull it with adb): the offsets and pod types in use, each step's verdict with the
+ * distance or angle it saw, and the pose and raw pod ticks five times a second.
  */
 @TeleOp(name = "Pinpoint Push Test", group = "Bring-up")
 public class PinpointPushTest extends LinearOpMode {
@@ -37,6 +43,18 @@ public class PinpointPushTest extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+        RunLog.open(RunLog.Kind.BRINGUP, "Pinpoint Push Test", hardwareMap);
+        try {
+            runTest();
+        } catch (Throwable t) {
+            RunLog.crash(t);
+            throw t;
+        } finally {
+            RunLog.close();
+        }
+    }
+
+    private void runTest() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         for (String name : MOTOR_NAMES) {
@@ -52,6 +70,14 @@ public class PinpointPushTest extends LinearOpMode {
         telemetry.addLine("Pinpoint Push Test. Keep the robot still while the Pinpoint calibrates.");
         telemetry.update();
         waitForStart();
+        RunLog.started();
+        RunLog.event(String.format(Locale.US, "SETUP offsets x %.1f mm, y %.1f mm, pods %s, directions X %s Y %s",
+                PinpointLocalizer.PARAMS.xOffsetMM, PinpointLocalizer.PARAMS.yOffsetMM, PinpointLocalizer.PARAMS.podType,
+                PinpointLocalizer.PARAMS.xDirection, PinpointLocalizer.PARAMS.yDirection));
+        final double[] shown = new double[3];
+        RunLog.setSampler("x_in,y_in,hdg_deg,pod_x_ticks,pod_y_ticks,step", 200,
+                () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%d,%d,%d", shown[0], shown[1], shown[2],
+                        loc.pinpoint.getEncoderX(), loc.pinpoint.getEncoderY(), stepForLog));
 
         String[] verdicts = new String[3];
         int step = 0;
@@ -63,8 +89,14 @@ public class PinpointPushTest extends LinearOpMode {
             double x = pose.position.x, y = pose.position.y, h = pose.heading.toDouble();
             headingAccum += Rotation2d.normalize(h - lastHeading);
             lastHeading = h;
+            shown[0] = x;
+            shown[1] = y;
+            shown[2] = Math.toDegrees(h);
+            stepForLog = step;
+            RunLog.tick();
 
             if (gamepad1.backWasPressed()) {
+                RunLog.event(String.format(Locale.US, "RESTART with offsets x %.1f mm, y %.1f mm", PinpointLocalizer.PARAMS.xOffsetMM, PinpointLocalizer.PARAMS.yOffsetMM));
                 loc.applyParams();
                 loc.setPose(new Pose2d(0, 0, 0));
                 step = 0;
@@ -72,16 +104,19 @@ public class PinpointPushTest extends LinearOpMode {
                 startX = 0; startY = 0; headingAccum = 0; lastHeading = 0;
             } else if (gamepad1.aWasPressed() && step < 3) {
                 verdicts[step] = "SKIPPED";
+                RunLog.event("STEP " + (step + 1) + " SKIPPED");
                 step++;
                 startX = x; startY = y; headingAccum = 0;
             } else if (step < 2 && Math.hypot(x - startX, y - startY) >= TRANSLATE_DONE_IN) {
                 verdicts[step] = judgeTranslation(step == 0, x - startX, y - startY);
+                RunLog.event(String.format(Locale.US, "STEP %d moved dx %+.2f in, dy %+.2f in: %s", step + 1, x - startX, y - startY, verdicts[step]));
                 step++;
                 startX = x; startY = y; headingAccum = 0;
             } else if (step == 2 && Math.abs(Math.toDegrees(headingAccum)) >= ROTATE_DONE_DEG) {
                 verdicts[2] = headingAccum > 0
                         ? "PASS  counterclockwise registered as + heading"
                         : "FAIL  counterclockwise registered as - heading: heading sign is reversed, check how the Pinpoint is mounted";
+                RunLog.event(String.format(Locale.US, "STEP 3 turned %+.1f deg: %s", Math.toDegrees(headingAccum), verdicts[2]));
                 step = 3;
             }
 
@@ -100,6 +135,8 @@ public class PinpointPushTest extends LinearOpMode {
             telemetry.update();
         }
     }
+
+    private int stepForLog = 0;
 
     private static String judgeTranslation(boolean forward, double dx, double dy) {
         boolean onX = Math.abs(dx) >= Math.abs(dy);
