@@ -76,10 +76,8 @@ import java.util.Locale;
  * reseed, and the flywheel speed comes from the fixed distance BACKUP_SHOT_DISTANCE_IN (the start position, about 42 in) with the speed trim
  * still working; the driver drives to that spot to shoot. There is no way out: service the robot.
  *
- * OVERRIDES, for when a sensor fails in a match (each press toggles; the screen and the log say what is on):
- *   (the driver has no stick-button or Start controls, so nothing can be set off by accident; the left bumper is a guard)
- *   gamepad 2 left stick button    ignore the element counter: no 4-element stop, no element warnings
- *   gamepad 2 right stick button   flywheel open loop: power from the target, ready after a timer, speed sensor ignored
+ * There are no sensor overrides to toggle: a failed Pinpoint is handled by the backup mode above, a counter that stops reading shows a
+ * warning (count by eye; hold the operator's left trigger to push extras out), and the flywheel always runs closed loop.
  *
  * Log: the run is written to /sdcard/FIRST/runlogs/teleop.log (the one before it to teleop_prev.log; see
  * {@link RunLog}), so it can be read after the match.
@@ -229,7 +227,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Mechanisms present", mechanisms.describe());
             telemetry.addData("Element counter", mechanisms.counter == null ? "not configured"
                     : mechanisms.counter.isValid() ? "reading   " + mechanisms.counter.stackString()
-                    : "NOT READING (all four sensors must answer; use the operator's L3 override in the match if it stays this way)");
+                    : "NOT READING (all four sensors must answer; count by eye in the match if it stays this way)");
             telemetry.addData("Gamepad 1 (driver)", assigned(gamepad1) ? "assigned" : "NOT ASSIGNED: press Start + A on it");
             telemetry.addData("Gamepad 2 (operator)", assigned(gamepad2) ? "assigned" : "NOT ASSIGNED: press Start + B on it");
             telemetry.addLine(useAutoPose ? "Press Start on the Driver Station when ready."
@@ -399,8 +397,6 @@ public class TeleOpCompetition extends LinearOpMode {
             } else {
                 backupHeld = false;
             }
-            if (gamepad2.leftStickButtonWasPressed()) mechanisms.toggleCounterOverride();
-            if (gamepad2.rightStickButtonWasPressed()) mechanisms.toggleFlywheelOpenLoop();
 
             if (gamepad1.left_bumper && gamepad1.right_bumper && !backupMode) {
                 if (!reseedDown) {
@@ -458,7 +454,7 @@ public class TeleOpCompetition extends LinearOpMode {
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, RB precision, A fire, hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
             telemetry.addLine("GP2: intake automatic (IN, OUT when full), hold RT = force in, hold LT = force out, A target lock on/off (it also engages by itself when full), hold LB + B reject, X deploy, Y stow, hold LB + D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
-            telemetry.addLine("OVERRIDES (press again to undo): GP2 L3 ignore element counter, GP2 R3 flywheel open loop. BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault. GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
+            telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
             telemetry.update();
         }
         drive.stop();

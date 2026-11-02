@@ -436,9 +436,9 @@ public class Mechanisms {
             }
             counter.update();
             if (counterOverride) {
-                warnings.add("COUNTER OVERRIDE (operator L3): no 4-element stop and no element warnings; the intake runs until you turn it off");
+                warnings.add("COUNTER OVERRIDE: no 4-element stop and no element warnings; the intake runs until you turn it off");
             } else if (!counter.isValid()) {
-                warnings.add("ELEMENT COUNTER NOT READING: there is no 4-element stop (operator L3 = override and count by eye)");
+                warnings.add("ELEMENT COUNTER NOT READING: there is no 4-element stop (count by eye; hold the left trigger to push extras out)");
             } else {
                 full = counter.isFull();
                 if (full) warnings.add("FULL: " + counter.count() + " elements held");
@@ -463,7 +463,7 @@ public class Mechanisms {
         boolean mapAvailable = useShotMap && !ShotMap.isEmpty();
         lastSetpoint = mapAvailable ? Math.max(0.0, ShotMap.velocityFor(lastDistance) + speedTrim) : manualSetpoint;
         if (flywheel != null && !mapAvailable) warnings.add("Shot map empty: using the manual setpoint");
-        if (flywheel != null && flywheel.isOpenLoop()) warnings.add("FLYWHEEL OPEN LOOP (operator R3): the speed sensor is ignored, ready is a timer");
+        if (flywheel != null && flywheel.isOpenLoop()) warnings.add("FLYWHEEL OPEN LOOP: the speed sensor is ignored, ready is a timer");
 
         fullNow = full;
 
