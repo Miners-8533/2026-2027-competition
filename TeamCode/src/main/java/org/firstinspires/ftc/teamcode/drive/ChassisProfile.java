@@ -105,7 +105,9 @@ public final class ChassisProfile {
      * The assembled robot with all four mechanisms (intake, flywheel, pusher, ramp). Starts as a copy of
      * DRAFT_1: drive and pod directions are verified on that chassis. The pod offsets were measured with a tape on 2026-11-01 (the X pod 6.5 in
      * RIGHT of the tracking center, so xOffset -165.1 mm; the Y pod level with the center front to back, so yOffset 0, its sideways position
-     * does not matter); not yet checked with Pinpoint Offset Check. The Y pod direction is REVERSED (the Push Test of 2026-11-01 read a left
+     * does not matter); then corrected by the first Pinpoint Offset Check (2026-11-01, 3 turns: wobble 2.58 in, forward-axis error -31.4 mm,
+     * strafe-axis error 9.5 mm) to x -133.7 mm, y +9.5 mm. The pods' own ticks over those turns give the same: the X pod 5.28 in (134 mm) right of the
+     * rotation center and the Y pod 8.5 mm ahead of it. (The tape said 6.5 in and 0: the robot's rotation center is not its geometric center.) The Y pod direction is REVERSED (the Push Test of 2026-11-01 read a left
      * push as -Y, with the pod ticks falling about 5,600 for 11.5 in); the X pod and the heading passed. The ramp pair is mirrored: stowed left 1.0 / right 0.0, deployed left 0.0 / right 1.0 (set
      * 2026-10-31 from the Ramp Test, ramp seen stowed up at left 1.0 / right 0.0; the servos have no feedback, so
      * these are commanded values; TRAVEL_SEC = 0.8 s was measured by the team). The intake direction was flipped to FORWARD on
@@ -117,7 +119,7 @@ public final class ChassisProfile {
             Arrays.asList("5462f57f0f18d316", "7c789032eb35f27b"),
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED,   // Y pod reversed: Pinpoint Push Test 2026-11-01 read a left push as -Y
-            -165.1, 0.0, 17.0, 13.75, DcMotorSimple.Direction.FORWARD,
+            -133.7, 9.5, 17.0, 13.75, DcMotorSimple.Direction.FORWARD,
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
             1.0, 0.0, 0.0, 1.0);   // ramp: stowed left / right, deployed left / right (the tied servos are mirrored)
 
