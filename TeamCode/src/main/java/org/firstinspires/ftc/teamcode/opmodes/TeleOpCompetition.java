@@ -53,6 +53,7 @@ import java.util.Locale;
  *                        you keep driving; the turn stick nudges the aim up to 15 deg; a short buzz and ALIGNED on the screen
  *                        say it is on target. Released = back to your turn stick. Ignored while the pose override is on.
  *   Back (hold 1 s)      reseed the pose to the default start pose (held, so it cannot happen by accident)
+ *   D-pad up / down      only writes MARK good / MARK off to the log (pose, heading, target), to flag what you see on the field
  *
  * Gamepad 2 (operator):
  *   right trigger        intake on / off (a toggle)
@@ -305,6 +306,12 @@ public class TeleOpCompetition extends LinearOpMode {
             if (gamepad2.leftStickButtonWasPressed()) mechanisms.toggleCounterOverride();
             if (gamepad2.rightStickButtonWasPressed()) mechanisms.toggleFlywheelOpenLoop();
 
+            boolean markGood = gamepad1.dpadUpWasPressed(), markOff = gamepad1.dpadDownWasPressed();
+            if (markGood || markOff) {
+                RunLog.event(String.format(Locale.US, "MARK %s: robot pose (%.1f, %.1f, %.1f deg), alliance %s, target %s, lock %s",
+                        markGood ? "good" : "off", pose.position.x, pose.position.y, pose.heading.toDegrees(), blue ? "BLUE" : "RED",
+                        mechanisms.getOpenCell(), lockOn ? "on" : "off"));
+            }
             if (gamepad1.yWasPressed()) {
                 drive.setPose(new Pose2d(pose.position, driverForwardRad));
                 RunLog.event(String.format("DRIVER heading reset: was %.1f deg, now %.1f deg", pose.heading.toDegrees(), Math.toDegrees(driverForwardRad)));
