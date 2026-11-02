@@ -90,8 +90,9 @@ Run first with the robot on blocks, then on the floor. Each row of the plan's Ph
 
 ### Block F: Shot map (plan Phase 5)
 
-1. **Shot Map Tuner**: drive to a distance, find a speed that scores, **B** to record. Validate each point with a full 4-element salvo and count the scores, for each target cell that matters, from the closest to the farthest shooting position you intend to use.
-2. Paste the printed lines into `ShotMap.TABLE`. Confirm pollen and nectar both score from the same speed, or note the exception.
+1. **Shot Map Tuner** (single gamepad; it runs the real mechanisms since 2026-11-01): right trigger loads elements (the intake stops itself at 4), **X** spins the flywheel, D-pad up/down sets the speed, **Y** fires a salvo, **B** records (distance, speed), **A** undoes the last point, D-pad left/right picks the target cell, left bumper follows the recorded points, Back reseeds the pose and clears a pusher fault.
+2. For each distance, from the closest legal shooting position to the farthest you intend to use, for each target cell that matters: drive there (the distance is the Pinpoint's, or type a tape-measured one into `MANUAL_DISTANCE_IN`), load 4, fire, and raise or lower the speed until the shots score; validate with a full 4-element salvo and count the scores; then **B**.
+3. Paste the printed lines (also in `bringup.log` as `RECORD` and a final `SHOT MAP` event) into `ShotMap.TABLE`. Confirm pollen and nectar both score from the same speed, or note the exception.
 
 ### Block G: Pinpoint offsets and drive PID (autos only)
 

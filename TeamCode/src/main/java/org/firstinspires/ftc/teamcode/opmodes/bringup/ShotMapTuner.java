@@ -11,30 +11,39 @@ import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
-import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
+import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
+import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 import org.firstinspires.ftc.teamcode.subsystems.ShotMap;
+import org.firstinspires.ftc.teamcode.util.RunLog;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
- * Builds the shot map on the real robot. Drive to a distance from the open CELL, set the flywheel speed
- * until shots score, and record the pair. The recorded points are interpolated live (so you can test
- * the map as you go) and printed as lines to paste into ShotMap.TABLE.
+ * Builds the shot map on the real robot. Drive to a distance from the open CELL, set the flywheel speed, fire real elements until they
+ * score, and record the pair. The recorded points are interpolated live (so you can test the map as you go) and printed as lines to
+ * paste into ShotMap.TABLE (and written to the log). It runs the real mechanisms (the {@link Mechanisms} coordinator), so a shot is
+ * the same as in the match: the flywheel must be ready, the pusher turns, the intake and the element counter work, and the pusher check runs
+ * after a salvo.
  *
- *   Left stick / right stick X   drive / turn (robot oriented)      Right bumper: precision (30%)
+ * Gamepad 1:
+ *   Left stick / right stick X   drive / turn (robot oriented)      Right bumper (hold): precision (30%)
+ *   Right trigger                intake on / off (toggle; stops itself at 4 elements)      Left trigger (hold): outtake
  *   X                            flywheel on / off
  *   D-pad up / down              setpoint +/- STEP ticks/s (ignored while auto speed is on)
- *   Y                            cycle the target CELL (blue rear, blue audience, red rear, red audience)
+ *   Y                            FIRE a salvo (spins up if needed, fires when the flywheel is ready)
  *   B                            record (distance, setpoint) as a point (replaces a point within 1 in)
  *   A                            remove the most recently recorded point
+ *   D-pad left / right           cycle the target CELL (blue rear, blue audience, red rear, red audience)
  *   Left bumper                  auto speed on / off: the setpoint follows the recorded points
- *   Back                      reseed the pose to the start pose below
+ *   Back                         reseed the pose to the start pose below (also clears a pusher fault)
  *
- * Distance comes from the Pinpoint pose to the target (set the start pose to where you place the robot),
- * or set MANUAL_DISTANCE_IN above 0 in the Dashboard to type a measured distance instead.
- * The hood is fixed, so speed depends on distance only. Same speed for pollen and nectar.
+ * Distance comes from the Pinpoint pose to the target (set the start pose to where you place the robot), or set MANUAL_DISTANCE_IN above
+ * 0 in the Dashboard to type a measured distance instead. The hood is fixed, so speed depends on distance only. Same speed for pollen and nectar.
+ * The pusher is assumed to be where the last opmode left it (the saved zero); the start-up pusher check verifies it after Start if
+ * the track is empty.
  */
 @Config
 @TeleOp(name = "Shot Map Tuner", group = "Bring-up")
@@ -45,30 +54,51 @@ public class ShotMapTuner extends LinearOpMode {
     public static double START_HEADING_DEG = 0.0;
     public static double MANUAL_DISTANCE_IN = 0.0;
     public static double STEP = 25.0;
+    public static double START_SETPOINT = 1000.0;
+    public static double TRIGGER_THRESHOLD = 0.3;
 
     private static final double TURN_SCALE = 0.5;
     private static final double PRECISION_SCALE = 0.30;
 
     @Override
     public void runOpMode() {
+        RunLog.open(RunLog.Kind.BRINGUP, "Shot Map Tuner", hardwareMap);
+        try {
+            runTuner();
+        } catch (Throwable t) {
+            RunLog.crash(t);
+            throw t;
+        } finally {
+            RunLog.close();
+        }
+    }
+
+    private void runTuner() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
         Pose2d startPose = new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG));
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose);
-        Flywheel flywheel = new Flywheel(hardwareMap);
+        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
+        mechanisms.setUseShotMap(false);            // the tuner sets the speed itself
+        mechanisms.setAutoStopAfterSalvo(false);    // the flywheel stays on between shots until X
+        mechanisms.setBlueAlliance(true);
 
         HiveTarget target = HiveTarget.BLUE_REAR;
-        boolean spinning = false, autoSpeed = false;
-        double setpoint = 400.0;
+        boolean spinning = false, autoSpeed = false, prevIntakeTrigger = false;
+        double setpoint = START_SETPOINT;
+        mechanisms.setManualSetpoint(setpoint);
         List<double[]> points = new ArrayList<>();
         double[] lastRecorded = null;
 
         telemetry.addData("Chassis profile", profile.label());
-        telemetry.addLine("Shot Map Tuner. Keep still while the Pinpoint calibrates.");
+        telemetry.addData("Mechanisms present", mechanisms.describe());
+        telemetry.addLine("Shot Map Tuner. Keep still while the Pinpoint calibrates; the pusher is assumed at its saved zero.");
         telemetry.update();
         waitForStart();
+        RunLog.started();
+        RunLog.event("SETUP " + mechanisms.describe());
 
         while (opModeIsActive()) {
             drive.updatePoseEstimate();
@@ -81,14 +111,29 @@ public class ShotMapTuner extends LinearOpMode {
 
             if (gamepad1.backWasPressed()) {
                 drive.setPose(new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG)));
+                mechanisms.clearPusherStall();
             }
             if (gamepad1.xWasPressed()) spinning = !spinning;
-            if (gamepad1.yWasPressed()) target = target.next();
+            if (gamepad1.dpadRightWasPressed()) {
+                target = target.next();
+                RunLog.event("TARGET " + target);
+            }
+            if (gamepad1.dpadLeftWasPressed()) {
+                HiveTarget[] all = HiveTarget.values();
+                target = all[(target.ordinal() + all.length - 1) % all.length];
+                RunLog.event("TARGET " + target);
+            }
             if (gamepad1.leftBumperWasPressed()) autoSpeed = !autoSpeed;
             if (!autoSpeed) {
                 if (gamepad1.dpadUpWasPressed()) setpoint += STEP;
                 if (gamepad1.dpadDownWasPressed()) setpoint = Math.max(0.0, setpoint - STEP);
             }
+
+            boolean intakeTrigger = gamepad1.right_trigger > TRIGGER_THRESHOLD;
+            if (intakeTrigger && !prevIntakeTrigger) mechanisms.toggleIntake();
+            prevIntakeTrigger = intakeTrigger;
+            mechanisms.setManualOuttake(gamepad1.left_trigger > TRIGGER_THRESHOLD);
+            if (gamepad1.yWasPressed()) mechanisms.requestFire();
 
             double distance = MANUAL_DISTANCE_IN > 0 ? MANUAL_DISTANCE_IN : target.distanceFrom(pose);
 
@@ -97,17 +142,22 @@ public class ShotMapTuner extends LinearOpMode {
                 lastRecorded = new double[]{distance, setpoint};
                 points.add(lastRecorded);
                 points.sort((a, b) -> Double.compare(a[0], b[0]));
+                RunLog.event(String.format(Locale.US, "RECORD %.1f in to %s at %.0f ticks/s", distance, target, setpoint));
             }
             if (gamepad1.aWasPressed() && lastRecorded != null) {
                 points.remove(lastRecorded);
+                RunLog.event(String.format(Locale.US, "UNDO the point %.1f in at %.0f ticks/s", lastRecorded[0], lastRecorded[1]));
                 lastRecorded = null;
             }
 
             double mapSpeed = ShotMap.interpolate(points, distance);
             if (autoSpeed && !Double.isNaN(mapSpeed)) setpoint = mapSpeed;
 
-            flywheel.setTargetVelocity(spinning ? setpoint : 0.0);
-            flywheel.update();
+            mechanisms.setOpenCell(target);
+            mechanisms.setManualSetpoint(setpoint);
+            mechanisms.setSpinRequested(spinning);
+            mechanisms.update(pose);
+            RunLog.tick();
 
             telemetry.addData("Chassis profile", profile.label());
             telemetry.addData("Target CELL", target);
@@ -117,15 +167,21 @@ public class ShotMapTuner extends LinearOpMode {
             telemetry.addData("Setpoint (ticks/s)", "%.0f   %s", setpoint, autoSpeed ? "(auto, from points)" : "(manual)");
             telemetry.addData("Recorded-points speed here", Double.isNaN(mapSpeed) ? "no points yet" : String.format("%.0f", mapSpeed));
             telemetry.addData("Saved ShotMap.TABLE", ShotMap.isEmpty() ? "empty" : ShotMap.TABLE.length + " points");
-            flywheel.log(telemetry);
+            mechanisms.log(telemetry);
             telemetry.addLine("--- paste into ShotMap.TABLE ---");
             for (double[] p : points) {
                 telemetry.addLine(String.format("        {%.1f, %.0f},", p[0], p[1]));
             }
-            telemetry.addLine("X spin, Y target, B record, A undo, LB auto speed, D-pad speed, Back reseed pose");
+            telemetry.addLine("RT intake, Y FIRE, X spin, B record, A undo, D-pad up/down speed, D-pad left/right target, LB auto speed, Back reseed pose");
             telemetry.update();
         }
+        StringBuilder table = new StringBuilder("SHOT MAP at the end of the run, paste into ShotMap.TABLE:");
+        for (double[] p : points) table.append(String.format(Locale.US, "\n        {%.1f, %.0f},", p[0], p[1]));
+        RunLog.event(table.toString().replace('\n', ' '));
         drive.stop();
-        flywheel.stop();
+        mechanisms.setIntakeRequested(false);
+        mechanisms.setManualOuttake(false);
+        mechanisms.stopFlywheel();
+        mechanisms.update(drive.getPose());
     }
 }

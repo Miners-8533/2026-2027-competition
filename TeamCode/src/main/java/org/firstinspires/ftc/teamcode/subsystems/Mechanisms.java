@@ -246,6 +246,11 @@ public class Mechanisms {
         RunLog.event(String.format(Locale.US, "COMMAND manual setpoint -> %.0f ticks/s", manualSetpoint));
     }
 
+    /** Sets the manual setpoint outright (the shot map tuner follows its recorded points this way). Not logged: it may be called every loop. */
+    public void setManualSetpoint(double ticksPerSecond) {
+        manualSetpoint = Math.max(0.0, ticksPerSecond);
+    }
+
     /** Which alliance this is, so the element counter knows which nectar is the opponent's. */
     public void setBlueAlliance(boolean blue) {
         blueAlliance = blue;
