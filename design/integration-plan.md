@@ -32,7 +32,7 @@ Work that is deliberately not scheduled yet. Each one is a runnable checklist; r
 
 | # | Action | Affects | How |
 |---|---|---|---|
-| 1 | **Pinpoint localization for `ROBOT_1`**: tune the pod offsets (still the prototype's) | autos only | Pinpoint Offset Check, then the two verify autos |
+| 1 | **Pinpoint localization for `ROBOT_1`**: pod offsets (measured with a tape 2026-11-01: X pod 6.5 in right of center = -165.1 mm, Y pod level with the center = 0 mm; written into `ROBOT_1`, not yet verified). **Also affects the shot map's pose distances** (a wrong offset adds about 3 in of error per radian of turning), and the TeleOp pose | autos, shot map, TeleOp pose | Pinpoint Push Test, Pinpoint Offset Check, a tape push of 48 in, a full spin, then the two verify autos |
 | 2 | **DriveToPose PID tuning** | autos only | the Axial, Lateral and Heading tuners at 48 in, then the verify autos |
 | 3 | **Pusher HOLD to CS4 offset**: where the arm is seen, in degrees ahead of HOLD (the team expects about 90) | the future pusher check and re-home; not TeleOp | Pusher Sensor Matrix (CS4): jog the arm to HOLD, **A** to mark it, **right bumper** to run (about 1 minute, default 3x gain), then read the `PusherSensorMatrix` log for "ARC ... ahead of the mark" at powers 0.15, 0.3 and 0.6 |
 | 4 | **Smallest belt slip worth catching**, in degrees of pusher rotation. (The tooth pitch is not needed: `TICKS_PER_REV`, 751.8, already converts encoder ticks to pusher degrees. A skipped tooth is 360 / the number of teeth on the pusher's pulley, for example 6 deg on a 60-tooth pulley.) It decides whether the parked check (about +/-15 deg) is enough or the slow pass is needed | the future pusher check | choose a target, or read the tooth count off the pulley; no test needed |
