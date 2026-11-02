@@ -13,9 +13,11 @@ import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
+import org.firstinspires.ftc.teamcode.util.RunLog;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Spins the robot in place and measures how far the Pinpoint's reported position wanders.
@@ -42,6 +44,8 @@ import java.util.List;
  * a floor tape line). If not, the heading scale/IMU is off, which offsets cannot fix.
  *
  * Gamepad 1:  A = start / rerun (re-applies PARAMS)   B = stop immediately
+ * Everything is also written to runlogs/bringup.log (pull it with adb): the offsets in use, each half-turn position, and the final estimates.
+ *
  * Needs clear floor around the robot. Run Pinpoint Push Test first.
  */
 @Config
@@ -54,8 +58,23 @@ public class PinpointOffsetCheck extends LinearOpMode {
 
     private enum State { IDLE, SPINNING, DONE }
 
+    private double logX, logY, logTurnedDeg;
+    private String logState = "";
+
     @Override
     public void runOpMode() {
+        RunLog.open(RunLog.Kind.BRINGUP, "Pinpoint Offset Check", hardwareMap);
+        try {
+            runCheck();
+        } catch (Throwable t) {
+            RunLog.crash(t);
+            throw t;
+        } finally {
+            RunLog.close();
+        }
+    }
+
+    private void runCheck() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         MecanumDrive drive = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
@@ -64,8 +83,15 @@ public class PinpointOffsetCheck extends LinearOpMode {
         telemetry.addLine("Pinpoint Offset Check. Keep still while the Pinpoint calibrates.");
         telemetry.update();
         waitForStart();
+        RunLog.started();
+        RunLog.event(String.format(Locale.US, "SETUP offsets x %.1f mm, y %.1f mm, pods %s, SPIN_POWER %.2f, ROTATIONS %d",
+                PinpointLocalizer.PARAMS.xOffsetMM, PinpointLocalizer.PARAMS.yOffsetMM, PinpointLocalizer.PARAMS.podType, SPIN_POWER, ROTATIONS));
+        RunLog.setSampler("state,x_in,y_in,turned_deg,pod_x_ticks,pod_y_ticks", 100,
+                () -> String.format(Locale.US, "%s,%.2f,%.2f,%.1f,%d,%d", logState, logX, logY, logTurnedDeg,
+                        loc.pinpoint.getEncoderX(), loc.pinpoint.getEncoderY()));
 
         State state = State.IDLE;
+        boolean doneLogged = false;
         String outcome = "";
         ElapsedTime clock = new ElapsedTime();
         double lastHeading = 0, unwrapped = 0, maxDist = 0;
@@ -75,6 +101,11 @@ public class PinpointOffsetCheck extends LinearOpMode {
             drive.updatePoseEstimate();
             Pose2d pose = drive.getPose();
             double x = pose.position.x, y = pose.position.y;
+            logX = x;
+            logY = y;
+            logTurnedDeg = Math.toDegrees(unwrapped);
+            logState = state.name();
+            RunLog.tick();
 
             if (state == State.SPINNING) {
                 unwrapped += Rotation2d.normalize(pose.heading.toDouble() - lastHeading);
@@ -83,6 +114,7 @@ public class PinpointOffsetCheck extends LinearOpMode {
 
                 if (unwrapped >= halfTurnPoints.size() * Math.PI) {
                     halfTurnPoints.add(new double[]{x, y});
+                    RunLog.event(String.format(Locale.US, "HALF TURN %d at x %.2f in, y %.2f in", halfTurnPoints.size() - 1, x, y));
                 }
 
                 if (gamepad1.b) {
@@ -109,8 +141,16 @@ public class PinpointOffsetCheck extends LinearOpMode {
                 outcome = "";
                 clock.reset();
                 state = State.SPINNING;
+                doneLogged = false;
+                RunLog.event(String.format(Locale.US, "START with offsets x %.1f mm, y %.1f mm", PinpointLocalizer.PARAMS.xOffsetMM, PinpointLocalizer.PARAMS.yOffsetMM));
             }
 
+            if (state == State.DONE && !doneLogged) {
+                doneLogged = true;
+                RunLog.event("DONE: " + outcome + String.format(Locale.US, " turned %.0f deg, farthest %.2f in, final pose %.2f, %.2f in",
+                        Math.toDegrees(unwrapped), maxDist, x, y));
+                logResults(halfTurnPoints);
+            }
             telemetry.addData("State", state);
             telemetry.addData("Pinpoint status", loc.getDeviceStatus());
             telemetry.addData("x / y (in)", "%.2f / %.2f", x, y);
@@ -129,6 +169,30 @@ public class PinpointOffsetCheck extends LinearOpMode {
             telemetry.update();
         }
         drive.stop();
+    }
+
+    /** The same numbers reportResults shows, written to the log. */
+    private void logResults(List<double[]> pts) {
+        int sumCount = 0;
+        double cx = 0, cy = 0;
+        for (int k = 1; k + 1 < pts.size(); k += 2) {
+            cx += pts.get(k)[0] - (pts.get(k - 1)[0] + pts.get(k + 1)[0]) / 2.0;
+            cy += pts.get(k)[1] - (pts.get(k - 1)[1] + pts.get(k + 1)[1]) / 2.0;
+            sumCount++;
+        }
+        int lastEven = (pts.size() - 1) / 2 * 2;
+        if (lastEven >= 2) {
+            RunLog.event(String.format(Locale.US, "RESULT net drift per full turn %.2f in (real sliding, not offsets)",
+                    Math.hypot(pts.get(lastEven)[0], pts.get(lastEven)[1]) / (lastEven / 2.0)));
+        }
+        if (sumCount == 0) {
+            RunLog.event("RESULT not enough turns for an offset estimate");
+            return;
+        }
+        double ex = cy / sumCount / 2.0, ey = -cx / sumCount / 2.0;
+        RunLog.event(String.format(Locale.US, "RESULT offset-only wobble %.2f in; forward-axis error %.1f mm -> xOffset %.1f or %.1f; strafe-axis error %.1f mm -> yOffset %.1f or %.1f (sign unverified)",
+                2 * Math.hypot(ex, ey), ex * 25.4, PinpointLocalizer.PARAMS.xOffsetMM - ex * 25.4, PinpointLocalizer.PARAMS.xOffsetMM + ex * 25.4,
+                ey * 25.4, PinpointLocalizer.PARAMS.yOffsetMM - ey * 25.4, PinpointLocalizer.PARAMS.yOffsetMM + ey * 25.4));
     }
 
     private void reportResults(List<double[]> pts) {
