@@ -52,7 +52,7 @@ import java.util.Locale;
  *                        Works with any number of elements held, locked or not.
  *   (target lock engages by itself as soon as the robot holds 4 elements and stays on through the salvo; while it is on the robot
  *    turns itself to point its front (intake and shooter end) at the nearest of your alliance's two CELLs while you keep driving;
- *    the turn stick nudges the aim up to 15 deg; a short buzz and ALIGNED on the screen say it is on target. The operator's right
+ *    with the left bumper held the right stick nudges the aim up to 15 deg (without it the stick does nothing while locked); a short buzz and ALIGNED on the screen say it is on target. The operator's right
  *    bumper (hold) engages it by hand, full or not.)
  *   left + right bumper  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident)
  *
@@ -269,7 +269,8 @@ public class TeleOpCompetition extends LinearOpMode {
                             manualLock ? "manual" : "full", lockTarget, lockTarget.x, lockTarget.y, lockTarget.distanceFrom(pose), pose.position.x, pose.position.y,
                             pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
                 }
-                cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget, gamepad1.right_stick_x, dt);
+                cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget,
+                        gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt);   // the nudge needs the left bumper held
                 lockErrDeg = targetLock.errorDeg();
                 boolean aligned = targetLock.isAligned();
                 if (aligned && !lockWasAligned) {
