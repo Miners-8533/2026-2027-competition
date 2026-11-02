@@ -39,6 +39,12 @@ public class PusherCheck {
     /** Fresh CS4 reads (about 160 ms apart) needed before a look is judged. */
     public static int LOOK_FRESH_READS = 3;
     public static double LOOK_TIMEOUT_SEC = 1.5;
+    /**
+     * A seek cuts the power STOP_EARLY_DEG before its target and the arm coasts on: on the robot it came to rest about 4.4 deg PAST the target in the
+     * direction it was travelling, both ways (2026-11-01 logs), which put a parked look near the edge of the sensor's view (the arm is
+     * classified over about +/-6 deg). The target is moved this far back toward where the arm comes from, so it rests on the center.
+     */
+    public static double SEEK_COAST_DEG = 4.4;
     public static double SWEEP_POWER = 0.15;
     /** How far a sweep goes before it gives up: a full turn and a margin, so an arc that was in view at the start is crossed whole. */
     public static double SWEEP_DEG = 420.0;
@@ -180,8 +186,9 @@ public class PusherCheck {
     }
 
     private void seekCenter() {
-        double target = baseTicks + (ARM_CENTER_DEG - 360.0) * ticksPerDeg();
-        pusher.startSeek(target, Pusher.SEEK_POWER);
+        double center = baseTicks + (ARM_CENTER_DEG - 360.0) * ticksPerDeg();
+        double direction = center > pusher.getUnwrappedTicks() ? 1.0 : -1.0;
+        pusher.startSeek(center - direction * SEEK_COAST_DEG * ticksPerDeg(), Pusher.SEEK_POWER);
         stage = Stage.SEEK;
     }
 
