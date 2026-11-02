@@ -4,12 +4,14 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
+import com.qualcomm.robotcore.hardware.HardwareDevice;
 import com.qualcomm.robotcore.hardware.NormalizedColorSensor;
 import com.qualcomm.robotcore.hardware.NormalizedRGBA;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -28,8 +30,11 @@ import org.firstinspires.ftc.teamcode.subsystems.Ramp;
 import org.firstinspires.ftc.teamcode.util.RunLog;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * The pit check: run it with the robot ON BLOCKS (wheels off the floor) after any repair, rewiring or a hub swap, and
@@ -37,7 +42,8 @@ import java.util.Locale;
  * misnamed device, a reversed or dead encoder, a wrong motor direction, a color sensor that is not answering, a weak
  * battery. Nothing moves until you press A for that step, every move is short and slow, and Back stops everything.
  *
- * Automatic, no motion (right after Start): configuration, battery, Pinpoint, color sensors (the track must be EMPTY).
+ * Automatic, no motion (right after Start): configuration (every name and type, where each device is plugged in, stale entries),
+ * battery, Pinpoint, color sensors (the track must be EMPTY).
  * Then, one step at a time, each asking first:
  *   flywheel   spins at low power: the encoder must count the right way (automatic), the wheel must turn the shooting way (you judge)
  *   pusher     turns the arm about PUSHER_TEST_DEG forward and back to where it started (the encoder sign and the return are
@@ -151,6 +157,31 @@ public class PitCheck extends LinearOpMode {
         if (hardwareMap.tryGet(DcMotorEx.class, "fly_follow") != null) {
             record("Configuration (stale)", Verdict.FAIL, "'fly_follow' is still configured but the code no longer uses it: delete it");
         }
+        reportPortsAndStrays();
+    }
+
+    /** Where each device our code uses is plugged in (for design/hub-configuration.md), and configured devices the code does not use (stale ones to delete). */
+    private void reportPortsAndStrays() {
+        Set<String> expected = new TreeSet<>();
+        for (String name : DRIVE_MOTORS) expected.add(name);
+        for (String name : OTHER_MOTORS) expected.add(name);
+        expected.add("depolLeft");
+        expected.add("depolRight");
+        for (String name : ElementCounter.NAMES) expected.add(name);
+        expected.add("pinpoint");
+        StringBuilder ports = new StringBuilder();
+        for (String name : expected) {
+            HardwareDevice device = hardwareMap.tryGet(HardwareDevice.class, name);
+            if (device != null) ports.append(name).append(" = ").append(device.getConnectionInfo()).append("; ");
+        }
+        record("Ports", Verdict.PASS, ports.toString());
+        Set<String> hubNames = new HashSet<>();
+        for (LynxModule module : hardwareMap.getAll(LynxModule.class)) hubNames.addAll(hardwareMap.getNamesOf(module));
+        Set<String> unused = new TreeSet<>();
+        for (String name : hardwareMap.getAllNames(HardwareDevice.class)) {
+            if (!expected.contains(name) && !hubNames.contains(name)) unused.add(name);
+        }
+        if (!unused.isEmpty()) record("Configuration (unused)", Verdict.PASS, "configured but not used by our code (delete the stale ones): " + unused);
     }
 
     private void checkBattery() {

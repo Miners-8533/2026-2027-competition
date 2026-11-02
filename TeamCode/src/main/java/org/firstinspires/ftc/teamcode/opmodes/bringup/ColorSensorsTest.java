@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes.bringup;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.ColorSensor;
@@ -66,6 +67,7 @@ import java.util.Locale;
  * log (tag ColorSensors): once a second, and at once whenever a sensor's PRESENT state or class changes.
  */
 @Config
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @TeleOp(name = "Color Sensors Test (CS1-CS4)", group = "Bring-up")
 public class ColorSensorsTest extends LinearOpMode {
 

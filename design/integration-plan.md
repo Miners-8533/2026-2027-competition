@@ -38,22 +38,22 @@ Work that is deliberately not scheduled yet. Each one is a runnable checklist; r
 |---|---|---|---|
 | 1 | **Pinpoint localization for `ROBOT_1`**: **done 2026-11-01, all checks pass** (48 in tape push read 47.6 in; heading after 3 spins within 5 degrees, so no yaw correction). Push Test passes with the Y pod REVERSED; pod scale 505 ticks/in (4-bar) confirmed. Offset Check: with the tape offsets (x -165.1, y 0) the wobble was 2.58 in; with x -133.7, y +9.5 mm (from the estimate and the pod ticks) it is **0.16 in** (estimates 1.2 mm and -1.6 mm; real sliding 0.47 in per turn). (Tape offsets for reference: X pod 6.5 in right of center = -165.1 mm, Y pod level with the center = 0 mm; the rotation center is not the geometric center.) **Also affects the shot map's pose distances** (a wrong offset adds about 3 in of error per radian of turning), and the TeleOp pose | autos, shot map, TeleOp pose | Pinpoint Push Test, Pinpoint Offset Check, a tape push of 48 in, a full spin, then the two verify autos |
 | 2 | **DriveToPose PID tuning** | autos only | the Axial, Lateral and Heading tuners at 48 in, then the verify autos |
-| 3 | **Pusher HOLD to CS4 offset**: where the arm is seen, in degrees ahead of HOLD (the team expects about 90) | the future pusher check and re-home; not TeleOp | Pusher Sensor Matrix (CS4): jog the arm to HOLD, **A** to mark it, **right bumper** to run (about 1 minute, default 3x gain), then read the `PusherSensorMatrix` log for "ARC ... ahead of the mark" at powers 0.15, 0.3 and 0.6 |
+| 3 | **Pusher HOLD to CS4 offset**: where the arm is seen, in degrees ahead of HOLD (the team expects about 90) | the future pusher check and re-home; not TeleOp | (opmode removed 2026-11-02, done) Pusher Sensor Matrix (CS4): jog the arm to HOLD, **A** to mark it, **right bumper** to run (about 1 minute, default 3x gain), then read the `PusherSensorMatrix` log for "ARC ... ahead of the mark" at powers 0.15, 0.3 and 0.6 |
 | 4 | **Smallest belt slip worth catching**, in degrees of pusher rotation. (The tooth pitch is not needed: `TICKS_PER_REV`, 751.8, already converts encoder ticks to pusher degrees. A skipped tooth is 360 / the number of teeth on the pusher's pulley, for example 6 deg on a 60-tooth pulley.) It decides whether the parked check (about +/-15 deg) is enough or the slow pass is needed | the future pusher check | choose a target, or read the tooth count off the pulley; no test needed |
-| 5 | **Element counter baseline** in the pit: the empty readings depend on lighting | TeleOp (the 4-element stop) | Color Sensors Test: track empty, **A**, then copy the BASELINE log line into the table in `ElementCounter` |
+| 5 | **Element counter baseline** in the pit: the empty readings depend on lighting | TeleOp (the 4-element stop) | Color Sensors Test (now `@Disabled`: remove it to use): track empty, **A**, then copy the BASELINE log line into the table in `ElementCounter` |
 | 6 | **Commit the tuned pusher, flywheel and ramp values** (see the list below) | TeleOp | read them from the Dashboard after a tuned run and write them into the code |
 
 **Measured 2026-11-01 (item 3, Pusher Sensor Matrix on `ROBOT_1`, two runs):** the arm is seen at about **328 deg ahead of the mark at zero speed (about 32 deg BEHIND the mark)**, arc about 28 deg wide (about 314-342 deg). The center shifts about 15 ms of sensor delay with speed (329.7 / 333.3 / 339.5 deg at powers 0.15 / 0.3 / 0.6). Within a run the center spread is 0.14-0.9 deg, and two runs 21 turns apart agree within 0.6 deg, so `TICKS_PER_REV` 751.8 holds to about 0.03 deg per turn and there was no belt slip. **Not as expected** (about 90 deg ahead of HOLD): confirm the mark was at the true HOLD. HOLD placement by eye was not re-tested (one A mark only).
 
 **Item 4 answered 2026-11-01:** the pusher pulley has 20 teeth, so one skipped tooth is **18 deg** of pusher rotation, wider than the arc's +/-14 deg half-width. A parked check at the arc center therefore catches a one-tooth slip as 'arm not seen' (parked, the default sensor rate is enough), and slips come in 18 deg steps, so a re-home can round the measured offset to a multiple of 18.
 
-**Decided 2026-11-01 (salvo 400 deg):** a salvo now turns the arm `Pusher.SALVO_DEG` = 400 deg forward from the nearest HOLD (was 360), so the last element is surely out and the arm rests about 40 deg past a HOLD; the pusher check (park at CS4, then forward to HOLD) brings it back. The target is the nearest HOLD plus 400, not 400 from where the arm is, so when the check does not run the arm simply rests 40 deg past a HOLD again and nothing accumulates (the next salvo then travels about 355 deg). **Consequence:** `Pusher.hold()` (Shot Test LB, `holdAction`) from that rest position sees the arm more than 8 deg past HOLD and turns nearly a full turn forward; the open question above now matters after every salvo.
+**Decided 2026-11-01 (salvo 400 deg):** a salvo now turns the arm `Pusher.SALVO_DEG` = 400 deg forward from the nearest HOLD (was 360), so the last element is surely out and the arm rests about 40 deg past a HOLD; the pusher check (park at CS4, then forward to HOLD) brings it back. The target is the nearest HOLD plus 400, not 400 from where the arm is, so when the check does not run the arm simply rests 40 deg past a HOLD again and nothing accumulates (the next salvo then travels about 355 deg). **Consequence:** `Pusher.hold()` (was Shot Test LB, `holdAction`; Shot Test removed 2026-11-02) from that rest position sees the arm more than 8 deg past HOLD and turns nearly a full turn forward; the open question above now matters after every salvo.
 
 **Decided 2026-10-31 (code review):**
 - **Flywheel reversed-encoder fault removed.** Wiring and sign problems belong to the **pit check opmode** (built 2026-11-01, see [pit-check.md](pit-check.md); not yet run on the robot). Hardware Check is read-only and covers presence only.
 - **Pinpoint reset moved to INIT** in TeleOp - Competition, like the autos; the INIT screen shows the Pinpoint status and pose check, the mechanisms found and whether the element counter is reading.
 - **Pusher zero:** TeleOp keeps trusting the saved zero (`CONTINUE`); the pusher check (built 2026-11-01) now catches a wrong zero after each salvo.
-- **Open question:** `Pusher.hold()` (Shot Test LB, `holdAction`) turns nearly a full turn forward when the arm rests more than 8 deg past HOLD, which fires the stack; the team is thinking about it.
+- **Open question:** `Pusher.hold()` (`holdAction`; was Shot Test LB, removed 2026-11-02) turns nearly a full turn forward when the arm rests more than 8 deg past HOLD, which fires the stack; the team is thinking about it.
 - **Overrides for sensor failures** are built into TeleOp - Competition (see the F2 row); to be tested on the robot.
 
 **Decided 2026-10-31 (no dedicated opmodes for these):**
@@ -105,7 +105,7 @@ These come from reading the code; each one can make a later test fail for a reas
 ## Phase 0: Prepare
 
 - [ ] **Branch.** Create `integration` from `flywheel-bench` (it already contains `main` plus the pusher and flywheel work). `main` stays as is until Phase 3 passes. *Pass: `git log` shows the pusher and flywheel commits on the branch.*
-- [ ] **Hub configuration.** See [hub-configuration.md](hub-configuration.md) for the step-by-step checklist and the **Hardware Check** opmode that verifies it. On the robot's Control Hub, create one configuration with exactly these names (the code looks them up by name):
+- [ ] **Hub configuration.** See [hub-configuration.md](hub-configuration.md) for the step-by-step checklist and the **Pit Check** opmode that verifies it. On the robot's Control Hub, create one configuration with exactly these names (the code looks them up by name):
 
   | Device | Name | Type |
   |---|---|---|
@@ -119,7 +119,7 @@ These come from reading the code; each one can make a later test fail for a reas
   `fly_follow` is no longer used. *Pass: the Driver Station shows the configuration active, no "device not found" on any opmode init.*
 - [ ] **Port map.** Write down (and photograph) which port each device is on, and which hub. If an Expansion Hub is used, note it; its commands cost extra loop time.
 - [x] **Decision: robot profile and hub id.** Done: a new `ROBOT_1` profile (copied from `DRAFT_1`, to be tuned in Phases 1-2) is registered to the robot's hub (serial `5462f57f0f18d316`, Android id `7c789032eb35f27b`). The pusher and flywheel benches are retired.
-- [ ] **Register the other test chassis' hub.** Because a hub is now registered, the remaining test chassis' hub **throws** ("Unrecognized Control Hub") on its next opmode run until its ids are added to a profile (`PROTOTYPE` or `DRAFT_1`, whichever it is). Run **Chassis Info** on it (it still runs unregistered) or connect it over USB and read the ids, then add them.
+- [ ] **Register the other test chassis' hub.** Because a hub is now registered, the remaining test chassis' hub **throws** ("Unrecognized Control Hub") on its next opmode run until its ids are added to a profile (`PROTOTYPE` or `DRAFT_1`, whichever it is). Run any opmode on it: the "Unrecognized Control Hub" error lists its ids or connect it over USB and read the ids, then add them.
 - [ ] **Safety setup.** Robot on blocks; pusher and flywheel guarded; stop procedure agreed (who holds the Driver Station Stop); battery strap and wiring strain relief checked.
 - [ ] **Record sheet started** (end of this file).
 
@@ -132,7 +132,7 @@ Exit: configuration active, profile decision made, branch created.
 - [ ] **Wiring.** Every connector seated and strain-relieved; no wire near the pusher arm, flywheel or intake; Pinpoint cable and pods secure; no wire that can be caught by the ramp.
 - [ ] **Mechanical.** Pusher arm turns freely through a full turn by hand with no element in the track; flywheel spins freely by hand; intake rotates freely; ramp servos move without binding (by hand with power off, gently). Fasteners tight; thread locker where appropriate.
 - [x] **Size.** (Confirmed 2026-10-31: the robot fits the 18 in cube with the ramp stowed.) With the ramp **stowed**, the robot fits the starting cube (rule R102, 18 x 18 x 18 in) in the starting configuration. Footprint **measured: 17 deep x 13.75 wide** and entered into `ROBOT_1` (the autos, the TeleOp and the shot-map tuner all derive their start X from the depth, so the start is now x = -63.5). The height was not recorded as a number, only confirmed to fit.
-- [ ] **Power-up smoke test.** Battery in, hub boots, Driver Station connects, **Chassis Info** shows the expected profile, nothing moves on its own. *Pass: no unexpected motion, no warnings.*
+- [ ] **Power-up smoke test.** Battery in, hub boots, Driver Station connects, **Pit Check** shows the expected profile, nothing moves on its own. *Pass: no unexpected motion, no warnings.*
 
 Exit: robot powers up safely and the footprint is recorded.
 
@@ -155,17 +155,17 @@ Run the remaining bring-up opmodes (Motor Map Test, Open Loop Test, Drive Test, 
 - [ ] **Record intake current** while running free and while pulling an element, for a future jam detector (the team decided the driver handles jams for now but wants current-based detection later).
 
 ### 2.3 Pusher
-- [ ] **Sign check** (Shot Test): a positive command counts forward revolutions; velocity sign right. Set `ENCODER_SIGN` if not.
-- [ ] **TICKS_PER_REV** (bench value 751.8; the robot may have different gearing): confirm it from the logs of the Pusher Sensor Matrix sweeps. The arm is seen at the same angle every turn, so a wrong value shows up as the arc drifting from turn to turn (a large RISE or CENTER std).
-- [ ] **Mark HOLD** (Shot Test: jog, then B) at the physical HOLD position (the arm at the back, limiting entry to 4).
+- [ ] **Sign check** (Pit Check, or the Shot Test that was removed 2026-11-02): a positive command counts forward revolutions; velocity sign right. Set `ENCODER_SIGN` if not.
+- [ ] **TICKS_PER_REV** (bench value 751.8; the robot may have different gearing): confirm it from the logs of the Pusher Sensor Matrix sweeps (that opmode was removed 2026-11-02). The arm is seen at the same angle every turn, so a wrong value shows up as the arc drifting from turn to turn (a large RISE or CENTER std).
+- [ ] **Mark HOLD** (done; the Shot Test that did it was removed 2026-11-02) at the physical HOLD position (the arm at the back, limiting entry to 4).
 - [ ] **Tune** `SWEEP_POWER`, `APPROACH_POWER`, `STOP_EARLY_DEG`, then `COAST_LOOKAHEAD_S` from the "Pusher last settle" suggestion. Do this **with the pusher loaded**: 0, 1, 2 and 4 elements in the track. Loaded salvos can need more power.
 - [ ] **Reject** with elements in the track: reverses and finishes on the nearest HOLD behind.
 - [ ] **Exit**: 10 salvos in a row (including with 4 elements) with no fault, each resting consistently near HOLD (read "Error to nearest HOLD" and "Pusher last settle"; the target is a few degrees, but a salvo that rests a little past HOLD no longer locks anything out, see Risk 1). Record the min and max landing error.
 
 ### 2.4 Flywheel
 - [ ] **Direction and sign**: spins the shooting way, speed reads positive (the bench fix flipped the flywheel direction; re-confirm on the robot).
-- [ ] **FEED_FORWARD** tuned (in Shot Test, through the Dashboard) at about 600, 1000 and 1500 ticks/s so the hold power is just enough (single motor now).
-- [ ] **Spin-up time** to ready at the speeds you expect to shoot at; **dip and recovery** over a 4-ball burst (Shot Test shows the lowest speed during each salvo). Record; this is the data that tells us whether one motor is enough.
+- [ ] **FEED_FORWARD** tuned (in the Dashboard, with the Shot Map Tuner or the TeleOp) at about 600, 1000 and 1500 ticks/s so the hold power is just enough (single motor now).
+- [ ] **Spin-up time** to ready at the speeds you expect to shoot at; **dip and recovery** over a 4-ball burst (the `SALVO done` log line shows the lowest speed during each salvo). Record; this is the data that tells us whether one motor is enough.
 
 ### 2.5 Ramp
 - [x] **Measured** 2026-10-31 (with the Ramp Test, since deleted): the four positions are in `ChassisProfile` and the mirrored pair is verified.
@@ -179,7 +179,7 @@ Exit: each subsystem passes its own checklist, all numbers are in the Record she
 
 ## Phase 3: Mechanisms together (no coordinator yet)
 
-- [ ] **Shot Test on the robot.** Real elements (both kinds) through the pusher into the flywheel. Salvo (Y) and dry salvo (RB), reverse (X). Record per speed: speed at release, lowest speed during the salvo, whether all four elements leave and in what order. *Pass: repeatable, no pusher fault, no element stuck.*
+- [ ] **Shots with real elements on the robot** (the Shot Test opmode was removed 2026-11-02; use the Shot Map Tuner or the TeleOp). Real elements (both kinds) through the pusher into the flywheel. Salvo (Y) and dry salvo (RB), reverse (X). Record per speed: speed at release, lowest speed during the salvo, whether all four elements leave and in what order. *Pass: repeatable, no pusher fault, no element stuck.*
 - [ ] **Intake feeding the pusher**: run the intake with the pusher at HOLD; elements stop at the pusher arm, exactly 4 fit, a 5th is held out. (Rule G407: at most 4 controlled.)
 - [ ] **Everything powered while driving.** Drive around while the flywheel spins up and the intake runs. Record the **battery voltage minimum** and the **loop time**. *Pass: no brown-out, no hub reset, no pose jumps from the Pinpoint while the flywheel spins.*
 - [ ] **Loop time**: record it. If it is much above 27 ms, note which opmode and what was running (Risk 2).
@@ -212,9 +212,9 @@ Run **TeleOp - Competition**. Each row passes three times in a row.
 | C3 | Fire a salvo from a full robot | The count falls to 0; the operator presses the intake trigger again to resume |
 | C4 | Put the opponent's nectar in (red on blue alliance, or the reverse) | A warning names the sensor (CS1 to CS4) and no automatic action follows |
 | C5 | Look at the loop time with the counter on | The added cost is one sensor read (about 13 ms) every 40 ms; note the loop ms and re-check the pusher landing |
-| P1 | Pusher Check Test (CS4): arm at HOLD at INIT, track empty, **A** | The arm goes back about 33 deg, the screen says CS4 sees the arm, it returns to HOLD, result OK in about 1-2 s |
-| P2 | Pusher Check Test: **X** (fake +1 tooth) then **A**, then **A** again; same with **Y** (-1) | The first A sweeps, reports the arm found and the zero corrected by about -18 deg (+18 for Y), and returns to HOLD; the second A reports OK; the arm lands at the real HOLD. +1 takes about 2-4 s, -1 up to about 6 s |
-| P3 | Pusher Check Test: **RB** (fake +5 teeth) then **A** | A slow sweep finds the arc, the zero is corrected by about -90 deg (result SWEEP), a second A reports OK; check by eye that the arm returns to the real HOLD |
+| P1 | (Pusher Check Test, removed 2026-11-02; passed) Pusher Check Test (CS4): arm at HOLD at INIT, track empty, **A** | The arm goes back about 33 deg, the screen says CS4 sees the arm, it returns to HOLD, result OK in about 1-2 s |
+| P2 | (removed 2026-11-02; passed) Pusher Check Test: **X** (fake +1 tooth) then **A**, then **A** again; same with **Y** (-1) | The first A sweeps, reports the arm found and the zero corrected by about -18 deg (+18 for Y), and returns to HOLD; the second A reports OK; the arm lands at the real HOLD. +1 takes about 2-4 s, -1 up to about 6 s |
+| P3 | (removed 2026-11-02; passed) Pusher Check Test: **RB** (fake +5 teeth) then **A** | A slow sweep finds the arc, the zero is corrected by about -90 deg (result SWEEP), a second A reports OK; check by eye that the arm returns to the real HOLD |
 | P2/P3 result 2026-11-01 | Pusher Check Test on the robot (continuous-sweep version) | OK in 0.8-1.4 s. A fake +1 tooth: one sweep, 2.8 s, corrected -16.8 deg (expected 18). A fake +90 deg: two sweeps, 4.8-5.3 s, net -103, -90, -89 (the first crossing after the long reverse is inaccurate and fails the verify look; the second sweep fixes it). The verify look saw the arm every time. An earlier run's +90 and +180 corrections (-55.5, -147) may have been about 33 deg off; not reproduced. Still to do: P4, P5 (TeleOp after a salvo), P6 (abort) |
 | P2/P3 result, power cycle | 2026-11-01, TeleOp after a power cycle with the pusher far from HOLD | The zero was assumed at INIT, so the arm was really about 151 deg off. The first salvo ran from there; its check missed the arm, swept, corrected -150.8 deg and verified in 4.1 s; every later check was OK in 1.2 s, parking at 323.9-327.3 deg. The first salvo after a power-up still runs from the unverified zero |
 | P8 | Start-up check: power cycle with the pusher anywhere (track empty), run TeleOp - Competition, press Start and touch nothing | The warning "Pusher zero not verified" shows, then about half a second after Start a check runs (seek, look, and a sweep if the arm is not where the zero says), the zero is verified or corrected, the arm goes to HOLD, the warning clears. Start with elements in the track: no start-up check (logged), the first salvo's check does it. Fire right after Start: the check aborts |
@@ -301,6 +301,6 @@ Fill in as you go. Date, battery voltage and who ran it next to each line.
 | Flywheel lowest speed in a 4-ball burst (% of setpoint) | | notes | |
 | Ramp stowed / deployed L, R | | profile | |
 | Ramp `TRAVEL_SEC`, `CLEAR_DISTANCE_IN` | | `Ramp` | |
-| Loop time: Shot Test / TeleOp (ms) | | notes | |
+| Loop time: Shot Map Tuner / TeleOp (ms) | | notes | |
 | Battery minimum under load (V) | | notes | |
 | Shot map points | | `ShotMap.TABLE` | |

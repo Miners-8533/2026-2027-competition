@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes.bringup;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -30,6 +31,7 @@ import java.util.Locale;
  * Everything is also written to runlogs/bringup.log (pull it with adb): the offsets and pod types in use, each step's verdict with the
  * distance or angle it saw, and the pose and raw pod ticks five times a second.
  */
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @TeleOp(name = "Pinpoint Push Test", group = "Bring-up")
 public class PinpointPushTest extends LinearOpMode {
 

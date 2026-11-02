@@ -73,4 +73,4 @@ Events written when they happen:
 
 - Lines are written by a background thread, so the loop only pays for building the line (about 10 times a second). The only hub read added is the battery voltage, once a second.
 - The file is flushed about once a second, so a hard crash loses at most the last second.
-- Not logged: raw color sensor readings (use Color Sensors Test), and motor currents other than the pusher's cached value.
+- Not logged: raw color sensor readings (use Color Sensors Test, which is disabled), and motor currents other than the pusher's cached value.

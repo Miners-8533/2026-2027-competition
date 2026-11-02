@@ -65,7 +65,7 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 
 **Status:** built and compiling, not yet run on hardware. `subsystems/Flywheel.java` (bang-bang plus `FEED_FORWARD`, placeholder 0.2; `READY_FRACTION` 0.95; 5-sample filter), `HiveTarget.java` (the four open-cell target points) and `ShotMap.java` (interpolation; the saved `TABLE` is empty until measured). Directions are `ChassisProfile.flywheelDirection` and `flywheelFollowerDirection` (REVERSE, last year's pair), both placeholders. Both motors run without the hub's closed-loop encoder modes and receive the same power, so a power is a plain duty cycle on each (the closed-loop mode would make one number mean a speed target on one motor and a duty on the other, and runs away if an encoder counts opposite to its motor, as the pusher's did). `ENCODER_SIGN` (default +1) fixes a reversed encoder, and a speed that reads strongly negative while spinning stops the flywheel with a fault. The single-motor `Shooter` on the `shooter-prototype` branch is superseded by `Flywheel`.
 
-**Verification:** **Shot Test** (set a speed, tune `FEED_FORWARD` through the Dashboard, and read the lowest speed during each salvo; the Flywheel Test was deleted) and **Shot Map Tuner** (drive to a distance, find a speed that scores, record the pair, test the interpolation live, and print lines for `ShotMap.TABLE`).
+**Verification:** the **Shot Map Tuner** (disabled) or the TeleOp (tune `FEED_FORWARD` through the Dashboard, and read the lowest speed in the `SALVO done` log line; the Shot Test and the Flywheel Test were removed) and **Shot Map Tuner** (drive to a distance, find a speed that scores, record the pair, test the interpolation live, and print lines for `ShotMap.TABLE`).
 
 ## 3. Pusher
 
@@ -88,7 +88,7 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 
 **Status:** built and compiling, not yet run on hardware. `subsystems/Pusher.java`: position thresholding with HOLD at 0 degrees (salvo = one forward turn, return = forward to the nearest HOLD, reject = reverse onto the nearest HOLD behind), stall and no-progress fault detection, and a zero reference saved in a static (`Reference.ASSUME_AT_HOLD` for auto, `CONTINUE` for TeleOp after auto). The encoder is never reset in code. The powers, `STOP_EARLY_DEG` and the stall thresholds are placeholders to calibrate on the rig, and the pusher direction is a `ChassisProfile` placeholder. The hardware name is `gate`. Ran on the bench pusher (branch `pusher-bench`) with the earlier PID version; this thresholding rewrite has not been run yet.
 
-**Verification:** **Shot Test** marks HOLD (jog, then B), runs a salvo, a reject and a return to HOLD, and shows where the arm settled after every move; the powers and the early-stop angle are Dashboard values to copy into `Pusher.java`. `TICKS_PER_REV` is confirmed from the Pusher Sensor Matrix logs. The Pusher Test was deleted.
+**Verification:** the TeleOp and the Shot Map Tuner run a salvo, a reject and a return to HOLD, and the log shows where the arm settled after every move (the Shot Test that marked HOLD was removed); the powers and the early-stop angle are Dashboard values to copy into `Pusher.java`. `TICKS_PER_REV` is confirmed from the Pusher Sensor Matrix logs. The Pusher Test was deleted.
 
 ## 4. Ramp
 
@@ -132,7 +132,7 @@ Four REV Color Sensor V3, one per I2C bus, named `CS1` to `CS4` and numbered alo
 
 - **Presence** comes from the shift of the color shares from each sensor's own empty baseline (the empty views differ per sensor and the contrast against a near wall is small), then alpha and distance, with hysteresis and a debounce.
 - **Count** = sensors that see an element (not the arm), reported only after it has been steady (150 ms going up, 500 ms for the fourth so FULL is certain, 300 ms going down). A fourth element is reported about 0.8 s after it is first seen. An element without a neighbor toward the flywheel sets a *gap* flag but still counts.
-- **Baseline:** the empty readings in `ElementCounter` were measured 2026-10-31. Lighting changes them, so re-measure in the pit with Color Sensors Test (**A** with the track empty) and copy the BASELINE line into the table. It cannot be captured at match start, because the robot may already hold elements.
+- **Baseline:** the empty readings in `ElementCounter` were measured 2026-10-31. Lighting changes them, so re-measure in the pit with Color Sensors Test (it is now `@Disabled`; **A** with the track empty) and copy the BASELINE line into the table. It cannot be captured at match start, because the robot may already hold elements.
 - **Measured on the robot:** four pollen read 100% correct on all four sensors (3,298 samples); blue nectar and the pusher arm classified correctly in the logs; red nectar worked up close and was loosened for distance (not yet re-run live). Thresholds are accepted for now.
 - **Not done yet:** a live run of the counter inside TeleOp - Competition, and the pusher position check that uses `pusherArmSeen()` on CS4.
 

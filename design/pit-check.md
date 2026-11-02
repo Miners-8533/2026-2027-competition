@@ -1,5 +1,7 @@
 # Pit check
 
+The Pit Check is the only check opmode on the Driver Station. It took over the **Hardware Check** and **Chassis Info** opmodes (removed 2026-11-02). The calibration tools **Shot Map Tuner**, **Pinpoint Offset Check**, **Pinpoint Push Test** and **Color Sensors Test** still exist but are `@Disabled`; see [opmodes.md](opmodes.md).
+
 `Pit Check (robot on blocks)` (opmode, group Bring-up) is the check to run after any repair, rewiring or hub swap, and before a match day. The code no longer watches for wiring and sign problems while running (the flywheel's reversed-encoder fault was removed), so this is where they are found.
 
 **Setup:** the robot on blocks, wheels clear of the floor, the ramp free to swing, the element track **empty**. Nothing moves until you press A for that step, every move is short and slow, and Back stops everything.
@@ -17,7 +19,7 @@
 
 | Step | How | Judged by |
 |---|---|---|
-| Configuration | every device name and type, and a stale `fly_follow` | automatic |
+| Configuration | every device name and type, a stale `fly_follow`, where each device is plugged in (hub and port, in the `Ports` line, for hub-configuration.md) and any configured device the code does not use | automatic |
 | Battery | at least 12.0 V on every hub | automatic |
 | Pinpoint | status READY, loop time 300-1500 us | automatic |
 | Color sensors CS1-CS4 | each answers, and matches its empty baseline (so a changed lighting or something left in the track shows up) | automatic |

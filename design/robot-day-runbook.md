@@ -45,33 +45,25 @@ Likely first-run surprises: the 0.3 power flywheel step may not reach 100 ticks/
 
 ### Block B: Element counter baseline (item 5)
 
-1. Run **Color Sensors Test (CS1-CS4)** with the track **empty**. Press **A**.
+1. Enable **Color Sensors Test (CS1-CS4)** (it is `@Disabled`: delete that line and its import in `ColorSensorsTest.java`, reinstall) and run it with the track **empty**. Press **A**.
 2. From `adb logcat -s ColorSensors`, copy the `BASELINE` line into the table in `ElementCounter` (`BASE_ALPHA`, `BASE_DIST`, `BASE_SHARES`).
 3. Rebuild and reinstall, then rerun **Pit Check** (its first, automatic part takes a few seconds): CS1 to CS4 must now read empty.
 4. Red nectar: put red nectar in front of CS2, CS3 and CS4 and confirm it still reads red (the live re-check that is still open).
 
 Redo this in the pit at each venue if the lighting changes.
 
-### Block C: Pusher calibration (items 3, 4 and `COAST_LOOKAHEAD_S`)
+### Block C: Pusher calibration (done 2026-11-01)
 
-1. Run **Pusher Sensor Matrix (CS4)**: jog the arm to HOLD, **A** to mark it, **right bumper** to run (about a minute, default 3x gain). Read `adb logcat -s PusherSensorMatrix`.
-2. Record the **"ARC ... ahead of the mark"** at powers 0.15, 0.3 and 0.6: the team expects the arm to be seen about 90 deg ahead of HOLD. This is the HOLD to CS4 offset.
-3. **`TICKS_PER_REV` check:** the arc's RISE and CENTER spread from turn to turn should be small (the matrix measured 0.07 / 0.39 / 1.01 deg at powers 0.15 / 0.3 / 0.6). If the arc drifts turn after turn, `TICKS_PER_REV` is wrong.
-4. **`COAST_LOOKAHEAD_S`:** from the logs of these runs and the settle readouts in Shot Test, either find a value that makes the landing consistent or remove the lookahead. Record the decision.
-5. **Item 4:** choose the smallest belt slip worth catching, in degrees (a skipped tooth is 360 / the number of teeth on the pusher pulley). It decides whether the parked check (about +/-15 deg) is enough.
-6. Put the arm back at HOLD.
+The pusher measurements are finished (the arm is seen about 328 deg ahead of the mark, `TICKS_PER_REV` confirmed, the salvo is 400 deg) and the two tools that made them, **Pusher Sensor Matrix** and **Pusher Check Test**, were removed on 2026-11-02 (they are in git history). The pusher check now runs inside **TeleOp - Competition**: automatically after a salvo and once after power-up, and by hand with the operator's left bumper + Y (plan rows P8 and P9). If the arm is not seen at the arc, tune `PusherCheck.ARM_CENTER_DEG` in the Dashboard and commit the value. `Mechanisms.AUTO_PUSHER_CHECK` (Dashboard) turns the automatic check off. Still open: the smallest belt slip worth catching (item 4), and the `COAST_LOOKAHEAD_S` decision (find a value from the `SALVO done` lines of the Shot Map Tuner or TeleOp logs, or remove the lookahead).
 
-7. **Pusher Check Test (CS4)** (the pusher check, built from these numbers): the arm at HOLD at INIT, track empty. **A** runs it (expect OK in about 1-2 s); **X** or **Y** fakes a one-tooth slip, then **A** (expect one continuous sweep that finds the arm, corrects the zero by about 18 deg and returns to HOLD in 2-6 s), then **A** again (expect OK); **RB** fakes five teeth, then **A** (the same, correcting about 90 deg). Rows P1 to P6 in the plan. If the arm is not at the arc, tune `PusherCheck.ARM_CENTER_DEG` in the Dashboard and commit the value (the sweep needs no delay constant: it averages a forward and a return crossing).
-8. If the check is slow or the arm is misjudged, `Mechanisms.AUTO_PUSHER_CHECK` (Dashboard) turns the automatic check off.
+### Block D: Shots with real elements (plan Phase 3)
 
-### Block D: Shot Test with real elements (plan Phase 3)
-
-1. **Shot Test (pusher + flywheel)**: set HOLD with the left stick and **B**, flywheel on with **A**, set the speed with the D-pad.
-2. With real elements (pollen and both nectars): **Y** = fire (waits for the flywheel), **RB** = dry salvo, **X** = reverse. Record per speed: speed at release, lowest speed during the salvo, whether all four leave and in what order.
+1. The **Shot Test** opmode was removed on 2026-11-02. Use **TeleOp - Competition**, or the **Shot Map Tuner** (disabled: delete `@Disabled` and its import in `ShotMapTuner.java` to use it). Fire with the real elements (pollen and both nectars).
+2. Record per speed: speed at release, lowest speed during the salvo (the `SALVO done` log line), whether all four leave and in what order.
 3. Tune `FEED_FORWARD` (Dashboard) so the hold power is just enough at about 600, 1000 and 1500 ticks/s. Tie it to the minimum shot speed.
-4. Record the pusher's settle after each salvo (the `Pusher last settle` readout) over **10 salvos in a row**, including with 4 elements: min and max landing error, no fault.
+4. Record the pusher's settle after each salvo (the `SALVO done` line shows where the arm rested) over **10 salvos in a row**, including with 4 elements: min and max landing error, no fault.
 5. Intake feeding the pusher: with the pusher at HOLD, exactly 4 fit and a 5th is held out.
-6. **Avoid LB (return to HOLD) when the arm rests more than 8 deg past HOLD**: it turns nearly a full turn forward and fires the stack. This is an open decision (see "Open decisions").
+6. **`Pusher.hold()` (return to HOLD) turns nearly a full turn forward when the arm rests more than 8 deg past HOLD** and fires the stack. The pusher check and the bring-up tools call it; this is an open decision (see "Open decisions").
 7. Everything powered while driving: drive with the flywheel spinning and the intake running. Record the **minimum battery voltage** and the **loop time**; no brown-out, no Pinpoint jumps.
 
 ### Block E: TeleOp - Competition (plan Phase 4)
@@ -128,8 +120,6 @@ Gives `pitcheck.log`, `auto.log`, `teleop.log` and their `*_prev.log` (the last 
 |---|---|
 | `adb logcat -d -s PitCheck` | pit check results |
 | `adb logcat -d -s ColorSensors` | element counter baseline and readings |
-| `adb logcat -d -s PusherSensorMatrix` | the pusher arc and ranking |
-| `adb logcat -d -s HardwareCheck` | the read-only hardware report |
 
 Then ask Claude Code to read the folder. After a crash, the first `#` line of the new log says how the previous run ended.
 
@@ -173,12 +163,12 @@ Rebuild and reinstall after committing, and confirm the Dashboard shows the new 
 | Pusher angles or salvos look off after a run | Stale zero (belt slip, or the arm moved) | the pusher check corrects it after the next salvo (`PUSHER CHECK` lines in the log; a LOST warning means it could not); otherwise put the arm at HOLD and restart the app |
 | "SALVO running" never ends, or "Pusher STALLED" | Jam (the pusher does not fault for now) | B cancels a salvo, A cancels a reject; read `last settle` and the log's `PUSHER` lines |
 | Field-oriented sticks feel wrong | Heading drift or the wrong driver-forward direction | hold LB + RB to reseed the pose (resets the heading); hold LB + X for backup mode if the Pinpoint is bad; correct `*_DRIVER_FORWARD_DEG` |
-| An opmode throws "Unrecognized Control Hub" | This hub is not registered in `ChassisProfile` | run Chassis Info and add its id |
+| An opmode throws "Unrecognized Control Hub" | This hub is not registered in `ChassisProfile` | the error lists the hub ids: add one (the serial is preferred) to a profile in `ChassisProfile.java` |
 | Values you tuned are back to the old ones | They were only in the Dashboard; the app was reinstalled or restarted | Block 4: write them into the code |
 
 ## 7. Open decisions to settle on the day
 
-- **`Pusher.hold()` / Shot Test LB:** turns nearly a full turn forward when the arm rests more than 8 deg past HOLD (fires the stack); salvos land 5-12 deg past. Decide the behavior.
+- **`Pusher.hold()`:** turns nearly a full turn forward when the arm rests more than 8 deg past HOLD (fires the stack); salvos land 5-12 deg past. Decide the behavior.
 - **`COAST_LOOKAHEAD_S`:** find a value from the logs, or remove the lookahead.
 - **Smallest belt slip to catch (item 4):** picks the pusher check's tolerance.
 - **Pusher zero in TeleOp:** it trusts the saved zero; the automatic pusher check now corrects a slip after a salvo (not yet run on the robot).

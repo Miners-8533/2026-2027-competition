@@ -17,8 +17,8 @@ import java.util.Locale;
  * Control Hub the app is running on (each chassis has its own hub). The same build works on
  * every chassis; nobody picks a profile.
  *
- * To register a hub: run the "Chassis Info" opmode on it, read the hub ids it shows, and add
- * them to that profile's list below.
+ * To register a hub: run any opmode on it (the Pit Check will do): the error it throws lists the hub ids; add one (the serial
+ * is preferred) to that profile's list below.
  *
  * Detection: a hub that matches a profile uses it. A hub that matches none throws with its ids
  * in the message, so a wrong chassis can never silently run with the wrong directions - EXCEPT
@@ -81,7 +81,7 @@ public final class ChassisProfile {
 
     /** The earlier prototype chassis. Offsets were tuned with Pinpoint Offset Check. */
     public static final ChassisProfile PROTOTYPE = new ChassisProfile("PROTOTYPE",
-            Arrays.asList(/* hub ids: add from Chassis Info */),
+            Arrays.asList(/* hub ids: add from the "Unrecognized Control Hub" error */),
             DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.REVERSE,
             GoBildaPinpointDriver.EncoderDirection.REVERSED, GoBildaPinpointDriver.EncoderDirection.REVERSED,
             -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
@@ -94,7 +94,7 @@ public final class ChassisProfile {
      * and the 18 x 14 in footprint is assumed.
      */
     public static final ChassisProfile DRAFT_1 = new ChassisProfile("DRAFT_1",
-            Arrays.asList(/* hub ids: add from Chassis Info */),
+            Arrays.asList(/* hub ids: add from the "Unrecognized Control Hub" error */),
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD,
             -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
@@ -169,7 +169,7 @@ public final class ChassisProfile {
             return DEFAULT;
         }
         throw new IllegalStateException("Unrecognized Control Hub " + currentHubIds(hardwareMap)
-                + ". Run the 'Chassis Info' opmode and add this hub's id to a ChassisProfile.");
+                + ". Add one of these ids (the serial is preferred) to a ChassisProfile in ChassisProfile.java.");
     }
 
     /** False if the last {@link #detect} fell back to the default because no hub is registered yet. */
