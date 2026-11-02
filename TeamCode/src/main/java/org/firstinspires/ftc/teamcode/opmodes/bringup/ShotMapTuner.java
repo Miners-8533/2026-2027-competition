@@ -40,9 +40,9 @@ import java.util.Locale;
  *   Left bumper                  auto speed on / off: the setpoint follows the recorded points
  *   Back                         reseed the pose to the start pose below (also clears a pusher fault)
  *
- * Start pose: X against the rear wall (from the robot's depth), Y = START_Y_IN, heading START_HEADING_DEG (0 = facing the audience wall). The
- * alliance does not move it. INIT (gamepad 1): D-pad right = BLUE, D-pad left = RED, which sets the default target (that HIVE's rear CELL) and
- * which nectar counts as the opponent's.
+ * Start pose: START_X_IN, START_Y_IN, START_HEADING_DEG (field coordinates: X toward the audience wall, Y toward the Blue Wall, heading 0 = facing
+ * +X, 180 = facing the rear wall). The alliance does not move it. The target starts as the CELL nearest the start pose. INIT (gamepad 1): D-pad
+ * right = BLUE, D-pad left = RED, which sets which nectar counts as the opponent's.
  *
  * Distance comes from the Pinpoint pose to the target (set the start pose to where you place the robot), or set MANUAL_DISTANCE_IN above
  * 0 in the Dashboard to type a measured distance instead. The hood is fixed, so speed depends on distance only. Same speed for pollen and nectar.
@@ -53,10 +53,13 @@ import java.util.Locale;
 @TeleOp(name = "Shot Map Tuner", group = "Bring-up")
 public class ShotMapTuner extends LinearOpMode {
 
-    private static final double FIELD_HALF_IN = 72.0;
-    /** Signed, the same for either alliance. Set to 16.5 for the 2026-11-01 shot map session (the blue HIVE centerline is +12.75, the red -12.75). */
-    public static double START_Y_IN = 16.5;   // X comes from the profile's depth (touching the rear wall)
-    public static double START_HEADING_DEG = 0.0;
+    /**
+     * The start pose for the 2026-11-01 shot map session: against the AUDIENCE wall (X = 72 less half the 17 in robot depth), Y = -16.5, facing the
+     * rear wall (180 deg). The HIVE centerlines are Y = +12.75 (blue) and -12.75 (red). The same for either alliance.
+     */
+    public static double START_X_IN = 63.5;
+    public static double START_Y_IN = -16.5;
+    public static double START_HEADING_DEG = 180.0;
     public static double MANUAL_DISTANCE_IN = 0.0;
     public static double STEP = 25.0;
     public static double START_SETPOINT = 1000.0;
@@ -65,9 +68,17 @@ public class ShotMapTuner extends LinearOpMode {
     private static final double TURN_SCALE = 0.5;
     private static final double PRECISION_SCALE = 0.30;
 
-    /** Against the rear wall at START_Y_IN, facing START_HEADING_DEG. */
-    private static Pose2d startPose(double startX) {
-        return new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG));
+    private static Pose2d startPose() {
+        return new Pose2d(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
+    }
+
+    /** The CELL closest to a pose, the starting target. */
+    private static HiveTarget nearestCell(Pose2d pose) {
+        HiveTarget best = HiveTarget.BLUE_REAR;
+        for (HiveTarget t : HiveTarget.values()) {
+            if (t.distanceFrom(pose) < best.distanceFrom(pose)) best = t;
+        }
+        return best;
     }
 
     @Override
@@ -87,14 +98,13 @@ public class ShotMapTuner extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
-        MecanumDrive drive = new MecanumDrive(hardwareMap, startPose(startX));
+        MecanumDrive drive = new MecanumDrive(hardwareMap, startPose());
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
         mechanisms.setUseShotMap(false);            // the tuner sets the speed itself
         mechanisms.setAutoStopAfterSalvo(false);    // the flywheel stays on between shots until X
 
         boolean blue = true;
-        HiveTarget target = HiveTarget.BLUE_REAR;
+        HiveTarget target = nearestCell(startPose());
         boolean spinning = false, autoSpeed = false, prevIntakeTrigger = false;
         double setpoint = START_SETPOINT;
         mechanisms.setManualSetpoint(setpoint);
@@ -103,22 +113,17 @@ public class ShotMapTuner extends LinearOpMode {
 
         telemetry.addData("Chassis profile", profile.label());
         telemetry.addData("Mechanisms present", mechanisms.describe());
-        boolean seededBlue = true;
         while (!isStarted() && !isStopRequested()) {
             if (gamepad1.dpad_right) blue = true;
             if (gamepad1.dpad_left) blue = false;
-            if (blue != seededBlue) {
-                seededBlue = blue;
-                target = blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_REAR;
-            }
             drive.updatePoseEstimate();
             if (mechanisms.counter != null) mechanisms.counter.update();   // reads only; nothing moves in INIT
             Pose2d p = drive.getPose();
-            Pose2d want = startPose(startX);
+            Pose2d want = startPose();
             boolean poseOk = Math.hypot(p.position.x - want.position.x, p.position.y - want.position.y) < 1.5;
             telemetry.addData("Chassis profile", profile.label());
             telemetry.addData("Alliance (D-pad right = BLUE, left = RED)", blue ? "BLUE" : "RED");
-            telemetry.addData("Start pose to use", "X %.1f, Y %.2f in, heading %.0f deg (Y and heading are START_Y_IN and START_HEADING_DEG in the Dashboard)",
+            telemetry.addData("Start pose to use", "X %.1f, Y %.2f in, heading %.0f deg (START_X_IN, START_Y_IN, START_HEADING_DEG in the Dashboard)",
                     want.position.x, want.position.y, Math.toDegrees(want.heading.toDouble()));
             telemetry.addData("Pinpoint pose", "%.1f, %.1f, %.0f deg   %s", p.position.x, p.position.y, p.heading.toDegrees(), poseOk ? "OK" : "WARNING: not at the start pose");
             telemetry.addData("Mechanisms present", mechanisms.describe());
@@ -140,7 +145,7 @@ public class ShotMapTuner extends LinearOpMode {
                     -gamepad1.right_stick_x * TURN_SCALE * scale));
 
             if (gamepad1.backWasPressed()) {
-                drive.setPose(startPose(startX));
+                drive.setPose(startPose());
                 mechanisms.clearPusherStall();
             }
             if (gamepad1.xWasPressed()) spinning = !spinning;
