@@ -5,6 +5,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
@@ -38,7 +39,7 @@ import java.util.Locale;
  *   A                            remove the most recently recorded point
  *   D-pad left / right           cycle the target CELL (blue rear, blue audience, red rear, red audience)
  *   Left bumper                  auto speed on / off: the setpoint follows the recorded points
- *   Back                         reseed the pose to the start pose below (also clears a pusher fault)
+ *   Back                         clear a pusher fault; HOLD it for 1 s to reseed the pose to the start pose below
  *
  * Start pose: START_X_IN, START_Y_IN, START_HEADING_DEG (field coordinates: X toward the audience wall, Y toward the Blue Wall, heading 0 = facing
  * +X, 180 = facing the rear wall). The alliance does not move it. The target starts as the CELL nearest the start pose. INIT (gamepad 1): D-pad
@@ -65,8 +66,13 @@ public class ShotMapTuner extends LinearOpMode {
     public static double START_SETPOINT = 1000.0;
     public static double TRIGGER_THRESHOLD = 0.3;
 
+    public static double RESEED_HOLD_SEC = 1.0;
     private static final double TURN_SCALE = 0.5;
     private static final double PRECISION_SCALE = 0.30;
+
+    /** What the log's sample rows show: where the robot is, what it aims at, and the setpoint. */
+    private double logX, logY, logHeadingDeg, logDistance, logSetpoint;
+    private String logTarget = "";
 
     private static Pose2d startPose() {
         return new Pose2d(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
@@ -134,6 +140,11 @@ public class ShotMapTuner extends LinearOpMode {
         mechanisms.setBlueAlliance(blue);
         RunLog.started();
         RunLog.event("SETUP " + (blue ? "BLUE" : "RED") + " start, " + mechanisms.describe());
+        RunLog.setSampler("x,y,hdg_deg,target,distance,setpoint," + Mechanisms.SAMPLE_COLUMNS, 200,
+                () -> String.format(Locale.US, "%.1f,%.1f,%.1f,%s,%.1f,%.0f,%s", logX, logY, logHeadingDeg, logTarget, logDistance, logSetpoint,
+                        mechanisms.sampleRow()));
+        boolean backDown = false, reseeded = false;
+        ElapsedTime backHold = new ElapsedTime();
 
         while (opModeIsActive()) {
             drive.updatePoseEstimate();
@@ -144,9 +155,20 @@ public class ShotMapTuner extends LinearOpMode {
                     new Vector2d(-gamepad1.left_stick_y * scale, -gamepad1.left_stick_x * scale),
                     -gamepad1.right_stick_x * TURN_SCALE * scale));
 
-            if (gamepad1.backWasPressed()) {
-                drive.setPose(startPose());
-                mechanisms.clearPusherStall();
+            if (gamepad1.backWasPressed()) mechanisms.clearPusherStall();
+            if (gamepad1.back) {
+                if (!backDown) {
+                    backDown = true;
+                    reseeded = false;
+                    backHold.reset();
+                }
+                if (!reseeded && backHold.seconds() >= RESEED_HOLD_SEC) {
+                    drive.setPose(startPose());
+                    reseeded = true;
+                    RunLog.event("POSE reseeded to the start pose");
+                }
+            } else {
+                backDown = false;
             }
             if (gamepad1.xWasPressed()) spinning = !spinning;
             if (gamepad1.dpadRightWasPressed()) {
@@ -168,7 +190,12 @@ public class ShotMapTuner extends LinearOpMode {
             if (intakeTrigger && !prevIntakeTrigger) mechanisms.toggleIntake();
             prevIntakeTrigger = intakeTrigger;
             mechanisms.setManualOuttake(gamepad1.left_trigger > TRIGGER_THRESHOLD);
-            if (gamepad1.yWasPressed()) mechanisms.requestFire();
+            if (gamepad1.yWasPressed()) {
+                RunLog.event(String.format(Locale.US, "FIRE pressed: pose %.1f, %.1f, %.0f deg, %s at %.1f in%s, setpoint %.0f",
+                        pose.position.x, pose.position.y, pose.heading.toDegrees(), target,
+                        MANUAL_DISTANCE_IN > 0 ? MANUAL_DISTANCE_IN : target.distanceFrom(pose), MANUAL_DISTANCE_IN > 0 ? " (typed)" : "", setpoint));
+                mechanisms.requestFire();
+            }
 
             double distance = MANUAL_DISTANCE_IN > 0 ? MANUAL_DISTANCE_IN : target.distanceFrom(pose);
 
@@ -177,7 +204,8 @@ public class ShotMapTuner extends LinearOpMode {
                 lastRecorded = new double[]{distance, setpoint};
                 points.add(lastRecorded);
                 points.sort((a, b) -> Double.compare(a[0], b[0]));
-                RunLog.event(String.format(Locale.US, "RECORD %.1f in to %s at %.0f ticks/s", distance, target, setpoint));
+                RunLog.event(String.format(Locale.US, "RECORD %.1f in to %s at %.0f ticks/s (%s; pose %.1f, %.1f, %.0f deg)", distance, target, setpoint,
+                        MANUAL_DISTANCE_IN > 0 ? "distance TYPED" : "distance from the pose", pose.position.x, pose.position.y, pose.heading.toDegrees()));
             }
             if (gamepad1.aWasPressed() && lastRecorded != null) {
                 points.remove(lastRecorded);
@@ -188,6 +216,12 @@ public class ShotMapTuner extends LinearOpMode {
             double mapSpeed = ShotMap.interpolate(points, distance);
             if (autoSpeed && !Double.isNaN(mapSpeed)) setpoint = mapSpeed;
 
+            logX = pose.position.x;
+            logY = pose.position.y;
+            logHeadingDeg = pose.heading.toDegrees();
+            logDistance = distance;
+            logSetpoint = setpoint;
+            logTarget = target.name();
             mechanisms.setOpenCell(target);
             mechanisms.setManualSetpoint(setpoint);
             mechanisms.setSpinRequested(spinning);
@@ -207,7 +241,7 @@ public class ShotMapTuner extends LinearOpMode {
             for (double[] p : points) {
                 telemetry.addLine(String.format("        {%.1f, %.0f},", p[0], p[1]));
             }
-            telemetry.addLine("RT intake, Y FIRE, X spin, B record, A undo, D-pad up/down speed, D-pad left/right target, LB auto speed, Back reseed pose");
+            telemetry.addLine("RT intake, Y FIRE, X spin, B record, A undo, D-pad up/down speed, D-pad left/right target, LB auto speed, Back clear fault (hold = reseed pose)");
             telemetry.update();
         }
         StringBuilder table = new StringBuilder("SHOT MAP at the end of the run, paste into ShotMap.TABLE:");

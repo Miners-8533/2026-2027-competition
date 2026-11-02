@@ -166,6 +166,10 @@ public class Mechanisms {
             notice("Fire ignored: needs the flywheel and the pusher.");
             return;
         }
+        if (pusher.isStalled()) {
+            notice("Fire ignored: the pusher is faulted (Back clears it).");
+            return;
+        }
         if (pusherCheck != null && pusherCheck.isActive()) pusherCheck.abort("a fire was requested");
         if (fireQueued || salvoActive || rejectActive) {
             RunLog.event("COMMAND fire ignored: " + (fireQueued ? "already queued" : salvoActive ? "salvo running" : "reject running"));
@@ -473,7 +477,9 @@ public class Mechanisms {
                 notice("Fire dropped: set the pusher's TICKS_PER_REV first.");
             } else if (fireTimer.seconds() > FIRE_TIMEOUT_SEC) {
                 fireQueued = false;
-                notice("Fire dropped: the flywheel was not ready in time.");
+                notice(pusher.isStalled() ? "Fire dropped: the pusher is faulted (Back clears it)."
+                        : !pusher.isStopped() ? "Fire dropped: the pusher was still moving."
+                        : "Fire dropped: the flywheel was not ready in time.");
             } else {
                 flywheel.setTargetVelocity(lastSetpoint);
                 if (flywheel.isReady() && pusher.isStopped()) {
