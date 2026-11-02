@@ -5,7 +5,6 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -31,7 +30,8 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * wiring problem for the pit check to find. If the speed sensor DIES in a match this class notices (see
  * {@link #isEncoderLost}): the motor commanded at 0.9 or more for LOST_DETECT_SEC while the speed never reaches
  * LOST_SPEED_MAX. It then latches, for the rest of the run, into an open-loop mode at a fixed power for
- * LOST_BASE_SETPOINT ticks/s (LOST_BASE_POWER, scaled for the battery voltage) that the speed trim can adjust.
+ * LOST_BASE_SETPOINT ticks/s (LOST_BASE_POWER, a plain power with no battery compensation: the voltage is too noisy and sags with
+ * the other motors) that the speed trim can adjust.
  * {@link #setOpenLoop} is the older manual open-loop switch (power = target / OPEN_LOOP_TOP_SPEED).
  *
  * Call {@link #update()} once per loop (autos pass it to Actions.runBlocking). Velocity is in encoder ticks
@@ -59,8 +59,6 @@ public class Flywheel {
     /** Encoder-lost mode: the speed (ticks/s) the base power is for, and the base power itself. 0.61 is the placeholder 1350 / 2200; replace it with the average fly_power of a steady spin at 1350 from the log. */
     public static double LOST_BASE_SETPOINT = 1350.0;
     public static double LOST_BASE_POWER = 0.61;
-    /** Encoder-lost mode: the battery voltage LOST_BASE_POWER was measured at; the power is scaled by this over the voltage now (clamped to 0.9 to 1.25). 0 turns the scaling off. */
-    public static double LOST_REF_VOLTS = 12.5;
     /** Encoder-lost mode: seconds after the switch until the flywheel counts as ready (it must slow from full power to the base power first). */
     public static double LOST_READY_SEC = 2.0;
     /** How often (ms) the motor currents are refreshed for the display. */
@@ -83,9 +81,6 @@ public class Flywheel {
     private String lostReason = "";
     private boolean lostWindowActive = false;
     private final ElapsedTime lostTimer = new ElapsedTime();
-    private final VoltageSensor battery;
-    private final ElapsedTime voltageTimer = new ElapsedTime();
-    private double volts = Double.NaN;
 
     // Hub calls are blocking round trips, so the hub is read in one place (the velocity, at the top of update(), and the
     // currents a few times a second for the display) and written only when the power changes.
@@ -102,7 +97,6 @@ public class Flywheel {
         motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         motor.setPower(0.0);
-        battery = hardwareMap.voltageSensor.iterator().hasNext() ? hardwareMap.voltageSensor.iterator().next() : null;
 
         // fly_follow
         // follower = hardwareMap.tryGet(DcMotorEx.class, "fly_follow");
@@ -188,16 +182,9 @@ public class Flywheel {
         return lostReason;
     }
 
-    /** The power for the lost-encoder mode: the base power, moved by the difference from the base speed, scaled for the battery. */
+    /** The power for the lost-encoder mode: the base power, moved by the difference from the base speed. No battery compensation. */
     private double lostPower() {
         double p = LOST_BASE_POWER + (targetVelocity - LOST_BASE_SETPOINT) / OPEN_LOOP_TOP_SPEED;
-        if (LOST_REF_VOLTS > 0.0 && battery != null) {
-            if (Double.isNaN(volts) || voltageTimer.seconds() > 1.0) {
-                volts = battery.getVoltage();
-                voltageTimer.reset();
-            }
-            if (volts > 5.0) p *= Math.max(0.9, Math.min(1.25, LOST_REF_VOLTS / volts));
-        }
         return p;
     }
 
