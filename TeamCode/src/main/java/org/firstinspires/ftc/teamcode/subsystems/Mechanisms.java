@@ -77,6 +77,7 @@ public class Mechanisms {
 
     private boolean intakeRequested = false;
     private boolean manualOuttake = false;
+    private boolean fullNow = false;
     private boolean manualIntake = false;
     private boolean intakeAlwaysOn = false;
     private boolean fireQueued = false;
@@ -394,6 +395,11 @@ public class Mechanisms {
         return fireQueued || salvoActive;
     }
 
+    /** True while the element counter reports a full robot (CAPACITY elements, confirmed). False when the counter is overridden or not reading. */
+    public boolean isFull() {
+        return fullNow;
+    }
+
     // ---- per-loop update ----
 
     public void update(Pose2d pose) {
@@ -436,6 +442,8 @@ public class Mechanisms {
         lastSetpoint = mapAvailable ? Math.max(0.0, ShotMap.velocityFor(lastDistance) + speedTrim) : manualSetpoint;
         if (flywheel != null && !mapAvailable) warnings.add("Shot map empty: using the manual setpoint");
         if (flywheel != null && flywheel.isOpenLoop()) warnings.add("FLYWHEEL OPEN LOOP (operator R3): the speed sensor is ignored, ready is a timer");
+
+        fullNow = full;
 
         // rule 5: remembered stow
         if (ramp != null) {

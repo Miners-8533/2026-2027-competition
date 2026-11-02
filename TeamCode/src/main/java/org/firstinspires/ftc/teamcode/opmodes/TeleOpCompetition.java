@@ -48,17 +48,19 @@ import java.util.Locale;
  *   right stick X        turn
  *   right bumper (hold)  precision mode (30%)
  *   left bumper + Y      reset the heading: point the robot AWAY from you first, then press
- *   right trigger (hold) TARGET LOCK: the robot turns itself to point its front (intake and shooter end) at the nearest of your
- *                        alliance's two CELLs while
- *                        you keep driving; the turn stick nudges the aim up to 15 deg; a short buzz and ALIGNED on the screen
- *                        say it is on target. Released = back to your turn stick.
+ *   A                    fire a salvo (spins up and fires when ready); also cancels a running reject, the way out of a jam the other way.
+ *                        Works with any number of elements held, locked or not.
+ *   (target lock engages by itself as soon as the robot holds 4 elements and stays on through the salvo; while it is on the robot
+ *    turns itself to point its front (intake and shooter end) at the nearest of your alliance's two CELLs while you keep driving;
+ *    the turn stick nudges the aim up to 15 deg; a short buzz and ALIGNED on the screen say it is on target. The operator's right
+ *    bumper (hold) engages it by hand, full or not.)
  *   left + right bumper  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident)
  *
  * Gamepad 2 (operator):
  *   (the intake has no toggle: it runs IN until the robot holds 4 elements, then OUT so a fifth is never taken)
  *   right trigger (hold) force the intake IN, even when full
  *   left trigger (hold)  force the intake OUT
- *   A                    fire a salvo (spins up and fires when ready); also cancels a running reject, the way out of a jam the other way
+ *   right bumper (hold)  TARGET LOCK by hand, whether the robot is full or not (the lock also engages by itself when it is full)
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued fire
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
@@ -94,6 +96,8 @@ public class TeleOpCompetition extends LinearOpMode {
     /** An auto pose older than this is ignored (a leftover from an earlier run). */
     public static double AUTO_POSE_MAX_AGE_SEC = 300.0;
     public static double RESEED_HOLD_SEC = 1.0;
+    /** Target lock engages by itself when the robot holds a full load (it stays on until the salvo is done). The operator's right bumper engages it by hand regardless. */
+    public static boolean AUTO_LOCK_WHEN_FULL = true;
     public static double TURN_SCALE = 0.5;
     public static double PRECISION_SCALE = 0.30;
     public static double TRIGGER_THRESHOLD = 0.3;
@@ -221,7 +225,7 @@ public class TeleOpCompetition extends LinearOpMode {
 
         boolean reseedDown = false, reseeded = false;
         ElapsedTime reseedHold = new ElapsedTime();
-        boolean lockOn = false, lockWasAligned = false;
+        boolean lockOn = false, lockWasAligned = false, autoLockLatched = false;
         ElapsedTime loopClock = new ElapsedTime();
 
         while (opModeIsActive()) {
@@ -251,14 +255,18 @@ public class TeleOpCompetition extends LinearOpMode {
             cmdForward = robotForward;
             cmdLeft = robotLeft;
             double manualTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
-            boolean lockWanted = gamepad1.right_trigger > TRIGGER_THRESHOLD;
+            // auto lock: from the moment the robot is full until its salvo is done; manual lock: operator right bumper held, full or not
+            boolean manualLock = gamepad2.right_bumper;
+            if (mechanisms.isFull()) autoLockLatched = true;
+            else if (!mechanisms.isFireBusy()) autoLockLatched = false;
+            boolean lockWanted = manualLock || (AUTO_LOCK_WHEN_FULL && autoLockLatched);
             if (lockWanted) {
                 HiveTarget lockTarget = mechanisms.getOpenCell();
                 if (!lockOn) {
                     lockOn = true;
                     lockWasAligned = false;
-                    RunLog.event(String.format(Locale.US, "TARGET LOCK on: %s at (%.2f, %.2f), %.1f in away, robot pose (%.1f, %.1f, %.1f deg), alliance %s",
-                            lockTarget, lockTarget.x, lockTarget.y, lockTarget.distanceFrom(pose), pose.position.x, pose.position.y,
+                    RunLog.event(String.format(Locale.US, "TARGET LOCK on (%s): %s at (%.2f, %.2f), %.1f in away, robot pose (%.1f, %.1f, %.1f deg), alliance %s",
+                            manualLock ? "manual" : "full", lockTarget, lockTarget.x, lockTarget.y, lockTarget.distanceFrom(pose), pose.position.x, pose.position.y,
                             pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
                 }
                 cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget, gamepad1.right_stick_x, dt);
@@ -324,7 +332,7 @@ public class TeleOpCompetition extends LinearOpMode {
             // operator
             mechanisms.setManualIntake(gamepad2.right_trigger > TRIGGER_THRESHOLD);
             mechanisms.setManualOuttake(gamepad2.left_trigger > TRIGGER_THRESHOLD);
-            if (gamepad2.aWasPressed()) {
+            if (gamepad1.aWasPressed()) {
                 if (lockOn) {
                     RunLog.event(String.format(Locale.US, "FIRE requested with the lock %s (error %+.1f deg)",
                             targetLock.isAligned() ? "ALIGNED" : "not aligned", targetLock.errorDeg()));
@@ -356,8 +364,8 @@ public class TeleOpCompetition extends LinearOpMode {
                             targetLock.errorDeg(), targetLock.isAligned() ? "   ALIGNED" : "")
                     : "off");
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive, RB precision, hold RT target lock, LB + Y reset heading (face away first), hold LB + RB = reseed pose");
-            telemetry.addLine("GP2: intake automatic (IN, OUT when full), hold RT = force in, hold LT = force out, A fire, hold LB + B reject, X deploy, Y stow, hold LB + D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
+            telemetry.addLine("GP1: stick drive, RB precision, A fire, LB + Y reset heading (face away first), hold LB + RB = reseed pose");
+            telemetry.addLine("GP2: intake automatic (IN, OUT when full), hold RT = force in, hold LT = force out, hold RB target lock (it also engages by itself when full), hold LB + B reject, X deploy, Y stow, hold LB + D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
             telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();
         }
