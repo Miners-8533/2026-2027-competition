@@ -21,13 +21,27 @@ Only the last two runs of each kind are kept, so look at them before running an 
 
 ## Getting it off the hub
 
-With the hub on USB:
+With the hub on USB, from the repo root:
 
 ```bash
-adb pull /sdcard/FIRST/runlogs <some-folder>
+python tools/logs/pull_logs.py
 ```
 
-Then ask Claude Code to read the files in that folder.
+(or double-click `tools/logs/pull-logs.cmd`). It copies the logs off the hub and files **every** run, since the hub keeps only the last two of each kind:
+
+```
+robot-logs/                    (not in git)
+  index.md                     one row per run, newest first: opmode, length, how it ended, alliance, salvos, minimum battery volts, worst loop time, slow loops, flags (crash, backup mode, flywheel encoder lost, Pinpoint faults)
+  index.json                   the same for tools
+  latest/teleop.log            the newest and second newest run of each kind under fixed names
+  latest/teleop_prev.log          (also auto, bringup, pitcheck)
+  2026-11-02/000341_teleop.log every run, by the date and time on its first line (the hub's clock)
+  matchlogs/                   the SDK's own match logs, with --matchlogs
+```
+
+Running it again is safe: runs already stored are skipped, a run that was still being written when it was pulled is replaced by the longer copy, and nothing is deleted from the hub or from `robot-logs`. Options: `--list` (print the index only), `--from-dir <folder>` (file logs you already pulled), `--matchlogs`, `--serial <adb serial>`, `--dest <folder>`.
+
+Then ask Claude Code to read `robot-logs/latest/teleop.log` (or any file in the index).
 
 ## Format
 

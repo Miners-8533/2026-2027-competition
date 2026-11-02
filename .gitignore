@@ -79,3 +79,5 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+# Robot run logs pulled from the hub by tools/logs/pull_logs.py
+robot-logs/
