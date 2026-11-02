@@ -182,6 +182,11 @@ public class Flywheel {
         }
     }
 
+    /** The motor command last written, 0 to 1 (the bang-bang switches it between 1.0 and FEED_FORWARD, so average it over time). */
+    public double getLastPower() {
+        return lastPower;
+    }
+
     /** Motor current as of the last refresh (a few times a second; for the display, not for control). */
     public double getCurrentAmps() {
         return currentA;

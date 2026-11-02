@@ -641,12 +641,12 @@ public class Mechanisms {
     }
 
     /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
-    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,fire,warnings,overrides,check";
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,fire,warnings,overrides,check,fly_power,fly_amps";
 
     /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
     public String sampleRow() {
         String fire = fireQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
-        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s",
+        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s",
                 lastSetpoint,
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getVelocity()),
@@ -659,7 +659,9 @@ public class Mechanisms {
                 ramp == null ? "" : (ramp.isDeployedTarget() ? "deployed" : "stowed"),
                 counter == null ? "" : counter.count(),
                 counter == null ? "" : counter.slotsCompact(),
-                fire, warnings.size(), overridesCode(), pusherCheck == null ? "" : pusherCheck.statusCode());
+                fire, warnings.size(), overridesCode(), pusherCheck == null ? "" : pusherCheck.statusCode(),
+                flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getLastPower()),
+                flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getCurrentAmps()));
     }
 
     public void log(Telemetry telemetry) {
