@@ -60,7 +60,8 @@ import java.util.Locale;
  *   (the intake has no toggle: it runs IN until the robot holds 4 elements, then OUT so a fifth is never taken)
  *   right trigger (hold) force the intake IN, even when full
  *   left trigger (hold)  force the intake OUT
- *   A                    TARGET LOCK by hand, on / off (a toggle), whether the robot is full or not (the lock also engages by itself when it is full)
+ *   A                    TARGET LOCK by hand, on / off (a toggle), whether the robot is full or not (the lock also engages by itself when it is full);
+ *                        A also cancels an automatic lock (it stays off until the robot is next full), the way out of a bad element sensor
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued fire
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
@@ -321,8 +322,19 @@ public class TeleOpCompetition extends LinearOpMode {
             // auto lock: from the moment the robot is full until its salvo is done; manual lock: operator A toggles it, full or not.
             // A finished salvo releases BOTH; the auto lock then waits for the robot to stop being full before it can engage again.
             if (gamepad2.aWasPressed()) {
-                manualLockOn = !manualLockOn;
-                RunLog.event("COMMAND manual target lock -> " + (manualLockOn ? "ON" : "off") + (backupMode ? " (no effect: backup mode)" : ""));
+                if (manualLockOn || (AUTO_LOCK_WHEN_FULL && autoLockLatched)) {
+                    // any lock that is on, manual or automatic, goes off; the automatic one stays off until the robot is next full
+                    RunLog.event("COMMAND target lock off (" + (manualLockOn ? "manual" : "") + (manualLockOn && autoLockLatched ? " and " : "")
+                            + (autoLockLatched ? "automatic" : "") + ")");
+                    manualLockOn = false;
+                    if (autoLockLatched) {
+                        autoLockLatched = false;
+                        autoLockSuppressed = true;
+                    }
+                } else {
+                    manualLockOn = true;
+                    RunLog.event("COMMAND manual target lock -> ON" + (backupMode ? " (no effect: backup mode)" : ""));
+                }
             }
             if (mechanisms.getSalvosDone() != salvosSeen) {
                 salvosSeen = mechanisms.getSalvosDone();
