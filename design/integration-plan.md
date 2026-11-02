@@ -21,6 +21,8 @@ Ground rules
 
 **Shelved (2026-11-02): hold position and heading while shooting** in TeleOp - Competition, until the `DriveToPose` PIDs are tuned on ROBOT_1 (the Axial, Lateral and Heading tuners at 48 in). When built it must specifically fight being pushed (no early release when shoved), start at the operator's fire and end with the salvo, let the driver's sticks cancel it, and sit behind a Dashboard flag.
 
+**Untested since the last robot session (2026-11-02):** the last build flashed and run on the robot was `4717258`. Everything committed after it (the control remap, always-on intake, automatic target lock, backup mode, the flywheel dead-encoder mode, pusher without faults, the 10-run log retention and the log tool against a real hub) builds but has never run. The rows T1-T3, C2b, P9, F1, F2, F4, F5, F6, F7 are the checks for it; do them in that order of risk: INIT and bindings first, then intake and full, fire and reject cancels, target lock, backup mode, and last the flywheel encoder tests.
+
 **What was checked from the code side right after that report** (so the claim is not simply taken on trust):
 - The repo has **no commits or edits beyond the integration branch's own**, and `ShotMap.TABLE` is **still empty**. Nothing tuned during integration has been written into the code.
 - The Dashboard on the robot hub showed every tunable at its **code default**: pusher `COAST_LOOKAHEAD_S` 0 and `SWEEP_POWER` 0.6, flywheel `FEED_FORWARD` 0.2, `DriveToPose` gains unchanged. Dashboard values reset on every app install or restart, so tuned values only survive if they are written into the code.
