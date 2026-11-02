@@ -135,6 +135,7 @@ public class PusherCheckTest extends LinearOpMode {
     private void fakeSlip(Pusher pusher, double teeth) {
         double deg = teeth * 360.0 / PusherCheck.PULLEY_TEETH;
         pusher.resyncAngle(pusher.getUnwrappedTicks(), pusher.getAngleDeg() + deg);
+        Pusher.setZeroVerified(false);
         RunLog.event(String.format(Locale.US, "FAKE slip of %+.0f tooth/teeth (%+.0f deg): the zero was shifted, the arm did not move", teeth, deg));
     }
 }

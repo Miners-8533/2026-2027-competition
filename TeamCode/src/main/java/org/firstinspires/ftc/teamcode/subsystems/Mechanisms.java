@@ -53,6 +53,8 @@ public class Mechanisms {
     public static boolean AUTO_STOP_INTAKE_AT_FULL = true;
     /** After a salvo, when the robot is empty and idle, check the pusher's zero against CS4 and correct a belt slip (see PusherCheck). */
     public static boolean AUTO_PUSHER_CHECK = true;
+    /** Also check right after Start when the zero has not been verified since the app started (a power cycle, an install, or a zero set by hand). */
+    public static boolean AUTO_STARTUP_CHECK = true;
     /** The check waits this long after the salvo for the arm to rest and the count to read 0, then gives up. */
     public static double CHECK_WAIT_SEC = 2.0;
     public static double CHECK_SETTLE_SEC = 0.4;
@@ -97,6 +99,7 @@ public class Mechanisms {
     private Intake.Mode prevIntakeMode = null;
     private boolean prevManualOuttake = false;
     private boolean checkPending = false;
+    private boolean startupCheckConsidered = false;
     private final ElapsedTime checkTimer = new ElapsedTime();
 
     // overrides: the operator or driver switches off an automatic behavior that depends on a sensor that has failed
@@ -383,6 +386,14 @@ public class Mechanisms {
 
         // the pusher check: after a salvo, once the robot is empty and idle, look for the arm at CS4 and correct a slipped zero
         if (pusherCheck != null && pusher != null) {
+            if (!startupCheckConsidered) {
+                startupCheckConsidered = true;
+                if (AUTO_PUSHER_CHECK && AUTO_STARTUP_CHECK && !Pusher.isZeroVerified()) {
+                    checkPending = true;   // the same wait as after a salvo: empty robot, nothing else going on, within CHECK_WAIT_SEC
+                    checkTimer.reset();
+                    RunLog.event("PUSHER CHECK wanted at start: the zero has not been verified against CS4 since it was set");
+                }
+            }
             // the intake may be running (the operator's toggle, or the ramp deployed): the check still runs, and aborts if an element shows up
             boolean busy = fireQueued || salvoActive || rejectActive || manualOuttake || counterOverride || pusher.isStalled();
             boolean counterOk = counter != null && counter.isValid();
@@ -404,6 +415,9 @@ public class Mechanisms {
                 }
             }
             if (pusherCheck.takeFinished()) counter.ignoreArmSensorCountFor(CHECK_COUNT_HOLDOFF_SEC);
+            if (!Pusher.isZeroVerified() && !pusherCheck.isLost() && !pusherCheck.isActive()) {
+                warnings.add("Pusher zero not verified against CS4 yet (the first pusher check will do it)");
+            }
             if (pusherCheck.isLost()) {
                 warnings.add("PUSHER ZERO UNCERTAIN: the pusher check could not find the arm (" + pusherCheck.lastDetail() + ")");
             }

@@ -181,6 +181,7 @@ public class PusherCheck {
         detail = text;
         finishedFlag = true;
         lost = r == Result.LOST || (lost && r == Result.ABORTED);
+        if (r == Result.OK || r == Result.SWEEP) Pusher.setZeroVerified(true);
         pusher.setAutoCorrect(true);
         RunLog.event("PUSHER CHECK " + r + ": " + text);
     }

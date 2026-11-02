@@ -100,6 +100,8 @@ public class Pusher {
 
     private static boolean savedReferenceValid = false;
     private static int savedHomeRaw = 0;
+    /** True once a pusher check has seen the arm where the zero says (or corrected it); false whenever the zero is only an assumption. */
+    private static boolean zeroVerified = false;
 
     private final DcMotorEx motor;
     private final ElapsedTime moveTimer = new ElapsedTime();
@@ -149,8 +151,18 @@ public class Pusher {
             homeRaw = raw;
             referenceFromSaved = false;
         }
+        if (!referenceFromSaved) zeroVerified = false;   // a zero taken from where the arm happens to be is only assumed to be HOLD
         savedReferenceValid = true;
         savedHomeRaw = homeRaw;
+    }
+
+    /** True once a pusher check has verified the zero against CS4 since it was last assumed or set by hand. */
+    public static boolean isZeroVerified() {
+        return zeroVerified;
+    }
+
+    public static void setZeroVerified(boolean verified) {
+        zeroVerified = verified;
     }
 
     public boolean isCalibrated() {
@@ -168,6 +180,7 @@ public class Pusher {
         homeRaw = rawTicks;
         savedHomeRaw = homeRaw;
         savedReferenceValid = true;
+        zeroVerified = false;
     }
 
     /** The one place the sensors are read from the hub. Current is only read when the stall check or the display needs it. */
