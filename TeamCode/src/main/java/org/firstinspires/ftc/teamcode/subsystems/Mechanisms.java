@@ -51,6 +51,11 @@ public class Mechanisms {
     public static double NOTICE_SEC = 4.0;
     /** Rule 6: stop the intake when the element counter reports a full robot. */
     public static boolean AUTO_STOP_INTAKE_AT_FULL = true;
+    /**
+     * The always-on intake (TeleOp - Competition) when the robot is full: false (for now, there is no mechanical detent to keep elements from
+     * moving back toward the intake) stops the intake; true runs it OUT so a fifth is never taken in. The operator's triggers override either way.
+     */
+    public static boolean FULL_RUNS_OUT = false;
     /** After a salvo, when the robot is empty and idle, check the pusher's zero against CS4 and correct a belt slip (see PusherCheck). */
     public static boolean AUTO_PUSHER_CHECK = true;
     /** Also check right after Start when the zero has not been verified since the app started (a power cycle, an install, or a zero set by hand). */
@@ -165,8 +170,8 @@ public class Mechanisms {
     }
 
     /**
-     * True (TeleOp - Competition): the intake is never off. It runs IN while the robot holds fewer than CAPACITY elements and OUT once it
-     * holds CAPACITY (so a fifth is never taken in); the toggle and AUTO_STOP_INTAKE_AT_FULL are not used. The operator overrides it by
+     * True (TeleOp - Competition): the intake runs on its own. It runs IN while the robot holds fewer than CAPACITY elements and, once it
+     * holds CAPACITY, stops (or runs OUT if {@link #FULL_RUNS_OUT}); the toggle and AUTO_STOP_INTAKE_AT_FULL are not used. The operator overrides it by
      * holding {@link #setManualIntake} (IN even when full) or {@link #setManualOuttake} (OUT). False (the default, as in the autos):
      * the toggle and the ramp decide, and a full robot stops the intake.
      */
@@ -628,7 +633,7 @@ public class Mechanisms {
             if (intakeAlwaysOn) {
                 if (rejectActive || manualOuttake) mode = Intake.Mode.OUT;
                 else if (manualIntake) mode = Intake.Mode.IN;
-                else mode = full ? Intake.Mode.OUT : Intake.Mode.IN;
+                else mode = full ? (FULL_RUNS_OUT ? Intake.Mode.OUT : Intake.Mode.OFF) : Intake.Mode.IN;
             }
             if (manualCalibration && (pusherCheck == null || !pusherCheck.isActive())) {
                 manualCalibration = false;

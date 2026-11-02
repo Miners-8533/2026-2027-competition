@@ -57,7 +57,7 @@ import java.util.Locale;
  *   left + right bumper  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident)
  *
  * Gamepad 2 (operator):
- *   (the intake has no toggle: it runs IN until the robot holds 4 elements, then OUT so a fifth is never taken)
+ *   (the intake has no toggle: it runs IN until the robot holds 4 elements, then stops; Mechanisms.FULL_RUNS_OUT makes it run OUT instead)
  *   right trigger (hold) force the intake IN, even when full
  *   left trigger (hold)  force the intake OUT
  *   A                    TARGET LOCK by hand, on / off (a toggle), whether the robot is full or not (the lock also engages by itself when it is full);
@@ -245,7 +245,7 @@ public class TeleOpCompetition extends LinearOpMode {
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
         mechanisms.setAutoTarget(true);            // the target is the closer of the alliance's own two cells: nothing to pick
-        mechanisms.setIntakeAlwaysOn(true);        // the intake runs IN until the robot holds 4, then OUT; the operator's triggers override
+        mechanisms.setIntakeAlwaysOn(true);        // the intake runs IN until the robot holds 4, then stops; the operator's triggers override
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
         mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
 
@@ -468,7 +468,7 @@ public class TeleOpCompetition extends LinearOpMode {
                     : "off");
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, hold RT precision, A fire, hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
-            telemetry.addLine("GP2: intake automatic (IN, OUT when full), hold RT = force in, hold LT = force out, A target lock on/off (it also engages by itself when full), hold LB + B reject, X deploy, Y stow, hold LB + D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
+            telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, A target lock on/off (it also engages by itself when full), hold LB + B reject, X deploy, Y stow, hold LB + D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
             telemetry.update();
         }
