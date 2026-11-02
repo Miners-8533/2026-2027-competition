@@ -27,9 +27,10 @@ import java.util.Locale;
  *   Left stick        jog the arm (up = forward) when no check is running
  *   Back              mark HOLD here (jog the arm to HOLD first), as in Shot Test
  *
- * Try, in order: A with the zero right (expect OK, the arm goes back 33 deg, looks, and returns to HOLD); X, then A (expect a
- * correction of one tooth, then A again: OK); Y then A; RB then A (expect the sweep, which finds the arc and corrects the zero;
- * check afterwards that the arm returns to the real HOLD by eye). Every result, with its reason, is on screen and in the robot
+ * Try, in order: A with the zero right (expect OK, the arm goes back 33 deg, looks, and returns to HOLD); X, then A (expect one
+ * continuous sweep that finds the arm and corrects the zero by about 18 deg, then A again: OK); Y then A (the arm is then ahead of
+ * the zero, so the sweep goes nearly a full turn); RB then A (a correction of about 90 deg; check afterwards that the arm returns
+ * to the real HOLD by eye). Every result, with its reason, is on screen and in the robot
  * log (adb logcat -s PusherCheckTest) and runlogs/bringup.log.
  */
 @Config

@@ -61,7 +61,7 @@ Redo this in the pit at each venue if the lighting changes.
 5. **Item 4:** choose the smallest belt slip worth catching, in degrees (a skipped tooth is 360 / the number of teeth on the pusher pulley). It decides whether the parked check (about +/-15 deg) is enough.
 6. Put the arm back at HOLD.
 
-7. **Pusher Check Test (CS4)** (the pusher check, built from these numbers): the arm at HOLD at INIT, track empty. **A** runs it (expect OK in about 1-2 s); **X** or **Y** fakes a one-tooth slip, then **A** (expect a correction), then **A** again (expect OK); **RB** fakes five teeth, then **A** (expect the sweep to find the arc and correct the zero). Rows P1 to P6 in the plan. If the arm is not at the arc, tune `PusherCheck.ARM_CENTER_DEG` and `SWEEP_LATENCY_SEC` in the Dashboard and commit the values.
+7. **Pusher Check Test (CS4)** (the pusher check, built from these numbers): the arm at HOLD at INIT, track empty. **A** runs it (expect OK in about 1-2 s); **X** or **Y** fakes a one-tooth slip, then **A** (expect one continuous sweep that finds the arm, corrects the zero by about 18 deg and returns to HOLD in 2-6 s), then **A** again (expect OK); **RB** fakes five teeth, then **A** (the same, correcting about 90 deg). Rows P1 to P6 in the plan. If the arm is not at the arc, tune `PusherCheck.ARM_CENTER_DEG` in the Dashboard and commit the value (the sweep needs no delay constant: it averages a forward and a return crossing).
 8. If the check is slow or the arm is misjudged, `Mechanisms.AUTO_PUSHER_CHECK` (Dashboard) turns the automatic check off.
 
 ### Block D: Shot Test with real elements (plan Phase 3)
