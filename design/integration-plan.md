@@ -19,6 +19,8 @@ Ground rules
 
 **Deferred on purpose (affects autos only, not TeleOp):** finish the Pinpoint localization (pod offsets for `ROBOT_1` are still the prototype's) and the DriveToPose PID tuning. The autos also still use simulated shots instead of the real mechanisms (Phase 6).
 
+**Shelved (2026-11-02): hold position and heading while shooting** in TeleOp - Competition, until the `DriveToPose` PIDs are tuned on ROBOT_1 (the Axial, Lateral and Heading tuners at 48 in). When built it must specifically fight being pushed (no early release when shoved), start at the operator's fire and end with the salvo, let the driver's sticks cancel it, and sit behind a Dashboard flag.
+
 **What was checked from the code side right after that report** (so the claim is not simply taken on trust):
 - The repo has **no commits or edits beyond the integration branch's own**, and `ShotMap.TABLE` is **still empty**. Nothing tuned during integration has been written into the code.
 - The Dashboard on the robot hub showed every tunable at its **code default**: pusher `COAST_LOOKAHEAD_S` 0 and `SWEEP_POWER` 0.6, flywheel `FEED_FORWARD` 0.2, `DriveToPose` gains unchanged. Dashboard values reset on every app install or restart, so tuned values only survive if they are written into the code.
