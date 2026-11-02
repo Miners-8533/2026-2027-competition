@@ -28,7 +28,7 @@ Section numbers are from the BIOBUZZ Competition Manual V1.
 
 ## 1. Intake
 
-**Hardware (decided):** one motor, no encoder, open loop, mounted on the BACK of the robot. It takes both pollen (2.8 in) and nectar (3.6 in).
+**Hardware (decided):** one motor, no encoder, open loop, mounted at the FRONT of the robot, the same end as the shooter (the robot shoots out of the side it intakes; corrected 2026-11-01, it was written as the back). It takes both pollen (2.8 in) and nectar (3.6 in).
 
 **Behavior**
 - **Decided:** it runs only while the robot is actively intaking, never always-on, so it cannot pick up stray balls and push us over the carry limit.

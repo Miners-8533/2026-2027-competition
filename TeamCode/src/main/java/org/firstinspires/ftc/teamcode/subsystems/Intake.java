@@ -14,8 +14,8 @@ import org.firstinspires.ftc.teamcode.motion.SequentialAction;
 import org.firstinspires.ftc.teamcode.motion.SleepAction;
 
 /**
- * The intake roller: one motor, no encoder, open loop, on the back of the robot. Takes pollen
- * and nectar. Design notes: design/mechanisms.md.
+ * The intake roller: one motor, no encoder, open loop, at the front of the robot, the same end as the shooter (the robot
+ * shoots out of the side it intakes). Takes pollen and nectar. Design notes: design/mechanisms.md.
  *
  * It runs ONLY while someone asks it to (never always-on), so it cannot pick up stray balls
  * and push the robot over the 4-element carry limit. Jams are the driver's job for now; the

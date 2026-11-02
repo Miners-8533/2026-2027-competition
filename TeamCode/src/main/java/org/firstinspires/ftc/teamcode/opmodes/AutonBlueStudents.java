@@ -32,10 +32,10 @@ import java.util.Locale;
  * Plan, in field coordinates (origin at field center, X toward the audience, Y toward the
  * Blue Wall, heading 0 = +X, counterclockwise positive):
  *   1. Start on the rear wall at Y=16 facing +X. Shoot all 4 preload (tip 1, overflow).
- *   2. Rotate 90 deg so the BACK of the robot faces the Blue Wall. The intake is on the back and
- *      the shooter on the front, so the garden run must go backward into the corner: heading -90
- *      (clockwise turn). The students' notes said counterclockwise (heading +90), which would
- *      lead with the shooter end; GARDEN_HEADING_DEG = 90 restores that.
+ *   2. Rotate 90 deg so the FRONT of the robot faces the Blue Wall. ROBOT_1's intake and shooter are at the same
+ *      end, the front (the end that leads when the stick is pushed up; confirmed by the team 2026-11-01), so the
+ *      garden run leads with the intake: heading +90 (counterclockwise turn), as in the students' notes.
+ *      (An earlier version assumed the intake on the back and used -90; GARDEN_HEADING_DEG = -90 restores that.)
  *   3. Drive to (X=rear wall, Y=50), intake ON, drive to the blue corner, intake OFF.
  *      This collects the blue GARDEN's 4 POLLEN along the rear wall.
  *   4. Drive to (24, 38) facing +X, clear of the HIVE.
@@ -67,7 +67,7 @@ public class AutonBlueStudents extends LinearOpMode {
     private static final double FIELD_HALF_IN = 72.0;
 
     public static double TURN_CLEARANCE_IN = 0.0;
-    public static double GARDEN_HEADING_DEG = -90.0;   // back intake leads toward +Y; 90 = shooter end leads
+    public static double GARDEN_HEADING_DEG = 90.0;   // the intake (front) end leads toward +Y; -90 = the back leads
 
     /** Seconds to keep driving the intake in after reaching the flower, before leaving. */
     public static double FLOWER_DWELL_SEC = 0.8;
