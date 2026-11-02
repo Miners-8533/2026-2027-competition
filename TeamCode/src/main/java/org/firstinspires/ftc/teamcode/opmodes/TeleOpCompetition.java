@@ -61,8 +61,7 @@ import java.util.Locale;
  *   A                    fire a salvo (spins up and fires when ready)
  *   B                    reject (pusher reverse + outtake)
  *   X / Y                deploy / stow the ramp (stow waits until clear of a flower)
- *   right bumper         flywheel on / off (toggle). It runs by default, from Start, and keeps running after salvos
- *   left bumper          flywheel stop (the right bumper turns it back on)
+ *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
  *   D-pad up / down      manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
  *   Back                 clear a pusher fault
@@ -349,8 +348,6 @@ public class TeleOpCompetition extends LinearOpMode {
             boolean operatorY = gamepad2.yWasPressed();   // read once: with Back held, Y is the pusher calibration instead of the stow
             if (operatorY && gamepad2.back) mechanisms.requestPusherCalibration();
             else if (operatorY) mechanisms.requestStow();
-            if (gamepad2.rightBumperWasPressed()) mechanisms.toggleSpin();
-            if (gamepad2.leftBumperWasPressed()) mechanisms.stopFlywheel();
             if (gamepad2.dpadUpWasPressed()) mechanisms.adjustManualSetpoint(SETPOINT_STEP);
             if (gamepad2.dpadDownWasPressed()) mechanisms.adjustManualSetpoint(-SETPOINT_STEP);
             if (gamepad2.backWasPressed()) mechanisms.clearPusherStall();
