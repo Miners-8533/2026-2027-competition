@@ -104,7 +104,7 @@ public class TeleOpCompetition extends LinearOpMode {
     private static final double FIELD_HALF_IN = 72.0;
 
     /** What the driver is commanding and where the robot is, for the log's sample rows. */
-    private double logX, logY, logHeadingDeg, cmdForward, cmdLeft, cmdTurn, lockErrDeg = Double.NaN;
+    private double logX, logY, logHeadingDeg, cmdForward, cmdLeft, cmdTurn, lockErrDeg = Double.NaN, logUp, logRight;
     private final TargetLock targetLock = new TargetLock();
 
     /** Driver override: false drives robot-oriented (stick up = robot forward), for when the heading is unreliable. */
@@ -213,8 +213,8 @@ public class TeleOpCompetition extends LinearOpMode {
                 mechanisms.describe()));
         RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + ", gamepad 2 "
                 + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED"));
-        RunLog.setSampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
-                () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%s,%.1f,%s", logX, logY, logHeadingDeg, cmdForward, cmdLeft,
+        RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
+                () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%s,%.1f,%s", logX, logY, logHeadingDeg, logUp, logRight, cmdForward, cmdLeft,
                         cmdTurn, fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow()));
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
@@ -236,6 +236,8 @@ public class TeleOpCompetition extends LinearOpMode {
             double scale = gamepad1.right_bumper ? PRECISION_SCALE : 1.0;
             double up = -gamepad1.left_stick_y * scale;
             double right = gamepad1.left_stick_x * scale;
+            logUp = up;
+            logRight = right;
             double robotForward, robotLeft;
             if (fieldOriented) {
                 double fieldX = up * Math.cos(driverForwardRad) + right * Math.cos(driverForwardRad - Math.PI / 2.0);
@@ -256,15 +258,18 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (!lockOn) {
                     lockOn = true;
                     lockWasAligned = false;
-                    RunLog.event(String.format(Locale.US, "TARGET LOCK on: %s, %.1f in away", lockTarget, lockTarget.distanceFrom(pose)));
+                    RunLog.event(String.format(Locale.US, "TARGET LOCK on: %s at (%.2f, %.2f), %.1f in away, robot pose (%.1f, %.1f, %.1f deg), alliance %s",
+                            lockTarget, lockTarget.x, lockTarget.y, lockTarget.distanceFrom(pose), pose.position.x, pose.position.y,
+                            pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
                 }
                 cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget, gamepad1.right_stick_x, dt);
                 lockErrDeg = targetLock.errorDeg();
                 boolean aligned = targetLock.isAligned();
                 if (aligned && !lockWasAligned) {
                     gamepad1.rumble(120);
-                    RunLog.event(String.format(Locale.US, "TARGET LOCK aligned: error %+.1f deg, nudge %+.1f deg, %.1f in from %s",
-                            lockErrDeg, targetLock.trimDeg(), lockTarget.distanceFrom(pose), lockTarget));
+                    RunLog.event(String.format(Locale.US, "TARGET LOCK aligned: error %+.1f deg, nudge %+.1f deg, %.1f in from %s, bearing %.1f deg, robot pose (%.1f, %.1f, %.1f deg)",
+                            lockErrDeg, targetLock.trimDeg(), lockTarget.distanceFrom(pose), lockTarget, targetLock.bearingDeg(),
+                            pose.position.x, pose.position.y, pose.heading.toDegrees()));
                 }
                 lockWasAligned = aligned;
             } else {
