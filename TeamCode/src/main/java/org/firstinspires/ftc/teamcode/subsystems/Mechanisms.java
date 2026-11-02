@@ -556,7 +556,10 @@ public class Mechanisms {
                 else if (counterOk && counter.count() > 0) pusherCheck.abort("an element is in the robot");
                 else pusherCheck.update();
             } else if (checkPending) {
-                if (busy) {
+                if (pusher.isGaveUp()) {
+                    checkPending = false;
+                    RunLog.event("PUSHER CHECK skipped: the pusher gave up on its last move and stays where it is until the next salvo or reject");
+                } else if (busy) {
                     checkPending = false;
                     RunLog.event("PUSHER CHECK skipped: the robot is busy");
                 } else if (counterOk && counter.count() == 0 && pusher.isStopped() && checkTimer.seconds() >= CHECK_SETTLE_SEC) {

@@ -124,6 +124,7 @@ public class Pusher {
     private double seekPower = 0.2;
     private double targetTicks = 0.0;
     private boolean stalling = false;
+    private boolean gaveUp = false;   // the last move timed out (MOVE_TIMEOUT_S): the arm stays where it is until the next move is commanded
     private String faultReason = "";
     private double progressBest = Double.NEGATIVE_INFINITY;
     private double moveStartTicks = 0.0;
@@ -223,6 +224,11 @@ public class Pusher {
         return state == State.STALLED;
     }
 
+    /** True after a move gave up (took longer than MOVE_TIMEOUT_S): the arm was left where it is, with no nudge to HOLD, until a new move starts. */
+    public boolean isGaveUp() {
+        return gaveUp;
+    }
+
     /** Ticks forward of HOLD since the zero, accumulating across revolutions. */
     public double getUnwrappedTicks() {
         return ENCODER_SIGN * (rawTicks - homeRaw);
@@ -278,6 +284,7 @@ public class Pusher {
 
     /** Go to the nearest HOLD: forward only. Already within the tolerance: just stop. */
     public void hold() {
+        gaveUp = false;
         if (!isCalibrated()) {
             stopHere();
             return;
@@ -295,6 +302,7 @@ public class Pusher {
     /** Open-loop jog for bring-up and calibration; positive = forward. Not for match use. */
     public void jog(double power) {
         if (state != State.JOG) moveTimer.reset();
+        gaveUp = false;
         state = State.JOG;
         jogPower = Math.max(-1.0, Math.min(1.0, power));
     }
@@ -328,6 +336,7 @@ public class Pusher {
         targetTicks = Math.round((getUnwrappedTicks() - REJECT_DEG * TICKS_PER_REV / 360.0) / TICKS_PER_REV) * TICKS_PER_REV;
         lastCommand = String.format("reject from %s, %+.1f deg to nearest HOLD, now %.0f ticks, target %.0f ticks",
                 state, getHoldErrorDeg(), getUnwrappedTicks(), targetTicks);
+        gaveUp = false;
         state = State.REJECT;
         pendingSettle = false;
         moveStartTicks = getUnwrappedTicks();
@@ -352,6 +361,7 @@ public class Pusher {
         targetTicks = target;
         lastCommand = String.format("seek to %+.1f deg from the nearest HOLD at %.2f power, now %.0f ticks, target %.0f ticks",
                 (target - nearestHoldTicks()) * 360.0 / TICKS_PER_REV, power, getUnwrappedTicks(), target);
+        gaveUp = false;
         state = State.SEEK;
         pendingSettle = false;
         moveStartTicks = getUnwrappedTicks();
@@ -403,6 +413,7 @@ public class Pusher {
     }
 
     private void beginForwardMove(State moveState, double target) {
+        gaveUp = false;
         targetTicks = target;
         state = moveState;
         pendingSettle = false;
@@ -452,6 +463,7 @@ public class Pusher {
                 lastResult = String.format("%s gave up after %.2f s without finishing (no fault: faults are off): travelled %.0f deg", state, moveTimer.seconds(),
                         Math.abs(getUnwrappedTicks() - moveStartTicks) * 360.0 / TICKS_PER_REV);
                 pendingSettle = false;
+                gaveUp = true;
                 stopHere();
             }
             return;
@@ -491,7 +503,7 @@ public class Pusher {
                         && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC) {
                     recordSettle();
                 }
-                if (autoCorrect && isCalibrated() && AUTO_CORRECT_MAX_DEG > 0.0 && restTimer.seconds() > 0.3
+                if (autoCorrect && !gaveUp && isCalibrated() && AUTO_CORRECT_MAX_DEG > 0.0 && restTimer.seconds() > 0.3
                         && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC) {
                     double error = getHoldErrorDeg();
                     if (error > HOLD_TOLERANCE_DEG && error <= AUTO_CORRECT_MAX_DEG) hold();

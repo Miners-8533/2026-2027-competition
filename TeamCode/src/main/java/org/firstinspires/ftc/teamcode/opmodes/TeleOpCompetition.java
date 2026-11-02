@@ -52,7 +52,7 @@ import java.util.Locale;
  *                        Works with any number of elements held, locked or not.
  *   (target lock engages by itself as soon as the robot holds 4 elements and stays on through the salvo, which releases it (a finished salvo also clears the manual toggle; the auto lock then waits until the robot is no longer full before it can engage again); while it is on the robot
  *    turns itself to point its front (intake and shooter end) at the nearest of your alliance's two CELLs while you keep driving;
- *    with the left bumper held the right stick nudges the aim up to 15 deg (without it the stick does nothing while locked); a short buzz and ALIGNED on the screen say it is on target. The operator's right
+ *    with the left bumper held the right stick nudges the aim up to 15 deg (without it the stick does nothing while locked); ALIGNED on the screen says it is on target. The operator's right
  *    bumper (hold) engages it by hand, full or not.)
  *   left + right bumper  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident)
  *
@@ -371,7 +371,6 @@ public class TeleOpCompetition extends LinearOpMode {
                 lockErrDeg = targetLock.errorDeg();
                 boolean aligned = targetLock.isAligned();
                 if (aligned && !lockWasAligned) {
-                    buzz(gamepad1, 120);
                     RunLog.event(String.format(Locale.US, "TARGET LOCK aligned: error %+.1f deg, nudge %+.1f deg, %.1f in from %s, bearing %.1f deg, robot pose (%.1f, %.1f, %.1f deg)",
                             lockErrDeg, targetLock.trimDeg(), lockTarget.distanceFrom(pose), lockTarget, targetLock.bearingDeg(),
                             pose.position.x, pose.position.y, pose.heading.toDegrees()));
