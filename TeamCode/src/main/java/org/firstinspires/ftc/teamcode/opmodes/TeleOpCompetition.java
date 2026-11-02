@@ -59,12 +59,12 @@ import java.util.Locale;
  *   right trigger        intake on / off (a toggle)
  *   left trigger (hold)  outtake
  *   A                    fire a salvo (spins up and fires when ready)
- *   B                    reject (pusher reverse + outtake)
+ *   B                    reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued fire
  *   X / Y                deploy / stow the ramp (stow waits until clear of a flower)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
  *   D-pad up / down      manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
- *   Back                 clear a pusher fault
+ *   Back                 clear a pusher fault (the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
  *   hold Back + Y        pusher calibration sweep now (the track must be empty and the intake off; again to stop it)
  *
  * OVERRIDES, for when a sensor fails in a match (each press toggles; the screen and the log say what is on):

@@ -89,6 +89,13 @@ public class Pusher {
     public static double STALL_GRACE_S = 0.3;
     public static double STALL_MIN_TICKS_PER_SEC = 20.0;
     public static double STALL_MIN_JOG_POWER = 0.15;
+    /**
+     * TEMPORARILY OFF: with false the pusher never faults (no stall detection, no progress check), so a drive team has nothing to read or
+     * clear in a match; a jam is handled by the operator pressing reject. Instead a move that has not finished within MOVE_TIMEOUT_S just
+     * stops (the motor is released, the state goes back to HOLD, the log says so). Set true to get the faults back.
+     */
+    public static boolean FAULTS_ENABLED = false;
+    public static double MOVE_TIMEOUT_S = 3.0;
     /** A move that gains less than PROGRESS_MIN_GAIN_DEG in PROGRESS_TIMEOUT_S faults (wrong sign or direction, or a jam). */
     public static double PROGRESS_TIMEOUT_S = 1.5;
     public static double PROGRESS_MIN_GAIN_DEG = 2.0;
@@ -432,6 +439,15 @@ public class Pusher {
 
     /** metricDeg must INCREASE as the move succeeds. Faults if it stops gaining. */
     private void monitorProgress(double metricDeg) {
+        if (!FAULTS_ENABLED) {
+            if (moveTimer.seconds() > MOVE_TIMEOUT_S) {
+                lastResult = String.format("%s gave up after %.2f s without finishing (no fault: faults are off): travelled %.0f deg", state, moveTimer.seconds(),
+                        Math.abs(getUnwrappedTicks() - moveStartTicks) * 360.0 / TICKS_PER_REV);
+                pendingSettle = false;
+                stopHere();
+            }
+            return;
+        }
         if (metricDeg > progressBest + PROGRESS_MIN_GAIN_DEG) {
             progressBest = metricDeg;
             progressTimer.reset();
@@ -522,6 +538,10 @@ public class Pusher {
     }
 
     private void detectStall() {
+        if (!FAULTS_ENABLED) {
+            stalling = false;
+            return;
+        }
         boolean blocked = isCommanded() && moveTimer.seconds() > STALL_GRACE_S
                 && currentA > STALL_CURRENT_A && Math.abs(velocityRaw) < STALL_MIN_TICKS_PER_SEC;
         if (!blocked) {
