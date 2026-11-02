@@ -84,6 +84,7 @@ public class Mechanisms {
     private boolean stowPending = false;
     private boolean useShotMap = true;
     private double manualSetpoint = 1350.0;   // ticks/s; used while the shot map is empty, tuned with the operator's D-pad
+    private double speedTrim = 0.0;            // ticks/s added to the shot map's speed, nudged with the operator's D-pad
     private HiveTarget openCell = HiveTarget.BLUE_REAR;
     private boolean blueAlliance = true;
 
@@ -245,9 +246,15 @@ public class Mechanisms {
         stopScheduled = false;
     }
 
+    /** The operator's speed keys: the manual setpoint while the shot map is empty or unused, else a trim added to the map's speed. */
     public void adjustManualSetpoint(double delta) {
-        manualSetpoint = Math.max(0.0, manualSetpoint + delta);
-        RunLog.event(String.format(Locale.US, "COMMAND manual setpoint -> %.0f ticks/s", manualSetpoint));
+        if (useShotMap && !ShotMap.isEmpty()) {
+            speedTrim += delta;
+            RunLog.event(String.format(Locale.US, "COMMAND speed trim -> %+.0f ticks/s on the shot map", speedTrim));
+        } else {
+            manualSetpoint = Math.max(0.0, manualSetpoint + delta);
+            RunLog.event(String.format(Locale.US, "COMMAND manual setpoint -> %.0f ticks/s", manualSetpoint));
+        }
     }
 
     /** Sets the manual setpoint outright (the shot map tuner follows its recorded points this way). Not logged: it may be called every loop. */
@@ -373,7 +380,7 @@ public class Mechanisms {
 
         lastDistance = openCell.distanceFrom(pose);
         boolean mapAvailable = useShotMap && !ShotMap.isEmpty();
-        lastSetpoint = mapAvailable ? ShotMap.velocityFor(lastDistance) : manualSetpoint;
+        lastSetpoint = mapAvailable ? Math.max(0.0, ShotMap.velocityFor(lastDistance) + speedTrim) : manualSetpoint;
         if (flywheel != null && !mapAvailable) warnings.add("Shot map empty: using the manual setpoint");
         if (flywheel != null && flywheel.isOpenLoop()) warnings.add("FLYWHEEL OPEN LOOP (operator R3): the speed sensor is ignored, ready is a timer");
 
@@ -571,7 +578,7 @@ public class Mechanisms {
         telemetry.addData("Overrides active", overridesCode().equals("-") ? "none" : overridesCode() + "  (C counter, P pose, F flywheel open loop)");
         telemetry.addData("Open cell / distance (in)", "%s / %.1f", openCell, lastDistance);
         telemetry.addData("Flywheel setpoint (ticks/s)", "%.0f   (%s)", lastSetpoint,
-                useShotMap && !ShotMap.isEmpty() ? "shot map" : "manual");
+                useShotMap && !ShotMap.isEmpty() ? String.format(Locale.US, "shot map %+.0f trim", speedTrim) : "manual");
         telemetry.addData("Fire", fireQueued ? "QUEUED, waiting for flywheel" : salvoActive ? "SALVO running" : "idle");
         telemetry.addData("Reject", rejectActive ? "running" : "idle");
         if (intake != null) intake.log(telemetry);
