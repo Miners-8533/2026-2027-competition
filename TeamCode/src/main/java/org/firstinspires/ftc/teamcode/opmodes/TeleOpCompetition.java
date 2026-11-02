@@ -5,6 +5,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -70,8 +71,13 @@ import java.util.Locale;
  *   (no control clears a pusher fault: the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
  *   (neither controller uses Back or Start)
  *
+ * BACKUP MODE (no trusted pose or heading), one way: it is entered by the driver holding the left bumper and pressing X, or automatically
+ * when the Pinpoint stays faulted or silent for BACKUP_PINPOINT_FAULT_SEC (a blip does not count). Both controllers give three rumble taps.
+ * From then on, until the opmode ends: robot-oriented drive (stick up = robot forward), no target lock (auto or manual), no heading reset or
+ * reseed, and the flywheel speed comes from the fixed distance BACKUP_SHOT_DISTANCE_IN (the start position, about 42 in) with the speed trim
+ * still working; the driver drives to that spot to shoot. There is no way out: service the robot.
+ *
  * OVERRIDES, for when a sensor fails in a match (each press toggles; the screen and the log say what is on):
- *   gamepad 1: hold left bumper + X   drive robot-oriented (stick up = robot forward), ignoring the heading
  *   (the driver has no stick-button or Start controls, so nothing can be set off by accident; the left bumper is a guard)
  *   gamepad 2 left stick button    ignore the element counter: no 4-element stop, no element warnings
  *   gamepad 2 right stick button   flywheel open loop: power from the target, ready after a timer, speed sensor ignored
@@ -100,6 +106,9 @@ public class TeleOpCompetition extends LinearOpMode {
     public static boolean AUTO_LOCK_WHEN_FULL = true;
     /** One rumble pulse on both controllers each time the robot becomes full (4 elements, confirmed). Needs a gamepad with rumble. */
     public static int FULL_RUMBLE_MS = 250;
+    /** BACKUP MODE: the fixed shot distance (the start position's distance to the cell), and how long the Pinpoint must stay faulted before it is not just a blip. */
+    public static double BACKUP_SHOT_DISTANCE_IN = 42.0;
+    public static double BACKUP_PINPOINT_FAULT_SEC = 0.5;
     public static double TURN_SCALE = 0.5;
     public static double PRECISION_SCALE = 0.30;
     public static double TRIGGER_THRESHOLD = 0.3;
@@ -115,6 +124,8 @@ public class TeleOpCompetition extends LinearOpMode {
 
     /** Driver override: false drives robot-oriented (stick up = robot forward), for when the heading is unreliable. */
     private boolean fieldOriented = true;
+    /** BACKUP MODE: no trusted pose or heading. Entered by the driver (left bumper + X) or a Pinpoint fault; never left within a run. */
+    private boolean backupMode = false;
 
     /**
      * One rumble pulse. The Logitech F310 has no rumble motors, so it is skipped; any other gamepad type (Xbox 360, PS4, or one the SDK
@@ -122,6 +133,22 @@ public class TeleOpCompetition extends LinearOpMode {
      */
     private static void buzz(Gamepad gamepad, int ms) {
         if (gamepad.type() != Gamepad.Type.LOGITECH_F310) gamepad.rumble(ms);
+    }
+
+    /** Three short rumble taps (the backup mode alarm); skipped on the F310 like {@link #buzz}. */
+    private static void buzzTriple(Gamepad gamepad) {
+        if (gamepad.type() != Gamepad.Type.LOGITECH_F310) gamepad.rumbleBlips(3);
+    }
+
+    /** Switch to the backup mode for the rest of the run: robot-oriented drive, no lock, a fixed shot speed, three taps on both gamepads. */
+    private void enterBackupMode(String why, Mechanisms mechanisms) {
+        if (backupMode) return;
+        backupMode = true;
+        fieldOriented = false;
+        mechanisms.enterBackupMode(BACKUP_SHOT_DISTANCE_IN);
+        buzzTriple(gamepad1);
+        buzzTriple(gamepad2);
+        RunLog.event("BACKUP MODE ENTERED (" + why + "): robot-oriented drive, fixed shot speed, no target lock, no way back this run");
     }
 
     private static boolean assigned(Gamepad gamepad) {
@@ -230,20 +257,45 @@ public class TeleOpCompetition extends LinearOpMode {
                 + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad2.type() + ")");
         RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
                 () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%s,%.1f,%s", logX, logY, logHeadingDeg, logUp, logRight, cmdForward, cmdLeft,
-                        cmdTurn, fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow()));
+                        cmdTurn, backupMode ? "backup" : fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow()));
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
         boolean reseedDown = false, reseeded = false;
         ElapsedTime reseedHold = new ElapsedTime();
-        boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, wasFull = false;
+        boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, wasFull = false, pinpointBad = false;
+        ElapsedTime pinpointBadFor = new ElapsedTime();
         ElapsedTime loopClock = new ElapsedTime();
 
         while (opModeIsActive()) {
             double dt = loopClock.seconds();
             loopClock.reset();
-            PoseVelocity2d measured = drive.updatePoseEstimate();
+            PoseVelocity2d measured = null;
+            if (!backupMode) {
+                // a Pinpoint that stops answering (a read error, a fault status, or an exception) for BACKUP_PINPOINT_FAULT_SEC is not a blip
+                boolean bad;
+                String badWhy;
+                try {
+                    measured = drive.updatePoseEstimate();
+                    GoBildaPinpointDriver.DeviceStatus status = loc.getDeviceStatus();
+                    bad = status != GoBildaPinpointDriver.DeviceStatus.READY;
+                    badWhy = "status " + status;
+                } catch (RuntimeException e) {
+                    bad = true;
+                    badWhy = e.toString();
+                }
+                if (bad && !pinpointBad) {
+                    pinpointBad = true;
+                    pinpointBadFor.reset();
+                    RunLog.event("PINPOINT fault: " + badWhy + " (backup mode if it lasts " + BACKUP_PINPOINT_FAULT_SEC + " s)");
+                } else if (bad && pinpointBadFor.seconds() >= BACKUP_PINPOINT_FAULT_SEC) {
+                    enterBackupMode("Pinpoint " + badWhy + " for " + String.format(Locale.US, "%.1f", pinpointBadFor.seconds()) + " s", mechanisms);
+                } else if (!bad && pinpointBad) {
+                    pinpointBad = false;
+                    RunLog.event(String.format(Locale.US, "PINPOINT recovered after %.2f s (a blip, no backup mode)", pinpointBadFor.seconds()));
+                }
+            }
             Pose2d pose = drive.getPose();
-            PoseStorage.save(pose, blue);
+            if (!backupMode) PoseStorage.save(pose, blue);
             double heading = pose.heading.toDouble();
 
             // driver: stick up = away from the driver, stick right = the driver's right, both in field terms
@@ -275,7 +327,7 @@ public class TeleOpCompetition extends LinearOpMode {
             wasFull = fullNow;
             if (fullNow) autoLockLatched = true;
             else if (!mechanisms.isFireBusy()) autoLockLatched = false;
-            boolean lockWanted = manualLock || (AUTO_LOCK_WHEN_FULL && autoLockLatched);
+            boolean lockWanted = !backupMode && (manualLock || (AUTO_LOCK_WHEN_FULL && autoLockLatched));
             if (lockWanted) {
                 HiveTarget lockTarget = mechanisms.getOpenCell();
                 if (!lockOn) {
@@ -319,18 +371,15 @@ public class TeleOpCompetition extends LinearOpMode {
 
             // read both edges every loop so a press made without the guard cannot trigger an override later
             boolean overrideDrive = gamepad1.xWasPressed();
-            if (gamepad1.left_bumper && overrideDrive) {
-                fieldOriented = !fieldOriented;
-                RunLog.event("OVERRIDE drive " + (fieldOriented ? "FIELD-oriented" : "ROBOT-oriented (heading ignored)"));
-            }
+            if (gamepad1.left_bumper && overrideDrive) enterBackupMode("driver left bumper + X", mechanisms);
             if (gamepad2.leftStickButtonWasPressed()) mechanisms.toggleCounterOverride();
             if (gamepad2.rightStickButtonWasPressed()) mechanisms.toggleFlywheelOpenLoop();
 
-            if (gamepad1.yWasPressed() && gamepad1.left_bumper) {
+            if (gamepad1.yWasPressed() && gamepad1.left_bumper && !backupMode) {
                 drive.setPose(new Pose2d(pose.position, driverForwardRad));
                 RunLog.event(String.format("DRIVER heading reset: was %.1f deg, now %.1f deg", pose.heading.toDegrees(), Math.toDegrees(driverForwardRad)));
             }
-            if (gamepad1.left_bumper && gamepad1.right_bumper) {
+            if (gamepad1.left_bumper && gamepad1.right_bumper && !backupMode) {
                 if (!reseedDown) {
                     reseedDown = true;
                     reseeded = false;
@@ -369,21 +418,23 @@ public class TeleOpCompetition extends LinearOpMode {
             mechanisms.update(pose);
             RunLog.tick();
 
+            if (backupMode) telemetry.addLine(String.format(Locale.US, "*** BACKUP MODE: no pose or heading. Robot-oriented drive, shot speed fixed for %.0f in (drive to that spot), no target lock. Service the robot. ***", BACKUP_SHOT_DISTANCE_IN));
+            else if (pinpointBad) telemetry.addLine("*** PINPOINT FAULT (backup mode in a moment if it stays) ***");
             telemetry.addData("Alliance", blue ? "BLUE" : "RED");
             telemetry.addData("Pose x / y (in), heading (deg)", "%.1f / %.1f / %.1f",
                     pose.position.x, pose.position.y, pose.heading.toDegrees());
             if (reseedDown && !reseeded) {
                 telemetry.addData("Reseed pose", "keep holding LB + RB... %.1f s", RESEED_HOLD_SEC - reseedHold.seconds());
             }
-            telemetry.addData("Drive", fieldOriented ? "field-oriented" : "ROBOT-ORIENTED (override: heading ignored)");
+            telemetry.addData("Drive", backupMode ? "ROBOT-ORIENTED (backup mode)" : fieldOriented ? "field-oriented" : "robot-oriented");
             telemetry.addData("Target lock (hold driver RT)", lockOn
                     ? String.format(Locale.US, "ON -> %s, bearing %.1f deg, error %+.1f deg%s", mechanisms.getOpenCell(), targetLock.bearingDeg(),
                             targetLock.errorDeg(), targetLock.isAligned() ? "   ALIGNED" : "")
                     : "off");
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive, RB precision, A fire, LB + Y reset heading (face away first), hold LB + RB = reseed pose");
+            telemetry.addLine("GP1: stick drive, RB precision, A fire, LB + Y reset heading (face away first), hold LB + RB = reseed pose, LB + X = BACKUP MODE (no way back)");
             telemetry.addLine("GP2: intake automatic (IN, OUT when full), hold RT = force in, hold LT = force out, hold RB target lock (it also engages by itself when full), hold LB + B reject, X deploy, Y stow, hold LB + D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
-            telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
+            telemetry.addLine("OVERRIDES (press again to undo): GP2 L3 ignore element counter, GP2 R3 flywheel open loop. BACKUP MODE (no way back): GP1 LB + X, or a Pinpoint fault. GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();
         }
         drive.stop();

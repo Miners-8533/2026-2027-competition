@@ -78,6 +78,7 @@ public class Mechanisms {
     private boolean intakeRequested = false;
     private boolean manualOuttake = false;
     private boolean fullNow = false;
+    private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the shot distance is this, whatever the pose says
     private boolean manualIntake = false;
     private boolean intakeAlwaysOn = false;
     private boolean fireQueued = false;
@@ -391,6 +392,21 @@ public class Mechanisms {
         if (pusher != null) pusher.clearStall();
     }
 
+    /**
+     * BACKUP MODE (one way, until the opmode ends): the pose cannot be trusted, so the shot speed comes from this fixed distance (the
+     * driver is expected to drive to that spot), the target cell stops following the pose, and the warning shows. The speed trim still works.
+     */
+    public void enterBackupMode(double distanceIn) {
+        fixedDistanceIn = distanceIn;
+        autoTarget = false;
+        poseOverride = true;
+        RunLog.event(String.format(Locale.US, "BACKUP MODE: the shot speed is fixed for %.0f in, no pose", distanceIn));
+    }
+
+    public boolean isBackupMode() {
+        return fixedDistanceIn > 0.0;
+    }
+
     public boolean isFireBusy() {
         return fireQueued || salvoActive;
     }
@@ -430,14 +446,14 @@ public class Mechanisms {
             prevCount = counter.count();
         }
 
-        if (autoTarget) {
+        if (autoTarget && fixedDistanceIn <= 0.0) {
             HiveTarget near = HiveTarget.nearestOf(blueAlliance, pose);
             if (near != openCell && (openCell.isBlue() != blueAlliance
                     || near.distanceFrom(pose) + AUTO_TARGET_HYSTERESIS_IN < openCell.distanceFrom(pose))) {
                 setOpenCell(near);
             }
         }
-        lastDistance = openCell.distanceFrom(pose);
+        lastDistance = fixedDistanceIn > 0.0 ? fixedDistanceIn : openCell.distanceFrom(pose);
         boolean mapAvailable = useShotMap && !ShotMap.isEmpty();
         lastSetpoint = mapAvailable ? Math.max(0.0, ShotMap.velocityFor(lastDistance) + speedTrim) : manualSetpoint;
         if (flywheel != null && !mapAvailable) warnings.add("Shot map empty: using the manual setpoint");
@@ -448,7 +464,7 @@ public class Mechanisms {
         // rule 5: remembered stow
         if (ramp != null) {
             if (!ramp.isConfigured()) warnings.add("Ramp positions not measured: it will not move");
-            if (poseOverride) warnings.add("POSE OVERRIDE (driver LB + B): the ramp stows without the flower check");
+            if (poseOverride) warnings.add(String.format(Locale.US, "BACKUP MODE (no pose): robot-oriented drive, shot speed fixed for %.0f in, no target lock; service the robot", fixedDistanceIn));
             if (stowPending) {
                 if (poseOverride || Ramp.isClearOfFlower(pose)) {
                     ramp.stow();
