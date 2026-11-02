@@ -29,7 +29,9 @@ import java.util.Locale;
  * the mechanisms through the {@link Mechanisms} coordinator.
  *
  * Start pose: if an auto ran recently (see AUTO_POSE_MAX_AGE_SEC) the TeleOp starts from the pose and alliance the
- * auto saved in {@link PoseStorage}; otherwise from the alliance's default start pose. The INIT screen says which.
+ * auto saved in {@link PoseStorage}; otherwise from the alliance's default start pose: blue (-63.5, +12.75) facing +X against the
+ * rear wall, red (+63.5, -12.75) facing -X against the audience wall (the same pose turned 180 deg about the center, so neither
+ * starts on a flower). The INIT screen says which.
  * It also reports whether both gamepads are assigned (Start + A on the driver's controller, Start + B on the
  * operator's), because a gamepad that is not assigned silently does nothing.
  *
@@ -83,7 +85,8 @@ import java.util.Locale;
 @TeleOp(name = "TeleOp - Competition", group = "Competition")
 public class TeleOpCompetition extends LinearOpMode {
 
-    public static double START_Y_IN = 12.75;       // blue; red mirrors to the negative. X comes from the profile's depth
+    /** The blue default start (rear wall); red is it rotated 180 deg about the field center. X comes from the profile's depth. */
+    public static double START_Y_IN = 12.75;
     public static double START_HEADING_DEG = 0.0;
     /** Field heading (deg) of the direction each driver faces, i.e. "stick up". */
     public static double BLUE_DRIVER_FORWARD_DEG = -90.0;
@@ -111,10 +114,14 @@ public class TeleOpCompetition extends LinearOpMode {
         return gamepad.getGamepadId() != Gamepad.ID_UNASSOCIATED;
     }
 
-    /** Where the robot starts: the pose the auto saved, or the alliance's default pose against the rear wall. */
+    /**
+     * Where the robot starts: the pose the auto saved, or the alliance's default pose. Blue starts against the rear wall; red is the
+     * same pose turned 180 deg about the field center (against the audience wall, facing -X), so neither starts on a flower.
+     */
     private static Pose2d expectedStart(boolean fromAuto, boolean blue, double startX) {
-        return fromAuto ? PoseStorage.pose()
-                : new Pose2d(startX, blue ? START_Y_IN : -START_Y_IN, Math.toRadians(START_HEADING_DEG));
+        if (fromAuto) return PoseStorage.pose();
+        return blue ? new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG))
+                : new Pose2d(-startX, -START_Y_IN, Math.toRadians(START_HEADING_DEG + 180.0));
     }
 
     @Override
@@ -173,7 +180,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Alliance", blue ? "BLUE" : "RED");
             telemetry.addData("Start pose", useAutoPose
                     ? String.format("AUTO pose, saved %.0f s ago (Back on gamepad 1 discards it)", PoseStorage.ageSec())
-                    : "default start pose (rear wall)");
+                    : blue ? "default start pose (blue: rear wall, facing +X)" : "default start pose (red: audience wall, facing -X)");
             telemetry.addData("Pinpoint", "%s   pose %.1f, %.1f, %.0f deg   %s", loc.getDeviceStatus(),
                     p.position.x, p.position.y, p.heading.toDegrees(),
                     poseOk && loc.seedConfirmed ? "OK" : "WARNING: does not match the start pose (do not move the robot after INIT; restart the opmode)");
