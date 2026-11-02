@@ -47,7 +47,7 @@ import java.util.Locale;
  * Gamepad 1 (driver):
  *   left stick           drive, field-oriented: up = away from the driver, right = the driver's right
  *   right stick X        turn
- *   right bumper (hold)  precision mode (30%)
+ *   right trigger (hold) precision mode (30%)
  *   A                    fire a salvo (spins up and fires when ready); also cancels a running reject, the way out of a jam the other way.
  *                        Works with any number of elements held, locked or not.
  *   (target lock engages by itself as soon as the robot holds 4 elements and stays on through the salvo, which releases it (a finished salvo also clears the manual toggle; the auto lock then waits until the robot is no longer full before it can engage again); while it is on the robot
@@ -300,7 +300,7 @@ public class TeleOpCompetition extends LinearOpMode {
             double heading = pose.heading.toDouble();
 
             // driver: stick up = away from the driver, stick right = the driver's right, both in field terms
-            double scale = gamepad1.right_bumper ? PRECISION_SCALE : 1.0;
+            double scale = gamepad1.right_trigger > TRIGGER_THRESHOLD ? PRECISION_SCALE : 1.0;
             double up = -gamepad1.left_stick_y * scale;
             double right = gamepad1.left_stick_x * scale;
             logUp = up;
@@ -456,7 +456,7 @@ public class TeleOpCompetition extends LinearOpMode {
                             targetLock.errorDeg(), targetLock.isAligned() ? "   ALIGNED" : "")
                     : "off");
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive, RB precision, A fire, hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
+            telemetry.addLine("GP1: stick drive, hold RT precision, A fire, hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
             telemetry.addLine("GP2: intake automatic (IN, OUT when full), hold RT = force in, hold LT = force out, A target lock on/off (it also engages by itself when full), hold LB + B reject, X deploy, Y stow, hold LB + D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
             telemetry.update();
