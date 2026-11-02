@@ -29,8 +29,8 @@ import java.util.Arrays;
  * Reading: each sensor read is two blocking I2C transactions (about 13 ms) and the sensors only refresh every 100 ms, so
  * {@link #update()} reads ONE sensor every READ_PERIOD_MS, cycling (about 4 x READ_PERIOD_MS for a full refresh), and does
  * nothing in between. The reported count changes only after the raw count has been steady (COUNT_RISE_STABLE_MS when it
- * goes up, so a full robot is noticed quickly; COUNT_FALL_STABLE_MS when it goes down), because the end sensor flickers
- * for about a second while an element moves. A fourth element is reported about 0.4 s after it is first seen. If a sensor has not been read for STALE_MS the
+ * goes up; COUNT_FULL_STABLE_MS when it reaches CAPACITY, so four are certain before the intake stops; COUNT_FALL_STABLE_MS when it goes down), because the end sensor flickers
+ * for about a second while an element moves. A fourth element is reported about 0.8 s after it is first seen. If a sensor has not been read for STALE_MS the
  * counter is not {@link #isValid() valid}, and callers should not act on it.
  *
  * The EMPTY baseline is the table below (measured 2026-10-31 with the track empty). Lighting changes the empty readings,
@@ -47,6 +47,8 @@ public class ElementCounter {
     public static double READ_PERIOD_MS = 40.0;
     public static double STALE_MS = 1000.0;
     public static double COUNT_RISE_STABLE_MS = 150.0;
+    /** Reaching CAPACITY (FULL, which stops the intake) must be steady this long, so a flicker at CS4 does not read as four. */
+    public static double COUNT_FULL_STABLE_MS = 500.0;
     public static double COUNT_FALL_STABLE_MS = 300.0;
     /** The most elements the robot may hold (rule G407). */
     public static int CAPACITY = 4;
@@ -177,7 +179,8 @@ public class ElementCounter {
             rawCount = raw;
             rawSinceNs = now;
         }
-        double steadyMs = rawCount > stableCount ? COUNT_RISE_STABLE_MS : COUNT_FALL_STABLE_MS;
+        double steadyMs = rawCount < stableCount ? COUNT_FALL_STABLE_MS
+                : rawCount >= CAPACITY ? COUNT_FULL_STABLE_MS : COUNT_RISE_STABLE_MS;
         if (rawCount != stableCount && (now - rawSinceNs) / 1e6 >= steadyMs) stableCount = rawCount;
     }
 
