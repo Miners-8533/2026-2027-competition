@@ -85,7 +85,7 @@ Run first with the robot on blocks, then on the floor. Each row of the plan's Ph
 5. **Element counter rows C1 to C5:** 1 to 4 elements fill from CS4; the 4th stops the intake about half a second later and clears the toggle; a salvo from full drops the count to 0; opponent nectar raises a warning only. Note the loop time with the counter on.
 6. **Pusher fault** (Back clears), a salvo chain with the arm resting past HOLD (each must fire; none sticks).
 7. **Overrides (F2):** operator L3 (counter), operator R3 (flywheel open loop); driver hold LB + X (robot-oriented drive), driver hold LB + B (ignore the pose for the ramp stow). Each shows on screen and as an `OVERRIDE` log line, and pressing again restores the normal behavior. In open loop, compare `fly_vel` in the log to the target to see whether power = target / 2200 is a usable speed.
-8. Drive while firing: pose stays correct, nothing locks up. Switch the open cell with the D-pad after a tip.
+8. Drive while firing: pose stays correct, nothing locks up. The target cell is picked automatically (the nearer of your alliance's two cells, switching only when the other is 6 in closer): drive across the middle and watch it switch once, not flip-flop.
 9. Driver and operator feel (precision scale, turn scale, trigger thresholds, layout): collect changes from the drivers, change one at a time.
 
 ### Block F: Shot map (plan Phase 5)
@@ -159,7 +159,7 @@ Rebuild and reinstall after committing, and confirm the Dashboard shows the new 
 
 **Driver (gamepad 1):** left stick drives (field-oriented, up = away from the driver); right stick X turns; right bumper held = precision (30%); **hold right trigger** = target lock (the robot turns to point its front at the open cell while you keep driving; the turn stick nudges the aim up to 15 deg; a buzz and ALIGNED mean on target); **Y** = reset the heading (point the robot away first); **Back held 1 s** = reseed the pose; **hold left bumper + X** = robot-oriented drive; **hold left bumper + B** = ignore the pose for the ramp stow.
 
-**Operator (gamepad 2):** right trigger = intake on/off; left trigger held = outtake; **A** fire; **B** reject; **X** deploy ramp; **Y** stow ramp; **hold Back + Y** pusher calibration sweep (track empty, intake off); right bumper = flywheel on/off; left bumper = flywheel stop; D-pad up/down = setpoint +/- 25 ticks/s; D-pad left or right = the other side's cell; **Back** = clear a pusher fault; **left stick button** = ignore the element counter; **right stick button** = flywheel open loop.
+**Operator (gamepad 2):** right trigger = intake on/off; left trigger held = outtake; **A** fire; **B** reject; **X** deploy ramp; **Y** stow ramp; **hold Back + Y** pusher calibration sweep (track empty, intake off); right bumper = flywheel on/off; left bumper = flywheel stop; D-pad up/down = speed trim +/- 25 ticks/s on the shot map (the target cell is the nearest of the alliance's two, automatically); **Back** = clear a pusher fault; **left stick button** = ignore the element counter; **right stick button** = flywheel open loop.
 
 ## 6. If something is wrong
 

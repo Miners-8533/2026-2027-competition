@@ -31,6 +31,18 @@ public enum HiveTarget {
         return Math.hypot(x - pose.position.x, y - pose.position.y);
     }
 
+    /** True for the blue HIVE's two cells. */
+    public boolean isBlue() {
+        return this == BLUE_REAR || this == BLUE_AUDIENCE;
+    }
+
+    /** The closer of the alliance's own two cells (the blue HIVE's for blue, the red HIVE's for red) to a pose. */
+    public static HiveTarget nearestOf(boolean blue, Pose2d pose) {
+        HiveTarget a = blue ? BLUE_REAR : RED_REAR;
+        HiveTarget b = blue ? BLUE_AUDIENCE : RED_AUDIENCE;
+        return a.distanceFrom(pose) <= b.distanceFrom(pose) ? a : b;
+    }
+
     /** The same HIVE's other CELL (rear / audience side), which becomes the open one after a tip. */
     public HiveTarget otherSide() {
         switch (this) {

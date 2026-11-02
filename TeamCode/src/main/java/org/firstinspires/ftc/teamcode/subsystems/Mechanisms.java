@@ -60,6 +60,8 @@ public class Mechanisms {
     public static double CHECK_SETTLE_SEC = 0.4;
     /** After a pusher check, the sensors are kept out of the element count this long (the arm leaving their view reads as an element). */
     public static double CHECK_COUNT_HOLDOFF_SEC = 0.8;
+    /** With auto target on, the target cell switches only when the other cell is this much closer (so it does not flip-flop midway). */
+    public static double AUTO_TARGET_HYSTERESIS_IN = 6.0;
     /** The arm is "near CS4" (an unclassified reading there is the arm, not an element) from this far behind HOLD to this far past it, degrees. Measured loosely: see design/integration-plan.md. */
     public static double ARM_NEAR_BEHIND_DEG = 70.0;
     public static double ARM_NEAR_AHEAD_DEG = 25.0;
@@ -87,6 +89,7 @@ public class Mechanisms {
     private double speedTrim = 0.0;            // ticks/s added to the shot map's speed, nudged with the operator's D-pad
     private HiveTarget openCell = HiveTarget.BLUE_REAR;
     private boolean blueAlliance = true;
+    private boolean autoTarget = false;
 
     private final ElapsedTime fireTimer = new ElapsedTime();
     private final ElapsedTime stopTimer = new ElapsedTime();
@@ -267,6 +270,15 @@ public class Mechanisms {
         blueAlliance = blue;
     }
 
+    /**
+     * True: the target cell is always the closer of the alliance's own two cells (set by {@link #setBlueAlliance}), with a hysteresis, so the
+     * operator never picks a cell. The shot distance and the target lock both use it. False (the default, as in the autos): the cell set
+     * with {@link #setOpenCell} stays.
+     */
+    public void setAutoTarget(boolean auto) {
+        autoTarget = auto;
+    }
+
     public void setOpenCell(HiveTarget cell) {
         if (cell != openCell) RunLog.event("OPEN CELL -> " + cell);
         openCell = cell;
@@ -383,6 +395,13 @@ public class Mechanisms {
             prevCount = counter.count();
         }
 
+        if (autoTarget) {
+            HiveTarget near = HiveTarget.nearestOf(blueAlliance, pose);
+            if (near != openCell && (openCell.isBlue() != blueAlliance
+                    || near.distanceFrom(pose) + AUTO_TARGET_HYSTERESIS_IN < openCell.distanceFrom(pose))) {
+                setOpenCell(near);
+            }
+        }
         lastDistance = openCell.distanceFrom(pose);
         boolean mapAvailable = useShotMap && !ShotMap.isEmpty();
         lastSetpoint = mapAvailable ? Math.max(0.0, ShotMap.velocityFor(lastDistance) + speedTrim) : manualSetpoint;

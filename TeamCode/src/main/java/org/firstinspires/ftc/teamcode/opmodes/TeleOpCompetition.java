@@ -46,7 +46,8 @@ import java.util.Locale;
  *   right stick X        turn
  *   right bumper (hold)  precision mode (30%)
  *   Y                    reset the heading: point the robot AWAY from you first, then press
- *   right trigger (hold) TARGET LOCK: the robot turns itself to point its front (intake and shooter end) at the open CELL while
+ *   right trigger (hold) TARGET LOCK: the robot turns itself to point its front (intake and shooter end) at the nearest of your
+ *                        alliance's two CELLs while
  *                        you keep driving; the turn stick nudges the aim up to 15 deg; a short buzz and ALIGNED on the screen
  *                        say it is on target. Released = back to your turn stick. Ignored while the pose override is on.
  *   Back (hold 1 s)      reseed the pose to the default start pose (held, so it cannot happen by accident)
@@ -60,7 +61,7 @@ import java.util.Locale;
  *   right bumper         flywheel on / off (toggle). It runs by default, from Start, and keeps running after salvos
  *   left bumper          flywheel stop (the right bumper turns it back on)
  *   D-pad up / down      manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
- *   D-pad left or right  the open CELL is the HIVE's other side (after a tip)
+ *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
  *   Back                 clear a pusher fault
  *   hold Back + Y        pusher calibration sweep now (the track must be empty and the intake off; again to stop it)
  *
@@ -195,6 +196,7 @@ public class TeleOpCompetition extends LinearOpMode {
 
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
+        mechanisms.setAutoTarget(true);            // the target is the closer of the alliance's own two cells: nothing to pick
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
         mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
 
@@ -332,9 +334,6 @@ public class TeleOpCompetition extends LinearOpMode {
             if (gamepad2.leftBumperWasPressed()) mechanisms.stopFlywheel();
             if (gamepad2.dpadUpWasPressed()) mechanisms.adjustManualSetpoint(SETPOINT_STEP);
             if (gamepad2.dpadDownWasPressed()) mechanisms.adjustManualSetpoint(-SETPOINT_STEP);
-            if (gamepad2.dpadLeftWasPressed() || gamepad2.dpadRightWasPressed()) {
-                mechanisms.setOpenCell(mechanisms.getOpenCell().otherSide());
-            }
             if (gamepad2.backWasPressed()) mechanisms.clearPusherStall();
 
             mechanisms.update(pose);
@@ -353,7 +352,7 @@ public class TeleOpCompetition extends LinearOpMode {
                     : "off");
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, RB precision, hold RT target lock, Y reset heading (face away first), Back held = reseed");
-            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad speed / cell, Back clear pusher fault, hold Back + Y pusher calibration sweep");
+            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad up/down speed trim, Back clear pusher fault, hold Back + Y pusher calibration sweep");
             telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP1 hold LB + B ignore pose (ramp stow), GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();
         }
