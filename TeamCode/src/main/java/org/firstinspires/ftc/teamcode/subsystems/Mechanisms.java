@@ -58,8 +58,11 @@ public class Mechanisms {
     /** The check waits this long after the salvo for the arm to rest and the count to read 0, then gives up. */
     public static double CHECK_WAIT_SEC = 2.0;
     public static double CHECK_SETTLE_SEC = 0.4;
-    /** After a pusher check, CS4 is kept out of the element count this long (the arm leaving its view reads as an element). */
+    /** After a pusher check, the sensors are kept out of the element count this long (the arm leaving their view reads as an element). */
     public static double CHECK_COUNT_HOLDOFF_SEC = 0.8;
+    /** The arm is "near CS4" (an unclassified reading there is the arm, not an element) from this far behind HOLD to this far past it, degrees. Measured loosely: see design/integration-plan.md. */
+    public static double ARM_NEAR_BEHIND_DEG = 70.0;
+    public static double ARM_NEAR_AHEAD_DEG = 25.0;
 
     public final Intake intake;
     public final Flywheel flywheel;
@@ -337,6 +340,10 @@ public class Mechanisms {
         // the element counter reads one sensor every READ_PERIOD_MS (never more than one per loop)
         boolean full = false;
         if (counter != null) {
+            if (pusher != null && pusher.isCalibrated()) {
+                double angle = pusher.getAngleDeg();
+                counter.setArmNear(angle <= ARM_NEAR_AHEAD_DEG || angle >= 360.0 - ARM_NEAR_BEHIND_DEG);
+            }
             counter.update();
             if (counterOverride) {
                 warnings.add("COUNTER OVERRIDE (operator L3): no 4-element stop and no element warnings; the intake runs until you turn it off");
@@ -428,6 +435,7 @@ public class Mechanisms {
             boolean busy = fireQueued || salvoActive || rejectActive || manualOuttake || counterOverride || pusher.isStalled();
             boolean counterOk = counter != null && counter.isValid();
             counter.ignoreArmSensorCount(pusherCheck.isActive());
+            counter.ignoreAllCount(pusherCheck.isSweeping());   // the arm passes CS1 to CS3 in a sweep and reads as an element there
             if (pusherCheck.isActive()) {
                 if (busy) pusherCheck.abort("the robot is busy again");
                 else if (counterOk && counter.count() > 0) pusherCheck.abort("an element is in the robot");
@@ -444,7 +452,7 @@ public class Mechanisms {
                     RunLog.event("PUSHER CHECK skipped: the robot did not read empty within " + CHECK_WAIT_SEC + " s");
                 }
             }
-            if (pusherCheck.takeFinished()) counter.ignoreArmSensorCountFor(CHECK_COUNT_HOLDOFF_SEC);
+            if (pusherCheck.takeFinished()) counter.ignoreCountFor(CHECK_COUNT_HOLDOFF_SEC);
             if (!Pusher.isZeroVerified() && !pusherCheck.isLost() && !pusherCheck.isActive()) {
                 warnings.add("Pusher zero not verified against CS4 yet (the first pusher check will do it)");
             }

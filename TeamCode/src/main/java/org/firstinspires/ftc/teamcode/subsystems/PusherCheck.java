@@ -97,6 +97,11 @@ public class PusherCheck {
         return stage != Stage.IDLE;
     }
 
+    /** True while the arm is turning through the whole track in a sweep (it passes every sensor, which read it as an element). */
+    public boolean isSweeping() {
+        return stage == Stage.SWEEP || stage == Stage.SWEEP_BACK;
+    }
+
     public Result lastResult() {
         return result;
     }

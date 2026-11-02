@@ -104,7 +104,9 @@ public class ElementCounter {
     private final double[] lastDist = new double[N];
     private final double[][] lastShares = new double[N][3];
     private boolean armCountIgnored = false;
-    private long armCountIgnoredUntilNs = 0L;
+    private boolean allCountIgnored = false;
+    private boolean armNear = false;
+    private long countIgnoredUntilNs = 0L;
     private int nextSensor = 0;
     private long lastReadNs = 0L;
     private int stableCount = 0;
@@ -203,7 +205,9 @@ public class ElementCounter {
     }
 
     private boolean isElement(int i) {
-        if (i == ARM_SENSOR && (armCountIgnored || System.nanoTime() < armCountIgnoredUntilNs)) return false;
+        if (allCountIgnored || System.nanoTime() < countIgnoredUntilNs) return false;
+        if (i == ARM_SENSOR && armCountIgnored) return false;
+        if (i == ARM_SENSOR && armNear && slot[i] == Slot.OTHER) return false;   // the edge of the arm in CS4's view, not an element
         return slot[i] != Slot.EMPTY && slot[i] != Slot.PUSHER_ARM;
     }
 
@@ -215,9 +219,26 @@ public class ElementCounter {
         armCountIgnored = on;
     }
 
-    /** Keeps CS4 out of the count for this many seconds from now (the arm's last reading as it leaves the sensor's view). */
-    public void ignoreArmSensorCountFor(double seconds) {
-        armCountIgnoredUntilNs = System.nanoTime() + (long) (seconds * 1e9);
+    /**
+     * Tells the counter the pusher arm is where CS4 can see part of it. CS4 then reads the arm's edge as "other" (and flickers between that
+     * and the arm itself) for as long as the arm rests there, which counted as an element: 2026-11-01 logs show the arm resting 5-15 deg
+     * past HOLD, its usual rest, read "other" about a quarter of the time. An "other" at CS4 is then not counted; pollen and nectar still are.
+     */
+    public void setArmNear(boolean near) {
+        armNear = near;
+    }
+
+    /**
+     * True keeps ALL four sensors out of the count until set false. A pusher sweep turns the arm through the whole track, past CS1 to
+     * CS3 as well, and the arm reads as "other" there (the 2026-11-01 manual sweep was aborted at CS1 for "an element in the robot").
+     */
+    public void ignoreAllCount(boolean on) {
+        allCountIgnored = on;
+    }
+
+    /** Keeps all sensors out of the count for this many seconds from now (the arm's last readings as it leaves their view). */
+    public void ignoreCountFor(double seconds) {
+        countIgnoredUntilNs = System.nanoTime() + (long) (seconds * 1e9);
     }
 
     /** Sensors that currently see an element (not the pusher arm). */
