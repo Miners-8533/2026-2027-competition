@@ -78,6 +78,7 @@ public class PusherCheck {
     private final ElapsedTime timer = new ElapsedTime();
     private final ElapsedTime total = new ElapsedTime();
     private boolean returnStarted = false;
+    private boolean manual = false;   // started by the operator as a calibration sweep: no parked look first
 
     // one crossing of the sensor: armed once CS4 has been seen NOT seeing the arm (so a rise after that is a whole edge)
     private boolean crossArmed = false;
@@ -155,10 +156,30 @@ public class PusherCheck {
         sweeps = 0;
         verifying = false;
         correctionDeg = 0.0;
+        manual = false;
         baseTicks = pusher.getNearestHoldTicks();
         RunLog.event(String.format(Locale.US, "PUSHER CHECK started: parking at %.1f deg ahead of HOLD (%.1f deg from the nearest HOLD)",
                 ARM_CENTER_DEG, ARM_CENTER_DEG - 360.0));
         seekCenter();
+        return true;
+    }
+
+    /**
+     * The operator's calibration sweep: no parked look, straight to the sweep that finds the arm and corrects the zero (the same
+     * forward and return crossings, the verify look and the return to HOLD). The sweep turns the arm forward, so the caller must make
+     * sure the track is empty.
+     */
+    public boolean startCalibration() {
+        if (startRefusal() != null) return false;
+        pusher.setAutoCorrect(false);
+        total.reset();
+        sweeps = 0;
+        verifying = false;
+        correctionDeg = 0.0;
+        manual = true;
+        baseTicks = pusher.getNearestHoldTicks();
+        RunLog.event("PUSHER CHECK started as a calibration sweep (asked by the operator): sweeping now");
+        startSweep();
         return true;
     }
 
@@ -241,7 +262,8 @@ public class PusherCheck {
                         finish(Result.OK, "the arm is where the zero says");
                     } else {
                         finish(Result.SWEEP, String.format(Locale.US,
-                                "the arm was not at the expected position: found by a sweep and the zero corrected by %+.0f deg (about %+.1f teeth)",
+                                "%s found by a sweep and the zero corrected by %+.0f deg (about %+.1f teeth)",
+                                manual ? "calibration sweep: the arm was" : "the arm was not at the expected position:",
                                 correctionDeg, correctionDeg / (360.0 / PULLEY_TEETH)));
                     }
                 }

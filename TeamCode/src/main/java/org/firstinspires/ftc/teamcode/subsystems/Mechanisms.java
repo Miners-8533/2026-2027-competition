@@ -290,6 +290,36 @@ public class Mechanisms {
         return s.isEmpty() ? "-" : s;
     }
 
+    /**
+     * The operator's command: run a calibration sweep of the pusher now (find the arm with CS4, correct the zero, return to HOLD).
+     * Pressing it again while it runs stops it. It turns the arm forward through a whole turn, so it is refused unless the track
+     * reads empty and the robot is otherwise idle.
+     */
+    public void requestPusherCalibration() {
+        if (pusherCheck == null || pusher == null) {
+            notice("Pusher calibration ignored: it needs the pusher and the element counter.");
+            return;
+        }
+        if (pusherCheck.isActive()) {
+            pusherCheck.abort("the operator stopped it");
+            return;
+        }
+        String why = null;
+        if (counterOverride) why = "the element counter is overridden";
+        else if (counter == null || !counter.isValid()) why = "the element counter is not reading";
+        else if (counter.count() > 0) why = counter.count() + " element(s) held: the sweep would fire them (fire or reject them first)";
+        else if (fireQueued || salvoActive || rejectActive || manualOuttake) why = "the robot is busy";
+        else if (intakeRequested || (ramp != null && ramp.isDeployedTarget())) why = "the intake is running (a sweep could push a new element out); turn it off first";
+        if (why == null) why = pusherCheck.startRefusal();
+        if (why != null) {
+            notice("Pusher calibration refused: " + why);
+            return;
+        }
+        checkPending = false;
+        pusherCheck.startCalibration();
+        RunLog.event("COMMAND pusher calibration sweep");
+    }
+
     public void clearPusherStall() {
         if (pusher != null && pusher.isStalled()) RunLog.event("COMMAND cleared the pusher fault");
         if (pusher != null) pusher.clearStall();

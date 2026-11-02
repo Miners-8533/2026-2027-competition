@@ -58,6 +58,7 @@ import java.util.Locale;
  *   D-pad up / down      manual flywheel setpoint +/- 25 ticks/s (used while the shot map is empty)
  *   D-pad left or right  the open CELL is the HIVE's other side (after a tip)
  *   Back                 clear a pusher fault
+ *   hold Back + Y        pusher calibration sweep now (the track must be empty and the intake off; again to stop it)
  *
  * OVERRIDES, for when a sensor fails in a match (each press toggles; the screen and the log say what is on):
  *   gamepad 1: hold left bumper + X   drive robot-oriented (stick up = robot forward), ignoring the heading
@@ -280,7 +281,9 @@ public class TeleOpCompetition extends LinearOpMode {
             if (gamepad2.aWasPressed()) mechanisms.requestFire();
             if (gamepad2.bWasPressed()) mechanisms.requestReject();
             if (gamepad2.xWasPressed()) mechanisms.requestDeploy();
-            if (gamepad2.yWasPressed()) mechanisms.requestStow();
+            boolean operatorY = gamepad2.yWasPressed();   // read once: with Back held, Y is the pusher calibration instead of the stow
+            if (operatorY && gamepad2.back) mechanisms.requestPusherCalibration();
+            else if (operatorY) mechanisms.requestStow();
             if (gamepad2.rightBumperWasPressed()) mechanisms.toggleSpin();
             if (gamepad2.leftBumperWasPressed()) mechanisms.stopFlywheel();
             if (gamepad2.dpadUpWasPressed()) mechanisms.adjustManualSetpoint(SETPOINT_STEP);
@@ -302,7 +305,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Drive", fieldOriented ? "field-oriented" : "ROBOT-ORIENTED (override: heading ignored)");
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, RB precision, Y reset heading (face away first), Back held = reseed");
-            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad speed / cell, Back clear pusher fault");
+            telemetry.addLine("GP2: RT intake on/off, LT outtake (hold), A fire, B reject, X deploy, Y stow, RB/LB spin/stop, D-pad speed / cell, Back clear pusher fault, hold Back + Y pusher calibration sweep");
             telemetry.addLine("OVERRIDES (press again to undo): GP1 hold LB + X robot-oriented drive, GP1 hold LB + B ignore pose (ramp stow), GP2 L3 ignore element counter, GP2 R3 flywheel open loop");
             telemetry.update();
         }
