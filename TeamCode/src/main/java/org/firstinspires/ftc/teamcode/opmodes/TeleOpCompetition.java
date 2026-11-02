@@ -134,9 +134,9 @@ public class TeleOpCompetition extends LinearOpMode {
         if (gamepad.type() != Gamepad.Type.LOGITECH_F310) gamepad.rumble(ms);
     }
 
-    /** Three short rumble taps (the backup mode alarm); skipped on the F310 like {@link #buzz}. */
-    private static void buzzTriple(Gamepad gamepad) {
-        if (gamepad.type() != Gamepad.Type.LOGITECH_F310) gamepad.rumbleBlips(3);
+    /** Short rumble taps (three for the backup mode, two for a lost flywheel encoder); skipped on the F310 like {@link #buzz}. */
+    private static void buzzBlips(Gamepad gamepad, int n) {
+        if (gamepad.type() != Gamepad.Type.LOGITECH_F310) gamepad.rumbleBlips(n);
     }
 
     /** Switch to the backup mode for the rest of the run: robot-oriented drive, no lock, a fixed shot speed, three taps on both gamepads. */
@@ -145,8 +145,8 @@ public class TeleOpCompetition extends LinearOpMode {
         backupMode = true;
         fieldOriented = false;
         mechanisms.enterBackupMode(BACKUP_SHOT_DISTANCE_IN);
-        buzzTriple(gamepad1);
-        buzzTriple(gamepad2);
+        buzzBlips(gamepad1, 3);
+        buzzBlips(gamepad2, 3);
         RunLog.event("BACKUP MODE ENTERED (" + why + "): robot-oriented drive, fixed shot speed, no target lock, no way back this run");
     }
 
@@ -435,6 +435,10 @@ public class TeleOpCompetition extends LinearOpMode {
             if (trimDown && gamepad2.left_bumper) mechanisms.adjustManualSetpoint(-SETPOINT_STEP);
 
             mechanisms.update(pose);
+            if (mechanisms.takeFlywheelLostNotice()) {   // the flywheel's speed sensor died: open loop from now on; two taps on both pads
+                buzzBlips(gamepad1, 2);
+                buzzBlips(gamepad2, 2);
+            }
             RunLog.tick();
 
             if (backupHeld && !backupMode) telemetry.addData("Backup mode", "keep holding LB + X... %.1f s", BACKUP_HOLD_SEC - backupHold.seconds());

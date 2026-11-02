@@ -5,6 +5,7 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -27,9 +28,11 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * would turn the same number into a speed target, and runs away if the encoder counts opposite to its motor). The
  * encoder is only a sensor:
  * ENCODER_SIGN makes the speed positive when the wheel turns the shooting way. A dead or reversed encoder is a
- * wiring problem for the pit check to find, not something this class watches for. If the speed sensor fails in a
- * match, the operator's OVERRIDE ({@link #setOpenLoop}) runs the motor at a power worked out from the target
- * instead of from the measured speed.
+ * wiring problem for the pit check to find. If the speed sensor DIES in a match this class notices (see
+ * {@link #isEncoderLost}): the motor commanded at 0.9 or more for LOST_DETECT_SEC while the speed never reaches
+ * LOST_SPEED_MAX. It then latches, for the rest of the run, into an open-loop mode at a fixed power for
+ * LOST_BASE_SETPOINT ticks/s (LOST_BASE_POWER, scaled for the battery voltage) that the speed trim can adjust.
+ * {@link #setOpenLoop} is the older manual open-loop switch (power = target / OPEN_LOOP_TOP_SPEED).
  *
  * Call {@link #update()} once per loop (autos pass it to Actions.runBlocking). Velocity is in encoder ticks
  * per second.
@@ -47,6 +50,19 @@ public class Flywheel {
     public static double OPEN_LOOP_TOP_SPEED = 2200.0;
     /** Open-loop override: seconds after the flywheel is turned on until it counts as ready (there is no speed to check). */
     public static double OPEN_LOOP_READY_SEC = 1.5;
+    /** Encoder-lost detection: on or off. */
+    public static boolean LOST_DETECT_ENABLED = true;
+    /** The encoder counts as lost when the motor has been commanded at LOST_POWER_MIN or more for this long with the speed always under LOST_SPEED_MAX. */
+    public static double LOST_DETECT_SEC = 1.0;
+    public static double LOST_POWER_MIN = 0.9;
+    public static double LOST_SPEED_MAX = 50.0;
+    /** Encoder-lost mode: the speed (ticks/s) the base power is for, and the base power itself. 0.61 is the placeholder 1350 / 2200; replace it with the average fly_power of a steady spin at 1350 from the log. */
+    public static double LOST_BASE_SETPOINT = 1350.0;
+    public static double LOST_BASE_POWER = 0.61;
+    /** Encoder-lost mode: the battery voltage LOST_BASE_POWER was measured at; the power is scaled by this over the voltage now (clamped to 0.9 to 1.25). 0 turns the scaling off. */
+    public static double LOST_REF_VOLTS = 12.5;
+    /** Encoder-lost mode: seconds after the switch until the flywheel counts as ready (it must slow from full power to the base power first). */
+    public static double LOST_READY_SEC = 2.0;
     /** How often (ms) the motor currents are refreshed for the display. */
     public static double CURRENT_REFRESH_MS = 250.0;
 
@@ -63,6 +79,13 @@ public class Flywheel {
     private double targetVelocity = 0.0;
     private boolean openLoop = false;
     private boolean openLoopSpinning = false;
+    private boolean encoderLost = false;
+    private String lostReason = "";
+    private boolean lostWindowActive = false;
+    private final ElapsedTime lostTimer = new ElapsedTime();
+    private final VoltageSensor battery;
+    private final ElapsedTime voltageTimer = new ElapsedTime();
+    private double volts = Double.NaN;
 
     // Hub calls are blocking round trips, so the hub is read in one place (the velocity, at the top of update(), and the
     // currents a few times a second for the display) and written only when the power changes.
@@ -79,6 +102,7 @@ public class Flywheel {
         motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         motor.setPower(0.0);
+        battery = hardwareMap.voltageSensor.iterator().hasNext() ? hardwareMap.voltageSensor.iterator().next() : null;
 
         // fly_follow
         // follower = hardwareMap.tryGet(DcMotorEx.class, "fly_follow");
@@ -133,7 +157,10 @@ public class Flywheel {
 
     /** True once the filtered speed has reached READY_FRACTION of a nonzero setpoint. */
     public boolean isReady() {
-        if (openLoop) return targetVelocity > 0.0 && openLoopSpinning && openLoopTimer.seconds() >= OPEN_LOOP_READY_SEC;
+        if (openLoop) {
+            return targetVelocity > 0.0 && openLoopSpinning
+                    && openLoopTimer.seconds() >= (encoderLost ? LOST_READY_SEC : OPEN_LOOP_READY_SEC);
+        }
         return targetVelocity > 0.0 && getFilteredVelocity() >= targetVelocity * READY_FRACTION;
     }
 
@@ -152,9 +179,51 @@ public class Flywheel {
         return openLoop;
     }
 
+    /** True once the speed sensor has been judged dead (latched for the rest of the run): the flywheel then runs open loop at a fixed power. */
+    public boolean isEncoderLost() {
+        return encoderLost;
+    }
+
+    public String getLostReason() {
+        return lostReason;
+    }
+
+    /** The power for the lost-encoder mode: the base power, moved by the difference from the base speed, scaled for the battery. */
+    private double lostPower() {
+        double p = LOST_BASE_POWER + (targetVelocity - LOST_BASE_SETPOINT) / OPEN_LOOP_TOP_SPEED;
+        if (LOST_REF_VOLTS > 0.0 && battery != null) {
+            if (Double.isNaN(volts) || voltageTimer.seconds() > 1.0) {
+                volts = battery.getVoltage();
+                voltageTimer.reset();
+            }
+            if (volts > 5.0) p *= Math.max(0.9, Math.min(1.25, LOST_REF_VOLTS / volts));
+        }
+        return p;
+    }
+
+    /** Judges the speed sensor dead: commanded hard for LOST_DETECT_SEC with the speed never reaching LOST_SPEED_MAX (an unplugged or reversed encoder). */
+    private void detectEncoderLost() {
+        boolean commanded = targetVelocity > 0.0 && lastPower >= LOST_POWER_MIN;
+        if (!commanded || velocity >= LOST_SPEED_MAX) {
+            lostWindowActive = false;
+            return;
+        }
+        if (!lostWindowActive) {
+            lostWindowActive = true;
+            lostTimer.reset();
+        } else if (lostTimer.seconds() >= LOST_DETECT_SEC) {
+            encoderLost = true;
+            openLoop = true;
+            openLoopSpinning = false;
+            lostReason = String.format(java.util.Locale.US, "commanded %.2f for %.1f s with the speed under %.0f ticks/s (now %.0f)",
+                    lastPower, lostTimer.seconds(), LOST_SPEED_MAX, velocity);
+        }
+    }
+
     /** Call once per loop. Reads the encoder once, up front; getVelocity() and the filter use that reading. */
     public void update() {
         velocity = ENCODER_SIGN * motor.getVelocity();
+        if (LOST_DETECT_ENABLED && !encoderLost && !openLoop) detectEncoderLost();
         if (currentTimer.milliseconds() > CURRENT_REFRESH_MS) {
             currentA = motor.getCurrent(CurrentUnit.AMPS);
             // followerCurrentA = follower != null ? follower.getCurrent(CurrentUnit.AMPS) : 0.0;   // fly_follow
@@ -174,7 +243,7 @@ public class Flywheel {
         if (targetVelocity <= 0.0) {
             setPower(0.0);
         } else if (openLoop) {
-            setPower(Math.max(0.0, Math.min(1.0, targetVelocity / OPEN_LOOP_TOP_SPEED)));
+            setPower(Math.max(0.0, Math.min(1.0, encoderLost ? lostPower() : targetVelocity / OPEN_LOOP_TOP_SPEED)));
         } else if (velocity > targetVelocity) {
             setPower(Math.max(0.0, Math.min(1.0, FEED_FORWARD)));
         } else {
@@ -202,7 +271,9 @@ public class Flywheel {
         // telemetry.addData("Flywheel power (+/-%FS)", "%.2f   (%s)", lastPower, follower != null ? "2 motors" : "1 motor");
         // telemetry.addData("Flywheel current (A)", "%.2f%s", getCurrentAmps(), follower != null
         //         ? String.format("   follower %.2f", followerCurrentA) : "");
-        if (openLoop) {
+        if (encoderLost) {
+            telemetry.addLine("FLYWHEEL ENCODER LOST: open loop at a fixed power (" + lostReason + ")");
+        } else if (openLoop) {
             telemetry.addLine("FLYWHEEL OPEN LOOP (override): the speed sensor is ignored");
         }
     }

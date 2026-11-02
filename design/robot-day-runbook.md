@@ -169,7 +169,7 @@ Rebuild and reinstall after committing, and confirm the Dashboard shows the new 
 | Pinpoint not OK on INIT | Robot moved after INIT, pod or I2C cable, or the start pose is wrong | restart the opmode with the robot still; Pit Check "Pinpoint" |
 | "ELEMENT COUNTER NOT READING" | A color sensor dropped off its bus or the cable is loose | Pit Check lines CS1-CS4; in a match count by eye and hold the left trigger to push extras out |
 | Count wrong or "FULL" with an empty track | The baseline does not match today's lighting | Block B |
-| Fire is dropped ("flywheel not ready in time") | Setpoint too high, battery low, or the encoder is dead | `fly_vel` in `teleop.log`; Pit Check "Flywheel encoder" |
+| Fire is dropped ("flywheel not ready in time") | Setpoint too high or battery low (a dead encoder now switches to a fixed-power open loop by itself) | `fly_vel`, `fly_power` in `teleop.log`; Pit Check "Flywheel encoder" |
 | Pusher angles or salvos look off after a run | Stale zero (belt slip, or the arm moved) | the pusher check corrects it after the next salvo (`PUSHER CHECK` lines in the log; a LOST warning means it could not); otherwise put the arm at HOLD and restart the app |
 | "SALVO running" never ends, or "Pusher STALLED" | Jam (the pusher does not fault for now) | B cancels a salvo, A cancels a reject; read `last settle` and the log's `PUSHER` lines |
 | Field-oriented sticks feel wrong | Heading drift or the wrong driver-forward direction | hold LB + RB to reseed the pose (resets the heading); hold LB + X for backup mode if the Pinpoint is bad; correct `*_DRIVER_FORWARD_DEG` |

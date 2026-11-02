@@ -79,6 +79,8 @@ public class Mechanisms {
     private boolean manualOuttake = false;
     private boolean fullNow = false;
     private int salvosDone = 0;
+    private boolean flywheelLostSeen = false;
+    private boolean flywheelLostNotice = false;
     private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the shot distance is this, whatever the pose says
     private boolean manualIntake = false;
     private boolean intakeAlwaysOn = false;
@@ -404,6 +406,13 @@ public class Mechanisms {
         RunLog.event(String.format(Locale.US, "BACKUP MODE: the shot speed is fixed for %.0f in, no pose", distanceIn));
     }
 
+    /** True once, right after the flywheel's speed sensor is judged dead (for the opmode to give a signal). */
+    public boolean takeFlywheelLostNotice() {
+        boolean n = flywheelLostNotice;
+        flywheelLostNotice = false;
+        return n;
+    }
+
     public boolean isBackupMode() {
         return fixedDistanceIn > 0.0;
     }
@@ -462,8 +471,12 @@ public class Mechanisms {
         lastDistance = fixedDistanceIn > 0.0 ? fixedDistanceIn : openCell.distanceFrom(pose);
         boolean mapAvailable = useShotMap && !ShotMap.isEmpty();
         lastSetpoint = mapAvailable ? Math.max(0.0, ShotMap.velocityFor(lastDistance) + speedTrim) : manualSetpoint;
+        // a dead flywheel encoder: no closed loop, so every shot is the same base power (Flywheel.LOST_BASE_SETPOINT) moved only by the speed trim
+        if (flywheel != null && flywheel.isEncoderLost()) lastSetpoint = Math.max(0.0, Flywheel.LOST_BASE_SETPOINT + speedTrim);
         if (flywheel != null && !mapAvailable) warnings.add("Shot map empty: using the manual setpoint");
-        if (flywheel != null && flywheel.isOpenLoop()) warnings.add("FLYWHEEL OPEN LOOP: the speed sensor is ignored, ready is a timer");
+        if (flywheel != null && flywheel.isEncoderLost()) {
+            warnings.add(String.format(Locale.US, "FLYWHEEL ENCODER LOST: open loop at a fixed power for %.0f ticks/s %+.0f (speed trim); every shot is the same, drive to the same spot", Flywheel.LOST_BASE_SETPOINT, speedTrim));
+        } else if (flywheel != null && flywheel.isOpenLoop()) warnings.add("FLYWHEEL OPEN LOOP: the speed sensor is ignored, ready is a timer");
 
         fullNow = full;
 
@@ -621,6 +634,13 @@ public class Mechanisms {
 
         if (intake != null) intake.update();
         if (flywheel != null) flywheel.update();
+        if (flywheel != null && flywheel.isEncoderLost() && !flywheelLostSeen) {
+            flywheelLostSeen = true;
+            flywheelLostNotice = true;
+            RunLog.event("FLYWHEEL ENCODER LOST: " + flywheel.getLostReason() + "; open loop for the rest of the run (base power for "
+                    + Flywheel.LOST_BASE_SETPOINT + " ticks/s, speed trim " + speedTrim + ")");
+            notice("Flywheel encoder lost: open loop at a fixed power. Use the speed trim.");
+        }
         if (pusher != null) pusher.update();
 
         for (String w : warnings) if (!prevWarnings.contains(w)) RunLog.event("WARNING " + w);
