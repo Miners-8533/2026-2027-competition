@@ -103,6 +103,8 @@ public class ElementCounter {
     private final double[] lastAlpha = new double[N];
     private final double[] lastDist = new double[N];
     private final double[][] lastShares = new double[N][3];
+    private boolean armCountIgnored = false;
+    private long armCountIgnoredUntilNs = 0L;
     private int nextSensor = 0;
     private long lastReadNs = 0L;
     private int stableCount = 0;
@@ -201,7 +203,21 @@ public class ElementCounter {
     }
 
     private boolean isElement(int i) {
+        if (i == ARM_SENSOR && (armCountIgnored || System.nanoTime() < armCountIgnoredUntilNs)) return false;
         return slot[i] != Slot.EMPTY && slot[i] != Slot.PUSHER_ARM;
+    }
+
+    /**
+     * While the pusher check moves the arm across CS4, the edge of the arm can read as "other" and would count as an element.
+     * True keeps CS4 out of the count (CS4 is still read, and {@link #pusherArmSeen} still works) until set false.
+     */
+    public void ignoreArmSensorCount(boolean on) {
+        armCountIgnored = on;
+    }
+
+    /** Keeps CS4 out of the count for this many seconds from now (the arm's last reading as it leaves the sensor's view). */
+    public void ignoreArmSensorCountFor(double seconds) {
+        armCountIgnoredUntilNs = System.nanoTime() + (long) (seconds * 1e9);
     }
 
     /** Sensors that currently see an element (not the pusher arm). */

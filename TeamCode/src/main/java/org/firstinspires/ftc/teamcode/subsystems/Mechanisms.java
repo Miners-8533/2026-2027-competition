@@ -56,6 +56,8 @@ public class Mechanisms {
     /** The check waits this long after the salvo for the arm to rest and the count to read 0, then gives up. */
     public static double CHECK_WAIT_SEC = 2.0;
     public static double CHECK_SETTLE_SEC = 0.4;
+    /** After a pusher check, CS4 is kept out of the element count this long (the arm leaving its view reads as an element). */
+    public static double CHECK_COUNT_HOLDOFF_SEC = 0.8;
 
     public final Intake intake;
     public final Flywheel flywheel;
@@ -384,6 +386,7 @@ public class Mechanisms {
             boolean busy = fireQueued || salvoActive || rejectActive || intakeRequested || manualOuttake || counterOverride
                     || pusher.isStalled() || (ramp != null && ramp.isDeployedTarget());
             boolean counterOk = counter != null && counter.isValid();
+            counter.ignoreArmSensorCount(pusherCheck.isActive());
             if (pusherCheck.isActive()) {
                 if (busy) pusherCheck.abort("the robot is busy again");
                 else if (counterOk && counter.count() > 0) pusherCheck.abort("an element is in the robot");
@@ -400,6 +403,7 @@ public class Mechanisms {
                     RunLog.event("PUSHER CHECK skipped: the robot did not read empty within " + CHECK_WAIT_SEC + " s");
                 }
             }
+            if (pusherCheck.takeFinished()) counter.ignoreArmSensorCountFor(CHECK_COUNT_HOLDOFF_SEC);
             if (pusherCheck.isLost()) {
                 warnings.add("PUSHER ZERO UNCERTAIN: the pusher check could not find the arm (" + pusherCheck.lastDetail() + ")");
             }
