@@ -21,7 +21,6 @@ import org.firstinspires.ftc.teamcode.motion.AimAtCell;
 import org.firstinspires.ftc.teamcode.motion.DriveToPose;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
 import org.firstinspires.ftc.teamcode.motion.SequentialAction;
-import org.firstinspires.ftc.teamcode.motion.SleepAction;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
@@ -39,7 +38,8 @@ import java.util.Locale;
  *
  *   1. Start (the TeleOp's start pose: back against the wall, y 16): turn onto the rear cell and shoot the preload.
  *   2. Garden pre-position (heading 90, facing the Blue Wall), then the garden pickup with the intake running, driving along the rear wall.
- *   3. To the shot spot for the audience cell (the open cell after the first tip), aim, shoot.
+ *   3. To the shot spot for the audience cell (the open cell after the first tip) with the intake still running, so every element gets in (it stops by
+ *      itself at 4, and is switched off on arrival); aim, shoot.
  *   4. Deploy the ramp on the way to the flower pre-position (heading 0) and wait for it to settle; drive onto the flower with the intake running;
  *      pause there until the robot holds 4 elements (at most FLOWER_PAUSE_MAX_SEC).
  *   5. Stow the ramp, back to the same shot spot, aim, shoot.
@@ -70,8 +70,6 @@ public class AutonSolo extends LinearOpMode {
     public static boolean PARK_VIA_POINT = true;
 
     // ---- timing ----
-    /** Seconds to keep the intake running at the end of the garden pickup (0 = stop on arrival). */
-    public static double GARDEN_DWELL_SEC = 0.0;
     /** At the flower: pause until the robot holds 4 elements, but no longer than this. */
     public static double FLOWER_PAUSE_MAX_SEC = 2.0;
     /** Hard cap for each drive leg (the DriveToPose default of 4 s is too short for the long diagonal). */
@@ -218,13 +216,12 @@ public class AutonSolo extends LinearOpMode {
                 note("Intake ON: garden"),
                 mechanisms.setIntake(true),
                 leg(drive, gardenEnd),
-                new SleepAction(GARDEN_DWELL_SEC),
-                note("Intake OFF"),
-                mechanisms.setIntake(false),
 
                 new InstantAction(() -> mechanisms.setOpenCell(secondCell)),   // the tip flipped the cell; the flywheel follows the new distance on the way
-                note("To the shot spot"),
+                note("To the shot spot, intake still ON so every element gets in"),
                 leg(drive, shotSpot),
+                note("Intake OFF"),
+                mechanisms.setIntake(false),
                 shoot(drive, mechanisms, secondCell, isBlue, "garden pollen"),
 
                 new InstantAction(mechanisms::requestDeploy),                   // deploys on the way
