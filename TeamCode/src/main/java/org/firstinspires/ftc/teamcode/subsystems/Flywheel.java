@@ -56,9 +56,9 @@ public class Flywheel {
     public static double LOST_DETECT_SEC = 1.0;
     public static double LOST_POWER_MIN = 0.9;
     public static double LOST_SPEED_MAX = 50.0;
-    /** Encoder-lost mode: the speed (ticks/s) the base power is for, and the base power itself. 0.61 is the placeholder 1350 / 2200; replace it with the average fly_power of a steady spin at 1350 from the log. */
+    /** Encoder-lost mode: the speed (ticks/s) the base power is for, and the base power itself. 0.40 is the average fly_power of the bang-bang at a steady 1350 (14,709 log rows, 12 TeleOp runs of 2026-11-02, speed within 1.5 % of the setpoint, no salvo): 0.38 to 0.42 per run, 0.41 below 12 V and 0.375 above, drifting down as the wheel warms. The old placeholder 0.61 (1350 / 2200) would have spun about 50 % too fast. */
     public static double LOST_BASE_SETPOINT = 1350.0;
-    public static double LOST_BASE_POWER = 0.61;
+    public static double LOST_BASE_POWER = 0.40;
     /** Encoder-lost mode: seconds after the switch until the flywheel counts as ready (it must slow from full power to the base power first). */
     public static double LOST_READY_SEC = 2.0;
     /** How often (ms) the motor currents are refreshed for the display. */
