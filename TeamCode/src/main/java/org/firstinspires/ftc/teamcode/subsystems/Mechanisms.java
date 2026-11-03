@@ -429,6 +429,15 @@ public class Mechanisms {
         return salvosDone;
     }
 
+    /** The flywheel speed (ticks/s) the coordinator last set from the shot map, the trim and the distance (for the log). */
+    public double getLastSetpoint() {
+        return lastSetpoint;
+    }
+
+    public double getSpeedTrim() {
+        return speedTrim;
+    }
+
     public boolean isFireBusy() {
         return fireQueued || salvoActive;
     }

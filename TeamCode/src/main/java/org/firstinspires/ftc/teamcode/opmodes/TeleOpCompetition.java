@@ -45,6 +45,8 @@ import java.util.Locale;
  *   D-pad up             discard the auto pose and use the default start pose (then the D-pad picks the alliance)
  *
  * Gamepad 1 (driver):
+ *   D-pad (in the match)  MARK a shot for the log: up = it landed good, left = landed LEFT, right = landed RIGHT, down = off (some other way).
+ *                        Each mark records the pose, heading, target, bearing and the predicted miss, so the shots can be inspected afterwards.
  *   left stick           drive, field-oriented: up = away from the driver, right = the driver's right
  *   right stick X        turn
  *   right trigger (hold) precision mode (30%)
@@ -149,6 +151,26 @@ public class TeleOpCompetition extends LinearOpMode {
         buzzBlips(gamepad1, 3);
         buzzBlips(gamepad2, 3);
         RunLog.event("BACKUP MODE ENTERED (" + why + "): robot-oriented drive, fixed shot speed, no target lock, no way back this run");
+    }
+
+    /**
+     * One line describing the aim at this moment, for the FIRE and MARK log events: the pose, the target cell and its distance, the bearing to it,
+     * where the target sits relative to the robot's front line, and the miss predicted from the shooter's sideways offset (+ = the shot lands to the
+     * LEFT of the target, - = to the RIGHT, seen from behind the robot). Compare the predicted miss with the shots marked left or right.
+     */
+    private String aimSummary(Pose2d pose, Mechanisms mechanisms, boolean blue, boolean lockOn) {
+        HiveTarget t = mechanisms.getOpenCell();
+        double dx = t.x - pose.position.x, dy = t.y - pose.position.y;
+        double dist = Math.hypot(dx, dy);
+        double bearing = Math.atan2(dy, dx);
+        double err = Rotation2d.normalize(bearing - pose.heading.toDouble());   // + = the target is counterclockwise (left) of the front
+        double targetLeftIn = dist * Math.sin(err);
+        double miss = TargetLock.SHOOTER_OFFSET_LEFT_IN - targetLeftIn;
+        return String.format(Locale.US, "%s, pose (%.1f, %.1f, %.1f deg), target %s (%.1f, %.1f) %.1f in, bearing %.1f deg, target %+.1f deg / %+.1f in left of the front line, "
+                        + "shooter offset %+.1f in, predicted miss %+.1f in, setpoint %.0f (trim %+.0f), lock %s",
+                blue ? "BLUE" : "RED", pose.position.x, pose.position.y, pose.heading.toDegrees(), t, t.x, t.y, dist, Math.toDegrees(bearing),
+                Math.toDegrees(err), targetLeftIn, TargetLock.SHOOTER_OFFSET_LEFT_IN, miss, mechanisms.getLastSetpoint(), mechanisms.getSpeedTrim(),
+                lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off");
     }
 
     private static boolean assigned(Gamepad gamepad) {
@@ -429,11 +451,15 @@ public class TeleOpCompetition extends LinearOpMode {
             mechanisms.setManualIntake(gamepad2.right_trigger > TRIGGER_THRESHOLD);
             mechanisms.setManualOuttake(gamepad2.left_trigger > TRIGGER_THRESHOLD);
             if (gamepad1.aWasPressed()) {
-                if (lockOn) {
-                    RunLog.event(String.format(Locale.US, "FIRE requested with the lock %s (error %+.1f deg)",
-                            targetLock.isAligned() ? "ALIGNED" : "not aligned", targetLock.errorDeg()));
-                }
+                RunLog.event("FIRE requested: " + aimSummary(pose, mechanisms, blue, lockOn));
                 mechanisms.requestFire();
+            }
+            boolean markGood = gamepad1.dpadUpWasPressed(), markOff = gamepad1.dpadDownWasPressed();
+            boolean markLeft = gamepad1.dpadLeftWasPressed(), markRight = gamepad1.dpadRightWasPressed();
+            if (markGood || markOff || markLeft || markRight) {
+                RunLog.event("MARK " + (markGood ? "good" : markLeft ? "landed LEFT" : markRight ? "landed RIGHT" : "off") + ": "
+                        + aimSummary(pose, mechanisms, blue, lockOn) + (backupMode ? " (backup mode: the pose is not trusted)" : ""));
+                buzz(gamepad1, 80);
             }
             boolean operatorB = gamepad2.bWasPressed();   // read every loop; the reject needs the left bumper held, so it cannot be set off by accident
             if (operatorB && gamepad2.left_bumper) mechanisms.requestReject();

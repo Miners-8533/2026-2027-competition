@@ -64,6 +64,7 @@ Events written when they happen:
 - **State changes:** pusher state, intake mode, element count, warnings that appear or clear.
 - **Overrides** (`OVERRIDE ...`): each time one is switched on or off.
 - **The pusher check** (`PUSHER CHECK ...`): started, arm seen (and at how many teeth from the expected center), the result with its reason, skipped or aborted.
+- **Shots:** `FIRE requested` and `MARK good / landed LEFT / landed RIGHT / off` (the driver's D-pad), each with the pose, target, bearing, the predicted miss from the shooter's offset and the setpoint.
 - **Driver commands:** pose reseed, backup mode (`BACKUP MODE ENTERED`), Pinpoint faults and blips.
 - **Gamepad assignment changes** (a controller that disconnects mid-match).
 - **Slow loops** (`SLOW LOOP`, over 80 ms).
