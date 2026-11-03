@@ -302,6 +302,39 @@ public class ElementCounter {
         return n;
     }
 
+    // ---- raw readings, for the Color Sensor Study log ----
+
+    /** Alpha (total light) of sensor i's latest read. */
+    public double lastAlpha(int i) {
+        return lastAlpha[i];
+    }
+
+    /** Distance (cm) of sensor i's latest read; NaN if it has no distance sensor. */
+    public double lastDistCm(int i) {
+        return lastDist[i];
+    }
+
+    /** Color share of sensor i's latest read: channel 0 = red, 1 = green, 2 = blue. */
+    public double lastShare(int i, int channel) {
+        return lastShares[i][channel];
+    }
+
+    /** How far sensor i's latest color shares are from its own empty baseline (the presence rule's first test). */
+    public double colorShift(int i) {
+        return Math.sqrt(Math.pow(lastShares[i][0] - BASE_SHARES[i][0], 2) + Math.pow(lastShares[i][1] - BASE_SHARES[i][1], 2)
+                + Math.pow(lastShares[i][2] - BASE_SHARES[i][2], 2));
+    }
+
+    /** Sensor i's presence result on its latest read, before the debounce. */
+    public boolean rawPresent(int i) {
+        return candidate[i];
+    }
+
+    /** Sensors that see an element right now (before the steady-count windows that make {@link #count}). */
+    public int elementsNow() {
+        return elementsSeen();
+    }
+
     /** How many times sensor i has been read so far (the pusher check waits for fresh reads after the arm stops). */
     public int readCount(int i) {
         return readCount[i];
