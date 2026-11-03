@@ -18,7 +18,7 @@ import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
  * It reports {@link #isAligned()} (within ALIGNED_DEG and nearly stopped) so the driver can fire at the right moment. The gains are a
  * starting point from a simulation of the measured turn response (about 335 deg/s per unit of power): tune them on the robot.
  * AIM_OFFSET_DEG corrects a shooter whose line is not exactly the robot's forward. The shooter fires along a line parallel to the
- * front but SHOOTER_OFFSET_LEFT_IN to the side of the pose point (ROBOT_1: 2.5 in to the right, currently left at 0 = off), so with it set
+ * front but SHOOTER_OFFSET_LEFT_IN to the side of the pose point (ROBOT_1: 2.5 in to the right, ON again since 2026-11-02 for the BLUE-bias test), so with it set
  * the robot aims that line, not its centerline, at the target: the heading is the bearing minus asin(offset / distance).
  */
 @Config
@@ -39,9 +39,9 @@ public final class TargetLock {
     public static double AIM_OFFSET_DEG = 0.0;
     /**
      * Sideways position of the shooter's line from the robot's centerline, inches, positive = to the robot's left. ROBOT_1's shooter is 2.5 in
-     * to the right, but the compensation is SHELVED (0 = off, the lock aims the centerline) until the aim is tuned on the robot; set -2.5 to turn it on.
+     * to the right, so the compensation is ON at -2.5 (2026-11-02, to test the shots that landed right). Set 0 to turn it off: the lock then aims the centerline.
      */
-    public static double SHOOTER_OFFSET_LEFT_IN = 0.0;
+    public static double SHOOTER_OFFSET_LEFT_IN = -2.5;
     public static double STICK_TRIM_DEG_PER_S = 40.0;
     public static double MAX_TRIM_DEG = 15.0;
     /** Closer than this to the target the bearing is meaningless (and jumps), so no turn is commanded. */
