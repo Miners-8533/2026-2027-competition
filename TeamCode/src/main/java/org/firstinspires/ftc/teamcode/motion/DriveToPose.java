@@ -58,6 +58,7 @@ public final class DriveToPose implements Action {
     private double timeoutSec = TIMEOUT_SEC;
     private double posTolIn = Double.NaN, headTolDeg = Double.NaN;   // NaN: the statics
     private boolean distanceTimeout = false;
+    private double maxOutputOverride = Double.NaN;   // NaN: MAX_OUTPUT
     private double dtBaseSec, dtInPerSec, dtMinSec, dtTurnExtraSec, dtMaxSec;
 
     private final PidController xCtrl = new PidController(AXIAL_kP, AXIAL_kI, AXIAL_kD);
@@ -83,6 +84,15 @@ public final class DriveToPose implements Action {
     public DriveToPose withTolerance(double posIn, double headingDeg) {
         posTolIn = posIn;
         headTolDeg = headingDeg;
+        return this;
+    }
+
+    /**
+     * Caps the power on every axis for this drive (the statics' MAX_OUTPUT is 0.6): a slow leg, for example while the intake picks up. Speed is roughly 60 in/s per unit
+     * of power on a long straight run (0.6 reached about 36 in/s per axis on 2026-11-03), so 0.25 is about 15 in/s.
+     */
+    public DriveToPose withMaxOutput(double maxOutput) {
+        maxOutputOverride = maxOutput;
         return this;
     }
 
@@ -119,7 +129,8 @@ public final class DriveToPose implements Action {
             RunLog.event(String.format("DRIVE start: (%.1f, %.1f, %.0f deg) -> (%.1f, %.1f, %.0f deg), timeout %.1f s%s",
                     from.position.x, from.position.y, from.heading.toDegrees(),
                     target.position.x, target.position.y, target.heading.toDegrees(), timeoutSec,
-                    Double.isNaN(posTolIn) ? "" : String.format(", tolerance %.1f in / %.0f deg", posTolIn, headTolDeg)));
+                    (Double.isNaN(posTolIn) ? "" : String.format(", tolerance %.1f in / %.0f deg", posTolIn, headTolDeg))
+                            + (Double.isNaN(maxOutputOverride) ? "" : String.format(", max power %.2f", maxOutputOverride))));
         }
         applyGains();
 
@@ -172,7 +183,7 @@ public final class DriveToPose implements Action {
         yCtrl.kP = LATERAL_kP; yCtrl.kI = LATERAL_kI; yCtrl.kD = LATERAL_kD; yCtrl.kStatic = LATERAL_kS;
         hCtrl.kP = HEADING_kP; hCtrl.kI = HEADING_kI; hCtrl.kD = HEADING_kD; hCtrl.kStatic = HEADING_kS;
         for (PidController c : new PidController[]{xCtrl, yCtrl, hCtrl}) {
-            c.maxOutput = MAX_OUTPUT;
+            c.maxOutput = Double.isNaN(maxOutputOverride) ? MAX_OUTPUT : maxOutputOverride;
             c.maxIntegral = MAX_INTEGRAL;
         }
     }

@@ -86,6 +86,13 @@ public class AutonSolo extends LinearOpMode {
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
     /** Pass-through points (the garden, the helper, the park via point) only need to get near: a leg ends within this position and heading. The shot spots and the flower keep the tight DriveToPose tolerance. */
     public static double COARSE_POS_IN = 3.0, COARSE_HEADING_DEG = 10.0;
+    /**
+     * The garden pickup leg (along the rear wall, intake on) is driven slowly so the pollen get in: this is the most power any axis may use (the normal limit is 0.6;
+     * speed is about 60 in/s per unit of power, so 0.25 is about 15 in/s, a 23 in leg in about 2 s). Raise it if the pickup is fine slower than needed, lower it if pollen are missed.
+     */
+    public static double GARDEN_PICKUP_MAX_POWER = 0.25;
+    /** The leg's hard cap is worked out with a speed of this many in/s per unit of power (a little under the real speed, so it only fires when the robot is stuck). */
+    public static double SLOW_IN_PER_S_PER_POWER = 40.0;
 
     private static Pose2d pose(double x, double y, double headingDeg) {
         return new Pose2d(x, y, Math.toRadians(headingDeg));
@@ -139,6 +146,12 @@ public class AutonSolo extends LinearOpMode {
     private Action passLeg(String label, MecanumDrive drive, Pose2d target) {
         return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(COARSE_POS_IN, COARSE_HEADING_DEG)
                 .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+    }
+
+    /** A slow pass-through leg (the garden pickup): the power is capped, and the hard cap uses the slower speed. */
+    private Action slowLeg(String label, MecanumDrive drive, Pose2d target, double maxPower) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withMaxOutput(maxPower).withTolerance(COARSE_POS_IN, COARSE_HEADING_DEG)
+                .withDistanceTimeout(TIMEOUT_BASE_SEC, SLOW_IN_PER_S_PER_POWER * maxPower, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
     }
 
     /** Commands the ramp only if it is not already heading there (a repeated command restarts its travel timer), then waits until it has settled. */
@@ -282,9 +295,9 @@ public class AutonSolo extends LinearOpMode {
 
                 note("Garden pre-position"),
                 passLeg("garden pre-position", drive, gardenPre),
-                note("Intake ON: garden"),
+                note("Intake ON: garden, slow"),
                 mechanisms.setIntake(true),
-                passLeg("garden pickup", drive, gardenEnd),
+                slowLeg("garden pickup (slow)", drive, gardenEnd, GARDEN_PICKUP_MAX_POWER),
 
                 new InstantAction(() -> mechanisms.setOpenCell(secondCell)),   // the tip flipped the cell; the flywheel follows the new distance on the way
                 note("Around the outside of the hive support rails, intake still ON so every element gets in"),
