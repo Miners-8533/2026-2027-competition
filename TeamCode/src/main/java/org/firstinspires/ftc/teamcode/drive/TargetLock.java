@@ -87,11 +87,12 @@ public final class TargetLock {
      * @param angVel    its measured angular velocity, rad/s, counterclockwise positive
      * @param target    the point to aim at
      * @param extraOffsetLeftIn  added to {@link #SHOOTER_OFFSET_LEFT_IN} for this target (see {@link #farCellExtraLeftIn})
+     * @param rememberedDeg      a standing aim correction for this target, degrees, positive = counterclockwise (the operator's reports of where the last salvo landed); added to the driver's nudge
      * @param stickX    the driver's turn stick (right = positive), used only to nudge the aim
      * @param dtSec     seconds since the last call
      * @return the angular drive power, counterclockwise positive
      */
-    public double turn(Pose2d pose, double angVel, HiveTarget target, double extraOffsetLeftIn, double stickX, double dtSec) {
+    public double turn(Pose2d pose, double angVel, HiveTarget target, double extraOffsetLeftIn, double rememberedDeg, double stickX, double dtSec) {
         double dx = target.x - pose.position.x;
         double dy = target.y - pose.position.y;
         if (Math.hypot(dx, dy) < MIN_DISTANCE_IN) {
@@ -102,7 +103,7 @@ public final class TargetLock {
         }
         trimDeg = clamp(trimDeg - stickX * STICK_TRIM_DEG_PER_S * dtSec, -MAX_TRIM_DEG, MAX_TRIM_DEG);
         double bearing = Math.atan2(dy, dx);
-        double aim = aimHeadingRad(pose.position.x, pose.position.y, target, extraOffsetLeftIn) + Math.toRadians(trimDeg);
+        double aim = aimHeadingRad(pose.position.x, pose.position.y, target, extraOffsetLeftIn) + Math.toRadians(trimDeg + rememberedDeg);
         double error = Rotation2d.normalize(aim - pose.heading.toDouble());
         bearingDeg = Math.toDegrees(bearing);
         errorDeg = Math.toDegrees(error);

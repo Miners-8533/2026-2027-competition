@@ -52,7 +52,7 @@ public final class AimAtCell implements Action {
         loop.reset();
         PoseVelocity2d measured = drive.updatePoseEstimate();
         Pose2d pose = drive.getPose();
-        double turn = lock.turn(pose, measured == null ? 0.0 : measured.angVel, cell, TargetLock.farCellExtraLeftIn(cell, blue), 0.0, dt);
+        double turn = lock.turn(pose, measured == null ? 0.0 : measured.angVel, cell, TargetLock.farCellExtraLeftIn(cell, blue), 0.0, 0.0, dt);
         drive.setDrivePowers(new PoseVelocity2d(Vector2d.zero(), turn));
         if (!lock.isAligned()) held.reset();
         packet.put("aim/err_deg", lock.errorDeg());

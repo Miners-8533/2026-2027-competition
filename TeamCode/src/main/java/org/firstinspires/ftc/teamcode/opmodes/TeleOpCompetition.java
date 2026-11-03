@@ -25,6 +25,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 import org.firstinspires.ftc.teamcode.util.RunLog;
 
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -47,9 +48,6 @@ import java.util.Locale;
  *   D-pad up             discard the auto pose and use the default start pose (then the D-pad picks the alliance)
  *
  * Gamepad 1 (driver):
- *   D-pad (in the match)  MARK a shot for the log: up = it landed good, left = landed LEFT, right = landed RIGHT, down = off (some other way).
- *                        Each mark records the pose, heading, target, bearing and the predicted miss, and repeats the aim of the last fire (with the
- *                        lock state and nudge then, since the lock releases after the salvo), so the shots can be inspected afterwards.
  *   left stick           drive, field-oriented: up = away from the driver, right = the driver's right
  *   right stick X        turn
  *   right trigger (hold) precision mode (30%)
@@ -70,7 +68,11 @@ import java.util.Locale;
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued fire
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
- *   hold left bumper + D-pad up / down   speed trim +/- 25 ticks/s added to the shot map's speed (the manual setpoint while the map is empty)
+ *   D-pad (unguarded)    REPORT where the LAST salvo landed, seen from behind the robot: left = it landed LEFT (the remembered aim for that cell turns 1.5 deg right),
+ *                        right = landed RIGHT (1.5 deg left), up = landed LOW / UNDER (speed trim +25 ticks/s), down = HOT / OVER (speed trim -25). The remembered aim is kept
+ *                        per CELL (the cell of the last fire), is used by the next lock on that cell, and is cleared by a driver reseed; the speed trim is one shared offset
+ *                        added to the shot map's speed (the manual setpoint while the map is empty). Each report is logged with the aim of the last fire.
+ *   hold left bumper + D-pad left / right   clear the remembered aim of the last fired cell;  hold left bumper + D-pad up / down   clear the speed trim
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
  *   right bumper         AUTO-FIRE on / off (a toggle, off at Start; a prototype). With it on, while the target lock is on (automatic or manual) and the robot is inside the
  *                        shot zone of the cell it is locked on (see {@link AutoFire}), the chassis stops by itself and, once the lock is ALIGNED and the robot has stopped,
@@ -122,6 +124,9 @@ public class TeleOpCompetition extends LinearOpMode {
     public static double PRECISION_SCALE = 0.30;
     public static double TRIGGER_THRESHOLD = 0.3;
     public static double SETPOINT_STEP = 25.0;
+    /** One D-pad report of a salvo that landed left or right turns the remembered aim for that cell by this much, up to NUDGE_MAX_DEG either way. */
+    public static double NUDGE_STEP_DEG = 1.5;
+    public static double NUDGE_MAX_DEG = 10.0;
     /** How often the log writes a sample row (events are written when they happen). */
     public static long SAMPLE_PERIOD_MS = 100;
 
@@ -129,6 +134,8 @@ public class TeleOpCompetition extends LinearOpMode {
     /** What the driver is commanding and where the robot is, for the log's sample rows. */
     private double logX, logY, logHeadingDeg, cmdForward, cmdLeft, cmdTurn, lockErrDeg = Double.NaN, logUp, logRight;
     private final TargetLock targetLock = new TargetLock();
+    /** The operator's standing aim correction for each cell (index = HiveTarget ordinal), degrees, positive = counterclockwise. */
+    private final double[] cellNudgeDeg = new double[HiveTarget.values().length];
 
     /** Driver override: false drives robot-oriented (stick up = robot forward), for when the heading is unreliable. */
     private boolean fieldOriented = true;
@@ -160,9 +167,9 @@ public class TeleOpCompetition extends LinearOpMode {
     }
 
     /**
-     * One line describing the aim at this moment, for the FIRE and MARK log events: the pose, the target cell and its distance, the bearing to it,
+     * One line describing the aim at this moment, for the FIRE log events and the operator's reports: the pose, the target cell and its distance, the bearing to it,
      * where the target sits relative to the robot's front line, and the miss predicted from the shooter's sideways offset (+ = the shot lands to the
-     * LEFT of the target, - = to the RIGHT, seen from behind the robot). Compare the predicted miss with the shots marked left or right.
+     * LEFT of the target, - = to the RIGHT, seen from behind the robot). Compare the predicted miss with the reports of left or right.
      */
     private String aimSummary(Pose2d pose, Mechanisms mechanisms, boolean blue, boolean lockOn) {
         HiveTarget t = mechanisms.getOpenCell();
@@ -173,10 +180,10 @@ public class TeleOpCompetition extends LinearOpMode {
         double targetLeftIn = dist * Math.sin(err);
         double miss = TargetLock.SHOOTER_OFFSET_LEFT_IN - targetLeftIn;
         return String.format(Locale.US, "%s, pose (%.1f, %.1f, %.1f deg), target %s (%.1f, %.1f) %.1f in, bearing %.1f deg, target %+.1f deg / %+.1f in left of the front line, "
-                        + "shooter offset %+.1f in + far-cell extra %+.1f in, predicted miss %+.1f in (against the shooter offset alone), setpoint %.0f (trim %+.0f), lock %s",
+                        + "shooter offset %+.1f in + far-cell extra %+.1f in, predicted miss %+.1f in (against the shooter offset alone), setpoint %.0f (trim %+.0f), lock %s, remembered nudge %+.1f deg",
                 blue ? "BLUE" : "RED", pose.position.x, pose.position.y, pose.heading.toDegrees(), t, t.x, t.y, dist, Math.toDegrees(bearing),
                 Math.toDegrees(err), targetLeftIn, TargetLock.SHOOTER_OFFSET_LEFT_IN, TargetLock.farCellExtraLeftIn(t, blue), miss, mechanisms.getLastSetpoint(), mechanisms.getSpeedTrim(),
-                lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off");
+                lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off", cellNudgeDeg[t.ordinal()]);
     }
 
     private static boolean assigned(Gamepad gamepad) {
@@ -297,7 +304,8 @@ public class TeleOpCompetition extends LinearOpMode {
         String autoFireState = "";
         ElapsedTime autoFireZoneClock = new ElapsedTime();
         ElapsedTime autoFireStillClock = new ElapsedTime();
-        String lastFireAim = "none yet";   // the aim line of the last fire (with the lock state and nudge then), repeated in the marks that follow it
+        String lastFireAim = "none yet";   // the aim line of the last fire (with the lock state and nudge then), repeated in the operator's reports that follow it
+        HiveTarget lastFireCell = null;    // the cell of the last fire: the operator's report of where it landed applies to this cell
         ElapsedTime pinpointBadFor = new ElapsedTime();
         ElapsedTime loopClock = new ElapsedTime();
 
@@ -400,7 +408,7 @@ public class TeleOpCompetition extends LinearOpMode {
                             pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
                 }
                 cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget,
-                        TargetLock.farCellExtraLeftIn(lockTarget, blue), gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt);   // the nudge needs the left bumper held
+                        TargetLock.farCellExtraLeftIn(lockTarget, blue), cellNudgeDeg[lockTarget.ordinal()], gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt);   // the nudge needs the left bumper held
                 lockErrDeg = targetLock.errorDeg();
                 boolean aligned = targetLock.isAligned();
                 if (aligned && !lockWasAligned) {
@@ -447,6 +455,7 @@ public class TeleOpCompetition extends LinearOpMode {
                         if (autoFireStillClock.seconds() >= AutoFire.ALIGNED_HOLD_SEC && !mechanisms.isFireBusy()) {
                             autoFireDone = true;
                             lastFireAim = aimSummary(pose, mechanisms, blue, lockOn);
+                            lastFireCell = lockTarget;
                             RunLog.event(String.format(Locale.US, "AUTO FIRE: %.2f s after entering the zone, speed %.1f in/s | %s", autoFireZoneClock.seconds(), speed, lastFireAim));
                             mechanisms.requestFire();
                         }
@@ -497,6 +506,8 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (!reseeded && reseedHold.seconds() >= RESEED_HOLD_SEC) {
                     drive.setPose(defaultStart);
                     reseeded = true;
+                    Arrays.fill(cellNudgeDeg, 0.0);   // the remembered aim corrected the drift of the old pose
+                    RunLog.event("DRIVER reseed cleared the remembered aim of every cell");
                     RunLog.event(String.format("DRIVER pose reseeded to the default start (was %.1f, %.1f, %.1f deg)",
                             pose.position.x, pose.position.y, pose.heading.toDegrees()));
                 }
@@ -509,16 +520,9 @@ public class TeleOpCompetition extends LinearOpMode {
             mechanisms.setManualOuttake(gamepad2.left_trigger > TRIGGER_THRESHOLD);
             if (gamepad1.aWasPressed()) {
                 lastFireAim = aimSummary(pose, mechanisms, blue, lockOn);
+                lastFireCell = mechanisms.getOpenCell();
                 RunLog.event("FIRE requested: " + lastFireAim);
                 mechanisms.requestFire();
-            }
-            boolean markGood = gamepad1.dpadUpWasPressed(), markOff = gamepad1.dpadDownWasPressed();
-            boolean markLeft = gamepad1.dpadLeftWasPressed(), markRight = gamepad1.dpadRightWasPressed();
-            if (markGood || markOff || markLeft || markRight) {
-                RunLog.event("MARK " + (markGood ? "good" : markLeft ? "landed LEFT" : markRight ? "landed RIGHT" : "off") + ": "
-                        + aimSummary(pose, mechanisms, blue, lockOn) + (backupMode ? " (backup mode: the pose is not trusted)" : "")
-                        + " | AT THE LAST FIRE: " + lastFireAim);
-                buzz(gamepad1, 80);
             }
             if (gamepad2.rightBumperWasPressed()) {
                 autoFireOn = !autoFireOn;
@@ -532,9 +536,30 @@ public class TeleOpCompetition extends LinearOpMode {
             boolean operatorY = gamepad2.yWasPressed();   // read once: with the left bumper held, Y is the pusher calibration instead of the stow
             if (operatorY && gamepad2.left_bumper) mechanisms.requestPusherCalibration();
             else if (operatorY) mechanisms.requestStowNow();   // stow at once: no flower check
-            boolean trimUp = gamepad2.dpadUpWasPressed(), trimDown = gamepad2.dpadDownWasPressed();   // read every loop; the left bumper must be held
-            if (trimUp && gamepad2.left_bumper) mechanisms.adjustManualSetpoint(SETPOINT_STEP);
-            if (trimDown && gamepad2.left_bumper) mechanisms.adjustManualSetpoint(-SETPOINT_STEP);
+            // the operator's reports of the last salvo (unguarded D-pad, seen from behind the robot); with the left bumper held they are resets instead
+            boolean reportLeft = gamepad2.dpadLeftWasPressed(), reportRight = gamepad2.dpadRightWasPressed();
+            boolean reportLow = gamepad2.dpadUpWasPressed(), reportHot = gamepad2.dpadDownWasPressed();
+            HiveTarget reportCell = lastFireCell != null ? lastFireCell : mechanisms.getOpenCell();
+            if (gamepad2.left_bumper) {
+                if (reportLeft || reportRight) {
+                    cellNudgeDeg[reportCell.ordinal()] = 0.0;
+                    RunLog.event("COMMAND remembered aim of " + reportCell + " cleared");
+                }
+                if (reportLow || reportHot) mechanisms.resetSpeedTrim();
+            } else {
+                if (reportLeft || reportRight) {
+                    double before = cellNudgeDeg[reportCell.ordinal()];
+                    double after = Math.max(-NUDGE_MAX_DEG, Math.min(NUDGE_MAX_DEG, before + (reportRight ? NUDGE_STEP_DEG : -NUDGE_STEP_DEG)));   // landed LEFT: aim right (clockwise, negative)
+                    cellNudgeDeg[reportCell.ordinal()] = after;
+                    RunLog.event(String.format(Locale.US, "REPORT landed %s (seen from behind the robot): remembered aim for %s %+.1f -> %+.1f deg | AT THE LAST FIRE: %s",
+                            reportLeft ? "LEFT" : "RIGHT", reportCell, before, after, lastFireAim));
+                }
+                if (reportLow || reportHot) {
+                    RunLog.event(String.format(Locale.US, "REPORT landed %s: speed trim %+.0f ticks/s | AT THE LAST FIRE: %s", reportLow ? "LOW / UNDER" : "HOT / OVER",
+                            reportLow ? SETPOINT_STEP : -SETPOINT_STEP, lastFireAim));
+                    mechanisms.adjustManualSetpoint(reportLow ? SETPOINT_STEP : -SETPOINT_STEP);
+                }
+            }
 
             mechanisms.update(pose);
             if (mechanisms.takeFlywheelLostNotice()) {   // the flywheel's speed sensor died: open loop from now on; two taps on both pads
@@ -557,10 +582,13 @@ public class TeleOpCompetition extends LinearOpMode {
                     ? String.format(Locale.US, "ON -> %s, bearing %.1f deg, error %+.1f deg%s", mechanisms.getOpenCell(), targetLock.bearingDeg(),
                             targetLock.errorDeg(), targetLock.isAligned() ? "   ALIGNED" : "")
                     : "off");
+            telemetry.addData("Remembered aim (operator D-pad left / right)", "blue rear %+.1f, blue audience %+.1f, red rear %+.1f, red audience %+.1f deg   | speed trim %+.0f ticks/s (D-pad up / down)",
+                    cellNudgeDeg[HiveTarget.BLUE_REAR.ordinal()], cellNudgeDeg[HiveTarget.BLUE_AUDIENCE.ordinal()], cellNudgeDeg[HiveTarget.RED_REAR.ordinal()],
+                    cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()], mechanisms.getSpeedTrim());
             telemetry.addData("Auto-fire (operator RB toggles)", backupMode ? "off (backup mode)" : autoFireOn ? "ON: " + autoFireState : "off");
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, hold RT precision, A fire, hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
-            telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, A target lock on/off (it also engages by itself when full), RB auto-fire on/off, hold LB + B reject, X deploy, Y stow, hold LB + D-pad up/down speed trim, hold LB + Y pusher calibration sweep");
+            telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, A target lock on/off (it also engages by itself when full), RB auto-fire on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right / low / hot: aim and speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
             telemetry.update();
         }

@@ -294,6 +294,12 @@ public class Mechanisms {
         stopScheduled = false;
     }
 
+    /** Clears the speed trim (the operator's guarded reset). */
+    public void resetSpeedTrim() {
+        speedTrim = 0.0;
+        RunLog.event("COMMAND speed trim reset -> +0 ticks/s");
+    }
+
     /** The operator's speed keys: the manual setpoint while the shot map is empty or unused, else a trim added to the map's speed. */
     public void adjustManualSetpoint(double delta) {
         if (useShotMap && !ShotMap.isEmpty()) {
