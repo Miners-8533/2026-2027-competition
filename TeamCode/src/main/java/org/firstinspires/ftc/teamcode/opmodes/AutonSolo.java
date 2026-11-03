@@ -26,6 +26,8 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 import org.firstinspires.ftc.teamcode.util.RunLog;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -91,21 +93,48 @@ public class AutonSolo extends LinearOpMode {
         });
     }
 
-    private Action leg(MecanumDrive drive, Pose2d target) {
-        return new DriveToPose(drive, target).withTimeout(LEG_TIMEOUT_SEC);
+    /** Seconds since Start, and the finished steps as "label: seconds", for the timing lines and the summary in the log. */
+    private final ElapsedTime autoClock = new ElapsedTime();
+    private final List<String> timings = new ArrayList<>();
+
+    /** Runs the action and logs how long it took, and when it ended, once it finishes (an "AUTO TIMING" line, one per step). */
+    private Action timed(String label, Action inner) {
+        return new Action() {
+            private boolean started = false;
+            private double begin;
+
+            @Override
+            public boolean run(TelemetryPacket packet) {
+                if (!started) {
+                    started = true;
+                    begin = autoClock.seconds();
+                }
+                boolean more = inner.run(packet);
+                if (!more) {
+                    double now = autoClock.seconds();
+                    RunLog.event(String.format(Locale.US, "AUTO TIMING %-30s %5.2f s   (%5.2f to %5.2f s into the auto)", label, now - begin, begin, now));
+                    timings.add(String.format(Locale.US, "%s %.2f", label, now - begin));
+                }
+                return more;
+            }
+        };
+    }
+
+    private Action leg(String label, MecanumDrive drive, Pose2d target) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withTimeout(LEG_TIMEOUT_SEC));
     }
 
     /** Aim at the cell with the lock, shoot one salvo, and finish when it is done. */
     private Action shoot(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label) {
         return new SequentialAction(
                 note("Aim and fire: " + label),
-                new AimAtCell(drive, cell, blue),
-                mechanisms.fire());
+                timed("aim: " + label, new AimAtCell(drive, cell, blue)),
+                timed("fire (wait + salvo): " + label, mechanisms.fire()));
     }
 
     /** Waits until the robot holds 4 elements, or maxSec passes. */
     private Action waitUntilFull(Mechanisms mechanisms, double maxSec) {
-        return new Action() {
+        return timed("flower pause", new Action() {
             private final ElapsedTime timer = new ElapsedTime();
             private boolean started = false;
 
@@ -121,7 +150,7 @@ public class AutonSolo extends LinearOpMode {
                 }
                 return !done;
             }
-        };
+        });
     }
 
     @Override
@@ -179,6 +208,7 @@ public class AutonSolo extends LinearOpMode {
         }
         if (isStopRequested()) return;
         RunLog.started();
+        autoClock.reset();
 
         // the path for this alliance
         final boolean isBlue = blue;
@@ -212,42 +242,43 @@ public class AutonSolo extends LinearOpMode {
                 shoot(drive, mechanisms, firstCell, isBlue, "preload"),
 
                 note("Garden pre-position"),
-                leg(drive, gardenPre),
+                leg("garden pre-position", drive, gardenPre),
                 note("Intake ON: garden"),
                 mechanisms.setIntake(true),
-                leg(drive, gardenEnd),
+                leg("garden pickup", drive, gardenEnd),
 
                 new InstantAction(() -> mechanisms.setOpenCell(secondCell)),   // the tip flipped the cell; the flywheel follows the new distance on the way
                 note("To the shot spot, intake still ON so every element gets in"),
-                leg(drive, shotSpot),
+                leg("shot spot 1", drive, shotSpot),
                 note("Intake OFF"),
                 mechanisms.setIntake(false),
                 shoot(drive, mechanisms, secondCell, isBlue, "garden pollen"),
 
                 new InstantAction(mechanisms::requestDeploy),                   // deploys on the way
                 note("Flower pre-position"),
-                leg(drive, flowerPre),
-                mechanisms.deploy(),                                            // fully deployed before it goes on
+                leg("flower pre-position", drive, flowerPre),
+                timed("ramp deploy", mechanisms.deploy()),                                            // fully deployed before it goes on
                 note("Intake ON: flower"),
                 mechanisms.setIntake(true),
-                leg(drive, flowerAt),
+                leg("flower", drive, flowerAt),
                 waitUntilFull(mechanisms, FLOWER_PAUSE_MAX_SEC),
                 mechanisms.setIntake(false),
 
                 new InstantAction(mechanisms::requestStow),                     // waits by itself until the robot is clear of the flower
                 note("Back to the shot spot"),
-                leg(drive, shotSpot),
-                mechanisms.stowNow(),
+                leg("shot spot 2", drive, shotSpot),
+                timed("ramp stow", mechanisms.stowNow()),
                 shoot(drive, mechanisms, secondCell, isBlue, "flower pollen"),
 
                 note("Park"),
-                PARK_VIA_POINT ? leg(drive, parkVia) : new InstantAction(() -> { }),
-                leg(drive, park),
+                PARK_VIA_POINT ? leg("park via point", drive, parkVia) : new InstantAction(() -> { }),
+                leg("park", drive, park),
                 new InstantAction(mechanisms::stopFlywheel)
         );
 
         Actions.runBlocking(this, auto, () -> mechanisms.update(drive.getPose()));
         RunLog.event(isStopRequested() ? "AUTO stopped before it finished" : "AUTO actions finished");
+        RunLog.event(String.format(Locale.US, "AUTO TIMING total %.2f s into the auto; steps (s): %s", autoClock.seconds(), String.join("; ", timings)));
 
         // hand the final pose (and the alliance) to the TeleOp, whether the auto finished or was stopped
         drive.updatePoseEstimate();
