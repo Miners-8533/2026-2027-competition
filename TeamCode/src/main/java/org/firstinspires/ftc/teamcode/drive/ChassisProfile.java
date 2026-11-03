@@ -43,6 +43,16 @@ public final class ChassisProfile {
      * depth / 2 when a profile does not give it.
      */
     public final double originFromBackIn;
+    /** Distance from the origin to the front edge, inches: the depth less {@link #originFromBackIn}. */
+    public double originFromFrontIn() {
+        return robotDepthIn - originFromBackIn;
+    }
+
+    /** Distance from the origin to each side edge, inches: the origin is centered side to side. */
+    public double originFromSideIn() {
+        return robotWidthIn / 2.0;
+    }
+
     /** Direction that makes positive intake power pull elements in. Not yet verified on any chassis. */
     public final DcMotorSimple.Direction intakeDirection;
     /** Flywheel motor direction (positive power spins it the shooting way) and pusher direction (positive = the forward, pushing way). Both unverified. */
