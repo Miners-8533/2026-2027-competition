@@ -22,7 +22,7 @@ All opmodes are in `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode
 | Opmode | Use when |
 |---|---|
 | Shot Map Tuner | extending the shot map (the far and near ends, nectar) |
-| Pinpoint Offset Check | a pod or the Pinpoint was moved: re-find the offsets (TEMPORARILY ENABLED 2026-11-03 with the CAD-based offsets in `ChassisProfile.ROBOT_1`: put both back afterward) |
+| Pinpoint Offset Check | a pod or the Pinpoint was moved: re-find the offsets (last run 2026-11-03: 2.1 to 2.2 in of wobble with the current offsets, the check suggests about -158.7 / +22.8; the offsets were left as they are) |
 | Pinpoint Push Test | a pod or the Pinpoint was moved or rewired: check the directions by hand |
 | Color Sensors Test (CS1-CS4) | the lighting changed: re-measure the element counter's empty baseline |
 

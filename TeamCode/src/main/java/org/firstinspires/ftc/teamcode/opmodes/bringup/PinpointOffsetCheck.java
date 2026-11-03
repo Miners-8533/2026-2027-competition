@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes.bringup;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -49,7 +50,7 @@ import java.util.Locale;
  * Needs clear floor around the robot. Run Pinpoint Push Test first.
  */
 @Config
-// TEMPORARILY ENABLED 2026-11-03 (was @Disabled, with the import): the spin test of the CAD-based pod offsets in ChassisProfile.ROBOT_1
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @TeleOp(name = "Pinpoint Offset Check", group = "Bring-up")
 public class PinpointOffsetCheck extends LinearOpMode {
 

@@ -137,7 +137,7 @@ public final class ChassisProfile {
             Arrays.asList("5462f57f0f18d316", "7c789032eb35f27b"),
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED,   // Y pod reversed: Pinpoint Push Test 2026-11-01 read a left push as -Y
-            -133.7, 9.5, 17.48, 13.70, 7.598, DcMotorSimple.Direction.FORWARD,   // offsets from the Offset Check of 2026-11-01 (0.16 in wobble). The CAD-based -139.0 / +1.0 were tried on 2026-11-03: wobble 2.45 to 3.60 in, so worse
+            -133.7, 9.5, 17.48, 13.70, 7.598, DcMotorSimple.Direction.FORWARD,   // offsets from the Offset Check of 2026-11-01 (0.16 in wobble then). On 2026-11-03 the check showed 2.1 to 2.2 in with these and suggested about -158.7 / +22.8; the CAD-based -139.0 / +1.0 gave 2.45 to 3.60 in. Kept as they are for now (user decision)
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
             1.0, 0.0, 0.0, 1.0);   // ramp: stowed left / right, deployed left / right (the tied servos are mirrored)
 
