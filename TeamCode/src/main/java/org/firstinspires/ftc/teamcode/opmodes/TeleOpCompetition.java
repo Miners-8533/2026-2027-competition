@@ -69,7 +69,7 @@ import java.util.Locale;
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
  *   D-pad (unguarded)    REPORT where the LAST salvo landed, seen from behind the robot: left = it landed LEFT (the remembered aim for that cell turns 1.5 deg right),
- *                        right = landed RIGHT (1.5 deg left), up = landed LOW / UNDER (speed trim +25 ticks/s), down = HOT / OVER (speed trim -25). The remembered aim is kept
+ *                        right = landed RIGHT (1.5 deg left), up = landed LOW / UNDER (speed trim +10 ticks/s), down = HOT / OVER (speed trim -10). The remembered aim is kept
  *                        per CELL (the cell of the last fire), is used by the next lock on that cell, and is cleared by a driver reseed; the speed trim is one shared offset
  *                        added to the shot map's speed (the manual setpoint while the map is empty). Each report is logged with the aim of the last fire.
  *   hold left bumper + D-pad left / right   clear the remembered aim of the last fired cell;  hold left bumper + D-pad up / down   clear the speed trim
@@ -123,7 +123,7 @@ public class TeleOpCompetition extends LinearOpMode {
     public static double TURN_SCALE = 0.5;
     public static double PRECISION_SCALE = 0.30;
     public static double TRIGGER_THRESHOLD = 0.3;
-    public static double SETPOINT_STEP = 25.0;
+    public static double SETPOINT_STEP = 10.0;
     /** One D-pad report of a salvo that landed left or right turns the remembered aim for that cell by this much, up to NUDGE_MAX_DEG either way. */
     public static double NUDGE_STEP_DEG = 1.5;
     public static double NUDGE_MAX_DEG = 10.0;
