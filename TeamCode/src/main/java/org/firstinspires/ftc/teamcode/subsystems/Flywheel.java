@@ -40,8 +40,12 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
 @Config
 public class Flywheel {
 
-    /** Motor command (0 to 1) applied once the speed is at or above the setpoint. Placeholder: tune on the rig. */
-    public static double FEED_FORWARD = 0.2;
+    /**
+     * Motor command (0 to 1) applied once the speed is at or above the setpoint. It must not exceed the power that HOLDS the slowest shot-map speed
+     * (1325 ticks/s): the 2026-11-02 logs put that at about 0.38 on average, 0.37 on a battery above 12.3 V, and 0.29 to 0.35 for some warm stretches, so
+     * 0.35 (the user's choice, 2026-11-03; 0.2 before) is at the edge: if the speed creeps above the setpoint at the slowest entry on a fresh battery, lower it.
+     */
+    public static double FEED_FORWARD = 0.35;
     /** Filtered speed, as a fraction of the setpoint, that counts as ready. */
     public static double READY_FRACTION = 0.95;
     /** +1 if the SDK encoder count rises when the wheel turns the shooting way, -1 if it falls. */
