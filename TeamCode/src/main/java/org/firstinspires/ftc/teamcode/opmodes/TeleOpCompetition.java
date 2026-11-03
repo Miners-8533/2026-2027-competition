@@ -46,7 +46,8 @@ import java.util.Locale;
  *
  * Gamepad 1 (driver):
  *   D-pad (in the match)  MARK a shot for the log: up = it landed good, left = landed LEFT, right = landed RIGHT, down = off (some other way).
- *                        Each mark records the pose, heading, target, bearing and the predicted miss, so the shots can be inspected afterwards.
+ *                        Each mark records the pose, heading, target, bearing and the predicted miss, and repeats the aim of the last fire (with the
+ *                        lock state and nudge then, since the lock releases after the salvo), so the shots can be inspected afterwards.
  *   left stick           drive, field-oriented: up = away from the driver, right = the driver's right
  *   right stick X        turn
  *   right trigger (hold) precision mode (30%)
@@ -287,6 +288,7 @@ public class TeleOpCompetition extends LinearOpMode {
         ElapsedTime backupHold = new ElapsedTime();
         ElapsedTime reseedHold = new ElapsedTime();
         boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, wasFull = false, pinpointBad = false;
+        String lastFireAim = "none yet";   // the aim line of the last fire (with the lock state and nudge then), repeated in the marks that follow it
         ElapsedTime pinpointBadFor = new ElapsedTime();
         ElapsedTime loopClock = new ElapsedTime();
 
@@ -451,14 +453,16 @@ public class TeleOpCompetition extends LinearOpMode {
             mechanisms.setManualIntake(gamepad2.right_trigger > TRIGGER_THRESHOLD);
             mechanisms.setManualOuttake(gamepad2.left_trigger > TRIGGER_THRESHOLD);
             if (gamepad1.aWasPressed()) {
-                RunLog.event("FIRE requested: " + aimSummary(pose, mechanisms, blue, lockOn));
+                lastFireAim = aimSummary(pose, mechanisms, blue, lockOn);
+                RunLog.event("FIRE requested: " + lastFireAim);
                 mechanisms.requestFire();
             }
             boolean markGood = gamepad1.dpadUpWasPressed(), markOff = gamepad1.dpadDownWasPressed();
             boolean markLeft = gamepad1.dpadLeftWasPressed(), markRight = gamepad1.dpadRightWasPressed();
             if (markGood || markOff || markLeft || markRight) {
                 RunLog.event("MARK " + (markGood ? "good" : markLeft ? "landed LEFT" : markRight ? "landed RIGHT" : "off") + ": "
-                        + aimSummary(pose, mechanisms, blue, lockOn) + (backupMode ? " (backup mode: the pose is not trusted)" : ""));
+                        + aimSummary(pose, mechanisms, blue, lockOn) + (backupMode ? " (backup mode: the pose is not trusted)" : "")
+                        + " | AT THE LAST FIRE: " + lastFireAim);
                 buzz(gamepad1, 80);
             }
             boolean operatorB = gamepad2.bWasPressed();   // read every loop; the reject needs the left bumper held, so it cannot be set off by accident
