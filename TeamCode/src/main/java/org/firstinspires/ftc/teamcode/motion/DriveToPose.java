@@ -55,6 +55,7 @@ public final class DriveToPose implements Action {
 
     private final MecanumDrive drive;
     private final Pose2d target;
+    private double timeoutSec = TIMEOUT_SEC;
 
     private final PidController xCtrl = new PidController(AXIAL_kP, AXIAL_kI, AXIAL_kD);
     private final PidController yCtrl = new PidController(LATERAL_kP, LATERAL_kI, LATERAL_kD);
@@ -67,6 +68,12 @@ public final class DriveToPose implements Action {
     public DriveToPose(MecanumDrive drive, Pose2d target) {
         this.drive = drive;
         this.target = target;
+    }
+
+    /** Use this hard cap, seconds, for this drive instead of {@link #TIMEOUT_SEC} (a long leg needs more than the default). */
+    public DriveToPose withTimeout(double seconds) {
+        timeoutSec = seconds;
+        return this;
     }
 
     @Override
@@ -108,7 +115,7 @@ public final class DriveToPose implements Action {
             settle.reset();
         }
         boolean done = (inTolerance && settle.seconds() >= SETTLE_SEC)
-                || timeout.seconds() >= TIMEOUT_SEC;
+                || timeout.seconds() >= timeoutSec;
 
         packet.put("dtp/errX_in", errX);
         packet.put("dtp/errY_in", errY);

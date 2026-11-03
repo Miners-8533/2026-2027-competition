@@ -70,6 +70,17 @@ public final class TargetLock {
     }
 
     /**
+     * The heading, radians, that points the shooter's line at the target from (x, y): the bearing minus the parallax of the shooter's sideways
+     * offset (SHOOTER_OFFSET_LEFT_IN + the extra), plus AIM_OFFSET_DEG. The lock turns to this (plus the driver's nudge); an auto can drive to it.
+     */
+    public static double aimHeadingRad(double x, double y, HiveTarget target, double extraOffsetLeftIn) {
+        double dx = target.x - x, dy = target.y - y;
+        // the shooter's line sits SHOOTER_OFFSET_LEFT_IN to the side of the pose point, so turn until THAT line passes through the target
+        double parallax = Math.asin(clamp((SHOOTER_OFFSET_LEFT_IN + extraOffsetLeftIn) / Math.hypot(dx, dy), -0.9, 0.9));
+        return Math.atan2(dy, dx) - parallax + Math.toRadians(AIM_OFFSET_DEG);
+    }
+
+    /**
      * One loop of the lock.
      *
      * @param pose      the robot's pose
@@ -91,9 +102,7 @@ public final class TargetLock {
         }
         trimDeg = clamp(trimDeg - stickX * STICK_TRIM_DEG_PER_S * dtSec, -MAX_TRIM_DEG, MAX_TRIM_DEG);
         double bearing = Math.atan2(dy, dx);
-        // the shooter's line sits SHOOTER_OFFSET_LEFT_IN to the side of the pose point, so turn until THAT line passes through the target
-        double parallax = Math.asin(clamp((SHOOTER_OFFSET_LEFT_IN + extraOffsetLeftIn) / Math.hypot(dx, dy), -0.9, 0.9));
-        double aim = bearing - parallax + Math.toRadians(AIM_OFFSET_DEG + trimDeg);
+        double aim = aimHeadingRad(pose.position.x, pose.position.y, target, extraOffsetLeftIn) + Math.toRadians(trimDeg);
         double error = Rotation2d.normalize(aim - pose.heading.toDouble());
         bearingDeg = Math.toDegrees(bearing);
         errorDeg = Math.toDegrees(error);
