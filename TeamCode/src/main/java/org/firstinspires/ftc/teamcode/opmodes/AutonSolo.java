@@ -63,12 +63,25 @@ public class AutonSolo extends LinearOpMode {
     // The x values are the waypoint marks of 2026-11-02 + 1.0: those were recorded in a pose frame seeded at x = -64.4 (a 72 in field half-width), and the walls are
     // at 71 (start x = -63.4), so the same physical places read 1.0 more. (Odometry only adds displacement to the seed, so shifting every x is exact; y is unchanged.)
     public static double START_Y_IN = 16.0;
-    public static double GARDEN_PRE_X = -63.6, GARDEN_PRE_Y = 37.1, GARDEN_HEADING_DEG = 90.0;
-    public static double GARDEN_END_X = -63.7, GARDEN_END_Y = 60.3;
+    /**
+     * The garden is approached at an ANGLE, the front (intake mouth) turned 40 deg toward the rear wall (heading 130), so the pollen lying along the wall are caught between
+     * the angled mouth and the wall instead of being plowed ahead in a line (the straight approach at heading 90 did that, 2026-11-03). At 130 deg the front corners swing out
+     * about 11.6 in in x and 12 in in y from the origin, so the poses are 13.5 in from the rear wall (the wall-side corner about 2 in off it) and the end is at y 57.5, not 60.3.
+     * (Red: the same, turned 180 deg.) The pre-position and the end keep the same heading so the robot translates along the wall at that angle.
+     */
+    public static double GARDEN_PRE_X = -57.5, GARDEN_PRE_Y = 37.1, GARDEN_HEADING_DEG = 130.0;
+    public static double GARDEN_END_X = -57.5, GARDEN_END_Y = 57.5;
     /** The one shot spot for the audience cell (the marks were (62.9, 9.5) and (62.3, 7.4), +1.0 in x); its heading is the computed aim. */
     public static double SHOT_X = 63.6, SHOT_Y = 8.5;
-    public static double FLOWER_PRE_X = 43.0, FLOWER_PRE_Y = 21.3, FLOWER_HEADING_DEG = 0.0;
-    public static double FLOWER_AT_X = 55.3, FLOWER_AT_Y = 21.3;
+    /** The flower poses are 3 in toward +Y of the marks (21.3 to 24.3, user 2026-11-03: the pollen did not come out), and the pre-position is 5 in farther back (43 to 38) for a run-up. */
+    public static double FLOWER_PRE_X = 38.0, FLOWER_PRE_Y = 24.3, FLOWER_HEADING_DEG = 0.0;
+    public static double FLOWER_AT_X = 55.3, FLOWER_AT_Y = 24.3;
+    /**
+     * The flower is RAMMED: the drive's target is FLOWER_RAM_OVERSHOOT_IN past FLOWER_AT_X, so the error stays large and the power stays at FLOWER_RAM_POWER until the robot
+     * meets the flower, and the leg ends after FLOWER_RAM_SEC (it never reaches the target: the log says TIMED OUT, which is expected). The normal drive uses 0.05 x the
+     * error, so a 12 in leg never passed 0.6.
+     */
+    public static double FLOWER_RAM_POWER = 0.9, FLOWER_RAM_OVERSHOOT_IN = 12.0, FLOWER_RAM_SEC = 0.8;
     public static double PARK_X = 51.1, PARK_Y = 54.0, PARK_HEADING_DEG = 180.0;
     /**
      * The helper point between the garden and the shot spot, to go around the OUTSIDE of the hive's two support rails (along the row borders 2|3 and 4|5, columns C to D,
@@ -146,6 +159,11 @@ public class AutonSolo extends LinearOpMode {
     private Action passLeg(String label, MecanumDrive drive, Pose2d target) {
         return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(COARSE_POS_IN, COARSE_HEADING_DEG)
                 .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+    }
+
+    /** Drives hard at a target beyond an obstacle for a fixed time (the flower ram). */
+    private Action ramLeg(String label, MecanumDrive drive, Pose2d target, double power, double seconds) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withMaxOutput(power).withTolerance(0.5, 5.0).withTimeout(seconds));
     }
 
     /** A slow pass-through leg (the garden pickup): the power is capped, and the hard cap uses the slower speed. */
@@ -273,7 +291,7 @@ public class AutonSolo extends LinearOpMode {
         double blueShotHeadingDeg = Math.toDegrees(TargetLock.aimHeadingRad(SHOT_X, SHOT_Y, HiveTarget.BLUE_AUDIENCE, TargetLock.farCellExtraLeftIn(HiveTarget.BLUE_AUDIENCE, true)));
         Pose2d helper = forAlliance(pose(HELPER_X, HELPER_Y, blueShotHeadingDeg), isBlue);   // outside the support rails, at the shot spot's heading
         Pose2d flowerPre = forAlliance(pose(FLOWER_PRE_X, FLOWER_PRE_Y, FLOWER_HEADING_DEG), isBlue);
-        Pose2d flowerAt = forAlliance(pose(FLOWER_AT_X, FLOWER_AT_Y, FLOWER_HEADING_DEG), isBlue);
+        Pose2d flowerRam = forAlliance(pose(FLOWER_AT_X + FLOWER_RAM_OVERSHOOT_IN, FLOWER_AT_Y, FLOWER_HEADING_DEG), isBlue);   // past the flower: the ram target
         Pose2d parkVia = forAlliance(pose(PARK_X, SHOT_Y, PARK_HEADING_DEG), isBlue);
         Pose2d park = forAlliance(pose(PARK_X, PARK_Y, PARK_HEADING_DEG), isBlue);
 
@@ -314,7 +332,7 @@ public class AutonSolo extends LinearOpMode {
                 timed("ramp deploy (wait)", rampTo(mechanisms, true)),         // fully deployed before it goes on; no second command
                 note("Intake ON: flower"),
                 mechanisms.setIntake(true),
-                leg("flower", drive, flowerAt),
+                ramLeg("ram the flower", drive, flowerRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
                 waitUntilFull(mechanisms, FLOWER_PAUSE_MAX_SEC),
                 mechanisms.setIntake(false),
 
