@@ -137,7 +137,7 @@ public final class ChassisProfile {
             Arrays.asList("5462f57f0f18d316", "7c789032eb35f27b"),
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED,   // Y pod reversed: Pinpoint Push Test 2026-11-01 read a left push as -Y
-            -133.7, 9.5, 17.48, 13.70, 7.598, DcMotorSimple.Direction.FORWARD,
+            -139.0, 1.0, 17.48, 13.70, 7.598, DcMotorSimple.Direction.FORWARD,   // TEMPORARY 2026-11-03 for the spin test: CAD pod positions (X pod 313 mm from the left edge, Y pod 194 mm from the back edge) with the CAD origin (174 / 193) as the tracking point. The measured offsets, kept until the test says otherwise, are -133.7, 9.5
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
             1.0, 0.0, 0.0, 1.0);   // ramp: stowed left / right, deployed left / right (the tied servos are mirrored)
 
