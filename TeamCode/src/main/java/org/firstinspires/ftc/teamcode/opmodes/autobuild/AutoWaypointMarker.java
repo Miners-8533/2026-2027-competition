@@ -39,6 +39,8 @@ import java.util.Locale;
  *   right trigger (hold) precision mode (30%)
  *   A                    MARK the current pose as the next numbered point (a short rumble confirms it on a rumble pad)
  *   X / Y                deploy / stow the ramp (each mark records whether the ramp was deployed)
+ *   B                    CHECK mark, numbered separately from the waypoints: drive the robot to a spot whose real position you know (for example
+ *                        squared against a wall or into a corner) and press B, then compare the logged pose with the real one afterwards
  *   left + right bumper  (hold 1 s) reseed the pose to the chosen start, if the pose is lost
  *
  * Each mark is shown on the screen and written to the run log as a MARK event with a ready-to-paste line, e.g.
@@ -132,6 +134,7 @@ public class AutoWaypointMarker extends LinearOpMode {
 
         List<String> marks = new ArrayList<>();
         boolean reseedDown = false, reseeded = false;
+        int checks = 0;
         ElapsedTime reseedHold = new ElapsedTime();
 
         while (opModeIsActive()) {
@@ -189,6 +192,13 @@ public class AutoWaypointMarker extends LinearOpMode {
                 buzz(gamepad1, MARK_RUMBLE_MS);
             }
 
+            if (gamepad1.bWasPressed() && chosen) {
+                checks++;
+                RunLog.event(String.format(Locale.US, "CHECK %d: x %.1f, y %.1f, heading %.1f deg, start %s", checks, pose.position.x, pose.position.y,
+                        pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
+                buzz(gamepad1, MARK_RUMBLE_MS);
+            }
+
             if (chosen && gamepad1.left_bumper && gamepad1.right_bumper) {
                 if (!reseedDown) {
                     reseedDown = true;
@@ -214,7 +224,8 @@ public class AutoWaypointMarker extends LinearOpMode {
             if (reseedDown && !reseeded) telemetry.addData("Reseed pose", "keep holding LB + RB... %.1f s", RESEED_HOLD_SEC - reseedHold.seconds());
             telemetry.addData("Marks", marks.size());
             for (int i = Math.max(0, marks.size() - SHOWN_MARKS); i < marks.size(); i++) telemetry.addLine(marks.get(i));
-            telemetry.addLine("A = MARK this pose, X = deploy ramp, Y = stow ramp, hold LB + RB = reseed to the start, right trigger = precision");
+            telemetry.addData("Checks", checks);
+            telemetry.addLine("A = MARK this pose, B = CHECK mark (a spot whose real position you know), X = deploy ramp, Y = stow ramp, hold LB + RB = reseed to the start, right trigger = precision");
             telemetry.update();
         }
         drive.stop();

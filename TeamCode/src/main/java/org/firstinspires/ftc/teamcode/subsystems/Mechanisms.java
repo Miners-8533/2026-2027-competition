@@ -69,7 +69,12 @@ public class Mechanisms {
     public static double AUTO_TARGET_HYSTERESIS_IN = 6.0;
     /** The arm is "near CS4" (an unclassified reading there is the arm, not an element) from this far behind HOLD to this far past it, degrees. Measured loosely: see design/integration-plan.md. */
     public static double ARM_NEAR_BEHIND_DEG = 70.0;
-    public static double ARM_NEAR_AHEAD_DEG = 25.0;
+    /**
+     * While the arm is within this many degrees ahead of HOLD, CS4's "other" reading is taken as the edge of the arm, not an element. A salvo
+     * leaves the arm resting 40 to 60 deg past HOLD, where CS4 reads "other": with 25 here that phantom counted as 1 element in an empty robot (so
+     * the post-salvo pusher check was skipped and the manual sweep refused), or as a false 4th element. Pollen and nectar still count.
+     */
+    public static double ARM_NEAR_AHEAD_DEG = 70.0;
 
     public final Intake intake;
     public final Flywheel flywheel;

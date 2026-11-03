@@ -167,7 +167,7 @@ def summarize(lines):
                     s["start"] = "%s (%s)" % (m.group(1), m.group(2))
             elif text.startswith("SALVO started"):
                 s["salvos"] += 1
-            elif text.startswith("MARK "):
+            elif text.startswith("MARK ") or text.startswith("CHECK "):
                 s["marks"] += 1
             elif text.startswith("PUSHER CHECK") and ("started" in text or "SEEK" in text or "OK" in text):
                 s["pusher_checks"] += 1
