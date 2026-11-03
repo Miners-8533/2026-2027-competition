@@ -45,10 +45,11 @@ public final class TargetLock {
     /**
      * Extra sideways offset, inches (negative = further right, so the lock turns further left), added for the cell on the OPPOSITE side of the field from the
      * alliance's start wall (see {@link #farCellExtraLeftIn}). The marks of 2026-11-02 showed shots at that cell (blue: the audience cell, shot facing away from the
-     * start heading; red by the 180 deg symmetry: the rear cell) needing about 4.5 in more, roughly the same at 23 to 41 in. The cell on the start side needed none.
+     * start heading; red by the 180 deg symmetry: the rear cell) needing about 4 in more at 23 to 41 in, but the run with 4.5 in landed LEFT at 34 to 36 in and needed a 9.9 deg right nudge at 47 in (all at headings 10 to 46 deg past straight at the rear wall,
+     * from y 11 to 20), so it is 3.0 for now, a compromise; retune from the marks. The cell on the start side needed none.
      * It looks tied to the heading relative to the start, so if the start wall ever changes the cell that needs it moves too. Set 0 to turn it off.
      */
-    public static double FAR_CELL_EXTRA_LEFT_IN = -4.5;
+    public static double FAR_CELL_EXTRA_LEFT_IN = -3.0;
     public static double STICK_TRIM_DEG_PER_S = 40.0;
     public static double MAX_TRIM_DEG = 15.0;
     /** Closer than this to the target the bearing is meaningless (and jumps), so no turn is commanded. */
