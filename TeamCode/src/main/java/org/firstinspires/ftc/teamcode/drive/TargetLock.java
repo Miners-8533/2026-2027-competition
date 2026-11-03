@@ -42,6 +42,13 @@ public final class TargetLock {
      * to the right, so the compensation is ON at -2.5 (2026-11-02, to test the shots that landed right). Set 0 to turn it off: the lock then aims the centerline.
      */
     public static double SHOOTER_OFFSET_LEFT_IN = -2.5;
+    /**
+     * Extra sideways offset, inches (negative = further right, so the lock turns further left), added for the cell on the OPPOSITE side of the field from the
+     * alliance's start wall (see {@link #farCellExtraLeftIn}). The marks of 2026-11-02 showed shots at that cell (blue: the audience cell, shot facing away from the
+     * start heading; red by the 180 deg symmetry: the rear cell) needing about 4.5 in more, roughly the same at 23 to 41 in. The cell on the start side needed none.
+     * It looks tied to the heading relative to the start, so if the start wall ever changes the cell that needs it moves too. Set 0 to turn it off.
+     */
+    public static double FAR_CELL_EXTRA_LEFT_IN = -4.5;
     public static double STICK_TRIM_DEG_PER_S = 40.0;
     public static double MAX_TRIM_DEG = 15.0;
     /** Closer than this to the target the bearing is meaningless (and jumps), so no turn is commanded. */
@@ -53,16 +60,26 @@ public final class TargetLock {
     private boolean aligned = false;
 
     /**
+     * The extra sideways offset for this cell: {@link #FAR_CELL_EXTRA_LEFT_IN} when the cell is on the opposite side of the field from the alliance's start wall
+     * (blue starts against the rear wall, x &lt; 0, so its audience cell, x &gt; 0; red starts against the audience wall, so its rear cell), otherwise 0.
+     */
+    public static double farCellExtraLeftIn(HiveTarget cell, boolean blue) {
+        boolean far = blue ? cell.x > 0 : cell.x < 0;
+        return far ? FAR_CELL_EXTRA_LEFT_IN : 0.0;
+    }
+
+    /**
      * One loop of the lock.
      *
      * @param pose      the robot's pose
      * @param angVel    its measured angular velocity, rad/s, counterclockwise positive
      * @param target    the point to aim at
+     * @param extraOffsetLeftIn  added to {@link #SHOOTER_OFFSET_LEFT_IN} for this target (see {@link #farCellExtraLeftIn})
      * @param stickX    the driver's turn stick (right = positive), used only to nudge the aim
      * @param dtSec     seconds since the last call
      * @return the angular drive power, counterclockwise positive
      */
-    public double turn(Pose2d pose, double angVel, HiveTarget target, double stickX, double dtSec) {
+    public double turn(Pose2d pose, double angVel, HiveTarget target, double extraOffsetLeftIn, double stickX, double dtSec) {
         double dx = target.x - pose.position.x;
         double dy = target.y - pose.position.y;
         if (Math.hypot(dx, dy) < MIN_DISTANCE_IN) {
@@ -74,7 +91,7 @@ public final class TargetLock {
         trimDeg = clamp(trimDeg - stickX * STICK_TRIM_DEG_PER_S * dtSec, -MAX_TRIM_DEG, MAX_TRIM_DEG);
         double bearing = Math.atan2(dy, dx);
         // the shooter's line sits SHOOTER_OFFSET_LEFT_IN to the side of the pose point, so turn until THAT line passes through the target
-        double parallax = Math.asin(clamp(SHOOTER_OFFSET_LEFT_IN / Math.hypot(dx, dy), -0.9, 0.9));
+        double parallax = Math.asin(clamp((SHOOTER_OFFSET_LEFT_IN + extraOffsetLeftIn) / Math.hypot(dx, dy), -0.9, 0.9));
         double aim = bearing - parallax + Math.toRadians(AIM_OFFSET_DEG + trimDeg);
         double error = Rotation2d.normalize(aim - pose.heading.toDouble());
         bearingDeg = Math.toDegrees(bearing);

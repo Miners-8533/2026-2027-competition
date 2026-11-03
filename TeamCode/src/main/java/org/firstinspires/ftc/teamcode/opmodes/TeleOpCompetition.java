@@ -168,9 +168,9 @@ public class TeleOpCompetition extends LinearOpMode {
         double targetLeftIn = dist * Math.sin(err);
         double miss = TargetLock.SHOOTER_OFFSET_LEFT_IN - targetLeftIn;
         return String.format(Locale.US, "%s, pose (%.1f, %.1f, %.1f deg), target %s (%.1f, %.1f) %.1f in, bearing %.1f deg, target %+.1f deg / %+.1f in left of the front line, "
-                        + "shooter offset %+.1f in, predicted miss %+.1f in, setpoint %.0f (trim %+.0f), lock %s",
+                        + "shooter offset %+.1f in + far-cell extra %+.1f in, predicted miss %+.1f in (against the shooter offset alone), setpoint %.0f (trim %+.0f), lock %s",
                 blue ? "BLUE" : "RED", pose.position.x, pose.position.y, pose.heading.toDegrees(), t, t.x, t.y, dist, Math.toDegrees(bearing),
-                Math.toDegrees(err), targetLeftIn, TargetLock.SHOOTER_OFFSET_LEFT_IN, miss, mechanisms.getLastSetpoint(), mechanisms.getSpeedTrim(),
+                Math.toDegrees(err), targetLeftIn, TargetLock.SHOOTER_OFFSET_LEFT_IN, TargetLock.farCellExtraLeftIn(t, blue), miss, mechanisms.getLastSetpoint(), mechanisms.getSpeedTrim(),
                 lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off");
     }
 
@@ -391,7 +391,7 @@ public class TeleOpCompetition extends LinearOpMode {
                             pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
                 }
                 cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget,
-                        gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt);   // the nudge needs the left bumper held
+                        TargetLock.farCellExtraLeftIn(lockTarget, blue), gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt);   // the nudge needs the left bumper held
                 lockErrDeg = targetLock.errorDeg();
                 boolean aligned = targetLock.isAligned();
                 if (aligned && !lockWasAligned) {
