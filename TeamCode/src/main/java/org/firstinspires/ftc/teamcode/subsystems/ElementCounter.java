@@ -89,10 +89,16 @@ public class ElementCounter {
     public static final int N = NAMES.length;
     public static final int ARM_SENSOR = 3;   // CS4
 
-    /** Empty-track readings, measured 2026-10-31: alpha, distance (cm), and the red / green / blue shares, per sensor. */
-    private static final double[] BASE_ALPHA = {0.077, 0.080, 0.173, 0.038};
-    private static final double[] BASE_DIST = {3.68, 5.23, 4.11, 7.87};
-    private static final double[][] BASE_SHARES = {{0.32, 0.38, 0.30}, {0.29, 0.42, 0.29}, {0.28, 0.40, 0.32}, {0.30, 0.39, 0.31}};
+    /**
+     * Empty-track readings: alpha, distance (cm), and the red / green / blue shares, per sensor. Re-measured 2026-11-03 from the empty STILL takes of the
+     * Color Sensor Study (874 rows, two runs): CS2's empty view had changed (alpha 0.080 -> 0.023, shares 0.29/0.42/0.29 -> 0.33/0.43/0.24), which put it 0.06 from
+     * the old baseline, over the 0.05 ON threshold, so the empty track read one POLLEN at CS2 for good and the count was always one too high. (Measured
+     * 2026-10-31: alpha 0.077 0.080 0.173 0.038, distance 3.68 5.23 4.11 7.87, shares 0.32/0.38/0.30 0.29/0.42/0.29 0.28/0.40/0.32 0.30/0.39/0.31.)
+     * Lighting and the sensor views change: re-measure in the pit (Color Sensor Study: an empty STILL take) and copy the medians here.
+     */
+    private static final double[] BASE_ALPHA = {0.062, 0.023, 0.173, 0.039};
+    private static final double[] BASE_DIST = {3.69, 5.39, 4.11, 7.75};
+    private static final double[][] BASE_SHARES = {{0.318, 0.389, 0.293}, {0.328, 0.429, 0.244}, {0.274, 0.402, 0.325}, {0.266, 0.403, 0.331}};
 
     private final NormalizedColorSensor[] color = new NormalizedColorSensor[N];
     private final DistanceSensor[] distance = new DistanceSensor[N];
