@@ -21,7 +21,7 @@ The flywheel runs from Start. Its speed follows the distance to the cell nearest
 
 1. Initialize with the robot on the start pose, still. Pick BLUE or RED.
 2. Drive to the wall under test (the rear wall for the two rear cells, shot facing +X; the audience wall for the two audience cells, shot facing -X), back against the wall. Line the shooter up with the centerline of the cell by eye, load, fire (A). On a good salvo press Y. Repeat a few times per cell, moving the robot a little each time and finding the line again.
-3. Do every cell. Use the start that matches: BLUE for the rear wall (facing +X) and RED for the audience wall (facing -X) keep the pose near its seed; to put the same cell on the other heading, you need the hive's other side, which is another cell. After driving a long way, reseed (hold X 1 s) with the robot back on the start spot, or the pose will have drifted.
+3. Do every cell: the two REAR cells (blue rear at y +12.75, red rear at y -12.75) from the rear wall facing +X, then the two AUDIENCE cells from the audience wall facing -X. The BLUE start seeds the pose at the rear wall and the RED start at the audience wall, so pick the one that matches the wall you are testing (restart the opmode to change it). Driving from y +16 to the red hive's line (y -12.75) is about 29 in of odometry; after any long drive, put the robot back on the start spot and reseed (hold X 1 s), or the pose will have drifted.
 4. To separate the shooter's offset from an angle error, mark each cell at two distances along the same line (for example about 30 in and about 50 in out from the cell): the offset is the same at both, an angle error grows with distance.
 
 ## Reading the log
