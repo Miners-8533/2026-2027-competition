@@ -27,7 +27,7 @@ Do this each time the robot is powered on or the app restarted, before INIT of a
 - [ ] **Pusher arm at HOLD** (the back of the arm limiting entry to 4 elements). The zero is assumed here at INIT.
 - [ ] **Ramp stowed**, inside the starting cube. Intake and track **empty** (except the 4-element preload for an auto).
 - [ ] Both gamepads assigned: **Start + A** (driver), **Start + B** (operator) on the Driver Station.
-- [ ] For an auto or a TeleOp: robot placed at its start pose against the wall, **still** from INIT until Start (the Pinpoint recalibrates at INIT). With no auto, the TeleOp's default start is blue (-64.4, +16) against the rear wall facing +X, red (+64.4, -16) against the audience wall facing -X (the origin is 7.6 in from the back edge) (the front, the intake and shooter end, faces away from the wall).
+- [ ] For an auto or a TeleOp: robot placed at its start pose against the wall, **still** from INIT until Start (the Pinpoint recalibrates at INIT). With no auto, the TeleOp's default start is blue (-63.4, +16) against the rear wall facing +X, red (+63.4, -16) against the audience wall facing -X (the origin is 7.6 in from the back edge) (the front, the intake and shooter end, faces away from the wall).
 - [ ] INIT screen: Pinpoint `OK`, the right mechanisms present, element counter `reading`. Anything else, stop and fix it before Start.
 
 ## 2. The day, in order

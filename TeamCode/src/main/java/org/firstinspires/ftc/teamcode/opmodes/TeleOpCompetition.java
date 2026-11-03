@@ -11,6 +11,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.AutoFire;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
+import org.firstinspires.ftc.teamcode.drive.FieldGeometry;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
@@ -31,8 +32,8 @@ import java.util.Locale;
  * the mechanisms through the {@link Mechanisms} coordinator.
  *
  * Start pose: if an auto ran recently (see AUTO_POSE_MAX_AGE_SEC) the TeleOp starts from the pose and alliance the
- * auto saved in {@link PoseStorage}; otherwise from the alliance's default start pose: blue (-64.4, +16) facing +X against the
- * rear wall, red (+64.4, -16) facing -X against the audience wall (the same pose turned 180 deg about the center, so neither
+ * auto saved in {@link PoseStorage}; otherwise from the alliance's default start pose: blue (-63.4, +16) facing +X against the
+ * rear wall, red (+63.4, -16) facing -X against the audience wall (the same pose turned 180 deg about the center, so neither
  * starts on a flower). The INIT screen says which.
  * It also reports whether both gamepads are assigned (Start + A on the driver's controller, Start + B on the
  * operator's), because a gamepad that is not assigned silently does nothing.
@@ -124,7 +125,6 @@ public class TeleOpCompetition extends LinearOpMode {
     /** How often the log writes a sample row (events are written when they happen). */
     public static long SAMPLE_PERIOD_MS = 100;
 
-    private static final double FIELD_HALF_IN = 72.0;
 
     /** What the driver is commanding and where the robot is, for the log's sample rows. */
     private double logX, logY, logHeadingDeg, cmdForward, cmdLeft, cmdTurn, lockErrDeg = Double.NaN, logUp, logRight;
@@ -210,7 +210,7 @@ public class TeleOpCompetition extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        double startX = -(FIELD_HALF_IN - profile.originFromBackIn);   // back against the wall
+        double startX = -(FieldGeometry.HALF_IN - profile.originFromBackIn);   // back against the wall
 
         boolean useAutoPose = PoseStorage.isFresh(AUTO_POSE_MAX_AGE_SEC);
         boolean blue = useAutoPose ? PoseStorage.isBlue() : true;

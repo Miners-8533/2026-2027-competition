@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
+import org.firstinspires.ftc.teamcode.drive.FieldGeometry;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
@@ -59,7 +60,6 @@ import java.util.Locale;
 public class AutonHiveVolley extends LinearOpMode {
 
     // --- field geometry (measured from the manual, not tunable) ---
-    private static final double FIELD_HALF_IN = 72.0; // Section 9.2, 144x144in field
 
     // --- start pose: blue alliance, touching the REAR wall, lined up with the blue HIVE in Y ---
     // Robot depth (the dimension perpendicular to the wall) comes from the chassis profile.
@@ -86,7 +86,7 @@ public class AutonHiveVolley extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        double startX = -(FIELD_HALF_IN - profile.originFromBackIn);   // back against the rear wall
+        double startX = -(FieldGeometry.HALF_IN - profile.originFromBackIn);   // back against the rear wall
         Pose2d startPose = new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG));
 
         Pose2d leavePose = new Pose2d(startX + LEAVE_DISTANCE_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));

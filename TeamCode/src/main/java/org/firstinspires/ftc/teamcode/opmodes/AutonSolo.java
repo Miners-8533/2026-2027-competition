@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
+import org.firstinspires.ftc.teamcode.drive.FieldGeometry;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
@@ -57,17 +58,18 @@ import java.util.Locale;
 @Autonomous(name = "Auton - Solo", group = "Auto")
 public class AutonSolo extends LinearOpMode {
 
-    private static final double FIELD_HALF_IN = 72.0;
 
     // ---- the path, BLUE frame: x, y in inches, heading in degrees (the start pose comes from the chassis profile) ----
+    // The x values are the waypoint marks of 2026-11-02 + 1.0: those were recorded in a pose frame seeded at x = -64.4 (a 72 in field half-width), and the walls are
+    // at 71 (start x = -63.4), so the same physical places read 1.0 more. (Odometry only adds displacement to the seed, so shifting every x is exact; y is unchanged.)
     public static double START_Y_IN = 16.0;
-    public static double GARDEN_PRE_X = -64.6, GARDEN_PRE_Y = 37.1, GARDEN_HEADING_DEG = 90.0;
-    public static double GARDEN_END_X = -64.7, GARDEN_END_Y = 60.3;
-    /** The one shot spot for the audience cell (the marks were (62.9, 9.5) and (62.3, 7.4)); its heading is the computed aim. */
-    public static double SHOT_X = 62.6, SHOT_Y = 8.5;
-    public static double FLOWER_PRE_X = 42.0, FLOWER_PRE_Y = 21.3, FLOWER_HEADING_DEG = 0.0;
-    public static double FLOWER_AT_X = 54.3, FLOWER_AT_Y = 21.3;
-    public static double PARK_X = 50.1, PARK_Y = 54.0, PARK_HEADING_DEG = 180.0;
+    public static double GARDEN_PRE_X = -63.6, GARDEN_PRE_Y = 37.1, GARDEN_HEADING_DEG = 90.0;
+    public static double GARDEN_END_X = -63.7, GARDEN_END_Y = 60.3;
+    /** The one shot spot for the audience cell (the marks were (62.9, 9.5) and (62.3, 7.4), +1.0 in x); its heading is the computed aim. */
+    public static double SHOT_X = 63.6, SHOT_Y = 8.5;
+    public static double FLOWER_PRE_X = 43.0, FLOWER_PRE_Y = 21.3, FLOWER_HEADING_DEG = 0.0;
+    public static double FLOWER_AT_X = 55.3, FLOWER_AT_Y = 21.3;
+    public static double PARK_X = 51.1, PARK_Y = 54.0, PARK_HEADING_DEG = 180.0;
     /** Drive to a point level with the shot spot (x = PARK_X) before the park run, so the path does not pass the flower at the audience wall. */
     public static boolean PARK_VIA_POINT = true;
 
@@ -170,7 +172,7 @@ public class AutonSolo extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        double startX = -(FIELD_HALF_IN - profile.originFromBackIn);   // back against the rear wall (blue frame)
+        double startX = -(FieldGeometry.HALF_IN - profile.originFromBackIn);   // back against the rear wall (blue frame)
 
         boolean blue = true, seededBlue = true;
         Pose2d start = forAlliance(pose(startX, START_Y_IN, 0.0), blue);

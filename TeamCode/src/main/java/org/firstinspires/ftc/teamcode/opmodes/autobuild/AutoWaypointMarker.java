@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
+import org.firstinspires.ftc.teamcode.drive.FieldGeometry;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
@@ -61,7 +62,6 @@ public class AutoWaypointMarker extends LinearOpMode {
     /** How many of the latest marks the screen lists. */
     public static int SHOWN_MARKS = 8;
 
-    private static final double FIELD_HALF_IN = 72.0;
 
     private double logX, logY, logHeadingDeg;
     private boolean logRampDeployed;
@@ -92,7 +92,7 @@ public class AutoWaypointMarker extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        double startX = -(FIELD_HALF_IN - profile.originFromBackIn);   // back against the wall
+        double startX = -(FieldGeometry.HALF_IN - profile.originFromBackIn);   // back against the wall
 
         // built in INIT with the BLUE start; re-seeded when a start is chosen (the robot has not moved)
         boolean blue = true, chosen = false;

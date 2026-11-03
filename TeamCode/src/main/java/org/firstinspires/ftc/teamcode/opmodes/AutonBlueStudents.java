@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
+import org.firstinspires.ftc.teamcode.drive.FieldGeometry;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
@@ -64,7 +65,6 @@ import java.util.Locale;
 @Autonomous(name = "Auton - Blue Students", group = "Auto")
 public class AutonBlueStudents extends LinearOpMode {
 
-    private static final double FIELD_HALF_IN = 72.0;
 
     public static double TURN_CLEARANCE_IN = 0.0;
     public static double GARDEN_HEADING_DEG = 90.0;   // the intake (front) end leads toward +Y; -90 = the back leads
@@ -106,8 +106,8 @@ public class AutonBlueStudents extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        double wall = FIELD_HALF_IN - profile.robotDepthIn / 2.0;
-        double backWall = FIELD_HALF_IN - profile.originFromBackIn;   // the origin's distance from a wall the robot's BACK is against
+        double wall = FieldGeometry.HALF_IN - profile.robotDepthIn / 2.0;
+        double backWall = FieldGeometry.HALF_IN - profile.originFromBackIn;   // the origin's distance from a wall the robot's BACK is against
 
         Pose2d start = pose(-backWall, 16, 0);
         Pose2d facingBlue = pose(-wall + TURN_CLEARANCE_IN, 16, GARDEN_HEADING_DEG);
