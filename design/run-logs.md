@@ -64,6 +64,7 @@ Events written when they happen:
 - **State changes:** pusher state, intake mode, element count, warnings that appear or clear.
 - **Overrides** (`OVERRIDE ...`): each time one is switched on or off.
 - **The pusher check** (`PUSHER CHECK ...`): started, arm seen (and at how many teeth from the expected center), the result with its reason, skipped or aborted.
+- **Auto-fire:** `COMMAND auto-fire -> ON / off`, `AUTO FIRE: entered the <cell> zone` (the chassis is held from then), `AUTO FIRE: <s> after entering the zone ... | <aim line>` when it fires, or `AUTO FIRE gave up` after `AutoFire.FREEZE_MAX_SEC`.
 - **Shots:** `FIRE requested` and `MARK good / landed LEFT / landed RIGHT / off` (the driver's D-pad), each with the pose, target, bearing, the predicted miss from the shooter's offset (the far-cell extra is logged beside it and not included in the miss, so marks stay comparable) and the setpoint.
 - **Auto timing (`Auton - Solo`):** an `AUTO TIMING <step>` line as each step ends (drives, aims, salvos, ramp deploy and stow, the flower pause), with its length and when it started and ended in seconds since Start, then one `AUTO TIMING total` line listing every step; the `DRIVE settled / TIMED OUT` lines say whether a leg arrived or hit its cap.
 - **Driver commands:** pose reseed, backup mode (`BACKUP MODE ENTERED`), Pinpoint faults and blips.
