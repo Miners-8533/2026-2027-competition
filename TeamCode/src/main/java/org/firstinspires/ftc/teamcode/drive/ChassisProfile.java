@@ -37,6 +37,12 @@ public final class ChassisProfile {
     public final double xOffsetMM, yOffsetMM;
     /** Robot footprint, inches: depth is front-to-back, width side-to-side. */
     public final double robotDepthIn, robotWidthIn;
+    /**
+     * Distance from the robot's back edge to its origin (the Pinpoint's tracking point, near the center of rotation), inches. The origin is centered
+     * side to side but NOT front to back, so a robot with its back against a wall has its origin this far from the wall (not depth / 2). Defaults to
+     * depth / 2 when a profile does not give it.
+     */
+    public final double originFromBackIn;
     /** Direction that makes positive intake power pull elements in. Not yet verified on any chassis. */
     public final DcMotorSimple.Direction intakeDirection;
     /** Flywheel motor direction (positive power spins it the shooting way) and pusher direction (positive = the forward, pushing way). Both unverified. */
@@ -53,7 +59,7 @@ public final class ChassisProfile {
                            DcMotorSimple.Direction leftDirection, DcMotorSimple.Direction rightDirection,
                            GoBildaPinpointDriver.EncoderDirection podXDirection,
                            GoBildaPinpointDriver.EncoderDirection podYDirection,
-                           double xOffsetMM, double yOffsetMM, double robotDepthIn, double robotWidthIn,
+                           double xOffsetMM, double yOffsetMM, double robotDepthIn, double robotWidthIn, double originFromBackIn,
                            DcMotorSimple.Direction intakeDirection,
                            DcMotorSimple.Direction flywheelDirection, DcMotorSimple.Direction pusherDirection,
                            DcMotorSimple.Direction flywheelFollowerDirection,
@@ -69,6 +75,7 @@ public final class ChassisProfile {
         this.yOffsetMM = yOffsetMM;
         this.robotDepthIn = robotDepthIn;
         this.robotWidthIn = robotWidthIn;
+        this.originFromBackIn = Double.isNaN(originFromBackIn) ? robotDepthIn / 2.0 : originFromBackIn;
         this.intakeDirection = intakeDirection;
         this.flywheelDirection = flywheelDirection;
         this.pusherDirection = pusherDirection;
@@ -84,7 +91,7 @@ public final class ChassisProfile {
             Arrays.asList(/* hub ids: add from the "Unrecognized Control Hub" error */),
             DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.REVERSE,
             GoBildaPinpointDriver.EncoderDirection.REVERSED, GoBildaPinpointDriver.EncoderDirection.REVERSED,
-            -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
+            -55.0, -75.6, 18.0, 14.0, Double.NaN, DcMotorSimple.Direction.REVERSE,
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
             Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
@@ -97,7 +104,7 @@ public final class ChassisProfile {
             Arrays.asList(/* hub ids: add from the "Unrecognized Control Hub" error */),
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD,
-            -55.0, -75.6, 18.0, 14.0, DcMotorSimple.Direction.REVERSE,
+            -55.0, -75.6, 18.0, 14.0, Double.NaN, DcMotorSimple.Direction.REVERSE,
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
             Double.NaN, Double.NaN, Double.NaN, Double.NaN);
 
@@ -112,14 +119,15 @@ public final class ChassisProfile {
      * 2026-10-31 from the Ramp Test, ramp seen stowed up at left 1.0 / right 0.0; the servos have no feedback, so
      * these are commanded values; TRAVEL_SEC = 0.8 s was measured by the team). The intake direction was flipped to FORWARD on
      * 2026-10-31 (it ran backwards with REVERSE; not yet re-checked after the flip). The footprint
-     * (17 deep x 13.75 wide, ramp stowed) was measured on 2026-10-31. See design/integration-plan.md,
+     * was 17 x 13.75 in (measured 2026-10-31); from CAD (2026-11-02) it is 444 x 348 mm = 17.48 x 13.70 in, with the origin 193 mm (7.598 in) from the back edge
+     * and 174 mm (6.85 in) from each side, so 9.88 in from the front edge. The robot-frame check poses of 2026-11-02 agree with that to about 0.4 in. See design/integration-plan.md,
      * Phases 1 and 2. Hub: serial and Android id read over adb.
      */
     public static final ChassisProfile ROBOT_1 = new ChassisProfile("ROBOT_1",
             Arrays.asList("5462f57f0f18d316", "7c789032eb35f27b"),
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD,
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED,   // Y pod reversed: Pinpoint Push Test 2026-11-01 read a left push as -Y
-            -133.7, 9.5, 17.0, 13.75, DcMotorSimple.Direction.FORWARD,
+            -133.7, 9.5, 17.48, 13.70, 7.598, DcMotorSimple.Direction.FORWARD,
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
             1.0, 0.0, 0.0, 1.0);   // ramp: stowed left / right, deployed left / right (the tied servos are mirrored)
 

@@ -86,7 +86,7 @@ public class AutonHiveVolley extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
+        double startX = -(FIELD_HALF_IN - profile.originFromBackIn);   // back against the rear wall
         Pose2d startPose = new Pose2d(startX, START_Y_IN, Math.toRadians(START_HEADING_DEG));
 
         Pose2d leavePose = new Pose2d(startX + LEAVE_DISTANCE_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));

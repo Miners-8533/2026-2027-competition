@@ -107,13 +107,14 @@ public class AutonBlueStudents extends LinearOpMode {
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         double wall = FIELD_HALF_IN - profile.robotDepthIn / 2.0;
+        double backWall = FIELD_HALF_IN - profile.originFromBackIn;   // the origin's distance from a wall the robot's BACK is against
 
-        Pose2d start = pose(-wall, 16, 0);
+        Pose2d start = pose(-backWall, 16, 0);
         Pose2d facingBlue = pose(-wall + TURN_CLEARANCE_IN, 16, GARDEN_HEADING_DEG);
         Pose2d gardenStart = pose(-wall, 50, GARDEN_HEADING_DEG);
         Pose2d gardenEnd = pose(-wall, wall, GARDEN_HEADING_DEG);
         Pose2d clearOfHive = pose(24, 38, 0);
-        Pose2d shootSpot = pose(wall, 11, 180);
+        Pose2d shootSpot = pose(backWall, 11, 180);
         Pose2d flowerNear = pose(51, 24, 180);
         Pose2d flowerAt = pose(59, 24, 180);
 

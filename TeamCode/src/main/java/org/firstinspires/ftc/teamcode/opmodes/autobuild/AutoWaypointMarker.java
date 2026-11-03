@@ -92,7 +92,7 @@ public class AutoWaypointMarker extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
+        double startX = -(FIELD_HALF_IN - profile.originFromBackIn);   // back against the wall
 
         // built in INIT with the BLUE start; re-seeded when a start is chosen (the robot has not moved)
         boolean blue = true, chosen = false;

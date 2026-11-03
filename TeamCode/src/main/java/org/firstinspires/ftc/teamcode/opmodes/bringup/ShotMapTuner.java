@@ -60,7 +60,7 @@ public class ShotMapTuner extends LinearOpMode {
      * The start pose for the 2026-11-01 shot map session: against the AUDIENCE wall (X = 72 less half the 17 in robot depth), Y = -16.5, facing the
      * rear wall (180 deg). The HIVE centerlines are Y = +12.75 (blue) and -12.75 (red). The same for either alliance.
      */
-    public static double START_X_IN = 63.5;
+    public static double START_X_IN = 64.4;   // 72 - the origin's 7.6 in from the back edge (back against the audience wall, facing -X)
     public static double START_Y_IN = -16.5;
     public static double START_HEADING_DEG = 180.0;
     public static double MANUAL_DISTANCE_IN = 0.0;

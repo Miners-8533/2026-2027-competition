@@ -30,8 +30,8 @@ import java.util.Locale;
  * the mechanisms through the {@link Mechanisms} coordinator.
  *
  * Start pose: if an auto ran recently (see AUTO_POSE_MAX_AGE_SEC) the TeleOp starts from the pose and alliance the
- * auto saved in {@link PoseStorage}; otherwise from the alliance's default start pose: blue (-63.5, +16) facing +X against the
- * rear wall, red (+63.5, -16) facing -X against the audience wall (the same pose turned 180 deg about the center, so neither
+ * auto saved in {@link PoseStorage}; otherwise from the alliance's default start pose: blue (-64.4, +16) facing +X against the
+ * rear wall, red (+64.4, -16) facing -X against the audience wall (the same pose turned 180 deg about the center, so neither
  * starts on a flower). The INIT screen says which.
  * It also reports whether both gamepads are assigned (Start + A on the driver's controller, Start + B on the
  * operator's), because a gamepad that is not assigned silently does nothing.
@@ -205,7 +205,7 @@ public class TeleOpCompetition extends LinearOpMode {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
-        double startX = -(FIELD_HALF_IN - profile.robotDepthIn / 2.0);
+        double startX = -(FIELD_HALF_IN - profile.originFromBackIn);   // back against the wall
 
         boolean useAutoPose = PoseStorage.isFresh(AUTO_POSE_MAX_AGE_SEC);
         boolean blue = useAutoPose ? PoseStorage.isBlue() : true;
