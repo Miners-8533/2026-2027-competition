@@ -41,8 +41,8 @@ import java.util.Locale;
  *
  *   1. Start (the TeleOp's start pose: back against the wall, y 16): turn onto the rear cell and shoot the preload.
  *   2. Garden pre-position (heading 90, facing the Blue Wall), then the garden pickup with the intake running, driving along the rear wall.
- *   3. To the shot spot for the audience cell (the open cell after the first tip) with the intake still running, so every element gets in (it stops by
- *      itself at 4, and is switched off on arrival); aim, shoot.
+ *   3. Around the outside of the hive's support rails via a helper point (HELPER_X, HELPER_Y), then to the shot spot for the audience cell (the open cell
+ *      after the first tip), with the intake still running so every element gets in (it stops by itself at 4, and is switched off on arrival); aim, shoot.
  *   4. Deploy the ramp on the way to the flower pre-position (heading 0) and wait for it to settle; drive onto the flower with the intake running;
  *      pause there until the robot holds 4 elements (at most FLOWER_PAUSE_MAX_SEC).
  *   5. Stow the ramp, back to the same shot spot, aim, shoot.
@@ -70,14 +70,22 @@ public class AutonSolo extends LinearOpMode {
     public static double FLOWER_PRE_X = 43.0, FLOWER_PRE_Y = 21.3, FLOWER_HEADING_DEG = 0.0;
     public static double FLOWER_AT_X = 55.3, FLOWER_AT_Y = 21.3;
     public static double PARK_X = 51.1, PARK_Y = 54.0, PARK_HEADING_DEG = 180.0;
+    /**
+     * The helper point between the garden and the shot spot, to go around the OUTSIDE of the hive's two support rails (along the row borders 2|3 and 4|5, columns C to D,
+     * so y = +-23.7 from x = -23.7 to +23.7; the 2026-11-03 run stopped with its back corner on the rail end at about (-23.7, 23.7)). (36, 40) keeps the robot's
+     * footprint at least 8 in from the rail end (controller simulation) and the path 145 in long. Its heading is the shot spot's aim heading.
+     */
+    public static double HELPER_X = 36.0, HELPER_Y = 40.0;
     /** Drive to a point level with the shot spot (x = PARK_X) before the park run, so the path does not pass the flower at the audience wall. */
     public static boolean PARK_VIA_POINT = true;
 
     // ---- timing ----
     /** At the flower: pause until the robot holds 4 elements, but no longer than this. */
     public static double FLOWER_PAUSE_MAX_SEC = 2.0;
-    /** Hard cap for each drive leg (the DriveToPose default of 4 s is too short for the long diagonal). */
-    public static double LEG_TIMEOUT_SEC = 8.0;
+    /** Each drive leg's hard cap is max(TIMEOUT_MIN_SEC, TIMEOUT_BASE_SEC + distance / TIMEOUT_IN_PER_S) + TIMEOUT_TURN_EXTRA_SEC for a turn of over 120 deg, never more than TIMEOUT_MAX_SEC. */
+    public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
+    /** Pass-through points (the garden, the helper, the park via point) only need to get near: a leg ends within this position and heading. The shot spots and the flower keep the tight DriveToPose tolerance. */
+    public static double COARSE_POS_IN = 3.0, COARSE_HEADING_DEG = 10.0;
 
     private static Pose2d pose(double x, double y, double headingDeg) {
         return new Pose2d(x, y, Math.toRadians(headingDeg));
@@ -122,8 +130,35 @@ public class AutonSolo extends LinearOpMode {
         };
     }
 
+    /** A drive leg that must settle (the shot spots, the flower): the tight DriveToPose tolerance. */
     private Action leg(String label, MecanumDrive drive, Pose2d target) {
-        return timed("drive: " + label, new DriveToPose(drive, target).withTimeout(LEG_TIMEOUT_SEC));
+        return timed("drive: " + label, new DriveToPose(drive, target).withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+    }
+
+    /** A pass-through leg: ends as soon as the robot is near. */
+    private Action passLeg(String label, MecanumDrive drive, Pose2d target) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(COARSE_POS_IN, COARSE_HEADING_DEG)
+                .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+    }
+
+    /** Commands the ramp only if it is not already heading there (a repeated command restarts its travel timer), then waits until it has settled. */
+    private Action rampTo(Mechanisms mechanisms, boolean deployed) {
+        return new Action() {
+            private boolean started = false;
+
+            @Override
+            public boolean run(TelemetryPacket packet) {
+                if (mechanisms.ramp == null || !mechanisms.ramp.isConfigured()) return false;
+                if (!started) {
+                    started = true;
+                    if (mechanisms.ramp.isDeployedTarget() != deployed) {
+                        if (deployed) mechanisms.requestDeploy();
+                        else mechanisms.requestStowNow();
+                    }
+                }
+                return !mechanisms.ramp.isSettled();
+            }
+        };
     }
 
     /** Aim at the cell with the lock, shoot one salvo, and finish when it is done. */
@@ -222,6 +257,8 @@ public class AutonSolo extends LinearOpMode {
         Pose2d shotXY = forAlliance(shotSpotBlueFrame, isBlue);
         double shotHeading = TargetLock.aimHeadingRad(shotXY.position.x, shotXY.position.y, secondCell, TargetLock.farCellExtraLeftIn(secondCell, isBlue));
         Pose2d shotSpot = new Pose2d(shotXY.position.x, shotXY.position.y, shotHeading);
+        double blueShotHeadingDeg = Math.toDegrees(TargetLock.aimHeadingRad(SHOT_X, SHOT_Y, HiveTarget.BLUE_AUDIENCE, TargetLock.farCellExtraLeftIn(HiveTarget.BLUE_AUDIENCE, true)));
+        Pose2d helper = forAlliance(pose(HELPER_X, HELPER_Y, blueShotHeadingDeg), isBlue);   // outside the support rails, at the shot spot's heading
         Pose2d flowerPre = forAlliance(pose(FLOWER_PRE_X, FLOWER_PRE_Y, FLOWER_HEADING_DEG), isBlue);
         Pose2d flowerAt = forAlliance(pose(FLOWER_AT_X, FLOWER_AT_Y, FLOWER_HEADING_DEG), isBlue);
         Pose2d parkVia = forAlliance(pose(PARK_X, SHOT_Y, PARK_HEADING_DEG), isBlue);
@@ -244,13 +281,15 @@ public class AutonSolo extends LinearOpMode {
                 shoot(drive, mechanisms, firstCell, isBlue, "preload"),
 
                 note("Garden pre-position"),
-                leg("garden pre-position", drive, gardenPre),
+                passLeg("garden pre-position", drive, gardenPre),
                 note("Intake ON: garden"),
                 mechanisms.setIntake(true),
-                leg("garden pickup", drive, gardenEnd),
+                passLeg("garden pickup", drive, gardenEnd),
 
                 new InstantAction(() -> mechanisms.setOpenCell(secondCell)),   // the tip flipped the cell; the flywheel follows the new distance on the way
-                note("To the shot spot, intake still ON so every element gets in"),
+                note("Around the outside of the hive support rails, intake still ON so every element gets in"),
+                passLeg("helper (outside the support rails)", drive, helper),
+                note("To the shot spot"),
                 leg("shot spot 1", drive, shotSpot),
                 note("Intake OFF"),
                 mechanisms.setIntake(false),
@@ -259,7 +298,7 @@ public class AutonSolo extends LinearOpMode {
                 new InstantAction(mechanisms::requestDeploy),                   // deploys on the way
                 note("Flower pre-position"),
                 leg("flower pre-position", drive, flowerPre),
-                timed("ramp deploy", mechanisms.deploy()),                                            // fully deployed before it goes on
+                timed("ramp deploy (wait)", rampTo(mechanisms, true)),         // fully deployed before it goes on; no second command
                 note("Intake ON: flower"),
                 mechanisms.setIntake(true),
                 leg("flower", drive, flowerAt),
@@ -269,11 +308,11 @@ public class AutonSolo extends LinearOpMode {
                 new InstantAction(mechanisms::requestStow),                     // waits by itself until the robot is clear of the flower
                 note("Back to the shot spot"),
                 leg("shot spot 2", drive, shotSpot),
-                timed("ramp stow", mechanisms.stowNow()),
+                timed("ramp stow (wait)", rampTo(mechanisms, false)),
                 shoot(drive, mechanisms, secondCell, isBlue, "flower pollen"),
 
                 note("Park"),
-                PARK_VIA_POINT ? leg("park via point", drive, parkVia) : new InstantAction(() -> { }),
+                PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),
                 leg("park", drive, park),
                 new InstantAction(mechanisms::stopFlywheel)
         );

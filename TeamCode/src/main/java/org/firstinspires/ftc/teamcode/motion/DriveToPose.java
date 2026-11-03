@@ -56,6 +56,9 @@ public final class DriveToPose implements Action {
     private final MecanumDrive drive;
     private final Pose2d target;
     private double timeoutSec = TIMEOUT_SEC;
+    private double posTolIn = Double.NaN, headTolDeg = Double.NaN;   // NaN: the statics
+    private boolean distanceTimeout = false;
+    private double dtBaseSec, dtInPerSec, dtMinSec, dtTurnExtraSec, dtMaxSec;
 
     private final PidController xCtrl = new PidController(AXIAL_kP, AXIAL_kI, AXIAL_kD);
     private final PidController yCtrl = new PidController(LATERAL_kP, LATERAL_kI, LATERAL_kD);
@@ -76,6 +79,28 @@ public final class DriveToPose implements Action {
         return this;
     }
 
+    /** Use this position (inches) and heading (degrees) tolerance for this drive instead of the statics: a coarse one for a pass-through point. */
+    public DriveToPose withTolerance(double posIn, double headingDeg) {
+        posTolIn = posIn;
+        headTolDeg = headingDeg;
+        return this;
+    }
+
+    /**
+     * The hard cap is worked out when the drive starts, from how far it has to go and how far it has to turn: max(minSec, baseSec + distance / inPerSec),
+     * plus turnExtraSec for a turn of more than 120 degrees, and never more than maxSec. The measured speed of ROBOT_1 on 2026-11-03 was about 22 to 26 in/s
+     * averaged over a long leg (51 in/s at the peak) and a short leg of 20 in arrived in about 1 s.
+     */
+    public DriveToPose withDistanceTimeout(double baseSec, double inPerSec, double minSec, double turnExtraSec, double maxSec) {
+        distanceTimeout = true;
+        dtBaseSec = baseSec;
+        dtInPerSec = inPerSec;
+        dtMinSec = minSec;
+        dtTurnExtraSec = turnExtraSec;
+        dtMaxSec = maxSec;
+        return this;
+    }
+
     @Override
     public boolean run(TelemetryPacket packet) {
         if (!initialized) {
@@ -86,9 +111,15 @@ public final class DriveToPose implements Action {
             yCtrl.reset();
             hCtrl.reset();
             Pose2d from = drive.getPose();
-            RunLog.event(String.format("DRIVE start: (%.1f, %.1f, %.0f deg) -> (%.1f, %.1f, %.0f deg)",
+            if (distanceTimeout) {
+                double dist = Math.hypot(target.position.x - from.position.x, target.position.y - from.position.y);
+                double turn = Math.abs(Rotation2d.normalize(target.heading.toDouble() - from.heading.toDouble()));
+                timeoutSec = Math.min(dtMaxSec, Math.max(dtMinSec, dtBaseSec + dist / dtInPerSec) + (turn > Math.toRadians(120.0) ? dtTurnExtraSec : 0.0));
+            }
+            RunLog.event(String.format("DRIVE start: (%.1f, %.1f, %.0f deg) -> (%.1f, %.1f, %.0f deg), timeout %.1f s%s",
                     from.position.x, from.position.y, from.heading.toDegrees(),
-                    target.position.x, target.position.y, target.heading.toDegrees()));
+                    target.position.x, target.position.y, target.heading.toDegrees(), timeoutSec,
+                    Double.isNaN(posTolIn) ? "" : String.format(", tolerance %.1f in / %.0f deg", posTolIn, headTolDeg)));
         }
         applyGains();
 
@@ -109,8 +140,8 @@ public final class DriveToPose implements Action {
         drive.setDrivePowers(new PoseVelocity2d(robotVel, omega));
 
         double posError = Math.hypot(errX, errY);
-        boolean inTolerance = posError < POS_TOLERANCE_IN
-                && Math.abs(errH) < Math.toRadians(HEADING_TOLERANCE_DEG);
+        boolean inTolerance = posError < (Double.isNaN(posTolIn) ? POS_TOLERANCE_IN : posTolIn)
+                && Math.abs(errH) < Math.toRadians(Double.isNaN(headTolDeg) ? HEADING_TOLERANCE_DEG : headTolDeg);
         if (!inTolerance) {
             settle.reset();
         }
