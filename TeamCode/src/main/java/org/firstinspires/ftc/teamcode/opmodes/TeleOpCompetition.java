@@ -52,7 +52,9 @@ import java.util.Locale;
  *   right stick X        turn
  *   left trigger (hold)  precision mode (30%)
  *   A                    fire a salvo (spins up and fires when ready); also cancels a running reject, the way out of a jam the other way.
- *                        Works with any number of elements held, locked or not.
+ *                        Works with any number of elements held, locked or not. While the target lock (right trigger) is held and not yet ALIGNED the fire is QUEUED until it is
+ *                        (FIRE_WAITS_FOR_ALIGN): it goes the moment the lock aligns, and is dropped if the trigger is released or FIRE_ALIGN_WAIT_SEC passes (10 of 19 salvos on
+ *                        2026-11-03 went before the lock was aligned, two pointing 70 to 110 deg off the cell).
  *   right trigger (hold) TARGET LOCK by hand: while it is held the robot turns itself to point its front (intake and shooter end) at the nearest of your alliance's two
  *                        CELLs while you keep driving; with the left bumper also held the right stick nudges the aim up to 15 deg (without it the stick does nothing while
  *                        locked); ALIGNED on the screen says it is on target. The automatic lock when the robot is full is OFF (AUTO_LOCK_WHEN_FULL = false: a sliding
@@ -111,6 +113,9 @@ public class TeleOpCompetition extends LinearOpMode {
     public static double RESEED_HOLD_SEC = 1.0;
     /** True: target lock also engages by itself when the robot holds a full load (until the salvo is done). OFF since 2026-11-03: the lock is held by the driver's right trigger. */
     public static boolean AUTO_LOCK_WHEN_FULL = false;
+    /** With the lock held and not ALIGNED, the driver's fire waits for ALIGNED (at most this long, then it is dropped) instead of firing at once. */
+    public static boolean FIRE_WAITS_FOR_ALIGN = true;
+    public static double FIRE_ALIGN_WAIT_SEC = 1.5;
     /** One rumble pulse on both controllers each time the robot becomes full (4 elements, confirmed). Needs a gamepad with rumble. */
     public static int FULL_RUMBLE_MS = 250;
     /** BACKUP MODE: the fixed shot distance (the start position's distance to the cell), and how long the Pinpoint must stay faulted before it is not just a blip. */
@@ -298,6 +303,8 @@ public class TeleOpCompetition extends LinearOpMode {
         ElapsedTime backupHold = new ElapsedTime();
         ElapsedTime reseedHold = new ElapsedTime();
         boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, wasFull = false, pinpointBad = false;
+        boolean fireWaiting = false;   // a driver fire queued until the lock is ALIGNED
+        ElapsedTime fireAlignClock = new ElapsedTime();
         boolean autoFireOn = false, autoFireDone = false, autoFireInZone = false;   // auto-fire: the operator's toggle, taken or given up for this lock, inside a zone now
         String autoFireState = "";
         ElapsedTime autoFireZoneClock = new ElapsedTime();
@@ -505,7 +512,30 @@ public class TeleOpCompetition extends LinearOpMode {
             // operator
             mechanisms.setManualIntake(gamepad2.right_trigger > TRIGGER_THRESHOLD);
             mechanisms.setManualOuttake(gamepad2.left_trigger > TRIGGER_THRESHOLD);
+            boolean fireNow = false;
             if (gamepad1.aWasPressed()) {
+                if (FIRE_WAITS_FOR_ALIGN && lockOn && !targetLock.isAligned()) {
+                    fireWaiting = true;
+                    fireAlignClock.reset();
+                    RunLog.event(String.format(Locale.US, "FIRE queued until the lock is ALIGNED (error %+.1f deg, at most %.1f s)", targetLock.errorDeg(), FIRE_ALIGN_WAIT_SEC));
+                } else {
+                    fireNow = true;
+                }
+            }
+            if (fireWaiting) {
+                if (!lockOn) {
+                    fireWaiting = false;
+                    RunLog.event("FIRE queue dropped: the lock was released before it aligned");
+                } else if (targetLock.isAligned()) {
+                    fireWaiting = false;
+                    fireNow = true;
+                    RunLog.event(String.format(Locale.US, "FIRE released: aligned after %.2f s", fireAlignClock.seconds()));
+                } else if (fireAlignClock.seconds() > FIRE_ALIGN_WAIT_SEC) {
+                    fireWaiting = false;
+                    RunLog.event(String.format(Locale.US, "FIRE queue dropped: still not aligned after %.1f s (error %+.1f deg)", FIRE_ALIGN_WAIT_SEC, targetLock.errorDeg()));
+                }
+            }
+            if (fireNow) {
                 lastFireAim = aimSummary(pose, mechanisms, blue, lockOn);
                 lastFireCell = mechanisms.getOpenCell();
                 RunLog.event("FIRE requested: " + lastFireAim);
@@ -565,6 +595,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 telemetry.addData("Reseed pose", "keep holding LB + RB... %.1f s", RESEED_HOLD_SEC - reseedHold.seconds());
             }
             telemetry.addData("Drive", backupMode ? "ROBOT-ORIENTED (backup mode)" : fieldOriented ? "field-oriented" : "robot-oriented");
+            if (fireWaiting) telemetry.addData("Fire", "QUEUED: waiting for the lock to be ALIGNED (%.1f s left)", Math.max(0.0, FIRE_ALIGN_WAIT_SEC - fireAlignClock.seconds()));
             telemetry.addData("Target lock (driver right trigger, held)", lockOn
                     ? String.format(Locale.US, "ON -> %s, bearing %.1f deg, error %+.1f deg%s", mechanisms.getOpenCell(), targetLock.bearingDeg(),
                             targetLock.errorDeg(), targetLock.isAligned() ? "   ALIGNED" : "")
