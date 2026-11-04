@@ -51,9 +51,9 @@ import java.util.Locale;
  *   left stick           drive, field-oriented: up = away from the driver, right = the driver's right
  *   right stick X        turn
  *   left trigger (hold)  precision mode (30%)
- *   A                    fire a salvo (spins up and fires when ready); also cancels a running reject, the way out of a jam the other way.
- *                        Works with any number of elements held, locked or not. While the target lock (right trigger) is held and not yet ALIGNED the fire is QUEUED until it is
- *                        (FIRE_WAITS_FOR_ALIGN): it goes the moment the lock aligns, and is dropped if the trigger is released or FIRE_ALIGN_WAIT_SEC passes (10 of 19 salvos on
+ *   A                    launch a salvo (spins up and launches when ready); also cancels a running reject, the way out of a jam the other way.
+ *                        Works with any number of elements held, locked or not. While the target lock (right trigger) is held and not yet ALIGNED the launch is QUEUED until it is
+ *                        (LAUNCH_WAITS_FOR_ALIGN): it goes the moment the lock aligns, and is dropped if the trigger is released or LAUNCH_ALIGN_WAIT_SEC passes (10 of 19 salvos on
  *                        2026-11-03 went before the lock was aligned, two pointing 70 to 110 deg off the cell).
  *   right trigger (hold) TARGET LOCK by hand: while it is held the robot turns itself to point its front (intake and shooter end) at the nearest of your alliance's two
  *                        CELLs while you keep driving; with the left bumper also held the right stick nudges the aim up to 15 deg (without it the stick does nothing while
@@ -65,18 +65,18 @@ import java.util.Locale;
  *   (the intake has no toggle: it runs IN until the robot holds 4 elements, then stops; Mechanisms.FULL_RUNS_OUT makes it run OUT instead)
  *   right trigger (hold) force the intake IN, even when full
  *   left trigger (hold)  force the intake OUT
- *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued fire
+ *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued launch
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
  *   D-pad (unguarded)    REPORT where the LAST salvo landed, seen from behind the robot: left = it landed LEFT (the remembered aim for that cell turns 1.5 deg right),
  *                        right = landed RIGHT (1.5 deg left), down = landed LOW / UNDER (speed trim +10 ticks/s), up = landed HIGH / OVER (speed trim -10). The remembered aim is kept
- *                        per CELL (the cell of the last fire), is used by the next lock on that cell, and is cleared by a driver reseed; the speed trim is one shared offset
- *                        added to the shot map's speed (the manual setpoint while the map is empty). Each report is logged with the aim of the last fire.
- *   hold left bumper + D-pad left / right   clear the remembered aim of the last fired cell;  hold left bumper + D-pad up / down   clear the speed trim
+ *                        per CELL (the cell of the last launch), is used by the next lock on that cell, and is cleared by a driver reseed; the speed trim is one shared offset
+ *                        added to the shot map's speed (the manual setpoint while the map is empty). Each report is logged with the aim of the last launch.
+ *   hold left bumper + D-pad left / right   clear the remembered aim of the last launched cell;  hold left bumper + D-pad up / down   clear the speed trim
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
  *   right bumper         AUTO-LAUNCH on / off (a toggle, off at Start; a prototype). With it on, while the target lock is on (automatic or manual) and the robot is inside the
  *                        shot zone of the cell it is locked on (see {@link AutoLaunch}), the chassis stops by itself and, once the lock is ALIGNED and the robot has stopped,
- *                        one salvo is fired. It does nothing when the counter reads 0 elements, and the driver gets the robot back if the shot has not gone within
+ *                        one salvo is launched. It does nothing when the counter reads 0 elements, and the driver gets the robot back if the shot has not gone within
  *                        AutoLaunch.FREEZE_MAX_SEC. The salvo releases the lock as always.
  *   hold left bumper + Y pusher calibration sweep now (the track must be empty; the intake is held off by itself until it ends; again to stop it); Y alone stows
  *   (no control clears a pusher fault: the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
@@ -113,9 +113,9 @@ public class TeleOpCompetition extends LinearOpMode {
     public static double RESEED_HOLD_SEC = 1.0;
     /** True: target lock also engages by itself when the robot holds a full load (until the salvo is done). OFF since 2026-11-03: the lock is held by the driver's right trigger. */
     public static boolean AUTO_LOCK_WHEN_FULL = false;
-    /** With the lock held and not ALIGNED, the driver's fire waits for ALIGNED (at most this long, then it is dropped) instead of firing at once. */
-    public static boolean FIRE_WAITS_FOR_ALIGN = true;
-    public static double FIRE_ALIGN_WAIT_SEC = 1.5;
+    /** With the lock held and not ALIGNED, the driver's launch waits for ALIGNED (at most this long, then it is dropped) instead of firing at once. */
+    public static boolean LAUNCH_WAITS_FOR_ALIGN = true;
+    public static double LAUNCH_ALIGN_WAIT_SEC = 1.5;
     /** One rumble pulse on both controllers each time the robot becomes full (4 elements, confirmed). Needs a gamepad with rumble. */
     public static int FULL_RUMBLE_MS = 250;
     /** BACKUP MODE: the fixed shot distance (the start position's distance to the cell), and how long the Pinpoint must stay faulted before it is not just a blip. */
@@ -170,7 +170,7 @@ public class TeleOpCompetition extends LinearOpMode {
     }
 
     /**
-     * One line describing the aim at this moment, for the FIRE log events and the operator's reports: the pose, the target cell and its distance, the bearing to it,
+     * One line describing the aim at this moment, for the LAUNCH log events and the operator's reports: the pose, the target cell and its distance, the bearing to it,
      * where the target sits relative to the robot's front line, and the miss predicted from the shooter's sideways offset (+ = the shot lands to the
      * LEFT of the target, - = to the RIGHT, seen from behind the robot). Compare the predicted miss with the reports of left or right.
      */
@@ -303,14 +303,14 @@ public class TeleOpCompetition extends LinearOpMode {
         ElapsedTime backupHold = new ElapsedTime();
         ElapsedTime reseedHold = new ElapsedTime();
         boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, wasFull = false, pinpointBad = false;
-        boolean fireWaiting = false;   // a driver fire queued until the lock is ALIGNED
-        ElapsedTime fireAlignClock = new ElapsedTime();
+        boolean launchWaiting = false;   // a driver launch queued until the lock is ALIGNED
+        ElapsedTime launchAlignClock = new ElapsedTime();
         boolean autoLaunchOn = false, autoLaunchDone = false, autoLaunchInZone = false;   // auto-launch: the operator's toggle, taken or given up for this lock, inside a zone now
         String autoLaunchState = "";
         ElapsedTime autoLaunchZoneClock = new ElapsedTime();
         ElapsedTime autoLaunchStillClock = new ElapsedTime();
-        String lastFireAim = "none yet";   // the aim line of the last fire (with the lock state and nudge then), repeated in the operator's reports that follow it
-        HiveTarget lastFireCell = null;    // the cell of the last fire: the operator's report of where it landed applies to this cell
+        String lastLaunchAim = "none yet";   // the aim line of the last launch (with the lock state and nudge then), repeated in the operator's reports that follow it
+        HiveTarget lastLaunchCell = null;    // the cell of the last launch: the operator's report of where it landed applies to this cell
         ElapsedTime pinpointBadFor = new ElapsedTime();
         ElapsedTime loopClock = new ElapsedTime();
 
@@ -389,7 +389,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (!autoLockSuppressed) autoLockLatched = true;
             } else {
                 autoLockSuppressed = false;
-                if (!mechanisms.isFireBusy()) autoLockLatched = false;
+                if (!mechanisms.isLaunchBusy()) autoLockLatched = false;
             }
             boolean lockWanted = !backupMode && (manualLock || (AUTO_LOCK_WHEN_FULL && autoLockLatched));
             if (lockWanted) {
@@ -446,12 +446,12 @@ public class TeleOpCompetition extends LinearOpMode {
                         cmdForward = 0.0;
                         cmdLeft = 0.0;
                         autoLaunchState = String.format(Locale.US, "IN ZONE: stopping (%s, %.1f in/s)", aligned ? "aligned" : "aligning", speed);
-                        if (autoLaunchStillClock.seconds() >= AutoLaunch.ALIGNED_HOLD_SEC && !mechanisms.isFireBusy()) {
+                        if (autoLaunchStillClock.seconds() >= AutoLaunch.ALIGNED_HOLD_SEC && !mechanisms.isLaunchBusy()) {
                             autoLaunchDone = true;
-                            lastFireAim = aimSummary(pose, mechanisms, blue, lockOn);
-                            lastFireCell = lockTarget;
-                            RunLog.event(String.format(Locale.US, "AUTO LAUNCH: %.2f s after entering the zone, speed %.1f in/s | %s", autoLaunchZoneClock.seconds(), speed, lastFireAim));
-                            mechanisms.requestFire();
+                            lastLaunchAim = aimSummary(pose, mechanisms, blue, lockOn);
+                            lastLaunchCell = lockTarget;
+                            RunLog.event(String.format(Locale.US, "AUTO LAUNCH: %.2f s after entering the zone, speed %.1f in/s | %s", autoLaunchZoneClock.seconds(), speed, lastLaunchAim));
+                            mechanisms.requestLaunch();
                         }
                     }
                 }
@@ -512,34 +512,34 @@ public class TeleOpCompetition extends LinearOpMode {
             // operator
             mechanisms.setManualIntake(gamepad2.right_trigger > TRIGGER_THRESHOLD);
             mechanisms.setManualOuttake(gamepad2.left_trigger > TRIGGER_THRESHOLD);
-            boolean fireNow = false;
+            boolean launchNow = false;
             if (gamepad1.aWasPressed()) {
-                if (FIRE_WAITS_FOR_ALIGN && lockOn && !targetLock.isAligned()) {
-                    fireWaiting = true;
-                    fireAlignClock.reset();
-                    RunLog.event(String.format(Locale.US, "FIRE queued until the lock is ALIGNED (error %+.1f deg, at most %.1f s)", targetLock.errorDeg(), FIRE_ALIGN_WAIT_SEC));
+                if (LAUNCH_WAITS_FOR_ALIGN && lockOn && !targetLock.isAligned()) {
+                    launchWaiting = true;
+                    launchAlignClock.reset();
+                    RunLog.event(String.format(Locale.US, "LAUNCH queued until the lock is ALIGNED (error %+.1f deg, at most %.1f s)", targetLock.errorDeg(), LAUNCH_ALIGN_WAIT_SEC));
                 } else {
-                    fireNow = true;
+                    launchNow = true;
                 }
             }
-            if (fireWaiting) {
+            if (launchWaiting) {
                 if (!lockOn) {
-                    fireWaiting = false;
-                    RunLog.event("FIRE queue dropped: the lock was released before it aligned");
+                    launchWaiting = false;
+                    RunLog.event("LAUNCH queue dropped: the lock was released before it aligned");
                 } else if (targetLock.isAligned()) {
-                    fireWaiting = false;
-                    fireNow = true;
-                    RunLog.event(String.format(Locale.US, "FIRE released: aligned after %.2f s", fireAlignClock.seconds()));
-                } else if (fireAlignClock.seconds() > FIRE_ALIGN_WAIT_SEC) {
-                    fireWaiting = false;
-                    RunLog.event(String.format(Locale.US, "FIRE queue dropped: still not aligned after %.1f s (error %+.1f deg)", FIRE_ALIGN_WAIT_SEC, targetLock.errorDeg()));
+                    launchWaiting = false;
+                    launchNow = true;
+                    RunLog.event(String.format(Locale.US, "LAUNCH released: aligned after %.2f s", launchAlignClock.seconds()));
+                } else if (launchAlignClock.seconds() > LAUNCH_ALIGN_WAIT_SEC) {
+                    launchWaiting = false;
+                    RunLog.event(String.format(Locale.US, "LAUNCH queue dropped: still not aligned after %.1f s (error %+.1f deg)", LAUNCH_ALIGN_WAIT_SEC, targetLock.errorDeg()));
                 }
             }
-            if (fireNow) {
-                lastFireAim = aimSummary(pose, mechanisms, blue, lockOn);
-                lastFireCell = mechanisms.getOpenCell();
-                RunLog.event("FIRE requested: " + lastFireAim);
-                mechanisms.requestFire();
+            if (launchNow) {
+                lastLaunchAim = aimSummary(pose, mechanisms, blue, lockOn);
+                lastLaunchCell = mechanisms.getOpenCell();
+                RunLog.event("LAUNCH requested: " + lastLaunchAim);
+                mechanisms.requestLaunch();
             }
             if (gamepad2.rightBumperWasPressed()) {
                 autoLaunchOn = !autoLaunchOn;
@@ -556,7 +556,7 @@ public class TeleOpCompetition extends LinearOpMode {
             // the operator's reports of the last salvo (unguarded D-pad, seen from behind the robot); with the left bumper held they are resets instead
             boolean reportLeft = gamepad2.dpadLeftWasPressed(), reportRight = gamepad2.dpadRightWasPressed();
             boolean reportLow = gamepad2.dpadDownWasPressed(), reportHot = gamepad2.dpadUpWasPressed();   // down = landed LOW (more speed), up = landed HIGH (less speed)
-            HiveTarget reportCell = lastFireCell != null ? lastFireCell : mechanisms.getOpenCell();
+            HiveTarget reportCell = lastLaunchCell != null ? lastLaunchCell : mechanisms.getOpenCell();
             if (gamepad2.left_bumper) {
                 if (reportLeft || reportRight) {
                     cellNudgeDeg[reportCell.ordinal()] = 0.0;
@@ -568,12 +568,12 @@ public class TeleOpCompetition extends LinearOpMode {
                     double before = cellNudgeDeg[reportCell.ordinal()];
                     double after = Math.max(-NUDGE_MAX_DEG, Math.min(NUDGE_MAX_DEG, before + (reportRight ? NUDGE_STEP_DEG : -NUDGE_STEP_DEG)));   // landed LEFT: aim right (clockwise, negative)
                     cellNudgeDeg[reportCell.ordinal()] = after;
-                    RunLog.event(String.format(Locale.US, "REPORT landed %s (seen from behind the robot): remembered aim for %s %+.1f -> %+.1f deg | AT THE LAST FIRE: %s",
-                            reportLeft ? "LEFT" : "RIGHT", reportCell, before, after, lastFireAim));
+                    RunLog.event(String.format(Locale.US, "REPORT landed %s (seen from behind the robot): remembered aim for %s %+.1f -> %+.1f deg | AT THE LAST LAUNCH: %s",
+                            reportLeft ? "LEFT" : "RIGHT", reportCell, before, after, lastLaunchAim));
                 }
                 if (reportLow || reportHot) {
-                    RunLog.event(String.format(Locale.US, "REPORT landed %s: speed trim %+.0f ticks/s | AT THE LAST FIRE: %s", reportLow ? "LOW / UNDER" : "HIGH / OVER",
-                            reportLow ? SETPOINT_STEP : -SETPOINT_STEP, lastFireAim));
+                    RunLog.event(String.format(Locale.US, "REPORT landed %s: speed trim %+.0f ticks/s | AT THE LAST LAUNCH: %s", reportLow ? "LOW / UNDER" : "HIGH / OVER",
+                            reportLow ? SETPOINT_STEP : -SETPOINT_STEP, lastLaunchAim));
                     mechanisms.adjustManualSetpoint(reportLow ? SETPOINT_STEP : -SETPOINT_STEP);
                 }
             }
@@ -595,7 +595,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 telemetry.addData("Reseed pose", "keep holding LB + RB... %.1f s", RESEED_HOLD_SEC - reseedHold.seconds());
             }
             telemetry.addData("Drive", backupMode ? "ROBOT-ORIENTED (backup mode)" : fieldOriented ? "field-oriented" : "robot-oriented");
-            if (fireWaiting) telemetry.addData("Fire", "QUEUED: waiting for the lock to be ALIGNED (%.1f s left)", Math.max(0.0, FIRE_ALIGN_WAIT_SEC - fireAlignClock.seconds()));
+            if (launchWaiting) telemetry.addData("Launch", "QUEUED: waiting for the lock to be ALIGNED (%.1f s left)", Math.max(0.0, LAUNCH_ALIGN_WAIT_SEC - launchAlignClock.seconds()));
             telemetry.addData("Target lock (driver right trigger, held)", lockOn
                     ? String.format(Locale.US, "ON -> %s, bearing %.1f deg, error %+.1f deg%s", mechanisms.getOpenCell(), targetLock.bearingDeg(),
                             targetLock.errorDeg(), targetLock.isAligned() ? "   ALIGNED" : "")
@@ -605,7 +605,7 @@ public class TeleOpCompetition extends LinearOpMode {
                     cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()], mechanisms.getSpeedTrim());
             telemetry.addData("Auto-launch (operator RB toggles)", backupMode ? "off (backup mode)" : autoLaunchOn ? "ON: " + autoLaunchState : "off");
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive, hold LT precision, hold RT target lock, A fire, hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
+            telemetry.addLine("GP1: stick drive, hold LT precision, hold RT target lock, A launch, hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
             telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-launch on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
             telemetry.update();

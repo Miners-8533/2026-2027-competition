@@ -176,7 +176,7 @@ const AUTOS = {
       { k: "LEAVE_DISTANCE_IN", v: 6, hint: "just clear the perimeter wall" },
       { group: "Simulated volley" },
       { k: "SPIN_UP_SEC", v: 1.5 },
-      { k: "FIRE_SEC", v: 1.0 },
+      { k: "LAUNCH_SEC", v: 1.0 },
       { group: "Page-only timing assumptions" },
       { k: "DRIVE_SPEED_IPS", v: 35, hint: "assumed cruise speed, NOT measured" },
       { k: "TURN_RATE_DPS", v: 180, hint: "assumed turn rate, NOT measured" },
@@ -190,7 +190,7 @@ const AUTOS = {
         steps: [
           { type: "drive", label: "LEAVE", detail: "DriveToPose", to: leave },
           { type: "sleep", label: "Simulated spin-up", sec: p.SPIN_UP_SEC },
-          { type: "sleep", label: "Simulated fire x4 (preload -> blue CELL)", sec: p.FIRE_SEC },
+          { type: "sleep", label: "Simulated launch x4 (preload -> blue CELL)", sec: p.LAUNCH_SEC },
         ],
       };
     },
@@ -207,7 +207,7 @@ const AUTOS = {
       { k: "GARDEN_HEADING_DEG", v: 90, hint: "the intake (front) end leads: 90. -90 = the back leads" },
       { group: "Simulated shots" },
       { k: "SPIN_UP_SEC", v: 1.5 },
-      { k: "FIRE_SEC", v: 1.0 },
+      { k: "LAUNCH_SEC", v: 1.0 },
       { group: "Page-only timing assumptions" },
       { k: "DRIVE_SPEED_IPS", v: 35, hint: "assumed cruise speed, NOT measured" },
       { k: "TURN_RATE_DPS", v: 180, hint: "assumed turn rate, NOT measured" },
@@ -215,7 +215,7 @@ const AUTOS = {
     build(p) {
       const wall = HALF - p.ROBOT_DEPTH_IN / 2;                 // robot center distance from a wall it touches
       const at = (x, y, h) => ({ x, y, h });
-      const shot = p.SPIN_UP_SEC + p.FIRE_SEC;
+      const shot = p.SPIN_UP_SEC + p.LAUNCH_SEC;
       const shootSpot = at(wall, 11, 180);
       return {
         start: at(-wall, 16, 0),

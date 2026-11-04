@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Builds the shot map on the real robot. Drive to a distance from the open CELL, set the flywheel speed, fire real elements until they
+ * Builds the shot map on the real robot. Drive to a distance from the open CELL, set the flywheel speed, launch real elements until they
  * score, and record the pair. The recorded points are interpolated live (so you can test the map as you go) and printed as lines to
  * paste into ShotMap.TABLE (and written to the log). It runs the real mechanisms (the {@link Mechanisms} coordinator), so a shot is
  * the same as in the match: the flywheel must be ready, the pusher turns, the intake and the element counter work, and the pusher check runs
@@ -35,7 +35,7 @@ import java.util.Locale;
  *   Right trigger                intake on / off (toggle; stops itself at 4 elements)      Left trigger (hold): outtake
  *   X                            flywheel on / off
  *   D-pad up / down              setpoint +/- STEP ticks/s (ignored while auto speed is on)
- *   Y                            FIRE a salvo (spins up if needed, fires when the flywheel is ready)
+ *   Y                            LAUNCH a salvo (spins up if needed, launches when the flywheel is ready)
  *   B                            record (distance, setpoint) as a point (replaces a point within 1 in)
  *   A                            remove the most recently recorded point
  *   D-pad left / right           cycle the target CELL (blue rear, blue audience, red rear, red audience)
@@ -193,10 +193,10 @@ public class ShotMapTuner extends LinearOpMode {
             prevIntakeTrigger = intakeTrigger;
             mechanisms.setManualOuttake(gamepad1.left_trigger > TRIGGER_THRESHOLD);
             if (gamepad1.yWasPressed()) {
-                RunLog.event(String.format(Locale.US, "FIRE pressed: pose %.1f, %.1f, %.0f deg, %s at %.1f in%s, setpoint %.0f",
+                RunLog.event(String.format(Locale.US, "LAUNCH pressed: pose %.1f, %.1f, %.0f deg, %s at %.1f in%s, setpoint %.0f",
                         pose.position.x, pose.position.y, pose.heading.toDegrees(), target,
                         MANUAL_DISTANCE_IN > 0 ? MANUAL_DISTANCE_IN : target.distanceFrom(pose), MANUAL_DISTANCE_IN > 0 ? " (typed)" : "", setpoint));
-                mechanisms.requestFire();
+                mechanisms.requestLaunch();
             }
 
             double distance = MANUAL_DISTANCE_IN > 0 ? MANUAL_DISTANCE_IN : target.distanceFrom(pose);
@@ -243,7 +243,7 @@ public class ShotMapTuner extends LinearOpMode {
             for (double[] p : points) {
                 telemetry.addLine(String.format("        {%.1f, %.0f},", p[0], p[1]));
             }
-            telemetry.addLine("RT intake, Y FIRE, X spin, B record, A undo, D-pad up/down speed, D-pad left/right target, LB auto speed, Back clear fault (hold = reseed pose)");
+            telemetry.addLine("RT intake, Y LAUNCH, X spin, B record, A undo, D-pad up/down speed, D-pad left/right target, LB auto speed, Back clear fault (hold = reseed pose)");
             telemetry.update();
         }
         StringBuilder table = new StringBuilder("SHOT MAP at the end of the run, paste into ShotMap.TABLE:");

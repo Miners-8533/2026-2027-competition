@@ -3,7 +3,7 @@
     python tools/logs/shooter_offset.py                    # the newest bringup log under robot-logs/
     python tools/logs/shooter_offset.py path\to\bringup.log
 
-Each MARK good carries the pose at the last FIRE and "cell center N in left of the front line": the sideways distance from the robot's front line to the cell's
+Each MARK good carries the pose at the last LAUNCH and "cell center N in left of the front line": the sideways distance from the robot's front line to the cell's
 center. For a salvo that went through the center with the shooter lined up, that is the shooter's sideways offset from the pose point (positive = left) plus any
 hive or aim error. Per cell this prints the marks, their mean and spread. When both cells of a hive were marked (one shot facing +X, one facing -X) it also splits the
 two: with the robot facing +X the number is  s - t,  facing -X it is  s + t,  where s is the shooter's offset (left positive, the same at both headings, robot frame)
@@ -18,7 +18,7 @@ import statistics
 import sys
 from collections import defaultdict
 
-MARK = re.compile(r"E,([\d.]+),MARK (good|landed LEFT|landed RIGHT) \| AT THE LAST FIRE: FIRE pose \(([-\d.]+), ([-\d.]+), ([-\d.]+) deg\), cell (\w+) "
+MARK = re.compile(r"E,([\d.]+),MARK (good|landed LEFT|landed RIGHT) \| AT THE LAST (?:FIRE|LAUNCH): (?:FIRE|LAUNCH) pose \(([-\d.]+), ([-\d.]+), ([-\d.]+) deg\), cell (\w+) "
                   r"\(([-\d.]+), ([-\d.]+)\) ([\d.]+) in, bearing ([-\d.]+) deg, cell center ([-+\d.]+) deg / ([-+\d.]+) in left of the front line")
 
 

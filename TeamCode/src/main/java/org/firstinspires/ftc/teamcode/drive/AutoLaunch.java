@@ -7,7 +7,7 @@ import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 /**
  * Auto-launch (a prototype of the competition TeleOp, switched on and off by the operator's right bumper): while the target lock is on and the
  * robot is inside the SHOT ZONE of the cell it is locked on, the TeleOp stops the chassis (the driver's translation is ignored) and, once the lock
- * is ALIGNED and the robot has stopped, fires one salvo by itself. The zones keep the shot roughly straight on to the cell and not too close.
+ * is ALIGNED and the robot has stopped, launches one salvo by itself. The zones keep the shot roughly straight on to the cell and not too close.
  *
  * A zone is a circle of ZONE_RADIUS_IN around a good shot spot for the cell, about 40 in out along the cell's axis (inside the shot map's flat part,
  * 32 to 47 in) with the shooter's line on that axis: ROBOT_1's shooter sits 2.5 in right of the centerline, so the rear cell's spot is at

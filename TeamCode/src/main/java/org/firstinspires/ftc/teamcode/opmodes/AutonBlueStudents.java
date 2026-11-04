@@ -28,7 +28,7 @@ import java.util.Locale;
 
 /**
  * Solo Blue auto designed by the students. The shots, the intake and the ramp are the real mechanisms (the
- * {@link Mechanisms} coordinator, updated every loop). The flywheel spins from Start; a salvo fires as soon as it is ready.
+ * {@link Mechanisms} coordinator, updated every loop). The flywheel spins from Start; a salvo launches as soon as it is ready.
  *
  * Plan, in field coordinates (origin at field center, X toward the audience, Y toward the
  * Blue Wall, heading 0 = +X, counterclockwise positive):
@@ -85,8 +85,8 @@ public class AutonBlueStudents extends LinearOpMode {
 
     private Action shoot(Mechanisms mechanisms, String label) {
         return new SequentialAction(
-                note("Fire: " + label),
-                mechanisms.fire());
+                note("Launch: " + label),
+                mechanisms.launch());
     }
 
     @Override
@@ -155,7 +155,7 @@ public class AutonBlueStudents extends LinearOpMode {
         mechanisms.setBlueAlliance(true);
         mechanisms.setOpenCell(HiveTarget.BLUE_REAR);   // as staged; the first tip flips it
         mechanisms.setAutoStopAfterSalvo(false);        // the flywheel stays up for the next volley ...
-        mechanisms.setSpinRequested(true);              // ... and spins from Start so the first volley fires at once
+        mechanisms.setSpinRequested(true);              // ... and spins from Start so the first volley launches at once
 
         Action auto = new SequentialAction(
                 shoot(mechanisms, "preload, tip 1"),

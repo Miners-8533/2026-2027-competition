@@ -156,7 +156,7 @@ public class AutonSolo extends LinearOpMode {
     /** The shot spots only need to be near (the aim step turns onto the cell): a leg ends within this position and heading; the tight 1 in / 2 deg tolerance ran two legs to their timeout each time. */
     public static double SHOT_POS_TOL_IN = 2.5, SHOT_HEADING_TOL_DEG = 6.0;
     public static double GARDEN_PICKUP_MAX_POWER = 0.35;   // 0.25 moved only about 5.6 in/s on 2026-11-03 and missed the pollen
-    /** The leg's hard cap is worked out with a speed of this many in/s per unit of power (a little under the real speed, so it only fires when the robot is stuck). */
+    /** The leg's hard cap is worked out with a speed of this many in/s per unit of power (a little under the real speed, so it only launches when the robot is stuck). */
     public static double SLOW_IN_PER_S_PER_POWER = 40.0;
 
     private static Pose2d pose(double x, double y, double headingDeg) {
@@ -337,9 +337,9 @@ public class AutonSolo extends LinearOpMode {
 
     private Action shootNow(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg) {
         return new SequentialAction(
-                note("Aim and fire: " + label),
+                note("Aim and launch: " + label),
                 timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg)),
-                timed("fire (wait + salvo): " + label, mechanisms.fire()));
+                timed("launch (wait + salvo): " + label, mechanisms.launch()));
     }
 
     /** Waits until the robot holds 4 elements, or maxSec passes. */

@@ -23,8 +23,8 @@ import java.util.Locale;
  *   1. REMOVED 2026-10-31: the intake is no longer gated on the pusher's position. (The pusher can rest a few degrees
  *      past HOLD after a salvo, and gating the intake and the next salvo on "within 8 deg of HOLD" locked both out.)
  *   2. Deploying the ramp turns the intake on; stowing turns it off unless the driver holds intake.
- *   3. The flywheel must be ready (first ball only) before a salvo. Fire is queued: it spins up if needed and
- *      fires the moment the flywheel is ready and the pusher has stopped (wherever it rests: a salvo is a full
+ *   3. The flywheel must be ready (first ball only) before a salvo. Launch is queued: it spins up if needed and
+ *      launches the moment the flywheel is ready and the pusher has stopped (wherever it rests: a salvo is a full
  *      turn from the nearest HOLD), with a timeout.
  *   4. A reject is a pusher reverse plus an intake outtake for the whole reject move.
  *   5. A stow requested under a flower is remembered and happens once the pose shows the robot is clear.
@@ -46,7 +46,7 @@ import java.util.Locale;
 @Config
 public class Mechanisms {
 
-    public static double FIRE_TIMEOUT_SEC = 3.0;
+    public static double LAUNCH_TIMEOUT_SEC = 3.0;
     public static double FLYWHEEL_STOP_DELAY_SEC = 0.5;
     public static double NOTICE_SEC = 4.0;
     /** Rule 6: stop the intake when the element counter reports a full robot. */
@@ -95,7 +95,7 @@ public class Mechanisms {
     private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the shot distance is this, whatever the pose says
     private boolean manualIntake = false;
     private boolean intakeAlwaysOn = false;
-    private boolean fireQueued = false;
+    private boolean launchQueued = false;
     private boolean salvoActive = false;
     private boolean rejectActive = false;
     private boolean spinRequested = false;
@@ -109,7 +109,7 @@ public class Mechanisms {
     private boolean blueAlliance = true;
     private boolean autoTarget = false;
 
-    private final ElapsedTime fireTimer = new ElapsedTime();
+    private final ElapsedTime launchTimer = new ElapsedTime();
     private final ElapsedTime stopTimer = new ElapsedTime();
     private final ElapsedTime noticeTimer = new ElapsedTime();
     private String notice = "";
@@ -198,29 +198,29 @@ public class Mechanisms {
     }
 
     /** Queue a salvo (rule 3). */
-    public void requestFire() {
+    public void requestLaunch() {
         if (flywheel == null || pusher == null) {
-            notice("Fire ignored: needs the flywheel and the pusher.");
+            notice("Launch ignored: needs the flywheel and the pusher.");
             return;
         }
         if (pusher.isStalled()) {
-            notice("Fire ignored: the pusher is faulted.");
+            notice("Launch ignored: the pusher is faulted.");
             return;
         }
-        if (pusherCheck != null && pusherCheck.isActive()) pusherCheck.abort("a fire was requested");
-        if (fireQueued || salvoActive) {
-            RunLog.event("COMMAND fire ignored: " + (fireQueued ? "already queued" : "salvo running"));
+        if (pusherCheck != null && pusherCheck.isActive()) pusherCheck.abort("a launch was requested");
+        if (launchQueued || salvoActive) {
+            RunLog.event("COMMAND launch ignored: " + (launchQueued ? "already queued" : "salvo running"));
             return;
         }
         if (rejectActive) {
-            // the operator's way out of a jam in the other direction (there are no pusher faults): a fire cancels a running reject
-            RunLog.event("COMMAND fire cancels the reject");
+            // the operator's way out of a jam in the other direction (there are no pusher faults): a launch cancels a running reject
+            RunLog.event("COMMAND launch cancels the reject");
             rejectActive = false;
             pusher.cancelMove();
         }
-        fireQueued = true;
-        fireTimer.reset();
-        RunLog.event(String.format(Locale.US, "COMMAND fire queued: flywheel %.0f of %.0f ticks/s, %s",
+        launchQueued = true;
+        launchTimer.reset();
+        RunLog.event(String.format(Locale.US, "COMMAND launch queued: flywheel %.0f of %.0f ticks/s, %s",
                 flywheel.getFilteredVelocity(), lastSetpoint, heldText()));
     }
 
@@ -235,11 +235,11 @@ public class Mechanisms {
             RunLog.event("COMMAND reject ignored: " + (pusher.isStalled() ? "pusher stalled" : "reject already running"));
             return;
         }
-        if (salvoActive || fireQueued) {
-            // the operator's way out of a jam (there are no pusher faults): a reject cancels a queued fire or a running salvo
-            RunLog.event("COMMAND reject cancels the " + (salvoActive ? "salvo" : "queued fire"));
+        if (salvoActive || launchQueued) {
+            // the operator's way out of a jam (there are no pusher faults): a reject cancels a queued launch or a running salvo
+            RunLog.event("COMMAND reject cancels the " + (salvoActive ? "salvo" : "queued launch"));
             salvoActive = false;
-            fireQueued = false;
+            launchQueued = false;
         }
         pusher.startReject();
         rejectActive = true;
@@ -274,7 +274,7 @@ public class Mechanisms {
     public void toggleSpin() {
         spinRequested = !spinRequested;
         RunLog.event("COMMAND flywheel spin -> " + (spinRequested ? "ON" : "off"));
-        if (!spinRequested && !fireQueued && !salvoActive) stopScheduled = false;
+        if (!spinRequested && !launchQueued && !salvoActive) stopScheduled = false;
     }
 
     /** Ask for the flywheel to run (or not), the same as the operator's spin toggle. */
@@ -394,8 +394,8 @@ public class Mechanisms {
         String why = null;
         if (counterOverride) why = "the element counter is overridden";
         else if (counter == null || !counter.isValid()) why = "the element counter is not reading";
-        else if (counter.count() > 0) why = counter.count() + " element(s) held: the sweep would fire them (fire or reject them first)";
-        else if (fireQueued || salvoActive || rejectActive || manualOuttake) why = "the robot is busy";
+        else if (counter.count() > 0) why = counter.count() + " element(s) held: the sweep would launch them (launch or reject them first)";
+        else if (launchQueued || salvoActive || rejectActive || manualOuttake) why = "the robot is busy";
         else if (intakeRequested || (ramp != null && ramp.isDeployedTarget())) why = "the intake is running (a sweep could push a new element out); turn it off first";
         if (why == null) why = pusherCheck.startRefusal();
         if (why != null) {
@@ -449,8 +449,8 @@ public class Mechanisms {
         return speedTrim;
     }
 
-    public boolean isFireBusy() {
-        return fireQueued || salvoActive;
+    public boolean isLaunchBusy() {
+        return launchQueued || salvoActive;
     }
 
     /** True while the element counter reports a full robot (CAPACITY elements, confirmed). False when the counter is overridden or not reading. */
@@ -572,7 +572,7 @@ public class Mechanisms {
                 }
             }
             // the intake may be running (the operator's toggle, or the ramp deployed): the check still runs, and aborts if an element shows up
-            boolean busy = fireQueued || salvoActive || rejectActive || manualOuttake || counterOverride || pusher.isStalled();
+            boolean busy = launchQueued || salvoActive || rejectActive || manualOuttake || counterOverride || pusher.isStalled();
             boolean counterOk = counter != null && counter.isValid();
             counter.ignoreArmSensorCount(pusherCheck.isActive());
             counter.ignoreAllCount(pusherCheck.isSweeping());   // the arm passes CS1 to CS3 in a sweep and reads as an element there
@@ -604,16 +604,16 @@ public class Mechanisms {
             }
         }
 
-        // rule 3: queued fire
-        if (fireQueued && flywheel != null && pusher != null) {
+        // rule 3: queued launch
+        if (launchQueued && flywheel != null && pusher != null) {
             if (!pusher.isCalibrated()) {
-                fireQueued = false;
-                notice("Fire dropped: set the pusher's TICKS_PER_REV first.");
-            } else if (fireTimer.seconds() > FIRE_TIMEOUT_SEC) {
-                fireQueued = false;
-                notice(pusher.isStalled() ? "Fire dropped: the pusher is faulted."
-                        : !pusher.isStopped() ? "Fire dropped: the pusher was still moving."
-                        : "Fire dropped: the flywheel was not ready in time.");
+                launchQueued = false;
+                notice("Launch dropped: set the pusher's TICKS_PER_REV first.");
+            } else if (launchTimer.seconds() > LAUNCH_TIMEOUT_SEC) {
+                launchQueued = false;
+                notice(pusher.isStalled() ? "Launch dropped: the pusher is faulted."
+                        : !pusher.isStopped() ? "Launch dropped: the pusher was still moving."
+                        : "Launch dropped: the flywheel was not ready in time.");
             } else {
                 flywheel.setTargetVelocity(lastSetpoint);
                 if (flywheel.isReady() && pusher.isStopped()) {
@@ -622,7 +622,7 @@ public class Mechanisms {
                     salvoMinSpeed = flywheel.getVelocity();
                     RunLog.event(String.format(Locale.US, "SALVO started: flywheel %.0f of %.0f ticks/s, %s | %s",
                             flywheel.getFilteredVelocity(), lastSetpoint, heldText(), pusher.getLastCommand()));
-                    fireQueued = false;
+                    launchQueued = false;
                     stopScheduled = false;
                 }
             }
@@ -630,11 +630,11 @@ public class Mechanisms {
 
         // flywheel target, and its automatic stop after a salvo
         if (flywheel != null) {
-            if (stopScheduled && !fireQueued && !salvoActive && stopTimer.seconds() >= FLYWHEEL_STOP_DELAY_SEC) {
+            if (stopScheduled && !launchQueued && !salvoActive && stopTimer.seconds() >= FLYWHEEL_STOP_DELAY_SEC) {
                 spinRequested = false;
                 stopScheduled = false;
             }
-            boolean wanted = spinRequested || fireQueued || salvoActive || stopScheduled;
+            boolean wanted = spinRequested || launchQueued || salvoActive || stopScheduled;
             flywheel.setTargetVelocity(wanted ? lastSetpoint : 0.0);
         }
 
@@ -659,7 +659,7 @@ public class Mechanisms {
                 manualCalibration = false;
                 RunLog.event("COMMAND pusher calibration sweep over: the intake runs again");
             }
-            if (manualCalibration) mode = Intake.Mode.OFF;   // a manual calibration sweep needs a still track (a fire or reject aborts it first)
+            if (manualCalibration) mode = Intake.Mode.OFF;   // a manual calibration sweep needs a still track (a launch or reject aborts it first)
             intake.setMode(mode);
             if (mode != prevIntakeMode) {
                 RunLog.event("INTAKE mode " + prevIntakeMode + " -> " + mode);
@@ -696,11 +696,11 @@ public class Mechanisms {
     }
 
     /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
-    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,fire,warnings,overrides,check,fly_power,fly_amps";
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps";
 
     /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
     public String sampleRow() {
-        String fire = fireQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
+        String launch = launchQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
         return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s",
                 lastSetpoint,
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
@@ -714,7 +714,7 @@ public class Mechanisms {
                 ramp == null ? "" : (ramp.isDeployedTarget() ? "deployed" : "stowed"),
                 counter == null ? "" : counter.count(),
                 counter == null ? "" : counter.slotsCompact(),
-                fire, warnings.size(), overridesCode(), pusherCheck == null ? "" : pusherCheck.statusCode(),
+                launch, warnings.size(), overridesCode(), pusherCheck == null ? "" : pusherCheck.statusCode(),
                 flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getLastPower()),
                 flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getCurrentAmps()));
     }
@@ -725,7 +725,7 @@ public class Mechanisms {
         telemetry.addData("Open cell / distance (in)", "%s / %.1f", openCell, lastDistance);
         telemetry.addData("Flywheel setpoint (ticks/s)", "%.0f   (%s)", lastSetpoint,
                 useShotMap && !ShotMap.isEmpty() ? String.format(Locale.US, "shot map %+.0f trim", speedTrim) : "manual");
-        telemetry.addData("Fire", fireQueued ? "QUEUED, waiting for flywheel" : salvoActive ? "SALVO running" : "idle");
+        telemetry.addData("Launch", launchQueued ? "QUEUED, waiting for flywheel" : salvoActive ? "SALVO running" : "idle");
         telemetry.addData("Reject", rejectActive ? "running" : "idle");
         if (intake != null) intake.log(telemetry);
         if (flywheel != null) flywheel.log(telemetry);
@@ -742,7 +742,7 @@ public class Mechanisms {
     // ---- actions for autos ----
 
     /** Action: queue a salvo and finish when it has completed (or been dropped). */
-    public Action fire() {
+    public Action launch() {
         return new Action() {
             private boolean started = false;
 
@@ -750,9 +750,9 @@ public class Mechanisms {
             public boolean run(TelemetryPacket packet) {
                 if (!started) {
                     started = true;
-                    requestFire();
+                    requestLaunch();
                 }
-                return fireQueued || salvoActive;
+                return launchQueued || salvoActive;
             }
         };
     }

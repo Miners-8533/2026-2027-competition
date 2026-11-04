@@ -15,9 +15,9 @@ import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
  * it does not stall near the target, a dead band, and a cap. While locked the driver's turn stick nudges the aim up to
  * MAX_TRIM_DEG either way (stick right = clockwise); the nudge is forgotten when the lock is released.
  *
- * It reports {@link #isAligned()} (within ALIGNED_DEG and nearly stopped) so the driver can fire at the right moment. The gains are a
+ * It reports {@link #isAligned()} (within ALIGNED_DEG and nearly stopped) so the driver can launch at the right moment. The gains are a
  * starting point from a simulation of the measured turn response (about 335 deg/s per unit of power): tune them on the robot.
- * AIM_OFFSET_DEG corrects a shooter whose line is not exactly the robot's forward. The shooter fires along a line parallel to the
+ * AIM_OFFSET_DEG corrects a shooter whose line is not exactly the robot's forward. The shooter launches along a line parallel to the
  * front but SHOOTER_OFFSET_LEFT_IN to the side of the pose point (ROBOT_1: 2.5 in to the right, ON again since 2026-11-02 for the BLUE-bias test), so with it set
  * the robot aims that line, not its centerline, at the target: the heading is the bearing minus asin(offset / distance).
  */

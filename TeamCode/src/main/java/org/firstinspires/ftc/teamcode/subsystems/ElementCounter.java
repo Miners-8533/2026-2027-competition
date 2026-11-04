@@ -297,7 +297,7 @@ public class ElementCounter {
         return slot[i];
     }
 
-    /** The element at the deepest slot (it fires first), or EMPTY if CS4 holds none. */
+    /** The element at the deepest slot (it launches first), or EMPTY if CS4 holds none. */
     public Slot next() {
         return isElement(N - 1) ? slot[N - 1] : Slot.EMPTY;
     }

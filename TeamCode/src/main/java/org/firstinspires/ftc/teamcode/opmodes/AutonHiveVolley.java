@@ -26,7 +26,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 import java.util.Locale;
 
 /**
- * Rudimentary BIOBUZZ auto: drive off the wall (LEAVE), then fire the preload with the real flywheel and pusher (the
+ * Rudimentary BIOBUZZ auto: drive off the wall (LEAVE), then launch the preload with the real flywheel and pusher (the
  * {@link Mechanisms} coordinator, updated every loop; the flywheel spins from Start). Assumes the launcher can make the first
  * shot from near the starting position itself - no approach-to-the-HIVE drive needed.
  * Drivetrain + sequencing only; this is a bring-up test for {@link DriveToPose} as much
@@ -128,15 +128,15 @@ public class AutonHiveVolley extends LinearOpMode {
         mechanisms.setBlueAlliance(true);
         mechanisms.setOpenCell(HiveTarget.BLUE_REAR);   // as staged
         mechanisms.setAutoStopAfterSalvo(false);
-        mechanisms.setSpinRequested(true);              // spins from Start so the volley fires as soon as the robot is in place
+        mechanisms.setSpinRequested(true);              // spins from Start so the volley launches as soon as the robot is in place
 
         Action auto = new SequentialAction(
                 new DriveToPose(drive, leavePose),           // LEAVE
                 new InstantAction(() -> {
-                    telemetry.log().add("Fire: preload -> blue CELL");
-                    RunLog.event("AUTO fire: preload -> blue CELL");
+                    telemetry.log().add("Launch: preload -> blue CELL");
+                    RunLog.event("AUTO launch: preload -> blue CELL");
                 }),
-                mechanisms.fire()
+                mechanisms.launch()
         );
 
         Actions.runBlocking(this, auto, () -> mechanisms.update(drive.getPose()));
