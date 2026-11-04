@@ -92,6 +92,12 @@ public class AutonSolo extends LinearOpMode {
      * True goes straight to the shot spot turning as it backs: it caught the edge of the ramp on the flower on 2026-11-03 (the turn started at x 53.4, 4 in from the shot spot).
      */
     public static boolean FLOWER_TURN_WHILE_BACKING = false;
+    /**
+     * The ramp stows during the turn from the flower to the shot spot, as soon as the robot has turned this many degrees from the flower heading (the intake mouth is then facing away
+     * from the flower and the robot is already 5 in or more back). The old stow waited for the robot to be 24 in from the flower centre, which the shot spot (18.7 in) never is, so the
+     * ramp stowed only after arrival and the auto waited 0.81 s for it (2026-11-03 21:59 run).
+     */
+    public static double STOW_TURN_DEG = 45.0;
     /** The flower poses are 3 in toward +Y of the marks (21.3 to 24.3, user 2026-11-03: the pollen did not come out), and the pre-position is 5 in farther back (43 to 38) for a run-up. */
     public static double FLOWER_PRE_X = 38.0, FLOWER_PRE_Y = 26.3, FLOWER_HEADING_DEG = 0.0;   // y 21.3 (the marks) +3 then +2 more (2026-11-03)
     public static double FLOWER_AT_X = 55.3, FLOWER_AT_Y = 26.3;
@@ -207,6 +213,28 @@ public class AutonSolo extends LinearOpMode {
     private Action backOutLeg(String label, MecanumDrive drive, Pose2d target) {
         return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(BACKOUT_TOL_IN, COARSE_HEADING_DEG)
                 .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+    }
+
+    /** Runs {@code inner} (a drive) and commands the ramp to stow as soon as the robot has turned STOW_TURN_DEG from flowerHeadingRad (once). */
+    private Action stowWhenTurned(Action inner, MecanumDrive drive, Mechanisms mechanisms, double flowerHeadingRad) {
+        return new Action() {
+            private boolean stowed = false;
+
+            @Override
+            public boolean run(TelemetryPacket packet) {
+                boolean running = inner.run(packet);
+                if (!stowed) {
+                    Pose2d p = drive.getPose();
+                    double turnedDeg = Math.toDegrees(Math.abs(Rotation2d.normalize(p.heading.toDouble() - flowerHeadingRad)));
+                    if (turnedDeg >= STOW_TURN_DEG) {
+                        stowed = true;
+                        mechanisms.requestStowNow();
+                        RunLog.event(String.format(Locale.US, "AUTO ramp stow during the turn: %.0f deg from the flower heading, pose (%.1f, %.1f)", turnedDeg, p.position.x, p.position.y));
+                    }
+                }
+                return running;
+            }
+        };
     }
 
     /** Drives hard at a target beyond an obstacle for a fixed time (the flower ram). */
@@ -393,10 +421,9 @@ public class AutonSolo extends LinearOpMode {
                 mechanisms.setIntake(true),
                 ramLeg("ram the flower", drive, flowerRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
                 timed("flower jostle", new Jostle(drive, mechanisms::isFull, () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
-                new InstantAction(mechanisms::requestStow),                     // waits by itself until the robot is clear of the flower
                 note("Back off the flower to the shot spot (intake still ON)"),
                 FLOWER_TURN_WHILE_BACKING ? new InstantAction(() -> { }) : backOutLeg("flower back-out (straight)", drive, flowerBack),
-                shotLeg("shot spot 2", drive, shotSpot),
+                stowWhenTurned(shotLeg("shot spot 2", drive, shotSpot), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
                 mechanisms.setIntake(false),
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
                 shoot(drive, mechanisms, secondCell, isBlue, "flower pollen"),
