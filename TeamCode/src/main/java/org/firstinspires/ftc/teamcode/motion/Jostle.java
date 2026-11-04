@@ -23,10 +23,10 @@ import java.util.function.BooleanSupplier;
 @Config
 public final class Jostle implements Action {
 
-    public static double BACK_IN = 2.0;
+    public static double BACK_IN = 1.0;   // 2.0 moved a little too far on 2026-11-03: halved
     public static double POWER = 0.5;
-    public static double PUSH_SEC = 0.35;
-    public static double BACK_MAX_SEC = 0.5;
+    public static double PUSH_SEC = 0.2;   // halved from 0.35
+    public static double BACK_MAX_SEC = 0.3;   // halved from 0.5
     public static double HEADING_KP = 1.5;
     public static double HEADING_MAX_TURN = 0.15;
 

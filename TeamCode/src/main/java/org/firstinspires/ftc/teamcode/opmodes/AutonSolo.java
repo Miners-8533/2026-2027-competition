@@ -76,14 +76,14 @@ public class AutonSolo extends LinearOpMode {
     public static double GARDEN_END_X = -59.8, GARDEN_END_Y = 58.5;
     /**
      * After the garden the robot squares on the rear wall: it turns to heading 90 (its left side to the wall) SQUARE_GAP_IN off the wall at the end's y, then strafes into the wall
-     * (SquareOnWall). The pose is not reseeded; the log line says how far the pose was from the wall-flush heading and x.
+     * (SquareOnWall), then drives forward into the Blue Wall (red: the Red Wall) to square on that too. The pose is not reseeded; the log lines say how far the pose was from the flush heading, x and y.
      */
     public static double SQUARE_GAP_IN = 3.0;
     /** The one shot spot for the audience cell (the marks were (62.9, 9.5) and (62.3, 7.4), +1.0 in x); its heading is the computed aim. */
     public static double SHOT_X = 63.6, SHOT_Y = 8.5;
     /** The flower poses are 3 in toward +Y of the marks (21.3 to 24.3, user 2026-11-03: the pollen did not come out), and the pre-position is 5 in farther back (43 to 38) for a run-up. */
-    public static double FLOWER_PRE_X = 38.0, FLOWER_PRE_Y = 24.3, FLOWER_HEADING_DEG = 0.0;
-    public static double FLOWER_AT_X = 55.3, FLOWER_AT_Y = 24.3;
+    public static double FLOWER_PRE_X = 38.0, FLOWER_PRE_Y = 26.3, FLOWER_HEADING_DEG = 0.0;   // y 21.3 (the marks) +3 then +2 more (2026-11-03)
+    public static double FLOWER_AT_X = 55.3, FLOWER_AT_Y = 26.3;
     /**
      * The flower is RAMMED: the drive's target is FLOWER_RAM_OVERSHOOT_IN past FLOWER_AT_X, so the error stays large and the power stays at FLOWER_RAM_POWER until the robot
      * meets the flower, and the leg ends after FLOWER_RAM_SEC (it never reaches the target: the log says TIMED OUT, which is expected). The normal drive uses 0.05 x the
@@ -298,6 +298,7 @@ public class AutonSolo extends LinearOpMode {
         double squareX = -(FieldGeometry.HALF_IN - sideIn - SQUARE_GAP_IN);
         Pose2d squarePre = forAlliance(pose(squareX, GARDEN_END_Y, 90.0), isBlue);   // heading 90: the left side to the rear wall (red: the audience wall)
         double squareFlushX = (isBlue ? -1.0 : 1.0) * (FieldGeometry.HALF_IN - sideIn);
+        double squareFlushY = (isBlue ? 1.0 : -1.0) * (FieldGeometry.HALF_IN - profile.originFromFrontIn());   // the front (intake) against the Blue Wall (red: the Red Wall)
         double squareHeadingRad = Math.toRadians(isBlue ? 90.0 : 270.0);
         Pose2d shotSpotBlueFrame = pose(SHOT_X, SHOT_Y, 0.0);
         Pose2d shotXY = forAlliance(shotSpotBlueFrame, isBlue);
@@ -334,7 +335,7 @@ public class AutonSolo extends LinearOpMode {
                 slowLeg("garden pickup (slow)", drive, gardenEnd, GARDEN_PICKUP_MAX_POWER),
                 note("Square on the wall"),
                 passLeg("square approach", drive, squarePre),
-                timed("square on the wall", new SquareOnWall(drive, squareHeadingRad, squareFlushX)),
+                timed("square on the wall", new SquareOnWall(drive, squareHeadingRad, squareFlushX, squareFlushY)),
 
                 new InstantAction(() -> mechanisms.setOpenCell(secondCell)),   // the tip flipped the cell; the flywheel follows the new distance on the way
                 note("Around the outside of the hive support rails, intake still ON so every element gets in"),
