@@ -34,7 +34,7 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * (ENCODER_SIGN), and the motor runs WITHOUT the hub's closed-loop encoder modes.
  *
  * Landing accuracy depends on calibrating SWEEP_POWER, APPROACH_POWER and STOP_EARLY_DEG on the real pusher
- * (the Shot Map Tuner or the TeleOp); the reading to watch is the error to the nearest HOLD. Nothing holds the arm
+ * (the Launch Map Tuner or the TeleOp); the reading to watch is the error to the nearest HOLD. Nothing holds the arm
  * against a push beyond the brake, except a small nudge forward if it comes to rest a little short.
  * Call {@link #update()} once per loop.
  */

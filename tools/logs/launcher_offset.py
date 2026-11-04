@@ -1,7 +1,7 @@
-"""Summarizes the good-salvo marks of a Shooter Offset Finder log (the BRINGUP kind).
+"""Summarizes the good-salvo marks of a Launcher Offset Finder log (the BRINGUP kind).
 
-    python tools/logs/shooter_offset.py                    # the newest bringup log under robot-logs/
-    python tools/logs/shooter_offset.py path\to\bringup.log
+    python tools/logs/launcher_offset.py                    # the newest bringup log under robot-logs/
+    python tools/logs/launcher_offset.py path\to\bringup.log
 
 Each MARK good carries the pose at the last LAUNCH and "cell center N in left of the front line": the sideways distance from the robot's front line to the cell's
 center. For a salvo that went through the center with the launcher lined up, that is the launcher's sideways offset from the pose point (positive = left) plus any
@@ -39,7 +39,7 @@ def main():
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     path = sys.argv[1] if len(sys.argv) > 1 else newest(root)
     if not path or not os.path.exists(path):
-        sys.exit("No bringup log found. Pass the path of a Shooter Offset Finder log.")
+        sys.exit("No bringup log found. Pass the path of a Launcher Offset Finder log.")
     rows = []
     for line in open(path, encoding="utf-8", errors="replace"):
         m = MARK.search(line)

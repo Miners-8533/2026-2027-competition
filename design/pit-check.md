@@ -1,6 +1,6 @@
 # Pit check
 
-The Pit Check is the only check opmode on the Driver Station. It took over the **Hardware Check** and **Chassis Info** opmodes (removed 2026-11-02). The calibration tools **Shot Map Tuner**, **Pinpoint Offset Check**, **Pinpoint Push Test** and **Color Sensors Test** still exist but are `@Disabled`; see [opmodes.md](opmodes.md).
+The Pit Check is the only check opmode on the Driver Station. It took over the **Hardware Check** and **Chassis Info** opmodes (removed 2026-11-02). The calibration tools **Launch Map Tuner**, **Pinpoint Offset Check**, **Pinpoint Push Test** and **Color Sensors Test** still exist but are `@Disabled`; see [opmodes.md](opmodes.md).
 
 `Pit Check (robot on blocks)` (opmode, group Bring-up) is the check to run after any repair, rewiring or hub swap, and before a match day. The code no longer watches for wiring and sign problems while running (the flywheel's reversed-encoder fault was removed), so this is where they are found.
 

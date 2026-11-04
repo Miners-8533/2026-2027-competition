@@ -54,11 +54,11 @@ Redo this in the pit at each venue if the lighting changes.
 
 ### Block C: Pusher calibration (done 2026-11-01)
 
-The pusher measurements are finished (the arm is seen about 328 deg ahead of the mark, `TICKS_PER_REV` confirmed, the salvo is 400 deg) and the two tools that made them, **Pusher Sensor Matrix** and **Pusher Check Test**, were removed on 2026-11-02 (they are in git history). The pusher check now runs inside **TeleOp - Competition**: automatically after a salvo and once after power-up, and by hand with the operator's left bumper + Y (plan rows P8 and P9). If the arm is not seen at the arc, tune `PusherCheck.ARM_CENTER_DEG` in the Dashboard and commit the value. `Mechanisms.AUTO_PUSHER_CHECK` (Dashboard) turns the automatic check off. Still open: the smallest belt slip worth catching (item 4), and the `COAST_LOOKAHEAD_S` decision (find a value from the `SALVO done` lines of the Shot Map Tuner or TeleOp logs, or remove the lookahead).
+The pusher measurements are finished (the arm is seen about 328 deg ahead of the mark, `TICKS_PER_REV` confirmed, the salvo is 400 deg) and the two tools that made them, **Pusher Sensor Matrix** and **Pusher Check Test**, were removed on 2026-11-02 (they are in git history). The pusher check now runs inside **TeleOp - Competition**: automatically after a salvo and once after power-up, and by hand with the operator's left bumper + Y (plan rows P8 and P9). If the arm is not seen at the arc, tune `PusherCheck.ARM_CENTER_DEG` in the Dashboard and commit the value. `Mechanisms.AUTO_PUSHER_CHECK` (Dashboard) turns the automatic check off. Still open: the smallest belt slip worth catching (item 4), and the `COAST_LOOKAHEAD_S` decision (find a value from the `SALVO done` lines of the Launch Map Tuner or TeleOp logs, or remove the lookahead).
 
 ### Block D: Launches with real elements (plan Phase 3)
 
-1. The **Launch Test** opmode was removed on 2026-11-02. Use **TeleOp - Competition**, or the **Shot Map Tuner** (disabled: delete `@Disabled` and its import in `ShotMapTuner.java` to use it). Launch with the real elements (pollen and both nectars).
+1. The **Launch Test** opmode was removed on 2026-11-02. Use **TeleOp - Competition**, or the **Launch Map Tuner** (disabled: delete `@Disabled` and its import in `LaunchMapTuner.java` to use it). Launch with the real elements (pollen and both nectars).
 2. Record per speed: speed at release, lowest speed during the salvo (the `SALVO done` log line), whether all four leave and in what order.
 3. Tune `FEED_FORWARD` (Dashboard) so the hold power is just enough at about 600, 1000 and 1500 ticks/s. Tie it to the minimum launch speed.
 4. Record the pusher's settle after each salvo (the `SALVO done` line shows where the arm rested) over **10 salvos in a row**, including with 4 elements: min and max landing error, no fault.
@@ -82,7 +82,7 @@ Run first with the robot on blocks, then on the floor. Each row of the plan's Ph
 
 ### Block F: Launch map (plan Phase 5)
 
-1. **Shot Map Tuner** (single gamepad; it runs the real mechanisms since 2026-11-01): right trigger loads elements (the intake stops itself at 4), **X** spins the flywheel, D-pad up/down sets the speed, **Y** launches a salvo, **B** records (distance, speed), **A** undoes the last point, D-pad left/right picks the target cell, left bumper follows the recorded points, Back clears a pusher fault (hold it 1 s to reseed the pose).
+1. **Launch Map Tuner** (single gamepad; it runs the real mechanisms since 2026-11-01): right trigger loads elements (the intake stops itself at 4), **X** spins the flywheel, D-pad up/down sets the speed, **Y** launches a salvo, **B** records (distance, speed), **A** undoes the last point, D-pad left/right picks the target cell, left bumper follows the recorded points, Back clears a pusher fault (hold it 1 s to reseed the pose).
 2. For each distance, from the closest legal launching position to the farthest you intend to use, for each target cell that matters: drive there (the distance is the Pinpoint's, or type a tape-measured one into `MANUAL_DISTANCE_IN`), load 4, launch, and raise or lower the speed until the launches score; validate with a full 4-element salvo and count the scores; then **B**.
 3. Paste the printed lines (also in `bringup.log` as `RECORD` and a final `LAUNCH MAP` event) into `LaunchMap.TABLE`. Confirm pollen and nectar both score from the same speed, or note the exception.
 

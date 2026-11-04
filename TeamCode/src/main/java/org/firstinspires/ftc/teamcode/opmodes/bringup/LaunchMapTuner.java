@@ -53,8 +53,8 @@ import java.util.Locale;
  */
 @Config
 @Disabled   // hidden from the Driver Station; remove this line and the import to use it again
-@TeleOp(name = "Shot Map Tuner", group = "Bring-up")
-public class ShotMapTuner extends LinearOpMode {
+@TeleOp(name = "Launch Map Tuner", group = "Bring-up")
+public class LaunchMapTuner extends LinearOpMode {
 
     /**
      * The start pose for the 2026-11-01 launch map session: against the AUDIENCE wall (X = 72 less half the 17 in robot depth), Y = -16.5, facing the
@@ -91,7 +91,7 @@ public class ShotMapTuner extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        RunLog.open(RunLog.Kind.BRINGUP, "Shot Map Tuner", hardwareMap);
+        RunLog.open(RunLog.Kind.BRINGUP, "Launch Map Tuner", hardwareMap);
         try {
             runTuner();
         } catch (Throwable t) {

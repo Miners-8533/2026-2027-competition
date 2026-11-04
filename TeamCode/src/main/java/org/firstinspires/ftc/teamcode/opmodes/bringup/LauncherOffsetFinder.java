@@ -49,11 +49,11 @@ import java.util.Locale;
  *   X (hold 1 s)                 reseed the pose to the INIT start pose (put the robot on that spot first)
  *
  * The target for the flywheel speed is the HIVE cell nearest the robot (all four, no alliance). The flywheel runs from Start and the speed trim is not used.
- * The log is the BRINGUP kind (bringup.log); read it with tools/logs/shooter_offset.py. Procedure: design/shooter-offset-finder.md.
+ * The log is the BRINGUP kind (bringup.log); read it with tools/logs/launcher_offset.py. Procedure: design/launcher-offset-finder.md.
  */
 @Config
-@TeleOp(name = "Shooter Offset Finder", group = "Bring-up")
-public class ShooterOffsetFinder extends LinearOpMode {
+@TeleOp(name = "Launcher Offset Finder", group = "Bring-up")
+public class LauncherOffsetFinder extends LinearOpMode {
 
     public static double START_Y_IN = 16.0;
     public static double TURN_SCALE = 0.5;
@@ -101,7 +101,7 @@ public class ShooterOffsetFinder extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        RunLog.open(RunLog.Kind.BRINGUP, "Shooter Offset Finder", hardwareMap);
+        RunLog.open(RunLog.Kind.BRINGUP, "Launcher Offset Finder", hardwareMap);
         try {
             find();
         } catch (Throwable t) {
@@ -136,7 +136,7 @@ public class ShooterOffsetFinder extends LinearOpMode {
             boolean poseOk = loc.seedConfirmed
                     && Math.hypot(p.position.x - start.position.x, p.position.y - start.position.y) < 1.5
                     && Math.abs(Math.toDegrees(Rotation2d.normalize(p.heading.toDouble() - start.heading.toDouble()))) < 3.0;
-            telemetry.addLine("Shooter Offset Finder. Target lock is OFF. Place the robot at the start pose, still.");
+            telemetry.addLine("Launcher Offset Finder. Target lock is OFF. Place the robot at the start pose, still.");
             telemetry.addData("Start", blue ? "BLUE: back against the rear wall, facing +X, y +" + START_Y_IN : "RED: back against the audience wall, facing -X, y -" + START_Y_IN);
             telemetry.addData("Start pose", "%.2f, %.2f, %.1f deg   (walls at +-%.1f in)", start.position.x, start.position.y, start.heading.toDegrees(), FieldGeometry.HALF_IN);
             telemetry.addData("Pinpoint", "%s   pose %.1f, %.1f, %.0f deg   %s", loc.getDeviceStatus(), p.position.x, p.position.y, p.heading.toDegrees(),

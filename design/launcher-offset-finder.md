@@ -1,6 +1,6 @@
-# Shooter Offset Finder (procedure)
+# Launcher Offset Finder (procedure)
 
-Opmode **Shooter Offset Finder** (group Bring-up, `opmodes/bringup/ShooterOffsetFinder.java`). Target lock is OFF. The driver drives field-oriented, lines the launch up with the centerline of a HIVE cell by hand, launches, and marks a good salvo; the log keeps the pose at that launch. From the marks, `tools/logs/shooter_offset.py` gives the launcher's sideways offset directly, and splits it from any error in where the hive's cells are. Built 2026-11-03, **not yet run on the robot**.
+Opmode **Launcher Offset Finder** (group Bring-up, `opmodes/bringup/LauncherOffsetFinder.java`). Target lock is OFF. The driver drives field-oriented, lines the launch up with the centerline of a HIVE cell by hand, launches, and marks a good salvo; the log keeps the pose at that launch. From the marks, `tools/logs/launcher_offset.py` gives the launcher's sideways offset directly, and splits it from any error in where the hive's cells are. Built 2026-11-03, **not yet run on the robot**.
 
 ## Controls (gamepad 1 only; no Start or Back)
 
@@ -27,7 +27,7 @@ The flywheel runs from Start. Its speed follows the distance to the cell nearest
 ## Reading the log
 
 ```
-python tools/logs/shooter_offset.py            # the newest bringup log
+python tools/logs/launcher_offset.py            # the newest bringup log
 ```
 
 For each cell it prints the good marks and the mean and spread of "cell center left of the front line". With the robot facing +X that number is s - t, facing -X it is s + t, where s is the launcher's sideways offset (robot frame, left positive, the same at both headings) and t is a sideways error in where the hive's cell centers are (field +Y, the same at both cells of the hive). The script gives s as the mean of a hive's two cells and t as half their difference, per hive, and the fit against distance (slope = aim angle error) when a cell has marks 8 in or more apart. The bearing and the launch-map distance use the pose, so keep the pose honest (reseed often).

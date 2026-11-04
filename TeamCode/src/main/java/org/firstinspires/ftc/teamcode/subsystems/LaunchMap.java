@@ -7,7 +7,7 @@ import java.util.List;
  * held beyond the table. The hood is fixed, so there are only two columns. Like last season's launch
  * map, minus the hood angle.
  *
- * {@link #TABLE} was measured on the robot on 2026-11-01 with the Shot Map Tuner (a charged battery, real pollen, a 4-element salvo
+ * {@link #TABLE} was measured on the robot on 2026-11-01 with the Launch Map Tuner (a charged battery, real pollen, a 4-element salvo
  * at each point, launching at the red audience CELL from the audience wall and the corners; the speed depends on the distance only,
  * so it serves any cell). The first and last speeds are held beyond the table. While the table is empty the coordinator uses the
  * operator's manual setpoint (Mechanisms.manualSetpoint, 1350 ticks/s). With points in the table the D-pad speed keys add a TRIM

@@ -168,7 +168,7 @@ Run the remaining bring-up opmodes (Motor Map Test, Open Loop Test, Drive Test, 
 
 ### 2.4 Flywheel
 - [ ] **Direction and sign**: spins the launching way, speed reads positive (the bench fix flipped the flywheel direction; re-confirm on the robot).
-- [ ] **FEED_FORWARD** tuned (in the Dashboard, with the Shot Map Tuner or the TeleOp) at about 600, 1000 and 1500 ticks/s so the hold power is just enough (single motor now).
+- [ ] **FEED_FORWARD** tuned (in the Dashboard, with the Launch Map Tuner or the TeleOp) at about 600, 1000 and 1500 ticks/s so the hold power is just enough (single motor now).
 - [ ] **Spin-up time** to ready at the speeds you expect to launch at; **dip and recovery** over a 4-ball burst (the `SALVO done` log line shows the lowest speed during each salvo). Record; this is the data that tells us whether one motor is enough.
 
 ### 2.5 Ramp
@@ -183,7 +183,7 @@ Exit: each subsystem passes its own checklist, all numbers are in the Record she
 
 ## Phase 3: Mechanisms together (no coordinator yet)
 
-- [ ] **Launches with real elements on the robot** (the Launch Test opmode was removed 2026-11-02; use the Shot Map Tuner or the TeleOp). Real elements (both kinds) through the pusher into the flywheel. Salvo (Y) and dry salvo (RB), reverse (X). Record per speed: speed at release, lowest speed during the salvo, whether all four elements leave and in what order. *Pass: repeatable, no pusher fault, no element stuck.*
+- [ ] **Launches with real elements on the robot** (the Launch Test opmode was removed 2026-11-02; use the Launch Map Tuner or the TeleOp). Real elements (both kinds) through the pusher into the flywheel. Salvo (Y) and dry salvo (RB), reverse (X). Record per speed: speed at release, lowest speed during the salvo, whether all four elements leave and in what order. *Pass: repeatable, no pusher fault, no element stuck.*
 - [ ] **Intake feeding the pusher**: run the intake with the pusher at HOLD; elements stop at the pusher arm, exactly 4 fit, a 5th is held out. (Rule G407: at most 4 controlled.)
 - [ ] **Everything powered while driving.** Drive around while the flywheel spins up and the intake runs. Record the **battery voltage minimum** and the **loop time**. *Pass: no brown-out, no hub reset, no pose jumps from the Pinpoint while the flywheel spins.*
 - [ ] **Loop time**: record it. If it is much above 27 ms, note which opmode and what was running (Risk 2).
@@ -254,8 +254,8 @@ Exit: every row passes three times; the pusher lands inside what the coordinator
 
 ## Phase 5: Calibration data
 
-- [x] **Launch map first pass, 2026-11-01** (Shot Map Tuner, charged battery, pose distances after the Pinpoint was verified, 18 salvos, no pusher fault): (28.6 in, 1325), (32.0, 1350), (35.8, 1350), (42.3, 1350), (46.7, 1375), (62.0, 1450), (82.2, 1650) ticks/s, all to the red audience CELL from the audience wall and the corners; now in `LaunchMap.TABLE`. The speed keys in TeleOp now trim the map's speed (`Mechanisms.speedTrim`). **Not recorded:** how many of each 4-element salvo scored, nothing measured beyond 82 in or below 28.6 in (the end speeds are held), and no check with nectar. Redo or extend as needed.
-- [ ] **Launch map, remaining** (Shot Map Tuner): record (distance, setpoint) pairs from the closest legal launching position to the farthest you intend to use, for each target CELL that matters. Validate each point with a full 4-ball salvo and count how many score. Paste the lines into `LaunchMap.TABLE`. Record the battery voltage.
+- [x] **Launch map first pass, 2026-11-01** (Launch Map Tuner, charged battery, pose distances after the Pinpoint was verified, 18 salvos, no pusher fault): (28.6 in, 1325), (32.0, 1350), (35.8, 1350), (42.3, 1350), (46.7, 1375), (62.0, 1450), (82.2, 1650) ticks/s, all to the red audience CELL from the audience wall and the corners; now in `LaunchMap.TABLE`. The speed keys in TeleOp now trim the map's speed (`Mechanisms.speedTrim`). **Not recorded:** how many of each 4-element salvo scored, nothing measured beyond 82 in or below 28.6 in (the end speeds are held), and no check with nectar. Redo or extend as needed.
+- [ ] **Launch map, remaining** (Launch Map Tuner): record (distance, setpoint) pairs from the closest legal launching position to the farthest you intend to use, for each target CELL that matters. Validate each point with a full 4-ball salvo and count how many score. Paste the lines into `LaunchMap.TABLE`. Record the battery voltage.
 - [ ] **Same speed for pollen and nectar** (the team's decision): confirm both score from the same setpoint, or note the exception.
 - [ ] **Final values committed**: pusher powers and `COAST_LOOKAHEAD_S`, `FEED_FORWARD`, ramp positions and `TRAVEL_SEC`, offsets, footprint. Re-run Phase 4's smoke rows afterward.
 
@@ -307,6 +307,6 @@ Fill in as you go. Date, battery voltage and who ran it next to each line.
 | Flywheel lowest speed in a 4-ball burst (% of setpoint) | | notes | |
 | Ramp stowed / deployed L, R | | profile | |
 | Ramp `TRAVEL_SEC`, `CLEAR_DISTANCE_IN` | | `Ramp` | |
-| Loop time: Shot Map Tuner / TeleOp (ms) | | notes | |
+| Loop time: Launch Map Tuner / TeleOp (ms) | | notes | |
 | Battery minimum under load (V) | | notes | |
 | Launch map points | | `LaunchMap.TABLE` | |
