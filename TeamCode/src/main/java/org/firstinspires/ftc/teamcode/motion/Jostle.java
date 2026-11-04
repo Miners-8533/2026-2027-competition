@@ -16,11 +16,12 @@ import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
 /**
- * Jostles an obstacle (the flower) that has to be shaken to give up its pollen: from where the robot is pressed against it, backs off BACK_IN inches (or for BACK_MAX_SEC),
- * pushes forward again until it is back at the contact point (at least PUSH_SEC, at most PUSH_MAX_SEC: a fixed push time let it creep 7 in away over 7 cycles on 2026-11-03),
- * and repeats until {@code done} is true (the robot is full), or MIN_COUNT_TO_STOP or more are held and nothing new has come in for QUIET_SEC, or MAX_SEC passes. The heading is held at the heading it had when the jostle
- * started, with a small limit on the turn power so the obstacle can still square the robot. The drive is in the robot's frame (forward is the robot's front), so it works
- * the same for either alliance. A sustained push gave the pollen on 2026-11-03 where a single ram did not.
+ * Jostles an obstacle (the flower) that has to be shaken to give up its pollen. The contact point is ANCHORED: it is where the robot is when the jostle starts (pressed against the
+ * obstacle). Each cycle backs off BACK_IN inches behind that point (or for BACK_MAX_SEC), pushes forward until it is back at the point (at least PUSH_SEC, at most PUSH_MAX_SEC), and then
+ * keeps pressing for PRESS_HOLD_SEC (the robot stays under the flower a little longer before it pulls back). Measuring from where the previous cycle ended let the robot creep from x 54.3 to
+ * 51.9 over 5 cycles on 2026-11-03. It repeats until {@code done} is true (the robot is full), or MIN_COUNT_TO_STOP or more are held and nothing new has come in for QUIET_SEC, or the time
+ * limit passes. The heading is held at the heading it had when the jostle started, with a small limit on the turn power so the obstacle can still square the robot. The drive is in the
+ * robot's frame (forward is the robot's front), so it works the same for either alliance. A sustained push gave the pollen on 2026-11-03 where a single ram did not.
  */
 @Config
 public final class Jostle implements Action {
@@ -28,7 +29,9 @@ public final class Jostle implements Action {
     public static double BACK_IN = 1.0;   // 2.0 moved a little too far on 2026-11-03: halved
     public static double POWER = 0.5;
     public static double PUSH_SEC = 0.2;   // the least a push lasts (halved from 0.35)
-    public static double PUSH_MAX_SEC = 0.5;
+    public static double PUSH_MAX_SEC = 0.6;
+    /** Once back at the contact point the robot keeps pressing this long before it backs off again. */
+    public static double PRESS_HOLD_SEC = 0.4;
     public static double CONTACT_TOL_IN = 0.3;
     public static int MIN_COUNT_TO_STOP = 3;
     public static double QUIET_SEC = 0.8;
@@ -45,9 +48,11 @@ public final class Jostle implements Action {
     private final ElapsedTime total = new ElapsedTime();
     private final ElapsedTime phase = new ElapsedTime();
     private boolean started = false;
-    private boolean backing = true;
+    private enum Mode { BACK, PUSH, PRESS }
+
+    private Mode mode = Mode.BACK;
     private double holdHeading;
-    private Pose2d backStart;
+    private Pose2d contact;   // the anchor: where the jostle started
     private int cycles = 0;
 
     public Jostle(MecanumDrive drive, BooleanSupplier done, IntSupplier count, double maxSec) {
@@ -66,11 +71,11 @@ public final class Jostle implements Action {
             total.reset();
             phase.reset();
             holdHeading = pose.heading.toDouble();
-            backStart = pose;
+            contact = pose;
             lastCount = count.getAsInt();
             sinceGain.reset();
-            RunLog.event(String.format(Locale.US, "AUTO JOSTLE start at (%.1f, %.1f, %.1f deg): back %.1f in, push %.2f s, power %.2f, for at most %.1f s",
-                    pose.position.x, pose.position.y, pose.heading.toDegrees(), BACK_IN, PUSH_SEC, POWER, maxSec));
+            RunLog.event(String.format(Locale.US, "AUTO JOSTLE start at (%.1f, %.1f, %.1f deg): back %.1f in from this point, press %.1f s each cycle, power %.2f, for at most %.1f s",
+                    pose.position.x, pose.position.y, pose.heading.toDegrees(), BACK_IN, PRESS_HOLD_SEC, POWER, maxSec));
         }
         boolean full = done.getAsBoolean();
         int held = count.getAsInt();
@@ -84,22 +89,31 @@ public final class Jostle implements Action {
             return false;
         }
         double turn = Math.max(-HEADING_MAX_TURN, Math.min(HEADING_MAX_TURN, HEADING_KP * Rotation2d.normalize(holdHeading - pose.heading.toDouble())));
-        if (backing) {
-            drive.setDrivePowers(new PoseVelocity2d(new Vector2d(-POWER, 0.0), turn));
-            double moved = Math.hypot(pose.position.x - backStart.position.x, pose.position.y - backStart.position.y);
-            if (moved >= BACK_IN || phase.seconds() >= BACK_MAX_SEC) {
-                backing = false;
-                phase.reset();
-            }
-        } else {
-            drive.setDrivePowers(new PoseVelocity2d(new Vector2d(POWER, 0.0), turn));
-            double fromContact = Math.hypot(pose.position.x - backStart.position.x, pose.position.y - backStart.position.y);
-            if ((phase.seconds() >= PUSH_SEC && fromContact <= CONTACT_TOL_IN) || phase.seconds() >= PUSH_MAX_SEC) {
-                backing = true;
-                backStart = pose;
-                phase.reset();
-                cycles++;
-            }
+        // how far along the robot's heading it is from the anchor: negative = backed off
+        double along = (pose.position.x - contact.position.x) * Math.cos(holdHeading) + (pose.position.y - contact.position.y) * Math.sin(holdHeading);
+        switch (mode) {
+            case BACK:
+                drive.setDrivePowers(new PoseVelocity2d(new Vector2d(-POWER, 0.0), turn));
+                if (along <= -BACK_IN || phase.seconds() >= BACK_MAX_SEC) {
+                    mode = Mode.PUSH;
+                    phase.reset();
+                }
+                break;
+            case PUSH:
+                drive.setDrivePowers(new PoseVelocity2d(new Vector2d(POWER, 0.0), turn));
+                if ((phase.seconds() >= PUSH_SEC && along >= -CONTACT_TOL_IN) || phase.seconds() >= PUSH_MAX_SEC) {
+                    mode = Mode.PRESS;
+                    phase.reset();
+                }
+                break;
+            default:
+                drive.setDrivePowers(new PoseVelocity2d(new Vector2d(POWER, 0.0), turn));
+                if (phase.seconds() >= PRESS_HOLD_SEC) {
+                    mode = Mode.BACK;
+                    phase.reset();
+                    cycles++;
+                }
+                break;
         }
         return true;
     }

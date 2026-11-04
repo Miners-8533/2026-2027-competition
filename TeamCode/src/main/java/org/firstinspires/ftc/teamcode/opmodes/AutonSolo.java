@@ -104,7 +104,7 @@ public class AutonSolo extends LinearOpMode {
 
     // ---- timing ----
     /** At the flower: pause until the robot holds 4 elements, but no longer than this. */
-    public static double FLOWER_PAUSE_MAX_SEC = 3.0;
+    public static double FLOWER_PAUSE_MAX_SEC = 5.0;   // the jostle's time limit (it stops early at 3+ held and quiet; 26.3 s total left 3.7 s of margin on 2026-11-03)
     /** Each drive leg's hard cap is max(TIMEOUT_MIN_SEC, TIMEOUT_BASE_SEC + distance / TIMEOUT_IN_PER_S) + TIMEOUT_TURN_EXTRA_SEC for a turn of over 120 deg, never more than TIMEOUT_MAX_SEC. */
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
     /** Pass-through points (the garden, the helper, the park via point) only need to get near: a leg ends within this position and heading. The shot spots and the flower keep the tight DriveToPose tolerance. */
