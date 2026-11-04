@@ -805,6 +805,8 @@ public class Mechanisms {
             }
             // locked: nothing can roll back and nothing is lost, so the intake runs OUT (it clears the entrance) whenever it would have been running or has just stopped at full
             if (lockState == LockState.LOCKED && !manualIntake && (intakeAlwaysOn || intakeRequested || intakeStoppedByFull || (ramp != null && ramp.isDeployedTarget()))) mode = Intake.Mode.OUT;
+            // while the arm is moving across the entrance the intake is OFF (a fifth pollen must not be pushed into its way); once locked it runs OUT (above)
+            if (lockState == LockState.LOCKING && !manualOuttake && !rejectActive) mode = Intake.Mode.OFF;
             if (manualCalibration && (pusherCheck == null || !pusherCheck.isActive())) {
                 manualCalibration = false;
                 RunLog.event("COMMAND pusher calibration sweep over: the intake runs again");
