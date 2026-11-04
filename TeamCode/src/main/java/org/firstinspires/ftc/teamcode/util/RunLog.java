@@ -181,6 +181,7 @@ public final class RunLog {
     /** Marks the moment the opmode was started (Start pressed). Times in the file keep counting from the open. */
     public static void started() {
         event(MARK_STARTED);
+        ConfigDump.logAll();   // the live Dashboard values of this run (and what changed since the last one)
     }
 
     /** Ends the log. Call it in a finally block, so every way out of the opmode is recorded. */
