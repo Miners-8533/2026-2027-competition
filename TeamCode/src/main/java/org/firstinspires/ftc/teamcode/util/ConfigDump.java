@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.util;
 import org.firstinspires.ftc.teamcode.drive.AutoLaunch;
 import org.firstinspires.ftc.teamcode.drive.FieldGeometry;
 import org.firstinspires.ftc.teamcode.drive.HiveDash;
+import org.firstinspires.ftc.teamcode.drive.HoldPosition;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.TargetLock;
@@ -36,7 +37,7 @@ import java.util.Map;
 public final class ConfigDump {
 
     private static final Class<?>[] CLASSES = {
-            AutoLaunch.class, FieldGeometry.class, HiveDash.class, MecanumDrive.class, PinpointLocalizer.class, TargetLock.class,
+            AutoLaunch.class, FieldGeometry.class, HiveDash.class, HoldPosition.class, MecanumDrive.class, PinpointLocalizer.class, TargetLock.class,
             AimAtCell.class, DriveToPose.class, Jostle.class, SquareOnWall.class,
             AutonSolo.class, TeleOpCompetition.class,
             ElementCounter.class, Flywheel.class, Intake.class, Mechanisms.class, Pusher.class, PusherCheck.class, Ramp.class};
