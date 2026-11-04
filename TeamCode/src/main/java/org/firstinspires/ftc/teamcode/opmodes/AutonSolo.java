@@ -118,6 +118,12 @@ public class AutonSolo extends LinearOpMode {
     public static double BACKOUT_TOL_IN = 1.5;
     public static double PARK_X = 51.1, PARK_Y = 54.0, PARK_HEADING_DEG = 180.0;
     /**
+     * The park run uses full power and is driven at a target PARK_OVERSHOOT_IN past the park pose (in the +Y direction of travel, blue frame; red is turned 180 deg), because the drive stalls about
+     * 1.9 in short of its target (no static friction term) and the 2026-11-03 runs ended 1.86 in short at the timeout. The leg ends when within PARK_POS_TOL_IN of that shifted target, so the robot
+     * has pushed through to the park pose by then, or after PARK_TIMEOUT_SEC.
+     */
+    public static double PARK_MAX_POWER = 1.0, PARK_OVERSHOOT_IN = 2.0, PARK_POS_TOL_IN = 2.5, PARK_HEADING_TOL_DEG = 5.0, PARK_TIMEOUT_SEC = 3.0;
+    /**
      * The helper point between the garden and the shot spot, to go around the OUTSIDE of the hive's two support rails (along the row borders 2|3 and 4|5, columns C to D,
      * so y = +-23.7 from x = -23.7 to +23.7; the 2026-11-03 run stopped with its back corner on the rail end at about (-23.7, 23.7)). (36, 40) keeps the robot's
      * footprint at least 8 in from the rail end (controller simulation) and the path 145 in long. Its heading is the shot spot's aim heading.
@@ -241,6 +247,11 @@ public class AutonSolo extends LinearOpMode {
                 return running;
             }
         };
+    }
+
+    /** The park run: full power, a tolerance wide enough to end once through the stall, a generous time limit. */
+    private Action parkLeg(String label, MecanumDrive drive, Pose2d target) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withMaxOutput(PARK_MAX_POWER).withTolerance(PARK_POS_TOL_IN, PARK_HEADING_TOL_DEG).withTimeout(PARK_TIMEOUT_SEC));
     }
 
     /** Drives hard at a target beyond an obstacle for a fixed time (the flower ram). */
@@ -386,7 +397,7 @@ public class AutonSolo extends LinearOpMode {
         Pose2d flowerBack = forAlliance(pose(FLOWER_AT_X - FLOWER_BACKOFF_IN, FLOWER_AT_Y, FLOWER_HEADING_DEG), isBlue);   // clear of the flower before the 180 deg turn
         Pose2d flowerRam = forAlliance(pose(FLOWER_AT_X + FLOWER_RAM_OVERSHOOT_IN, FLOWER_AT_Y, FLOWER_HEADING_DEG), isBlue);   // past the flower: the ram target
         Pose2d parkVia = forAlliance(pose(PARK_X, SHOT_Y, PARK_HEADING_DEG), isBlue);
-        Pose2d park = forAlliance(pose(PARK_X, PARK_Y, PARK_HEADING_DEG), isBlue);
+        Pose2d park = forAlliance(pose(PARK_X, PARK_Y + PARK_OVERSHOOT_IN, PARK_HEADING_DEG), isBlue);   // pushed through the stall: see PARK_OVERSHOOT_IN
 
         RunLog.event(String.format(Locale.US, "SETUP profile %s, alliance %s, start pose (%.1f, %.1f, %.1f deg), cells %s then %s, shot spot (%.1f, %.1f, %.1f deg), %s",
                 profile.name, isBlue ? "BLUE" : "RED", drive.getPose().position.x, drive.getPose().position.y, drive.getPose().heading.toDegrees(),
@@ -440,7 +451,7 @@ public class AutonSolo extends LinearOpMode {
 
                 note("Park"),
                 PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),
-                leg("park", drive, park),
+                parkLeg("park (full power)", drive, park),
                 new InstantAction(mechanisms::stopFlywheel)
         );
 
