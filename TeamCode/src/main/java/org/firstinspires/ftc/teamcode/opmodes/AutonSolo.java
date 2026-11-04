@@ -88,6 +88,12 @@ public class AutonSolo extends LinearOpMode {
     /** Deploy the ramp before the garden salvo (true: only if the shooter is known to work with the ramp down) or right after it, while the robot drives to the flower pre-position (false). */
     public static boolean RAMP_DEPLOY_DURING_SHOT = false;
     /**
+     * Standing aim corrections for the two salvos from the shot spot, degrees, positive = counterclockwise (the shot lands further left of where it landed), negative = clockwise (further right);
+     * the same for either alliance. If a salvo lands LEFT, make its trim negative. 2026-11-03: the garden salvo landed left (the aim step ended +2.2 to +2.3 deg, the robot already pointed to the
+     * right of the aim) and the flower salvo went in (+0.9 deg). The AIM log line shows the trim.
+     */
+    public static double GARDEN_AIM_TRIM_DEG = 0.0, FLOWER_AIM_TRIM_DEG = 0.0;
+    /**
      * After the jostle the robot first backs STRAIGHT out (heading held 0) to FLOWER_AT_X - FLOWER_BACKOFF_IN (x 46.3, ending within BACKOUT_TOL_IN) and only then does the turn move to the shot spot (false, the default).
      * True goes straight to the shot spot turning as it backs: it caught the edge of the ramp on the flower on 2026-11-03 (the turn started at x 53.4, 4 in from the shot spot).
      */
@@ -270,9 +276,13 @@ public class AutonSolo extends LinearOpMode {
 
     /** Aim at the cell with the lock, shoot one salvo, and finish when it is done. */
     private Action shoot(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label) {
+        return shoot(drive, mechanisms, cell, blue, label, 0.0);
+    }
+
+    private Action shoot(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg) {
         return new SequentialAction(
                 note("Aim and fire: " + label),
-                timed("aim: " + label, new AimAtCell(drive, cell, blue)),
+                timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg)),
                 timed("fire (wait + salvo): " + label, mechanisms.fire()));
     }
 
@@ -411,7 +421,7 @@ public class AutonSolo extends LinearOpMode {
                 note("Intake OFF"),
                 mechanisms.setIntake(false),
                 RAMP_DEPLOY_DURING_SHOT ? new InstantAction(mechanisms::requestDeploy) : new InstantAction(() -> { }),   // deploys while it shoots
-                shoot(drive, mechanisms, secondCell, isBlue, "garden pollen"),
+                shoot(drive, mechanisms, secondCell, isBlue, "garden pollen", GARDEN_AIM_TRIM_DEG),
 
                 RAMP_DEPLOY_DURING_SHOT ? new InstantAction(() -> { }) : new InstantAction(mechanisms::requestDeploy),   // deploys on the way
                 note("Back to the flower pre-position, turning to the flower"),
@@ -426,7 +436,7 @@ public class AutonSolo extends LinearOpMode {
                 stowWhenTurned(shotLeg("shot spot 2", drive, shotSpot), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
                 mechanisms.setIntake(false),
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
-                shoot(drive, mechanisms, secondCell, isBlue, "flower pollen"),
+                shoot(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG),
 
                 note("Park"),
                 PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),

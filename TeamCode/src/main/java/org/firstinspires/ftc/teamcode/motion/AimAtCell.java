@@ -30,6 +30,7 @@ public final class AimAtCell implements Action {
     private final MecanumDrive drive;
     private final HiveTarget cell;
     private final boolean blue;
+    private final double trimDeg;
     private final TargetLock lock = new TargetLock();
     private final ElapsedTime timeout = new ElapsedTime();
     private final ElapsedTime held = new ElapsedTime();
@@ -37,9 +38,15 @@ public final class AimAtCell implements Action {
     private boolean started = false;
 
     public AimAtCell(MecanumDrive drive, HiveTarget cell, boolean blue) {
+        this(drive, cell, blue, 0.0);
+    }
+
+    /** trimDeg: a standing aim correction for this shot, degrees, positive = counterclockwise (left), negative = clockwise (right); the same for either alliance. */
+    public AimAtCell(MecanumDrive drive, HiveTarget cell, boolean blue, double trimDeg) {
         this.drive = drive;
         this.cell = cell;
         this.blue = blue;
+        this.trimDeg = trimDeg;
     }
 
     @Override
@@ -54,7 +61,7 @@ public final class AimAtCell implements Action {
         loop.reset();
         PoseVelocity2d measured = drive.updatePoseEstimate();
         Pose2d pose = drive.getPose();
-        double turn = lock.turn(pose, measured == null ? 0.0 : measured.angVel, cell, TargetLock.farCellExtraLeftIn(cell, blue), 0.0, 0.0, dt);
+        double turn = lock.turn(pose, measured == null ? 0.0 : measured.angVel, cell, TargetLock.farCellExtraLeftIn(cell, blue), trimDeg, 0.0, dt);
         drive.setDrivePowers(new PoseVelocity2d(Vector2d.zero(), turn));
         double rateDegPerS = measured == null ? 0.0 : Math.toDegrees(measured.angVel);
         boolean near = Math.abs(lock.errorDeg()) <= ALIGNED_DEG && Math.abs(rateDegPerS) <= TargetLock.ALIGNED_MAX_RATE_DEG_PER_S;
@@ -64,8 +71,8 @@ public final class AimAtCell implements Action {
         boolean done = aligned || timeout.seconds() >= TIMEOUT_SEC;
         if (done) {
             drive.stop();
-            RunLog.event(String.format(java.util.Locale.US, "AIM %s at %s after %.2f s: error %+.1f deg, pose (%.1f, %.1f, %.1f deg)",
-                    aligned ? "aligned" : "TIMED OUT", cell, timeout.seconds(), lock.errorDeg(),
+            RunLog.event(String.format(java.util.Locale.US, "AIM %s at %s after %.2f s: error %+.1f deg (trim %+.1f deg), pose (%.1f, %.1f, %.1f deg)",
+                    aligned ? "aligned" : "TIMED OUT", cell, timeout.seconds(), lock.errorDeg(), trimDeg,
                     pose.position.x, pose.position.y, pose.heading.toDegrees()));
             lock.release();
         }
