@@ -46,6 +46,13 @@ public class Flywheel {
      * 0.35 (the user's choice, 2026-11-03; 0.2 before) is at the edge: if the speed creeps above the setpoint at the slowest entry on a fresh battery, lower it.
      */
     public static double FEED_FORWARD = 0.35;
+    /**
+     * LAUNCH BAND (2026-11-04): a salvo may only START while the filtered speed is between these fractions of the setpoint (checked once, at the start; a salvo that has started
+     * goes on whatever the speed does). 0.96 / 1.04 from the 268 salvos of 11-02 and 11-03: the speed at the start was within about -2 to +4 percent in 96 percent of them,
+     * the other 12 were -5 to -7 (a first salvo after the spin-up) and +5 to +16 (after the setpoint dropped when the driver moved in: the wheel only coasts down, and READY_FRACTION has no upper limit).
+     */
+    public static double LAUNCH_BAND_LOW_FRACTION = 0.96;
+    public static double LAUNCH_BAND_HIGH_FRACTION = 1.04;
     /** Filtered speed, as a fraction of the setpoint, that counts as ready. */
     public static double READY_FRACTION = 0.95;
     /** +1 if the SDK encoder count rises when the wheel turns the launching way, -1 if it falls. */
@@ -160,6 +167,23 @@ public class Flywheel {
                     && openLoopTimer.seconds() >= (encoderLost ? LOST_READY_SEC : OPEN_LOOP_READY_SEC);
         }
         return targetVelocity > 0.0 && getFilteredVelocity() >= targetVelocity * READY_FRACTION;
+    }
+
+    /**
+     * True when a salvo may start: the filtered speed is inside the launch band (LAUNCH_BAND_LOW_FRACTION to LAUNCH_BAND_HIGH_FRACTION of the setpoint). With the speed sensor
+     * overridden or lost there is no speed to check, so it is the same as {@link #isReady}.
+     */
+    public boolean isInLaunchBand() {
+        if (openLoop) return isReady();
+        double v = getFilteredVelocity();
+        return targetVelocity > 0.0 && v >= targetVelocity * LAUNCH_BAND_LOW_FRACTION && v <= targetVelocity * LAUNCH_BAND_HIGH_FRACTION;
+    }
+
+    /** "in the band", "BELOW the band" or "ABOVE the band", for the log and the notices. */
+    public String launchBandState() {
+        if (openLoop || targetVelocity <= 0.0) return isReady() ? "in the band" : "BELOW the band";
+        double v = getFilteredVelocity();
+        return v < targetVelocity * LAUNCH_BAND_LOW_FRACTION ? "BELOW the band" : v > targetVelocity * LAUNCH_BAND_HIGH_FRACTION ? "ABOVE the band" : "in the band";
     }
 
     /**

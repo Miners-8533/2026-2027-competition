@@ -47,6 +47,9 @@ import java.util.Locale;
 public class Mechanisms {
 
     public static double LAUNCH_TIMEOUT_SEC = 3.0;
+    /** True: while a launch is queued or a salvo runs, and for BURST_LOG_AFTER_SEC after it, the log writes a sample row on every loop (see RunLog.setBurst). */
+    public static boolean BURST_LOG_SALVOS = true;
+    public static double BURST_LOG_AFTER_SEC = 0.6;
     public static double FLYWHEEL_STOP_DELAY_SEC = 0.5;
     public static double NOTICE_SEC = 4.0;
     /** Rule 6: stop the intake when the element counter reports a full robot. */
@@ -96,6 +99,8 @@ public class Mechanisms {
     private boolean manualIntake = false;
     private boolean intakeAlwaysOn = false;
     private boolean launchQueued = false;
+    private boolean bandWaitLogged = false;
+    private final ElapsedTime burstTimer = new ElapsedTime();
     private boolean salvoActive = false;
     private boolean rejectActive = false;
     private boolean spinRequested = false;
@@ -219,6 +224,7 @@ public class Mechanisms {
             pusher.cancelMove();
         }
         launchQueued = true;
+        bandWaitLogged = false;
         launchTimer.reset();
         RunLog.event(String.format(Locale.US, "COMMAND launch queued: flywheel %.0f of %.0f ticks/s, %s",
                 flywheel.getFilteredVelocity(), lastSetpoint, heldText()));
@@ -613,10 +619,18 @@ public class Mechanisms {
                 launchQueued = false;
                 notice(pusher.isStalled() ? "Launch dropped: the pusher is faulted."
                         : !pusher.isStopped() ? "Launch dropped: the pusher was still moving."
+                        : flywheel.isReady() ? "Launch dropped: the flywheel speed stayed outside the launch band (" + flywheel.launchBandState() + ", " + String.format(Locale.US, "%.0f of %.0f ticks/s", flywheel.getFilteredVelocity(), lastSetpoint) + ")."
                         : "Launch dropped: the flywheel was not ready in time.");
             } else {
                 flywheel.setTargetVelocity(lastSetpoint);
-                if (flywheel.isReady() && pusher.isStopped()) {
+                boolean inBand = flywheel.isInLaunchBand();
+                if (!inBand && flywheel.isReady() && !bandWaitLogged) {
+                    bandWaitLogged = true;
+                    RunLog.event(String.format(Locale.US, "LAUNCH held: the flywheel (filtered %.0f ticks/s) is %s %.0f to %.0f; the salvo starts when it is inside (at most %.1f s)",
+                            flywheel.getFilteredVelocity(), flywheel.launchBandState(), lastSetpoint * Flywheel.LAUNCH_BAND_LOW_FRACTION, lastSetpoint * Flywheel.LAUNCH_BAND_HIGH_FRACTION, LAUNCH_TIMEOUT_SEC));
+                }
+                if (inBand && pusher.isStopped()) {
+                    if (bandWaitLogged) RunLog.event(String.format(Locale.US, "LAUNCH released: the flywheel is inside the band after %.2f s of waiting", launchTimer.seconds()));
                     pusher.startSalvo();
                     salvoActive = true;
                     salvoMinSpeed = flywheel.getVelocity();
@@ -627,6 +641,9 @@ public class Mechanisms {
                 }
             }
         }
+
+        if (launchQueued || salvoActive) burstTimer.reset();
+        RunLog.setBurst(BURST_LOG_SALVOS && burstTimer.seconds() < BURST_LOG_AFTER_SEC);
 
         // flywheel target, and its automatic stop after a salvo
         if (flywheel != null) {
@@ -725,7 +742,7 @@ public class Mechanisms {
         telemetry.addData("Open cell / distance (in)", "%s / %.1f", openCell, lastDistance);
         telemetry.addData("Flywheel setpoint (ticks/s)", "%.0f   (%s)", lastSetpoint,
                 useLaunchMap && !LaunchMap.isEmpty() ? String.format(Locale.US, "launch map %+.0f trim", speedTrim) : "manual");
-        telemetry.addData("Launch", launchQueued ? "QUEUED, waiting for flywheel" : salvoActive ? "SALVO running" : "idle");
+        telemetry.addData("Launch", launchQueued ? (flywheel != null && !flywheel.isInLaunchBand() ? "QUEUED, waiting: the flywheel is " + flywheel.launchBandState() : "QUEUED, starting") : salvoActive ? "SALVO running" : "idle");
         telemetry.addData("Reject", rejectActive ? "running" : "idle");
         if (intake != null) intake.log(telemetry);
         if (flywheel != null) flywheel.log(telemetry);

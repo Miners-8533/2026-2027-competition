@@ -80,6 +80,7 @@ public final class RunLog {
     private RowSource source;
     private long samplePeriodNs;
     private long nextSampleNs;
+    private boolean burst = false;
     private long lastTickNs;
     private long lastSlowEventNs;
     private double loopSumMs;
@@ -234,6 +235,17 @@ public final class RunLog {
         log.write("H,t,loop_ms,loop_max_ms,volt," + columns);
     }
 
+    /**
+     * BURST: while on, a sample row is written on every loop instead of every sample period (the loop is about 25 ms against the 100 ms period, so about 4 times the rows).
+     * The mechanisms switch it on around a salvo, so a salvo's flywheel speed, pusher angle and element slots are logged at loop rate. Call from the opmode thread.
+     */
+    public static void setBurst(boolean on) {
+        RunLog log = active;
+        if (log == null || log.burst == on) return;
+        log.burst = on;
+        if (on) log.nextSampleNs = 0L;
+    }
+
     /** Call once per loop. Writes a sample when one is due, and notes a loop that took too long. */
     public static void tick() {
         RunLog log = active;
@@ -259,7 +271,7 @@ public final class RunLog {
         lastTickNs = now;
 
         if (source == null || now < nextSampleNs) return;
-        nextSampleNs = now + samplePeriodNs;
+        nextSampleNs = burst ? 0L : now + samplePeriodNs;
         if (battery != null && now - voltageAtNs > VOLTAGE_PERIOD_NS) {
             voltageAtNs = now;
             try {
