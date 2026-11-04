@@ -206,6 +206,8 @@ public class Mechanisms {
 
     /** Hold: the intake runs IN whatever the count says (only with {@link #setIntakeAlwaysOn}). The outtake wins if both are held. */
     public void setManualIntake(boolean requested) {
+        // forcing the intake IN while the pusher is locked unlocks it, so the pollen can actually go into the rotary transport (the automatic lock stays off while it is held)
+        if (requested && !manualIntake && (lockState == LockState.LOCKED || lockState == LockState.LOCKING) && pusher != null) beginUnlock("the operator forced the intake IN");
         manualIntake = requested;
     }
 
@@ -324,7 +326,7 @@ public class Mechanisms {
         }
         switch (lockState) {
             case NONE:
-                if (PUSHER_LOCK_WHEN_FULL && full && !autoLockSuppressed && counter.isValid() && !counterOverride && lockClock.seconds() >= LOCK_RETRY_HOLDOFF_SEC
+                if (PUSHER_LOCK_WHEN_FULL && full && !autoLockSuppressed && !manualIntake && counter.isValid() && !counterOverride && lockClock.seconds() >= LOCK_RETRY_HOLDOFF_SEC
                         && lockRefusal() == null) {
                     beginLock("full confirmed");
                 }
