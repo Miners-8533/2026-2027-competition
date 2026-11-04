@@ -5,7 +5,7 @@ import com.acmerobotics.dashboard.config.Config;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 
 /**
- * Auto-fire (a prototype of the competition TeleOp, switched on and off by the operator's right bumper): while the target lock is on and the
+ * Auto-launch (a prototype of the competition TeleOp, switched on and off by the operator's right bumper): while the target lock is on and the
  * robot is inside the SHOT ZONE of the cell it is locked on, the TeleOp stops the chassis (the driver's translation is ignored) and, once the lock
  * is ALIGNED and the robot has stopped, fires one salvo by itself. The zones keep the shot roughly straight on to the cell and not too close.
  *
@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
  * (the marks there do not separate yet), so re-check it with marks.
  */
 @Config
-public final class AutoFire {
+public final class AutoLaunch {
 
     /** Radius of every zone, inches (about 30 to 50 in from the cell, within about 14 deg of straight on). */
     public static double ZONE_RADIUS_IN = 10.0;
@@ -32,7 +32,7 @@ public final class AutoFire {
     public static double RED_AUDIENCE_X = 61.5, RED_AUDIENCE_Y = -15.25;
     public static double RED_REAR_X = -61.5, RED_REAR_Y = -7.5;
 
-    private AutoFire() {}
+    private AutoLaunch() {}
 
     public static double centerX(HiveTarget cell) {
         switch (cell) {

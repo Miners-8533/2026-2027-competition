@@ -9,7 +9,7 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.drive.AutoFire;
+import org.firstinspires.ftc.teamcode.drive.AutoLaunch;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.drive.FieldGeometry;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
@@ -74,10 +74,10 @@ import java.util.Locale;
  *                        added to the shot map's speed (the manual setpoint while the map is empty). Each report is logged with the aim of the last fire.
  *   hold left bumper + D-pad left / right   clear the remembered aim of the last fired cell;  hold left bumper + D-pad up / down   clear the speed trim
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
- *   right bumper         AUTO-FIRE on / off (a toggle, off at Start; a prototype). With it on, while the target lock is on (automatic or manual) and the robot is inside the
- *                        shot zone of the cell it is locked on (see {@link AutoFire}), the chassis stops by itself and, once the lock is ALIGNED and the robot has stopped,
+ *   right bumper         AUTO-LAUNCH on / off (a toggle, off at Start; a prototype). With it on, while the target lock is on (automatic or manual) and the robot is inside the
+ *                        shot zone of the cell it is locked on (see {@link AutoLaunch}), the chassis stops by itself and, once the lock is ALIGNED and the robot has stopped,
  *                        one salvo is fired. It does nothing when the counter reads 0 elements, and the driver gets the robot back if the shot has not gone within
- *                        AutoFire.FREEZE_MAX_SEC. The salvo releases the lock as always.
+ *                        AutoLaunch.FREEZE_MAX_SEC. The salvo releases the lock as always.
  *   hold left bumper + Y pusher calibration sweep now (the track must be empty; the intake is held off by itself until it ends; again to stop it); Y alone stows
  *   (no control clears a pusher fault: the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
  *   (neither controller uses Back or Start)
@@ -305,10 +305,10 @@ public class TeleOpCompetition extends LinearOpMode {
         boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, wasFull = false, pinpointBad = false;
         boolean fireWaiting = false;   // a driver fire queued until the lock is ALIGNED
         ElapsedTime fireAlignClock = new ElapsedTime();
-        boolean autoFireOn = false, autoFireDone = false, autoFireInZone = false;   // auto-fire: the operator's toggle, taken or given up for this lock, inside a zone now
-        String autoFireState = "";
-        ElapsedTime autoFireZoneClock = new ElapsedTime();
-        ElapsedTime autoFireStillClock = new ElapsedTime();
+        boolean autoLaunchOn = false, autoLaunchDone = false, autoLaunchInZone = false;   // auto-launch: the operator's toggle, taken or given up for this lock, inside a zone now
+        String autoLaunchState = "";
+        ElapsedTime autoLaunchZoneClock = new ElapsedTime();
+        ElapsedTime autoLaunchStillClock = new ElapsedTime();
         String lastFireAim = "none yet";   // the aim line of the last fire (with the lock state and nudge then), repeated in the operator's reports that follow it
         HiveTarget lastFireCell = null;    // the cell of the last fire: the operator's report of where it landed applies to this cell
         ElapsedTime pinpointBadFor = new ElapsedTime();
@@ -412,45 +412,45 @@ public class TeleOpCompetition extends LinearOpMode {
                 }
                 lockWasAligned = aligned;
 
-                // auto-fire (prototype, the operator's right bumper): inside the shot zone of the locked cell the chassis stops, then one salvo goes
+                // auto-launch (prototype, the operator's right bumper): inside the shot zone of the locked cell the chassis stops, then one salvo goes
                 // when the lock is ALIGNED and the robot has stopped. Not with an empty robot (the counter reads 0), and at most FREEZE_MAX_SEC of holding.
                 boolean hasElements = mechanisms.counter == null || !mechanisms.counter.isValid() || mechanisms.counter.count() > 0;
-                boolean inZone = AutoFire.inZone(lockTarget, pose.position.x, pose.position.y);
-                if (!autoFireOn) {
-                    autoFireState = "off";
-                } else if (autoFireDone) {
-                    autoFireState = "done for this lock";
+                boolean inZone = AutoLaunch.inZone(lockTarget, pose.position.x, pose.position.y);
+                if (!autoLaunchOn) {
+                    autoLaunchState = "off";
+                } else if (autoLaunchDone) {
+                    autoLaunchState = "done for this lock";
                 } else if (!hasElements) {
-                    autoFireState = "waiting: no elements";
+                    autoLaunchState = "waiting: no elements";
                 } else if (!inZone) {
-                    autoFireInZone = false;
-                    autoFireState = String.format(Locale.US, "waiting: %.0f in from the %s shot zone", AutoFire.distanceFromZone(lockTarget, pose.position.x, pose.position.y) - AutoFire.ZONE_RADIUS_IN, lockTarget);
+                    autoLaunchInZone = false;
+                    autoLaunchState = String.format(Locale.US, "waiting: %.0f in from the %s shot zone", AutoLaunch.distanceFromZone(lockTarget, pose.position.x, pose.position.y) - AutoLaunch.ZONE_RADIUS_IN, lockTarget);
                 } else {
-                    if (!autoFireInZone) {
-                        autoFireInZone = true;
-                        autoFireZoneClock.reset();
-                        autoFireStillClock.reset();
-                        RunLog.event(String.format(Locale.US, "AUTO FIRE: entered the %s zone at (%.1f, %.1f), speed %.1f in/s: stopping the chassis", lockTarget,
+                    if (!autoLaunchInZone) {
+                        autoLaunchInZone = true;
+                        autoLaunchZoneClock.reset();
+                        autoLaunchStillClock.reset();
+                        RunLog.event(String.format(Locale.US, "AUTO LAUNCH: entered the %s zone at (%.1f, %.1f), speed %.1f in/s: stopping the chassis", lockTarget,
                                 pose.position.x, pose.position.y, measured == null ? 0.0 : Math.hypot(measured.linearVel.x, measured.linearVel.y)));
                     }
                     double speed = measured == null ? 0.0 : Math.hypot(measured.linearVel.x, measured.linearVel.y);
-                    boolean still = aligned && speed <= AutoFire.MAX_SPEED_IN_PER_S;
-                    if (!still) autoFireStillClock.reset();
-                    if (autoFireZoneClock.seconds() > AutoFire.FREEZE_MAX_SEC) {
-                        autoFireDone = true;
-                        RunLog.event(String.format(Locale.US, "AUTO FIRE gave up after %.1f s in the zone (%s, speed %.1f in/s): the driver has the robot", autoFireZoneClock.seconds(),
+                    boolean still = aligned && speed <= AutoLaunch.MAX_SPEED_IN_PER_S;
+                    if (!still) autoLaunchStillClock.reset();
+                    if (autoLaunchZoneClock.seconds() > AutoLaunch.FREEZE_MAX_SEC) {
+                        autoLaunchDone = true;
+                        RunLog.event(String.format(Locale.US, "AUTO LAUNCH gave up after %.1f s in the zone (%s, speed %.1f in/s): the driver has the robot", autoLaunchZoneClock.seconds(),
                                 aligned ? "aligned" : "not aligned", speed));
                     } else {
                         robotForward = 0.0;   // stop the chassis: the driver's translation is ignored
                         robotLeft = 0.0;
                         cmdForward = 0.0;
                         cmdLeft = 0.0;
-                        autoFireState = String.format(Locale.US, "IN ZONE: stopping (%s, %.1f in/s)", aligned ? "aligned" : "aligning", speed);
-                        if (autoFireStillClock.seconds() >= AutoFire.ALIGNED_HOLD_SEC && !mechanisms.isFireBusy()) {
-                            autoFireDone = true;
+                        autoLaunchState = String.format(Locale.US, "IN ZONE: stopping (%s, %.1f in/s)", aligned ? "aligned" : "aligning", speed);
+                        if (autoLaunchStillClock.seconds() >= AutoLaunch.ALIGNED_HOLD_SEC && !mechanisms.isFireBusy()) {
+                            autoLaunchDone = true;
                             lastFireAim = aimSummary(pose, mechanisms, blue, lockOn);
                             lastFireCell = lockTarget;
-                            RunLog.event(String.format(Locale.US, "AUTO FIRE: %.2f s after entering the zone, speed %.1f in/s | %s", autoFireZoneClock.seconds(), speed, lastFireAim));
+                            RunLog.event(String.format(Locale.US, "AUTO LAUNCH: %.2f s after entering the zone, speed %.1f in/s | %s", autoLaunchZoneClock.seconds(), speed, lastFireAim));
                             mechanisms.requestFire();
                         }
                     }
@@ -463,9 +463,9 @@ public class TeleOpCompetition extends LinearOpMode {
                 }
                 lockErrDeg = Double.NaN;
                 cmdTurn = manualTurn;
-                autoFireDone = false;
-                autoFireInZone = false;
-                autoFireState = autoFireOn ? "waiting: no target lock" : "off";
+                autoLaunchDone = false;
+                autoLaunchInZone = false;
+                autoLaunchState = autoLaunchOn ? "waiting: no target lock" : "off";
             }
             drive.setDrivePowers(new PoseVelocity2d(new Vector2d(robotForward, robotLeft), cmdTurn));
             logX = pose.position.x;
@@ -542,10 +542,10 @@ public class TeleOpCompetition extends LinearOpMode {
                 mechanisms.requestFire();
             }
             if (gamepad2.rightBumperWasPressed()) {
-                autoFireOn = !autoFireOn;
-                autoFireDone = false;
-                autoFireInZone = false;
-                RunLog.event("COMMAND auto-fire -> " + (autoFireOn ? "ON" : "off") + (backupMode ? " (no effect: backup mode)" : ""));
+                autoLaunchOn = !autoLaunchOn;
+                autoLaunchDone = false;
+                autoLaunchInZone = false;
+                RunLog.event("COMMAND auto-launch -> " + (autoLaunchOn ? "ON" : "off") + (backupMode ? " (no effect: backup mode)" : ""));
             }
             boolean operatorB = gamepad2.bWasPressed();   // read every loop; the reject needs the left bumper held, so it cannot be set off by accident
             if (operatorB && gamepad2.left_bumper) mechanisms.requestReject();
@@ -603,10 +603,10 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Remembered aim (operator D-pad left / right)", "blue rear %+.1f, blue audience %+.1f, red rear %+.1f, red audience %+.1f deg   | speed trim %+.0f ticks/s (D-pad up / down)",
                     cellNudgeDeg[HiveTarget.BLUE_REAR.ordinal()], cellNudgeDeg[HiveTarget.BLUE_AUDIENCE.ordinal()], cellNudgeDeg[HiveTarget.RED_REAR.ordinal()],
                     cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()], mechanisms.getSpeedTrim());
-            telemetry.addData("Auto-fire (operator RB toggles)", backupMode ? "off (backup mode)" : autoFireOn ? "ON: " + autoFireState : "off");
+            telemetry.addData("Auto-launch (operator RB toggles)", backupMode ? "off (backup mode)" : autoLaunchOn ? "ON: " + autoLaunchState : "off");
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, hold LT precision, hold RT target lock, A fire, hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
-            telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-fire on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
+            telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-launch on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
             telemetry.update();
         }
