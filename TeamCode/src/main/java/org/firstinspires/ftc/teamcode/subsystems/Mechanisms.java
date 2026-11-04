@@ -52,11 +52,9 @@ public class Mechanisms {
     public static double BURST_LOG_AFTER_SEC = 0.6;
     /**
      * PUSHER LOCK (2026-11-04): when the robot is full (4 confirmed) and the arm is at HOLD, move the arm LOCK_DEG (90) forward across the intake entrance so the pollen cannot roll
-     * back out; the element count is frozen and the intake runs OUT while locked. A launch goes from the lock (310 deg), a reject unlocks first, the operator's left bumper + X toggles it.
+     * back out; the element count is frozen and the intake runs OUT while locked. A launch goes from the lock (310 deg), a reject unlocks first, and the operator forcing the intake IN (right trigger) unlocks it. No manual lock control and no retry wait (user, 2026-11-04).
      */
     public static boolean PUSHER_LOCK_WHEN_FULL = true;
-    /** After an unlock or a failed lock the automatic lock waits this long before it tries again. */
-    public static double LOCK_RETRY_HOLDOFF_SEC = 3.0;
     public static double FLYWHEEL_STOP_DELAY_SEC = 0.5;
     public static double NOTICE_SEC = 4.0;
     /** Rule 6: stop the intake when the element counter reports a full robot. */
@@ -110,10 +108,8 @@ public class Mechanisms {
     private enum LockState { NONE, LOCKING, LOCKED, UNLOCKING }
 
     private LockState lockState = LockState.NONE;
-    private boolean autoLockSuppressed = false;      // the operator unlocked by hand: no automatic lock until the robot stops being full
     private boolean pendingRejectAfterUnlock = false;
     private boolean unlockForIntake = false;     // the unlock in progress was the operator forcing the intake IN
-    private boolean holdoffWaived = false;       // after that unlock the automatic lock needs only FULL to be confirmed again, not LOCK_RETRY_HOLDOFF_SEC
     private boolean intakeStoppedByFull = false;     // the automatic stop at full cleared the intake request: the intake still runs OUT while locked
     private final ElapsedTime lockClock = new ElapsedTime();
     private final ElapsedTime burstTimer = new ElapsedTime();
@@ -269,7 +265,7 @@ public class Mechanisms {
             case LOCKING: return "locking (the arm is moving across the entrance)";
             case LOCKED: return "LOCKED: the arm blocks the entrance, the count is frozen, the intake runs OUT; a launch goes from here, a reject unlocks first";
             case UNLOCKING: return "unlocking";
-            default: return PUSHER_LOCK_WHEN_FULL ? (autoLockSuppressed ? "off (you unlocked it; it locks again after the robot has stopped being full)" : "off (locks by itself when full)") : "off (automatic lock disabled)";
+            default: return PUSHER_LOCK_WHEN_FULL ? "off (locks by itself when full)" : "off (automatic lock disabled)";
         }
     }
 
@@ -285,7 +281,6 @@ public class Mechanisms {
     }
 
     private void beginLock(String why) {
-        holdoffWaived = false;
         counter.setFrozen(true);
         pusher.startLock();
         lockState = LockState.LOCKING;
@@ -300,21 +295,6 @@ public class Mechanisms {
         RunLog.event("PUSHER UNLOCK (" + why + "): " + pusher.getLastCommand());
     }
 
-    /** The operator's toggle (left bumper + X): lock now (the robot need not be full) or unlock; an unlock by hand also stops the automatic lock until the robot is no longer full. */
-    public void togglePusherLock() {
-        if (lockState == LockState.NONE) {
-            String why = lockRefusal();
-            if (why != null) {
-                notice("Pusher lock refused: " + why);
-                return;
-            }
-            beginLock("operator");
-        } else if (lockState != LockState.UNLOCKING) {
-            autoLockSuppressed = true;
-            beginUnlock("operator");
-        }
-    }
-
     /** A salvo starts from the lock (310 deg): the count follows the sensors again as the arm sweeps. */
     private void releaseLockForSalvo() {
         if (lockState == LockState.NONE) return;
@@ -326,14 +306,10 @@ public class Mechanisms {
 
     private void updateLock(boolean full) {
         if (pusher == null || counter == null) return;
-        if (!full && lockState == LockState.NONE) {
-            autoLockSuppressed = false;
-            intakeStoppedByFull = false;
-        }
+        if (!full && lockState == LockState.NONE) intakeStoppedByFull = false;
         switch (lockState) {
             case NONE:
-                if (PUSHER_LOCK_WHEN_FULL && full && !autoLockSuppressed && !manualIntake && counter.isValid() && !counterOverride && (lockClock.seconds() >= LOCK_RETRY_HOLDOFF_SEC || holdoffWaived)
-                        && lockRefusal() == null) {
+                if (PUSHER_LOCK_WHEN_FULL && full && !manualIntake && counter.isValid() && !counterOverride && lockRefusal() == null) {
                     beginLock("full confirmed");
                 }
                 break;
@@ -344,8 +320,8 @@ public class Mechanisms {
                         lockState = LockState.LOCKED;
                         lockClock.reset();
                     } else {
-                        RunLog.event(String.format(Locale.US, "PUSHER LOCK FAILED: the arm rests at %.1f deg past HOLD (%s); the lock is off and the automatic lock waits %.0f s",
-                                pusher.getAnglePastHoldDeg(), pusher.getLastResult(), LOCK_RETRY_HOLDOFF_SEC));
+                        RunLog.event(String.format(Locale.US, "PUSHER LOCK FAILED: the arm rests at %.1f deg past HOLD (%s); the lock is off (the automatic lock tries again when the conditions hold)",
+                                pusher.getAnglePastHoldDeg(), pusher.getLastResult()));
                         lockState = LockState.NONE;
                         counter.setFrozen(false);
                         lockClock.reset();
@@ -358,7 +334,6 @@ public class Mechanisms {
                     lockState = LockState.NONE;
                     counter.setFrozen(false, unlockForIntake);
                     lockClock.reset();
-                    holdoffWaived = unlockForIntake;
                     unlockForIntake = false;
                     if (pendingRejectAfterUnlock) {
                         pendingRejectAfterUnlock = false;
