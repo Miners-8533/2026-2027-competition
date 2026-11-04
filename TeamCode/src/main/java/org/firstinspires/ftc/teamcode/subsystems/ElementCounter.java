@@ -258,11 +258,20 @@ public class ElementCounter {
      * arm may read as an element at one of the sensors, and nothing can enter or leave while it is locked. Set false and the count follows the sensors again after the usual steady time.
      */
     public void setFrozen(boolean on) {
+        setFrozen(on, false);
+    }
+
+    /**
+     * requalifyFull (only when releasing): a reported FULL drops to CAPACITY - 1 if the sensors still read CAPACITY, so FULL has to be confirmed again by the normal COUNT_FULL_STABLE_MS
+     * (used when the operator forces the intake IN through the pusher lock: the robot is locked again as soon as the sensors have shown full for that long, with no further wait).
+     */
+    public void setFrozen(boolean on, boolean requalifyFull) {
         if (on == frozen) return;
         frozen = on;
         if (!on) {
             rawCount = elementsSeen();
             rawSinceNs = System.nanoTime();
+            if (requalifyFull && stableCount >= CAPACITY && rawCount >= CAPACITY) stableCount = CAPACITY - 1;
         }
     }
 

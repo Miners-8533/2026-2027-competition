@@ -112,6 +112,8 @@ public class Mechanisms {
     private LockState lockState = LockState.NONE;
     private boolean autoLockSuppressed = false;      // the operator unlocked by hand: no automatic lock until the robot stops being full
     private boolean pendingRejectAfterUnlock = false;
+    private boolean unlockForIntake = false;     // the unlock in progress was the operator forcing the intake IN
+    private boolean holdoffWaived = false;       // after that unlock the automatic lock needs only FULL to be confirmed again, not LOCK_RETRY_HOLDOFF_SEC
     private boolean intakeStoppedByFull = false;     // the automatic stop at full cleared the intake request: the intake still runs OUT while locked
     private final ElapsedTime lockClock = new ElapsedTime();
     private final ElapsedTime burstTimer = new ElapsedTime();
@@ -207,7 +209,10 @@ public class Mechanisms {
     /** Hold: the intake runs IN whatever the count says (only with {@link #setIntakeAlwaysOn}). The outtake wins if both are held. */
     public void setManualIntake(boolean requested) {
         // forcing the intake IN while the pusher is locked unlocks it, so the pollen can actually go into the rotary transport (the automatic lock stays off while it is held)
-        if (requested && !manualIntake && (lockState == LockState.LOCKED || lockState == LockState.LOCKING) && pusher != null) beginUnlock("the operator forced the intake IN");
+        if (requested && !manualIntake && (lockState == LockState.LOCKED || lockState == LockState.LOCKING) && pusher != null) {
+            unlockForIntake = true;
+            beginUnlock("the operator forced the intake IN");
+        }
         manualIntake = requested;
     }
 
@@ -280,6 +285,7 @@ public class Mechanisms {
     }
 
     private void beginLock(String why) {
+        holdoffWaived = false;
         counter.setFrozen(true);
         pusher.startLock();
         lockState = LockState.LOCKING;
@@ -326,7 +332,7 @@ public class Mechanisms {
         }
         switch (lockState) {
             case NONE:
-                if (PUSHER_LOCK_WHEN_FULL && full && !autoLockSuppressed && !manualIntake && counter.isValid() && !counterOverride && lockClock.seconds() >= LOCK_RETRY_HOLDOFF_SEC
+                if (PUSHER_LOCK_WHEN_FULL && full && !autoLockSuppressed && !manualIntake && counter.isValid() && !counterOverride && (lockClock.seconds() >= LOCK_RETRY_HOLDOFF_SEC || holdoffWaived)
                         && lockRefusal() == null) {
                     beginLock("full confirmed");
                 }
@@ -350,8 +356,10 @@ public class Mechanisms {
                 if (pusher.isStalled() || (pusher.getState() == Pusher.State.HOLD && pusher.isStopped())) {
                     RunLog.event(String.format(Locale.US, "PUSHER UNLOCKED: the arm is %.1f deg past HOLD (%s)", pusher.getAnglePastHoldDeg(), pusher.getLastResult()));
                     lockState = LockState.NONE;
-                    counter.setFrozen(false);
+                    counter.setFrozen(false, unlockForIntake);
                     lockClock.reset();
+                    holdoffWaived = unlockForIntake;
+                    unlockForIntake = false;
                     if (pendingRejectAfterUnlock) {
                         pendingRejectAfterUnlock = false;
                         requestReject();
