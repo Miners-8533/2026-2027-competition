@@ -81,6 +81,15 @@ public class Pusher {
     public static double AUTO_CORRECT_MAX_DEG = 45.0;
     /** Default power for a seek (a short move to a given position, either direction). */
     public static double SEEK_POWER = 0.2;
+    /**
+     * The LOCK position (2026-11-04): with the robot full the arm moves this far forward of a HOLD and rests there, across the intake entrance, so the pollen cannot roll back
+     * out (and a fifth cannot get in). It moves the pollen forward a little but does not launch one. A salvo from here targets the nearest HOLD behind plus SALVO_DEG, so it
+     * turns SALVO_DEG - LOCK_DEG (310). Unlocking reverses to that HOLD. The lock and unlock are seeks at LOCK_POWER.
+     */
+    public static double LOCK_DEG = 90.0;
+    public static double LOCK_POWER = 0.25;
+    /** The arm counts as locked when it is stopped within this many degrees of LOCK_DEG past a HOLD. */
+    public static double LOCK_TOLERANCE_DEG = 12.0;
 
     /** How often (ms) the motor current is refreshed for the display when no stall check needs it. */
     public static double CURRENT_DISPLAY_REFRESH_MS = 250.0;
@@ -367,6 +376,43 @@ public class Pusher {
         moveStartTicks = getUnwrappedTicks();
         moveTimer.reset();
         resetProgress();
+    }
+
+    /** Moves the arm from HOLD to the LOCK position (LOCK_DEG forward of the nearest HOLD). Ignored until calibrated, or while faulted. */
+    public void startLock() {
+        if (!isCalibrated() || state == State.STALLED) {
+            lastCommand = "lock IGNORED: " + (isCalibrated() ? "the pusher is faulted" : "TICKS_PER_REV is not set");
+            return;
+        }
+        startSeek(nearestHoldTicks() + LOCK_DEG * TICKS_PER_REV / 360.0, LOCK_POWER);
+        lastCommand = "LOCK: " + lastCommand;
+    }
+
+    /** Moves the arm back from the LOCK position to the nearest HOLD (a reverse of LOCK_DEG; never forward, which would sweep the pollen into the flywheel). */
+    public void startUnlock() {
+        if (!isCalibrated() || state == State.STALLED) {
+            lastCommand = "unlock IGNORED: " + (isCalibrated() ? "the pusher is faulted" : "TICKS_PER_REV is not set");
+            return;
+        }
+        double target = nearestHoldTicks();
+        if (target > getUnwrappedTicks()) {   // already behind that HOLD: nothing to reverse
+            stopHere();
+            lastCommand = "UNLOCK: already at or behind HOLD";
+            return;
+        }
+        startSeek(target, LOCK_POWER);
+        lastCommand = "UNLOCK: " + lastCommand;
+    }
+
+    /** The degrees past the nearest HOLD (negative = before it), for the lock check and the log. */
+    public double getAnglePastHoldDeg() {
+        return (getUnwrappedTicks() - nearestHoldTicks()) * 360.0 / TICKS_PER_REV;
+    }
+
+    /** Idle, stopped, and within LOCK_TOLERANCE_DEG of the LOCK position. */
+    public boolean isLocked() {
+        return state == State.HOLD && isCalibrated() && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC
+                && Math.abs(getAnglePastHoldDeg() - LOCK_DEG) <= LOCK_TOLERANCE_DEG;
     }
 
     /** Ends a jog where it is: the state goes back to HOLD (so {@link #isStopped} can be true) without moving to a HOLD. */

@@ -72,6 +72,9 @@ import java.util.Locale;
  *   left trigger (hold)  force the intake OUT
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued launch
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
+ *   hold left bumper + X PUSHER LOCK on / off (a toggle): the arm moves 90 deg forward of HOLD across the intake entrance so the pollen cannot roll back out. It also happens by itself when the robot is
+ *                        full (Mechanisms.PUSHER_LOCK_WHEN_FULL): the element count is frozen and the intake runs OUT while locked; a launch goes from the lock (310 deg), a reject unlocks first
+ *                        (a hand unlock stops the automatic lock until the robot is no longer full). The bumper is needed only when you press X.
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
  *   D-pad (unguarded)    REPORT where the LAST salvo landed, seen from behind the robot: left = it landed LEFT (the remembered aim for that cell turns 1.5 deg right),
  *                        right = landed RIGHT (1.5 deg left), down = landed LOW / UNDER (speed trim +10 ticks/s), up = landed HIGH / OVER (speed trim -10). The remembered aim is kept
@@ -587,7 +590,9 @@ public class TeleOpCompetition extends LinearOpMode {
             }
             boolean operatorB = gamepad2.bWasPressed();   // read every loop; the reject needs the left bumper held, so it cannot be set off by accident
             if (operatorB && gamepad2.left_bumper) mechanisms.requestReject();
-            if (gamepad2.xWasPressed()) mechanisms.requestDeploy();
+            boolean operatorX = gamepad2.xWasPressed();   // read once: with the left bumper held, X is the pusher lock instead of the ramp deploy
+            if (operatorX && gamepad2.left_bumper) mechanisms.togglePusherLock();
+            else if (operatorX) mechanisms.requestDeploy();
             boolean operatorY = gamepad2.yWasPressed();   // read once: with the left bumper held, Y is the pusher calibration instead of the stow
             if (operatorY && gamepad2.left_bumper) mechanisms.requestPusherCalibration();
             else if (operatorY) mechanisms.requestStowNow();   // stow at once: no flower check
@@ -645,7 +650,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Hive Dash (driver D-pad left / right, held)", hiveDash.status());
             mechanisms.log(telemetry);
             telemetry.addLine("GP1: stick drive, hold LT precision, hold RT target lock, A launch, hold D-pad left / right = HIVE DASH (drive to a cell's launch spot and launch), hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
-            telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-launch on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
+            telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-launch on/off, hold LB + B reject, X deploy, Y stow, hold LB + X = pusher lock on / off, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
             telemetry.update();
         }

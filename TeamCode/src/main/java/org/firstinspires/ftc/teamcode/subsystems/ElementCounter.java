@@ -179,6 +179,7 @@ public class ElementCounter {
             readSensor(nextSensor, now);
             nextSensor = (nextSensor + 1) % N;
         }
+        if (frozen) return;   // the pusher lock: the sensors are still read (and logged) but the count stays where it was
         // the count changes only after the raw count has been steady for COUNT_STABLE_MS
         int raw = elementsSeen();
         if (raw != rawCount) {
@@ -248,6 +249,25 @@ public class ElementCounter {
     /** Keeps all sensors out of the count for this many seconds from now (the arm's last readings as it leaves their view). */
     public void ignoreCountFor(double seconds) {
         countIgnoredUntilNs = System.nanoTime() + (long) (seconds * 1e9);
+    }
+
+    private boolean frozen = false;
+
+    /**
+     * True holds the reported count where it is (the sensors are still read, so the slots can be logged). The pusher lock uses it: with the arm parked across the entrance the
+     * arm may read as an element at one of the sensors, and nothing can enter or leave while it is locked. Set false and the count follows the sensors again after the usual steady time.
+     */
+    public void setFrozen(boolean on) {
+        if (on == frozen) return;
+        frozen = on;
+        if (!on) {
+            rawCount = elementsSeen();
+            rawSinceNs = System.nanoTime();
+        }
+    }
+
+    public boolean isFrozen() {
+        return frozen;
     }
 
     /** Sensors that currently see an element (not the pusher arm). */

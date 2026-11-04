@@ -50,6 +50,13 @@ public class Mechanisms {
     /** True: while a launch is queued or a salvo runs, and for BURST_LOG_AFTER_SEC after it, the log writes a sample row on every loop (see RunLog.setBurst). */
     public static boolean BURST_LOG_SALVOS = true;
     public static double BURST_LOG_AFTER_SEC = 0.6;
+    /**
+     * PUSHER LOCK (2026-11-04): when the robot is full (4 confirmed) and the arm is at HOLD, move the arm LOCK_DEG (90) forward across the intake entrance so the pollen cannot roll
+     * back out; the element count is frozen and the intake runs OUT while locked. A launch goes from the lock (310 deg), a reject unlocks first, the operator's left bumper + X toggles it.
+     */
+    public static boolean PUSHER_LOCK_WHEN_FULL = true;
+    /** After an unlock or a failed lock the automatic lock waits this long before it tries again. */
+    public static double LOCK_RETRY_HOLDOFF_SEC = 3.0;
     public static double FLYWHEEL_STOP_DELAY_SEC = 0.5;
     public static double NOTICE_SEC = 4.0;
     /** Rule 6: stop the intake when the element counter reports a full robot. */
@@ -100,6 +107,13 @@ public class Mechanisms {
     private boolean intakeAlwaysOn = false;
     private boolean launchQueued = false;
     private boolean bandWaitLogged = false;
+    private enum LockState { NONE, LOCKING, LOCKED, UNLOCKING }
+
+    private LockState lockState = LockState.NONE;
+    private boolean autoLockSuppressed = false;      // the operator unlocked by hand: no automatic lock until the robot stops being full
+    private boolean pendingRejectAfterUnlock = false;
+    private boolean intakeStoppedByFull = false;     // the automatic stop at full cleared the intake request: the intake still runs OUT while locked
+    private final ElapsedTime lockClock = new ElapsedTime();
     private final ElapsedTime burstTimer = new ElapsedTime();
     private boolean salvoActive = false;
     private boolean rejectActive = false;
@@ -171,6 +185,7 @@ public class Mechanisms {
 
     public void setIntakeRequested(boolean requested) {
         intakeRequested = requested;
+        intakeStoppedByFull = false;
     }
 
     /** Flip the intake on or off (the operator's toggle). A stow leaves it on if it was toggled on. */
@@ -230,6 +245,122 @@ public class Mechanisms {
                 flywheel.getFilteredVelocity(), lastSetpoint, heldText()));
     }
 
+    // ---- the pusher lock ----
+
+    public boolean isPusherLocked() {
+        return lockState == LockState.LOCKED;
+    }
+
+    /** For the sample rows: - / locking / LOCKED / unlocking. */
+    private String lockCode() {
+        return lockState == LockState.NONE ? "-" : lockState == LockState.LOCKED ? "LOCKED" : lockState.name().toLowerCase(Locale.US);
+    }
+
+    private String lockText() {
+        if (pusher == null) return "no pusher";
+        switch (lockState) {
+            case LOCKING: return "locking (the arm is moving across the entrance)";
+            case LOCKED: return "LOCKED: the arm blocks the entrance, the count is frozen, the intake runs OUT; a launch goes from here, a reject unlocks first";
+            case UNLOCKING: return "unlocking";
+            default: return PUSHER_LOCK_WHEN_FULL ? (autoLockSuppressed ? "off (you unlocked it; it locks again after the robot has stopped being full)" : "off (locks by itself when full)") : "off (automatic lock disabled)";
+        }
+    }
+
+    /** Why the arm cannot be moved to the lock now, or null. */
+    private String lockRefusal() {
+        if (pusher == null || !pusher.isCalibrated()) return "the pusher is missing or not calibrated";
+        if (counter == null) return "there is no element counter";
+        if (launchQueued || salvoActive || rejectActive || manualOuttake || manualCalibration) return "the robot is busy";
+        if (pusher.isStalled()) return "the pusher is faulted";
+        if (pusherCheck != null && (pusherCheck.isActive() || checkPending)) return "a pusher check is running or wanted";
+        if (!pusher.atHold()) return "the arm is not at HOLD (it is " + String.format(Locale.US, "%.0f", pusher.getAnglePastHoldDeg()) + " deg past it)";
+        return null;
+    }
+
+    private void beginLock(String why) {
+        counter.setFrozen(true);
+        pusher.startLock();
+        lockState = LockState.LOCKING;
+        lockClock.reset();
+        RunLog.event("PUSHER LOCK (" + why + "): " + heldText() + " | " + pusher.getLastCommand());
+    }
+
+    private void beginUnlock(String why) {
+        pusher.startUnlock();
+        lockState = LockState.UNLOCKING;
+        lockClock.reset();
+        RunLog.event("PUSHER UNLOCK (" + why + "): " + pusher.getLastCommand());
+    }
+
+    /** The operator's toggle (left bumper + X): lock now (the robot need not be full) or unlock; an unlock by hand also stops the automatic lock until the robot is no longer full. */
+    public void togglePusherLock() {
+        if (lockState == LockState.NONE) {
+            String why = lockRefusal();
+            if (why != null) {
+                notice("Pusher lock refused: " + why);
+                return;
+            }
+            beginLock("operator");
+        } else if (lockState != LockState.UNLOCKING) {
+            autoLockSuppressed = true;
+            beginUnlock("operator");
+        }
+    }
+
+    /** A salvo starts from the lock (310 deg): the count follows the sensors again as the arm sweeps. */
+    private void releaseLockForSalvo() {
+        if (lockState == LockState.NONE) return;
+        RunLog.event("PUSHER LOCK released by the salvo (the arm is " + String.format(Locale.US, "%.1f", pusher.getAnglePastHoldDeg()) + " deg past HOLD)");
+        lockState = LockState.NONE;
+        if (counter != null) counter.setFrozen(false);
+        lockClock.reset();
+    }
+
+    private void updateLock(boolean full) {
+        if (pusher == null || counter == null) return;
+        if (!full && lockState == LockState.NONE) {
+            autoLockSuppressed = false;
+            intakeStoppedByFull = false;
+        }
+        switch (lockState) {
+            case NONE:
+                if (PUSHER_LOCK_WHEN_FULL && full && !autoLockSuppressed && counter.isValid() && !counterOverride && lockClock.seconds() >= LOCK_RETRY_HOLDOFF_SEC
+                        && lockRefusal() == null) {
+                    beginLock("full confirmed");
+                }
+                break;
+            case LOCKING:
+                if (pusher.isStalled() || (pusher.getState() == Pusher.State.HOLD && pusher.isStopped())) {
+                    if (pusher.isLocked()) {
+                        RunLog.event(String.format(Locale.US, "PUSHER LOCKED at %.1f deg past HOLD after %.2f s (%s)", pusher.getAnglePastHoldDeg(), lockClock.seconds(), pusher.getLastResult()));
+                        lockState = LockState.LOCKED;
+                        lockClock.reset();
+                    } else {
+                        RunLog.event(String.format(Locale.US, "PUSHER LOCK FAILED: the arm rests at %.1f deg past HOLD (%s); the lock is off and the automatic lock waits %.0f s",
+                                pusher.getAnglePastHoldDeg(), pusher.getLastResult(), LOCK_RETRY_HOLDOFF_SEC));
+                        lockState = LockState.NONE;
+                        counter.setFrozen(false);
+                        lockClock.reset();
+                    }
+                }
+                break;
+            case UNLOCKING:
+                if (pusher.isStalled() || (pusher.getState() == Pusher.State.HOLD && pusher.isStopped())) {
+                    RunLog.event(String.format(Locale.US, "PUSHER UNLOCKED: the arm is %.1f deg past HOLD (%s)", pusher.getAnglePastHoldDeg(), pusher.getLastResult()));
+                    lockState = LockState.NONE;
+                    counter.setFrozen(false);
+                    lockClock.reset();
+                    if (pendingRejectAfterUnlock) {
+                        pendingRejectAfterUnlock = false;
+                        requestReject();
+                    }
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
     /** Start a reject (rule 4). */
     public void requestReject() {
         if (pusher == null || !pusher.isCalibrated()) {
@@ -237,6 +368,17 @@ public class Mechanisms {
             return;
         }
         if (pusherCheck != null && pusherCheck.isActive()) pusherCheck.abort("a reject was requested");
+        if (lockState != LockState.NONE) {
+            // the arm is across the entrance: unlock first (a reject is a full reverse turn from a HOLD), then the reject starts by itself
+            if (launchQueued) {
+                RunLog.event("COMMAND reject cancels the queued launch");
+                launchQueued = false;
+            }
+            pendingRejectAfterUnlock = true;
+            if (lockState != LockState.UNLOCKING) beginUnlock("a reject was requested");
+            RunLog.event("COMMAND reject waits for the pusher to unlock");
+            return;
+        }
         if (rejectActive || pusher.isStalled()) {
             RunLog.event("COMMAND reject ignored: " + (pusher.isStalled() ? "pusher stalled" : "reject already running"));
             return;
@@ -631,6 +773,7 @@ public class Mechanisms {
                 }
                 if (inBand && pusher.isStopped()) {
                     if (bandWaitLogged) RunLog.event(String.format(Locale.US, "LAUNCH released: the flywheel is inside the band after %.2f s of waiting", launchTimer.seconds()));
+                    releaseLockForSalvo();
                     pusher.startSalvo();
                     salvoActive = true;
                     salvoMinSpeed = flywheel.getVelocity();
@@ -641,6 +784,8 @@ public class Mechanisms {
                 }
             }
         }
+
+        updateLock(full);
 
         if (launchQueued || salvoActive) burstTimer.reset();
         RunLog.setBurst(BURST_LOG_SALVOS && burstTimer.seconds() < BURST_LOG_AFTER_SEC);
@@ -661,6 +806,7 @@ public class Mechanisms {
             boolean stopForFull = full && AUTO_STOP_INTAKE_AT_FULL;
             if (stopForFull && intakeRequested && !intakeAlwaysOn) {
                 intakeRequested = false;
+                intakeStoppedByFull = true;
                 notice("Intake stopped: " + counter.count() + " elements held.");
             }
             boolean wantIn = intakeRequested || (ramp != null && ramp.isDeployedTarget());
@@ -672,6 +818,8 @@ public class Mechanisms {
                 else if (manualIntake) mode = Intake.Mode.IN;
                 else mode = full ? (FULL_RUNS_OUT ? Intake.Mode.OUT : Intake.Mode.OFF) : Intake.Mode.IN;
             }
+            // locked: nothing can roll back and nothing is lost, so the intake runs OUT (it clears the entrance) whenever it would have been running or has just stopped at full
+            if (lockState == LockState.LOCKED && !manualIntake && (intakeAlwaysOn || intakeRequested || intakeStoppedByFull || (ramp != null && ramp.isDeployedTarget()))) mode = Intake.Mode.OUT;
             if (manualCalibration && (pusherCheck == null || !pusherCheck.isActive())) {
                 manualCalibration = false;
                 RunLog.event("COMMAND pusher calibration sweep over: the intake runs again");
@@ -713,12 +861,12 @@ public class Mechanisms {
     }
 
     /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
-    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps";
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock";
 
     /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
     public String sampleRow() {
         String launch = launchQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
-        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s",
+        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s",
                 lastSetpoint,
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getVelocity()),
@@ -733,7 +881,8 @@ public class Mechanisms {
                 counter == null ? "" : counter.slotsCompact(),
                 launch, warnings.size(), overridesCode(), pusherCheck == null ? "" : pusherCheck.statusCode(),
                 flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getLastPower()),
-                flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getCurrentAmps()));
+                flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getCurrentAmps()),
+                lockCode());
     }
 
     public void log(Telemetry telemetry) {
@@ -742,6 +891,7 @@ public class Mechanisms {
         telemetry.addData("Open cell / distance (in)", "%s / %.1f", openCell, lastDistance);
         telemetry.addData("Flywheel setpoint (ticks/s)", "%.0f   (%s)", lastSetpoint,
                 useLaunchMap && !LaunchMap.isEmpty() ? String.format(Locale.US, "launch map %+.0f trim", speedTrim) : "manual");
+        telemetry.addData("Pusher lock", lockText());
         telemetry.addData("Launch", launchQueued ? (flywheel != null && !flywheel.isInLaunchBand() ? "QUEUED, waiting: the flywheel is " + flywheel.launchBandState() : "QUEUED, starting") : salvoActive ? "SALVO running" : "idle");
         telemetry.addData("Reject", rejectActive ? "running" : "idle");
         if (intake != null) intake.log(telemetry);
