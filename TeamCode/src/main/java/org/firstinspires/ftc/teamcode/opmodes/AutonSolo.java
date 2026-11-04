@@ -22,6 +22,7 @@ import org.firstinspires.ftc.teamcode.motion.AimAtCell;
 import org.firstinspires.ftc.teamcode.motion.DriveToPose;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
 import org.firstinspires.ftc.teamcode.motion.SequentialAction;
+import org.firstinspires.ftc.teamcode.motion.SquareOnWall;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
@@ -71,6 +72,11 @@ public class AutonSolo extends LinearOpMode {
      */
     public static double GARDEN_PRE_X = -57.5, GARDEN_PRE_Y = 37.1, GARDEN_HEADING_DEG = 130.0;
     public static double GARDEN_END_X = -57.5, GARDEN_END_Y = 57.5;
+    /**
+     * After the garden the robot squares on the rear wall: it turns to heading 90 (its left side to the wall) SQUARE_GAP_IN off the wall at the end's y, then strafes into the wall
+     * (SquareOnWall). The pose is not reseeded; the log line says how far the pose was from the wall-flush heading and x.
+     */
+    public static double SQUARE_GAP_IN = 3.0;
     /** The one shot spot for the audience cell (the marks were (62.9, 9.5) and (62.3, 7.4), +1.0 in x); its heading is the computed aim. */
     public static double SHOT_X = 63.6, SHOT_Y = 8.5;
     /** The flower poses are 3 in toward +Y of the marks (21.3 to 24.3, user 2026-11-03: the pollen did not come out), and the pre-position is 5 in farther back (43 to 38) for a run-up. */
@@ -284,6 +290,11 @@ public class AutonSolo extends LinearOpMode {
         HiveTarget secondCell = firstCell.otherSide();                                     // blue: audience, red: rear
         Pose2d gardenPre = forAlliance(pose(GARDEN_PRE_X, GARDEN_PRE_Y, GARDEN_HEADING_DEG), isBlue);
         Pose2d gardenEnd = forAlliance(pose(GARDEN_END_X, GARDEN_END_Y, GARDEN_HEADING_DEG), isBlue);
+        double sideIn = profile.originFromSideIn();   // the origin to the robot's side, for the wall-flush x
+        double squareX = -(FieldGeometry.HALF_IN - sideIn - SQUARE_GAP_IN);
+        Pose2d squarePre = forAlliance(pose(squareX, GARDEN_END_Y, 90.0), isBlue);   // heading 90: the left side to the rear wall (red: the audience wall)
+        double squareFlushX = (isBlue ? -1.0 : 1.0) * (FieldGeometry.HALF_IN - sideIn);
+        double squareHeadingRad = Math.toRadians(isBlue ? 90.0 : 270.0);
         Pose2d shotSpotBlueFrame = pose(SHOT_X, SHOT_Y, 0.0);
         Pose2d shotXY = forAlliance(shotSpotBlueFrame, isBlue);
         double shotHeading = TargetLock.aimHeadingRad(shotXY.position.x, shotXY.position.y, secondCell, TargetLock.farCellExtraLeftIn(secondCell, isBlue));
@@ -316,6 +327,9 @@ public class AutonSolo extends LinearOpMode {
                 note("Intake ON: garden, slow"),
                 mechanisms.setIntake(true),
                 slowLeg("garden pickup (slow)", drive, gardenEnd, GARDEN_PICKUP_MAX_POWER),
+                note("Square on the wall"),
+                passLeg("square approach", drive, squarePre),
+                timed("square on the wall", new SquareOnWall(drive, squareHeadingRad, squareFlushX)),
 
                 new InstantAction(() -> mechanisms.setOpenCell(secondCell)),   // the tip flipped the cell; the flywheel follows the new distance on the way
                 note("Around the outside of the hive support rails, intake still ON so every element gets in"),
