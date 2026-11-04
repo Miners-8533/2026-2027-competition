@@ -1,4 +1,6 @@
-# Hive Dash (design, for review - nothing is built)
+# Hive Dash (BUILT 2026-11-04, not yet run on the robot)
+
+Built as designed below: `drive/HiveRoute.java` (the router, tested on a PC by `tools/hive/run-check.cmd`), `drive/HiveDash.java` (state machine and follower) and the wiring in `opmodes/TeleOpCompetition.java`. Differences from the text: the geometry constants live in `HiveRoute` (so it runs without the SDK) instead of `FieldGeometry`; an unaligned leg costs length / 0.75 in the route search (without it a chain of short legs beat a clear direct line); a robot standing right beside a leg under the hive can be refused as `no clear route` (the swept rectangle plus the 1.5 in margin) - drive clear by hand.
 
 Driver feature in `TeleOp - Competition`: hold the driver D-pad left or right and the robot drives to the launch spot of a hive cell, target locks, and launches when aligned. Named by the user 2026-11-04.
 

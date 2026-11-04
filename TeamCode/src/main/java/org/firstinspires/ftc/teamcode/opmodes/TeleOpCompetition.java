@@ -10,6 +10,7 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.AutoLaunch;
+import org.firstinspires.ftc.teamcode.drive.HiveDash;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.drive.FieldGeometry;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
@@ -59,6 +60,10 @@ import java.util.Locale;
  *                        CELLs while you keep driving; with the left bumper also held the right stick nudges the aim up to 15 deg (without it the stick does nothing while
  *                        locked); ALIGNED on the screen says it is on target. The automatic lock when the robot is full is OFF (AUTO_LOCK_WHEN_FULL = false: a sliding
  *                        pack of 3 pollen lit all four sensors and kept engaging it). Release the trigger to drive normally.
+ *   D-pad left / right   (HOLD) HIVE DASH: the robot drives to the launch spot of a cell, target locks and launches when ALIGNED. Left = the cell on the driver's LEFT, right = the
+ *                        cell on the driver's RIGHT as seen from behind the alliance wall (blue: left = audience cell, right = rear cell; red the other way round). Releasing
+ *                        the D-pad cancels at once (the sticks drive again); a salvo already launched always finishes. Refused, with a short rumble and no movement, in backup mode, with a
+ *                        Pinpoint fault, when the counter reads and holds nothing, or when the robot is touching a hive support. See {@link HiveDash} and design/hive-dash.md.
  *   left + right bumper  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident)
  *
  * Gamepad 2 (operator):
@@ -311,6 +316,9 @@ public class TeleOpCompetition extends LinearOpMode {
         ElapsedTime autoLaunchStillClock = new ElapsedTime();
         String lastLaunchAim = "none yet";   // the aim line of the last launch (with the lock state and nudge then), repeated in the operator's reports that follow it
         HiveTarget lastLaunchCell = null;    // the cell of the last launch: the operator's report of where it landed applies to this cell
+        HiveDash hiveDash = new HiveDash(profile.robotDepthIn, profile.robotWidthIn, profile.originFromBackIn);
+        HiveDash.Input dashIn = new HiveDash.Input();
+        boolean dashOverride = false;   // Hive Dash has taken over the target cell (the nearest-cell logic is off until it lets go)
         ElapsedTime pinpointBadFor = new ElapsedTime();
         ElapsedTime loopClock = new ElapsedTime();
 
@@ -365,6 +373,35 @@ public class TeleOpCompetition extends LinearOpMode {
             cmdForward = robotForward;
             cmdLeft = robotLeft;
             double manualTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
+            // Hive Dash (driver D-pad, held): drive to the launch spot of a cell, lock on it, launch when aligned. It uses this loop's pose and flags; nothing is read again.
+            boolean counterReads = mechanisms.counter != null && mechanisms.counter.isValid();
+            dashIn.pose = pose;
+            dashIn.measured = measured;
+            dashIn.requestedCell = HiveDash.cellForDpad(gamepad1.dpad_left, gamepad1.dpad_right, blue, driverForwardRad);
+            dashIn.blue = blue;
+            dashIn.blockedWhy = backupMode ? "backup mode" : pinpointBad ? "Pinpoint fault" : !loc.seedConfirmed ? "pose not seeded" : null;
+            dashIn.counterReadsEmpty = counterReads && mechanisms.counter.count() == 0;
+            dashIn.hasElements = !counterReads || mechanisms.counter.count() > 0;
+            dashIn.lockAligned = targetLock.isAligned();
+            dashIn.launchBusy = mechanisms.isLaunchBusy();
+            HiveDash.Output dash = hiveDash.update(dashIn);
+            if (dash.refused) buzz(gamepad1, 150);
+            if (dash.overrideCell != null) {
+                if (!dashOverride) {
+                    dashOverride = true;
+                    mechanisms.setAutoTarget(false);
+                }
+                mechanisms.setOpenCell(dash.overrideCell);
+            } else if (dashOverride) {
+                dashOverride = false;
+                mechanisms.setAutoTarget(true);
+            }
+            if (dash.translation) {
+                robotForward = dash.forward;
+                robotLeft = dash.left;
+                cmdForward = dash.forward;
+                cmdLeft = dash.left;
+            }
             // target lock: HELD on the driver's right trigger (the automatic lock when full is off unless AUTO_LOCK_WHEN_FULL is set; the operator has no lock control).
             boolean driverLockHeld = gamepad1.right_trigger > TRIGGER_THRESHOLD;
             if (driverLockHeld != prevDriverLock) {
@@ -391,14 +428,14 @@ public class TeleOpCompetition extends LinearOpMode {
                 autoLockSuppressed = false;
                 if (!mechanisms.isLaunchBusy()) autoLockLatched = false;
             }
-            boolean lockWanted = !backupMode && (manualLock || (AUTO_LOCK_WHEN_FULL && autoLockLatched));
+            boolean lockWanted = !backupMode && (manualLock || (AUTO_LOCK_WHEN_FULL && autoLockLatched) || dash.lockWanted);
             if (lockWanted) {
                 HiveTarget lockTarget = mechanisms.getOpenCell();
                 if (!lockOn) {
                     lockOn = true;
                     lockWasAligned = false;
                     RunLog.event(String.format(Locale.US, "TARGET LOCK on (%s): %s at (%.2f, %.2f), %.1f in away, robot pose (%.1f, %.1f, %.1f deg), alliance %s",
-                            manualLock ? "manual" : "full", lockTarget, lockTarget.x, lockTarget.y, lockTarget.distanceFrom(pose), pose.position.x, pose.position.y,
+                            manualLock ? "manual" : dash.lockWanted ? "Hive Dash" : "full", lockTarget, lockTarget.x, lockTarget.y, lockTarget.distanceFrom(pose), pose.position.x, pose.position.y,
                             pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
                 }
                 cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget,
@@ -462,7 +499,7 @@ public class TeleOpCompetition extends LinearOpMode {
                     RunLog.event("TARGET LOCK off");
                 }
                 lockErrDeg = Double.NaN;
-                cmdTurn = manualTurn;
+                cmdTurn = dash.turnActive ? dash.turn : manualTurn;
                 autoLaunchDone = false;
                 autoLaunchInZone = false;
                 autoLaunchState = autoLaunchOn ? "waiting: no target lock" : "off";
@@ -535,6 +572,7 @@ public class TeleOpCompetition extends LinearOpMode {
                     RunLog.event(String.format(Locale.US, "LAUNCH queue dropped: still not aligned after %.1f s (error %+.1f deg)", LAUNCH_ALIGN_WAIT_SEC, targetLock.errorDeg()));
                 }
             }
+            if (dash.launchNow) launchNow = true;   // Hive Dash: aligned and stopped at the launch spot
             if (launchNow) {
                 lastLaunchAim = aimSummary(pose, mechanisms, blue, lockOn);
                 lastLaunchCell = mechanisms.getOpenCell();
@@ -604,8 +642,9 @@ public class TeleOpCompetition extends LinearOpMode {
                     cellNudgeDeg[HiveTarget.BLUE_REAR.ordinal()], cellNudgeDeg[HiveTarget.BLUE_AUDIENCE.ordinal()], cellNudgeDeg[HiveTarget.RED_REAR.ordinal()],
                     cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()], mechanisms.getSpeedTrim());
             telemetry.addData("Auto-launch (operator RB toggles)", backupMode ? "off (backup mode)" : autoLaunchOn ? "ON: " + autoLaunchState : "off");
+            telemetry.addData("Hive Dash (driver D-pad left / right, held)", hiveDash.status());
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive, hold LT precision, hold RT target lock, A launch, hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
+            telemetry.addLine("GP1: stick drive, hold LT precision, hold RT target lock, A launch, hold D-pad left / right = HIVE DASH (drive to a cell's launch spot and launch), hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
             telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-launch on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
             telemetry.update();
