@@ -134,7 +134,12 @@ public class AutonSolo extends LinearOpMode {
 
     // ---- timing ----
     /** At the flower: pause until the robot holds 4 elements, but no longer than this. */
-    public static double FLOWER_PAUSE_MAX_SEC = 5.0;   // the jostle's time limit (it stops early at 3+ held and quiet; 26.3 s total left 3.7 s of margin on 2026-11-03)
+    public static double FLOWER_PAUSE_MAX_SEC = 9.0;   // the jostle's own time limit; it is really bounded by JOSTLE_DEADLINE_SEC. It no longer stops early at 3 held: all 4 matter more (2026-11-04)
+    /**
+     * The jostle ends at this many seconds into the auto at the latest, whether or not the robot is full, so the back-out, the shot spot, the salvo and the park (about 5 s in the 2026-11-03 runs) still fit in
+     * the 30 s with 2 s to spare. The robot gathers from the flower until it is full or this time, then moves on to the shot.
+     */
+    public static double JOSTLE_DEADLINE_SEC = 23.0;
     /** Each drive leg's hard cap is max(TIMEOUT_MIN_SEC, TIMEOUT_BASE_SEC + distance / TIMEOUT_IN_PER_S) + TIMEOUT_TURN_EXTRA_SEC for a turn of over 120 deg, never more than TIMEOUT_MAX_SEC. */
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
     /** Pass-through points (the garden, the helper, the park via point) only need to get near: a leg ends within this position and heading. The shot spots and the flower keep the tight DriveToPose tolerance. */
@@ -287,10 +292,50 @@ public class AutonSolo extends LinearOpMode {
 
     /** Aim at the cell with the lock, shoot one salvo, and finish when it is done. */
     private Action shoot(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label) {
-        return shoot(drive, mechanisms, cell, blue, label, 0.0);
+        return shoot(drive, mechanisms, cell, blue, label, 0.0, false);
     }
 
-    private Action shoot(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg) {
+    /** The jostle is done when the robot is full or JOSTLE_DEADLINE_SEC into the auto has passed (logged once). */
+    private java.util.function.BooleanSupplier jostleDone(Mechanisms mechanisms) {
+        return new java.util.function.BooleanSupplier() {
+            private boolean logged = false;
+
+            @Override
+            public boolean getAsBoolean() {
+                if (mechanisms.isFull()) return true;
+                if (autoClock.seconds() >= JOSTLE_DEADLINE_SEC) {
+                    if (!logged) {
+                        logged = true;
+                        RunLog.event(String.format(Locale.US, "AUTO jostle deadline reached at %.2f s into the auto: moving on to the shot with %d held", autoClock.seconds(),
+                                mechanisms.counter == null ? -1 : mechanisms.counter.count()));
+                    }
+                    return true;
+                }
+                return false;
+            }
+        };
+    }
+
+    /** skipIfEmpty: the aim and the salvo are skipped (and logged) when the element counter is reading and holds nothing; any other count shoots. */
+    private Action shoot(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, boolean skipIfEmpty) {
+        Action real = shootNow(drive, mechanisms, cell, blue, label, trimDeg);
+        if (!skipIfEmpty) return real;
+        return new Action() {
+            private boolean decided = false, skip = false;
+
+            @Override
+            public boolean run(TelemetryPacket packet) {
+                if (!decided) {
+                    decided = true;
+                    skip = mechanisms.counter != null && mechanisms.counter.isValid() && mechanisms.counter.count() == 0;
+                    if (skip) RunLog.event("AUTO SKIP salvo: " + label + " (the robot holds nothing)");
+                }
+                return !skip && real.run(packet);
+            }
+        };
+    }
+
+    private Action shootNow(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg) {
         return new SequentialAction(
                 note("Aim and fire: " + label),
                 timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg)),
@@ -432,7 +477,7 @@ public class AutonSolo extends LinearOpMode {
                 note("Intake OFF"),
                 mechanisms.setIntake(false),
                 RAMP_DEPLOY_DURING_SHOT ? new InstantAction(mechanisms::requestDeploy) : new InstantAction(() -> { }),   // deploys while it shoots
-                shoot(drive, mechanisms, secondCell, isBlue, "garden pollen", GARDEN_AIM_TRIM_DEG),
+                shoot(drive, mechanisms, secondCell, isBlue, "garden pollen", GARDEN_AIM_TRIM_DEG, true),
 
                 RAMP_DEPLOY_DURING_SHOT ? new InstantAction(() -> { }) : new InstantAction(mechanisms::requestDeploy),   // deploys on the way
                 note("Back to the flower pre-position, turning to the flower"),
@@ -441,13 +486,13 @@ public class AutonSolo extends LinearOpMode {
                 note("Intake ON: flower"),
                 mechanisms.setIntake(true),
                 ramLeg("ram the flower", drive, flowerRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
-                timed("flower jostle", new Jostle(drive, mechanisms::isFull, () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
+                timed("flower jostle", new Jostle(drive, jostleDone(mechanisms), () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
                 note("Back off the flower to the shot spot (intake still ON)"),
                 FLOWER_TURN_WHILE_BACKING ? new InstantAction(() -> { }) : backOutLeg("flower back-out (straight)", drive, flowerBack),
                 stowWhenTurned(shotLeg("shot spot 2", drive, shotSpot), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
                 mechanisms.setIntake(false),
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
-                shoot(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG),
+                shoot(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG, true),
 
                 note("Park"),
                 PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),

@@ -33,7 +33,8 @@ public final class Jostle implements Action {
     /** Once back at the contact point the robot keeps pressing this long before it backs off again. */
     public static double PRESS_HOLD_SEC = 0.4;
     public static double CONTACT_TOL_IN = 0.3;
-    public static int MIN_COUNT_TO_STOP = 3;
+    /** The jostle may stop early when this many or more are held and nothing new has come in for QUIET_SEC. 5 = never (a robot holds at most 4): getting all 4 matters more than the time (2026-11-04). */
+    public static int MIN_COUNT_TO_STOP = 5;
     public static double QUIET_SEC = 0.8;
     public static double BACK_MAX_SEC = 0.3;   // halved from 0.5
     public static double HEADING_KP = 1.5;
