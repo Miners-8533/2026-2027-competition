@@ -21,6 +21,7 @@ import org.firstinspires.ftc.teamcode.motion.Actions;
 import org.firstinspires.ftc.teamcode.motion.AimAtCell;
 import org.firstinspires.ftc.teamcode.motion.DriveToPose;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
+import org.firstinspires.ftc.teamcode.motion.Jostle;
 import org.firstinspires.ftc.teamcode.motion.SequentialAction;
 import org.firstinspires.ftc.teamcode.motion.SquareOnWall;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
@@ -45,7 +46,7 @@ import java.util.Locale;
  *   3. Around the outside of the hive's support rails via a helper point (HELPER_X, HELPER_Y), then to the shot spot for the audience cell (the open cell
  *      after the first tip), with the intake still running so every element gets in (it stops by itself at 4, and is switched off on arrival); aim, shoot.
  *   4. Deploy the ramp on the way to the flower pre-position (heading 0) and wait for it to settle; drive onto the flower with the intake running;
- *      pause there until the robot holds 4 elements (at most FLOWER_PAUSE_MAX_SEC).
+ *      jostle it (back 2 in and push, repeated) until the robot holds 4 elements (at most FLOWER_PAUSE_MAX_SEC), then back off 10 in.
  *   5. Stow the ramp, back to the same shot spot, aim, shoot.
  *   6. Park (via a point level with the shot spot so the path stays clear of the flower at the audience wall).
  *
@@ -65,13 +66,14 @@ public class AutonSolo extends LinearOpMode {
     // at 71 (start x = -63.4), so the same physical places read 1.0 more. (Odometry only adds displacement to the seed, so shifting every x is exact; y is unchanged.)
     public static double START_Y_IN = 16.0;
     /**
-     * The garden is approached at an ANGLE, the front (intake mouth) turned 40 deg toward the rear wall (heading 130), so the pollen lying along the wall are caught between
-     * the angled mouth and the wall instead of being plowed ahead in a line (the straight approach at heading 90 did that, 2026-11-03). At 130 deg the front corners swing out
-     * about 11.6 in in x and 12 in in y from the origin, so the poses are 13.5 in from the rear wall (the wall-side corner about 2 in off it) and the end is at y 57.5, not 60.3.
+     * The garden is approached at an ANGLE, the front (intake mouth) turned 15 deg toward the rear wall (heading 105 since 2026-11-03, was 130), so the pollen lying along the wall are caught between
+     * the angled mouth and the wall instead of being plowed ahead in a line (the straight approach at heading 90 did that, 2026-11-03). At 105 deg the front corners swing out
+     * about 9.2 in in x and 11.3 in in y from the origin, so the poses are 11.2 in from the rear wall (the wall-side corner about 2 in off it) and the end is at y 58.5; the
+     * pre-position is nearer the Blue Wall (y 46, was 37.1) so the slow leg is short and reaches the pollen (the 2026-11-03 run reached only y 53.8 in 3.1 s).
      * (Red: the same, turned 180 deg.) The pre-position and the end keep the same heading so the robot translates along the wall at that angle.
      */
-    public static double GARDEN_PRE_X = -57.5, GARDEN_PRE_Y = 37.1, GARDEN_HEADING_DEG = 130.0;
-    public static double GARDEN_END_X = -57.5, GARDEN_END_Y = 57.5;
+    public static double GARDEN_PRE_X = -59.8, GARDEN_PRE_Y = 46.0, GARDEN_HEADING_DEG = 105.0;
+    public static double GARDEN_END_X = -59.8, GARDEN_END_Y = 58.5;
     /**
      * After the garden the robot squares on the rear wall: it turns to heading 90 (its left side to the wall) SQUARE_GAP_IN off the wall at the end's y, then strafes into the wall
      * (SquareOnWall). The pose is not reseeded; the log line says how far the pose was from the wall-flush heading and x.
@@ -87,7 +89,9 @@ public class AutonSolo extends LinearOpMode {
      * meets the flower, and the leg ends after FLOWER_RAM_SEC (it never reaches the target: the log says TIMED OUT, which is expected). The normal drive uses 0.05 x the
      * error, so a 12 in leg never passed 0.6.
      */
-    public static double FLOWER_RAM_POWER = 0.9, FLOWER_RAM_OVERSHOOT_IN = 12.0, FLOWER_RAM_SEC = 0.8;
+    public static double FLOWER_RAM_POWER = 0.6, FLOWER_RAM_OVERSHOOT_IN = 12.0, FLOWER_RAM_SEC = 0.6;   // 0.9 / 0.8 rammed hard on 2026-11-03 and was not enough; the jostle does the work
+    /** After the ram the robot jostles (back FLOWER jostle BACK_IN, push, repeat: see Jostle) until it is full, for at most FLOWER_PAUSE_MAX_SEC; then it backs off this far before turning. */
+    public static double FLOWER_BACKOFF_IN = 10.0;
     public static double PARK_X = 51.1, PARK_Y = 54.0, PARK_HEADING_DEG = 180.0;
     /**
      * The helper point between the garden and the shot spot, to go around the OUTSIDE of the hive's two support rails (along the row borders 2|3 and 4|5, columns C to D,
@@ -100,7 +104,7 @@ public class AutonSolo extends LinearOpMode {
 
     // ---- timing ----
     /** At the flower: pause until the robot holds 4 elements, but no longer than this. */
-    public static double FLOWER_PAUSE_MAX_SEC = 2.0;
+    public static double FLOWER_PAUSE_MAX_SEC = 3.0;
     /** Each drive leg's hard cap is max(TIMEOUT_MIN_SEC, TIMEOUT_BASE_SEC + distance / TIMEOUT_IN_PER_S) + TIMEOUT_TURN_EXTRA_SEC for a turn of over 120 deg, never more than TIMEOUT_MAX_SEC. */
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
     /** Pass-through points (the garden, the helper, the park via point) only need to get near: a leg ends within this position and heading. The shot spots and the flower keep the tight DriveToPose tolerance. */
@@ -109,7 +113,7 @@ public class AutonSolo extends LinearOpMode {
      * The garden pickup leg (along the rear wall, intake on) is driven slowly so the pollen get in: this is the most power any axis may use (the normal limit is 0.6;
      * speed is about 60 in/s per unit of power, so 0.25 is about 15 in/s, a 23 in leg in about 2 s). Raise it if the pickup is fine slower than needed, lower it if pollen are missed.
      */
-    public static double GARDEN_PICKUP_MAX_POWER = 0.25;
+    public static double GARDEN_PICKUP_MAX_POWER = 0.35;   // 0.25 moved only about 5.6 in/s on 2026-11-03 and missed the pollen
     /** The leg's hard cap is worked out with a speed of this many in/s per unit of power (a little under the real speed, so it only fires when the robot is stuck). */
     public static double SLOW_IN_PER_S_PER_POWER = 40.0;
 
@@ -302,6 +306,7 @@ public class AutonSolo extends LinearOpMode {
         double blueShotHeadingDeg = Math.toDegrees(TargetLock.aimHeadingRad(SHOT_X, SHOT_Y, HiveTarget.BLUE_AUDIENCE, TargetLock.farCellExtraLeftIn(HiveTarget.BLUE_AUDIENCE, true)));
         Pose2d helper = forAlliance(pose(HELPER_X, HELPER_Y, blueShotHeadingDeg), isBlue);   // outside the support rails, at the shot spot's heading
         Pose2d flowerPre = forAlliance(pose(FLOWER_PRE_X, FLOWER_PRE_Y, FLOWER_HEADING_DEG), isBlue);
+        Pose2d flowerBack = forAlliance(pose(FLOWER_AT_X - FLOWER_BACKOFF_IN, FLOWER_AT_Y, FLOWER_HEADING_DEG), isBlue);   // clear of the flower before the 180 deg turn
         Pose2d flowerRam = forAlliance(pose(FLOWER_AT_X + FLOWER_RAM_OVERSHOOT_IN, FLOWER_AT_Y, FLOWER_HEADING_DEG), isBlue);   // past the flower: the ram target
         Pose2d parkVia = forAlliance(pose(PARK_X, SHOT_Y, PARK_HEADING_DEG), isBlue);
         Pose2d park = forAlliance(pose(PARK_X, PARK_Y, PARK_HEADING_DEG), isBlue);
@@ -347,12 +352,12 @@ public class AutonSolo extends LinearOpMode {
                 note("Intake ON: flower"),
                 mechanisms.setIntake(true),
                 ramLeg("ram the flower", drive, flowerRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
-                waitUntilFull(mechanisms, FLOWER_PAUSE_MAX_SEC),
-                mechanisms.setIntake(false),
-
+                timed("flower jostle", new Jostle(drive, mechanisms::isFull, FLOWER_PAUSE_MAX_SEC)),
                 new InstantAction(mechanisms::requestStow),                     // waits by itself until the robot is clear of the flower
-                note("Back to the shot spot"),
+                note("Back off the flower, then to the shot spot (intake still ON)"),
+                passLeg("flower back-off", drive, flowerBack),
                 leg("shot spot 2", drive, shotSpot),
+                mechanisms.setIntake(false),
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
                 shoot(drive, mechanisms, secondCell, isBlue, "flower pollen"),
 

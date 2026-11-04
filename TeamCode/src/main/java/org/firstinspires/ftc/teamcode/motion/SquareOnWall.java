@@ -14,18 +14,20 @@ import org.firstinspires.ftc.teamcode.util.RunLog;
 import java.util.Locale;
 
 /**
- * Squares the robot on a wall: strafes LEFT (robot frame, so the left side goes into the wall) at PUSH_POWER with no heading hold, so the wall squares the robot
- * (whichever side corner touches first, the wheels keep pushing until the other one does). It ends when the robot has stopped moving (below STOP_SPEED_IN_PER_S for
- * STOPPED_HOLD_SEC, after at least MIN_SEC) or after MAX_SEC. The pose is NOT changed (the user did not want a reseed): the log line only records where the pose said the
+ * Squares the robot on a wall: strafes LEFT (robot frame, so the left side goes into the wall) at PUSH_POWER, holding the heading it started with (the turn power is
+ * limited to HEADING_MAX_TURN so the wall can still square the robot; with no hold at all the first run on 2026-11-03 rotated 11 deg and stopped short of the wall).
+ * It ends when the robot has stopped moving (below STOP_SPEED_IN_PER_S for STOPPED_HOLD_SEC, after at least MIN_SEC) or after MAX_SEC. The pose is NOT changed (the user did not want a reseed): the log line only records where the pose said the
  * robot was before and after, against the heading and the x the wall-flush pose should have, so the drift can be read from the log.
  */
 @Config
 public final class SquareOnWall implements Action {
 
-    public static double PUSH_POWER = 0.3;
-    public static double MIN_SEC = 0.3;
-    public static double MAX_SEC = 0.9;
-    public static double STOP_SPEED_IN_PER_S = 2.0;
+    public static double PUSH_POWER = 0.5;   // 0.3 moved only about 3 in/s and never reached the wall in 0.9 s
+    public static double MIN_SEC = 0.5;
+    public static double MAX_SEC = 1.4;
+    public static double STOP_SPEED_IN_PER_S = 1.0;
+    public static double HEADING_KP = 1.5;
+    public static double HEADING_MAX_TURN = 0.15;
     public static double STOPPED_HOLD_SEC = 0.15;
 
     private final MecanumDrive drive;
@@ -35,6 +37,7 @@ public final class SquareOnWall implements Action {
     private final ElapsedTime stopped = new ElapsedTime();
     private boolean started = false;
     private Pose2d before;
+    private double holdHeading;
 
     /** expectedHeadingRad and expectedX: the heading and x the pose would read if the robot is flush on the wall (for the log only). */
     public SquareOnWall(MecanumDrive drive, double expectedHeadingRad, double expectedX) {
@@ -50,10 +53,12 @@ public final class SquareOnWall implements Action {
             timer.reset();
             stopped.reset();
             before = drive.getPose();
+            holdHeading = before.heading.toDouble();
         }
         PoseVelocity2d measured = drive.updatePoseEstimate();
         double speed = measured == null ? 0.0 : Math.hypot(measured.linearVel.x, measured.linearVel.y);
-        drive.setDrivePowers(new PoseVelocity2d(new Vector2d(0.0, PUSH_POWER), 0.0));
+        double turn = Math.max(-HEADING_MAX_TURN, Math.min(HEADING_MAX_TURN, HEADING_KP * Rotation2d.normalize(holdHeading - drive.getPose().heading.toDouble())));
+        drive.setDrivePowers(new PoseVelocity2d(new Vector2d(0.0, PUSH_POWER), turn));
         if (speed > STOP_SPEED_IN_PER_S) stopped.reset();
         boolean stoppedOk = timer.seconds() >= MIN_SEC && stopped.seconds() >= STOPPED_HOLD_SEC;
         boolean done = stoppedOk || timer.seconds() >= MAX_SEC;
