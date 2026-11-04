@@ -86,3 +86,15 @@ Events written when they happen:
 - Lines are written by a background thread, so the loop only pays for building the line (about 10 times a second). The only hub read added is the battery voltage, once a second.
 - The file is flushed about once a second, so a hard crash loses at most the last second.
 - Not logged: raw color sensor readings (use Color Sensors Test, which is disabled), and motor currents other than the pusher's cached value.
+
+## Competition day (2026-11-04)
+
+Pull the logs as usual (`python tools/logs/pull_logs.py`), then label them with their matches and read the report:
+
+```
+python tools/logs/event_day.py label  --event "Regional 2026" --since 2026-11-05     # asks for the match of each unlabeled run, oldest first (free text: Q12, SF2-1, F1, practice)
+python tools/logs/event_day.py label  --event "Regional 2026" --set 2026-11-05/101530 Q12   # or one run at a time, no questions
+python tools/logs/event_day.py report --event "Regional 2026" --since 2026-11-05
+```
+
+A match is an auto followed by a TeleOp within 90 s of its end; a lone run is its own group. Everything goes to `robot-logs/events/<event>/`: `labels.csv` (edit it by hand to clean labels up; the raw logs are never changed), one `<label>.md` per match (flags, a table of numbers, the events worth reading, the Dashboard values that changed) and `day.md` (what stands out against the day's median once there are 4 or more matches, the hard faults, a table of every match). There is no label entry on the Driver Station: only mission-critical input goes there (user, 2026-11-04). `--auto-number R` labels every run R1, R2, ... for a rehearsal.
