@@ -44,18 +44,18 @@ CAD axes: CAD X = our Y, CAD Z = our X (confirmed by the bars lying on the row b
 1. If the straight line from the robot to the goal is clear, go straight.
 2. Otherwise the shortest chain through the points over legs that are clear (a small graph, at most 8 points plus start and goal): a leg's cost is its length plus a turn penalty (inches per degree, tunable).
 3. The route is chosen once when the D-pad is pressed and kept for the dash.
-4. `UNDER_HIVE_ROUTES` (Dashboard, off at first) controls whether a route between two outside points may use the lane (it removes the gate-to-gate link). A robot that STARTS under the hive always has a clear leg to a gate, so it can leave with no special case.
+4. `UNDER_HIVE_ROUTES` (Dashboard, on from the start, user 2026-11-04) controls whether a route between two outside points may use the lane (it removes the gate-to-gate link). A robot that STARTS under the hive always has a clear leg to a gate, so it can leave with no special case.
 5. If the robot starts overlapping a keep-out, the dash is refused (see above).
 
 Worked lengths: rear zone to audience zone about 149 in around the outside via (-36, 40) and (36, 40), about 128 in through the lane via (-34, 0) and (34, 0).
 
 ## Driving in line with the wheels
 
-On each leg the heading is the travel direction, with the front or the rear leading, whichever needs less rotation (and, on the last leg, whichever leaves the smaller turn for the lock: the launch zones are straight out from their cells, so arriving rear-first means the front already faces the cell). The sides of a mecanum chassis strafe slower than forward, and aligned is the narrowest profile for the keep-outs. Short legs (under about 15 in) are not aligned.
+On each leg the heading is the travel direction, with the front or the rear leading, whichever needs less rotation (and, on the last leg, whichever leaves the smaller turn for the lock: the launch zones are straight out from their cells, so arriving rear-first means the front already faces the cell). The sides of a mecanum chassis strafe slower than forward, and aligned is the narrowest profile for the keep-outs. Short legs (under about 40 in) are not aligned.
 
 **Leg follower** (new, small): field velocity along the leg at full power for the leg, a correction for sideways error, eases off near the end; the translation is converted to the robot frame with the current heading, so the robot moves along the leg while it is still turning, with the speed scaled by how well aligned it is (floor 40 percent). `DriveToPose`'s gains are kept for the final settle only (its per-axis clamp made a 45 degree first move on diagonals).
 
-**Strafe speed.** No FTC figure found: quoted ideals are about 70 percent of forward, practical figures 87 percent and lower (anecdotal). To be measured on ROBOT_1: the first runs log speed against travel angle relative to heading.
+**Strafe speed (measured from our own logs, 2026-11-04).** No published figure exists for a standard 4-wheel mecanum chassis (Game Manual 0 only says the strafe to forward ratio is noticeably less than 1; a forum quotes 70.7 percent ideal and 87 percent on one VEX robot). From the 31 TeleOp logs of 2026-11-01 to 11-03 (100 ms pose samples, travel direction against heading, no lateral multiplier in `MecanumDrive`, so a full stick drives every wheel at 1.0 in either direction): 99th-percentile speed forward 70.6 in/s, backward 71.8, strafe 52.7, diagonals about 51; so **strafe is about 0.75 of forward (0.76 at the 90th percentile), the diagonals about 0.72, backward equals forward** (about plus or minus 0.05). The first Hive Dash runs log speed against travel angle to confirm it. Consequence: an aligned leg is about 1.33 times faster than a strafed one, but the turn is not free, so the align threshold is 40 in (not 15), a Dashboard value to refine from the logs.
 
 ## Code
 
@@ -69,7 +69,7 @@ On each leg the heading is the travel direction, with the front or the rear lead
 
 ## Tunables (Dashboard)
 
-Max power (0.5 at first), margin 1.5 in, `ROBOT_HEIGHT_IN` 18, lock radius 20 in, goal tolerance 2.5 in / 6 deg, pass-through tolerance 3 in / 10 deg, turn penalty, align threshold 15 in, `UNDER_HIVE_ROUTES` off, the helper and gate points.
+Max power (0.5 at first), margin 1.5 in, `ROBOT_HEIGHT_IN` 18, lock radius 20 in, goal tolerance 2.5 in / 6 deg, pass-through tolerance 3 in / 10 deg, turn penalty, align threshold 40 in, `UNDER_HIVE_ROUTES` on (user, 2026-11-04), the helper and gate points.
 
 ## Test plan
 
@@ -78,9 +78,10 @@ Max power (0.5 at first), margin 1.5 in, `ROBOT_HEIGHT_IN` 18, lock radius 20 in
 3. Low-power runs with a spotter: crossing between the two zones, from the garden corners, both alliances; then the lane.
 4. Read the logs.
 
-## Open items
+## Decisions and open items
 
-- The robot's real maximum height (the legs are evaluated at 18 in).
-- Strafe against forward speed on ROBOT_1 (measured in the first runs).
-- Whether anything else hangs under the hive besides the four legs (the CAD gave only the frame and legs).
-- Refusal signal (rumble + telemetry) and the 20 in lock radius are my defaults, not yet confirmed.
+- Robot height: 18 in kept for now (user, 2026-11-04). Anything else under the hive is not a concern for driving under it (user).
+- Refusal signal (short rumble plus telemetry) and the 20 in lock radius: accepted as the starting values (user).
+- Under-hive routes: allowed from the start (user).
+- Strafe against forward speed: about 0.75 from the TeleOp logs (see above); confirm in the first dash runs.
+- Still to approve: the whole design, before anything is built.
