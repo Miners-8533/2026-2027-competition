@@ -7,7 +7,7 @@ All opmodes are in `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode
 | Opmode (Driver Station name) | Group | Use |
 |---|---|---|
 | TeleOp - Competition | Competition | the match TeleOp (controls: the controls document) |
-| Auton - Solo | Auto | the solo auto (partner just parks), BLUE or RED picked at INIT with gamepad 1 (D-pad right / left): shoot the preload, garden, shoot, flower, shoot, park; poses from the waypoint marks of 2026-11-02, **not yet run on the robot** |
+| Auton - Solo | Auto | the solo auto (partner just parks), BLUE or RED picked at INIT with gamepad 1 (D-pad right / left): shoot the preload, garden, shoot (from a spot on the flower's line), flower, shoot (same spot), park; poses from the waypoint marks of 2026-11-02, **not yet run on the robot** |
 | Auton - Blue Students | Auto | old auto, superseded by Auton - Solo (kept for reference) |
 | Auton - Hive Volley (Blue) | Auto | old auto, superseded by Auton - Solo (kept for reference) |
 | Pit Check (robot on blocks) | Bring-up | the one check opmode: configuration, ports and stray devices, battery, Pinpoint, color sensors, then flywheel, pusher, intake, ramp, each wheel ([pit-check.md](pit-check.md)) |

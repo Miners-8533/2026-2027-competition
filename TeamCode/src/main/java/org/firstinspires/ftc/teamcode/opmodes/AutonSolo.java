@@ -43,12 +43,12 @@ import java.util.Locale;
  *
  *   1. Start (the TeleOp's start pose: back against the wall, y 16): turn onto the rear cell and shoot the preload.
  *   2. Garden pre-position (heading 90, facing the Blue Wall), then the garden pickup with the intake running, driving along the rear wall.
- *   3. Around the outside of the hive's support rails via a helper point (HELPER_X, HELPER_Y), then to the shot spot for the audience cell (the open cell
+ *   3. Around the outside of the hive's support rails via a helper point (HELPER_X, HELPER_Y), then to the shot spot (on the flower's line, SHOT_X, SHOT_Y) for the audience cell (the open cell
  *      after the first tip), with the intake still running so every element gets in (it stops by itself at 4, and is switched off on arrival); aim, shoot.
- *   4. Deploy the ramp on the way to the flower pre-position (heading 0) and wait for it to settle; drive onto the flower with the intake running;
- *      jostle it (back 2 in and push, repeated) until the robot holds 4 elements (at most FLOWER_PAUSE_MAX_SEC), then back off 10 in.
- *   5. Stow the ramp, back to the same shot spot, aim, shoot.
- *   6. Park (via a point level with the shot spot so the path stays clear of the flower at the audience wall).
+ *   4. Deploy the ramp (after the salvo, or during it with RAMP_DEPLOY_DURING_SHOT) while backing to the flower pre-position and turning to heading 0, wait for it to settle;
+ *      drive onto the flower with the intake running; jostle it (back and push, repeated: see Jostle) until the robot holds 4 elements (at most FLOWER_PAUSE_MAX_SEC).
+ *   5. Stow the ramp, back off along the flower's line to the shot spot while turning onto the cell (FLOWER_TURN_WHILE_BACKING), aim, shoot.
+ *   6. Park (straight from the shot spot; PARK_VIA_POINT can add a point level with it).
  *
  * The shot spot's heading is not snapped: it is the heading that points the shooter's line at the cell from there ({@link TargetLock#aimHeadingRad},
  * with the shooter offset and the far-cell extra), and {@link AimAtCell} takes out what is left before each shot. The straight run from the garden
@@ -79,8 +79,19 @@ public class AutonSolo extends LinearOpMode {
      * (SquareOnWall), then drives forward into the Blue Wall (red: the Red Wall) to square on that too. The pose is not reseeded; the log lines say how far the pose was from the flush heading, x and y.
      */
     public static double SQUARE_GAP_IN = 3.0;
-    /** The one shot spot for the audience cell (the marks were (62.9, 9.5) and (62.3, 7.4), +1.0 in x); its heading is the computed aim. */
-    public static double SHOT_X = 63.6, SHOT_Y = 8.5;
+    /**
+     * The one shot spot for the audience cell, used for BOTH the garden pollen and the flower pollen. Since 2026-11-03 it is on the flower's line (y = FLOWER_AT_Y), 50 in from
+     * the audience wall side: 31.6 in from the cell (the shot map minimum is 28.6 in plus 3 in of leeway; x 47.8 would be 29.6), about 25 deg off the cell's axis. It was (63.6, 8.5) at the wall, 6 deg off-axis.
+     * Its heading is the computed aim.
+     */
+    public static double SHOT_X = 50.0, SHOT_Y = 26.3;
+    /** Deploy the ramp before the garden salvo (true: only if the shooter is known to work with the ramp down) or right after it, while the robot drives to the flower pre-position (false). */
+    public static boolean RAMP_DEPLOY_DURING_SHOT = false;
+    /**
+     * After the jostle the robot goes straight to the shot spot, turning onto the cell as it backs (true), instead of first backing FLOWER_BACKOFF_IN from the ram point and then
+     * going to the shot spot (false, the old way: a standing turn at the flower jammed it at x 55.3 on 2026-11-03; at the shot spot (x 50) the swept corner reaches about x 62).
+     */
+    public static boolean FLOWER_TURN_WHILE_BACKING = true;
     /** The flower poses are 3 in toward +Y of the marks (21.3 to 24.3, user 2026-11-03: the pollen did not come out), and the pre-position is 5 in farther back (43 to 38) for a run-up. */
     public static double FLOWER_PRE_X = 38.0, FLOWER_PRE_Y = 26.3, FLOWER_HEADING_DEG = 0.0;   // y 21.3 (the marks) +3 then +2 more (2026-11-03)
     public static double FLOWER_AT_X = 55.3, FLOWER_AT_Y = 26.3;
@@ -99,8 +110,8 @@ public class AutonSolo extends LinearOpMode {
      * footprint at least 8 in from the rail end (controller simulation) and the path 145 in long. Its heading is the shot spot's aim heading.
      */
     public static double HELPER_X = 36.0, HELPER_Y = 40.0;
-    /** Drive to a point level with the shot spot (x = PARK_X) before the park run, so the path does not pass the flower at the audience wall. */
-    public static boolean PARK_VIA_POINT = true;
+    /** Drive to a point level with the shot spot (x = PARK_X, y = SHOT_Y) before the park run. Off since the shot spot moved onto the flower's line: the run to the park is straight up the field, 15 in clear of the flower. */
+    public static boolean PARK_VIA_POINT = false;
 
     // ---- timing ----
     /** At the flower: pause until the robot holds 4 elements, but no longer than this. */
@@ -364,10 +375,11 @@ public class AutonSolo extends LinearOpMode {
                 crossLeg("shot spot 1", drive, shotSpot, CROSS_FIELD_MAX_POWER, false),
                 note("Intake OFF"),
                 mechanisms.setIntake(false),
+                RAMP_DEPLOY_DURING_SHOT ? new InstantAction(mechanisms::requestDeploy) : new InstantAction(() -> { }),   // deploys while it shoots
                 shoot(drive, mechanisms, secondCell, isBlue, "garden pollen"),
 
-                new InstantAction(mechanisms::requestDeploy),                   // deploys on the way
-                note("Flower pre-position"),
+                RAMP_DEPLOY_DURING_SHOT ? new InstantAction(() -> { }) : new InstantAction(mechanisms::requestDeploy),   // deploys on the way
+                note("Back to the flower pre-position, turning to the flower"),
                 leg("flower pre-position", drive, flowerPre),
                 timed("ramp deploy (wait)", rampTo(mechanisms, true)),         // fully deployed before it goes on; no second command
                 note("Intake ON: flower"),
@@ -375,8 +387,8 @@ public class AutonSolo extends LinearOpMode {
                 ramLeg("ram the flower", drive, flowerRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
                 timed("flower jostle", new Jostle(drive, mechanisms::isFull, () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
                 new InstantAction(mechanisms::requestStow),                     // waits by itself until the robot is clear of the flower
-                note("Back off the flower, then to the shot spot (intake still ON)"),
-                passLeg("flower back-off", drive, flowerBack),
+                note("Back off the flower to the shot spot (intake still ON)"),
+                FLOWER_TURN_WHILE_BACKING ? new InstantAction(() -> { }) : passLeg("flower back-off", drive, flowerBack),
                 shotLeg("shot spot 2", drive, shotSpot),
                 mechanisms.setIntake(false),
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
