@@ -23,7 +23,7 @@ The Pit Check is the only check opmode on the Driver Station. It took over the *
 | Battery | at least 12.0 V on every hub | automatic |
 | Pinpoint | status READY, loop time 300-1500 us | automatic |
 | Color sensors CS1-CS4 | each answers, and matches its empty baseline (so a changed lighting or something left in the track shows up) | automatic |
-| Flywheel | spins at 0.3 power for 1.5 s: the encoder must read at least 100 ticks/s the right way | encoder automatic; the shooting direction is yours to judge |
+| Flywheel | spins at 0.3 power for 1.5 s: the encoder must read at least 100 ticks/s the right way | encoder automatic; the launching direction is yours to judge |
 | Pusher | turns about 60 deg forward and back: the encoder sign and the return to the start | sign and return automatic; the pushing direction is yours to judge |
 | Intake | pulses IN then OUT at half power; the motor current is shown | direction is yours to judge |
 | Ramp | deploys and stows | yours to judge |

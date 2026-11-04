@@ -205,7 +205,7 @@ const AUTOS = {
       { k: "ROBOT_WIDTH_IN", v: 13.75, hint: "side-to-side (page only)" },
       { k: "TURN_CLEARANCE_IN", v: 0, hint: "moves the first turn off the wall" },
       { k: "GARDEN_HEADING_DEG", v: 90, hint: "the intake (front) end leads: 90. -90 = the back leads" },
-      { group: "Simulated shots" },
+      { group: "Simulated launches" },
       { k: "SPIN_UP_SEC", v: 1.5 },
       { k: "LAUNCH_SEC", v: 1.0 },
       { group: "Page-only timing assumptions" },
@@ -215,23 +215,23 @@ const AUTOS = {
     build(p) {
       const wall = HALF - p.ROBOT_DEPTH_IN / 2;                 // robot center distance from a wall it touches
       const at = (x, y, h) => ({ x, y, h });
-      const shot = p.SPIN_UP_SEC + p.LAUNCH_SEC;
-      const shootSpot = at(wall, 11, 180);
+      const launch = p.SPIN_UP_SEC + p.LAUNCH_SEC;
+      const launchSpot = at(wall, 11, 180);
       return {
         start: at(-wall, 16, 0),
         steps: [
-          { type: "sleep", label: "Shoot 4: preload (tip 1)", sec: shot },
+          { type: "sleep", label: "Launch 4: preload (tip 1)", sec: launch },
           { type: "drive", label: p.GARDEN_HEADING_DEG < 0 ? "Rotate 90 deg CW" : "Rotate 90 deg CCW",
             to: at(-wall + p.TURN_CLEARANCE_IN, 16, p.GARDEN_HEADING_DEG) },
           { type: "drive", label: "To the garden start", to: at(-wall, 50, p.GARDEN_HEADING_DEG) },
           { type: "drive", label: "Garden pickup (intake on, back leads)", to: at(-wall, wall, p.GARDEN_HEADING_DEG) },
           { type: "drive", label: "Clear of the HIVE", to: at(24, 38, 0) },
-          { type: "drive", label: "To the shooting spot", to: shootSpot },
-          { type: "sleep", label: "Shoot 4: volley 2", sec: shot },
+          { type: "drive", label: "To the launching spot", to: launchSpot },
+          { type: "sleep", label: "Launch 4: volley 2", sec: launch },
           { type: "drive", label: "To the flower approach", to: at(51, 24, 180) },
           { type: "drive", label: "Flower pickup (intake on)", to: at(59, 24, 180) },
-          { type: "drive", label: "Back to the shooting spot", to: { ...shootSpot } },
-          { type: "sleep", label: "Shoot 4: volley 3 (tip 2)", sec: shot },
+          { type: "drive", label: "Back to the launching spot", to: { ...launchSpot } },
+          { type: "sleep", label: "Launch 4: volley 3 (tip 2)", sec: launch },
         ],
       };
     },

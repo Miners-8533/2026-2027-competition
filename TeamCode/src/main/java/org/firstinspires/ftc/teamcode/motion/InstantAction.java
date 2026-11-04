@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.motion;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 
 /**
- * Runs a piece of code once and finishes immediately (same loop). Use for one-shot
+ * Runs a piece of code once and finishes immediately (same loop). Use for one-launch
  * state changes inside a sequence, e.g.
  * {@code new InstantAction(() -> launcher.setTargetVelocity(700))}.
  */

@@ -4,9 +4,9 @@
     python tools/logs/shooter_offset.py path\to\bringup.log
 
 Each MARK good carries the pose at the last LAUNCH and "cell center N in left of the front line": the sideways distance from the robot's front line to the cell's
-center. For a salvo that went through the center with the shooter lined up, that is the shooter's sideways offset from the pose point (positive = left) plus any
-hive or aim error. Per cell this prints the marks, their mean and spread. When both cells of a hive were marked (one shot facing +X, one facing -X) it also splits the
-two: with the robot facing +X the number is  s - t,  facing -X it is  s + t,  where s is the shooter's offset (left positive, the same at both headings, robot frame)
+center. For a salvo that went through the center with the launcher lined up, that is the launcher's sideways offset from the pose point (positive = left) plus any
+hive or aim error. Per cell this prints the marks, their mean and spread. When both cells of a hive were marked (one launch facing +X, one facing -X) it also splits the
+two: with the robot facing +X the number is  s - t,  facing -X it is  s + t,  where s is the launcher's offset (left positive, the same at both headings, robot frame)
 and t is a sideways error of the hive's cell center in the field (+Y positive, the same at both cells of the hive). So  s = mean of the two,  t = half their difference.
 A cell marked at two or more distances (8 in or more apart) also gets a straight-line fit of the number against distance: the slope is the aim angle error.
 """
@@ -67,9 +67,9 @@ def main():
         if max(r["d"] for r in rs) - min(r["d"] for r in rs) >= 8.0 and len(rs) >= 3:
             slope, mx, my = fit([(r["d"], r["left"]) for r in rs])
             print("      fit against distance: slope %+.3f in/in = aim angle error %+.2f deg; at 0 in distance %+.2f in (the offset)" % (slope, math.degrees(math.atan(slope)), my - slope * mx))
-    print("\nSPLIT OF THE SHOOTER OFFSET s (robot frame) AND THE HIVE ERROR t (field +Y), per hive")
+    print("\nSPLIT OF THE LAUNCHER OFFSET s (robot frame) AND THE HIVE ERROR t (field +Y), per hive")
     for hive, rear, aud in (("BLUE hive", "BLUE_REAR", "BLUE_AUDIENCE"), ("RED hive", "RED_REAR", "RED_AUDIENCE")):
-        # the rear cell is shot facing +X, the audience cell facing -X
+        # the rear cell is launched facing +X, the audience cell facing -X
         if rear in means and aud in means:
             s = (means[rear] + means[aud]) / 2.0
             t = (means[aud] - means[rear]) / 2.0

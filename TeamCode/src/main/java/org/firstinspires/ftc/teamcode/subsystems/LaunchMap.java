@@ -3,17 +3,17 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import java.util.List;
 
 /**
- * Flywheel speed from shooting distance: linear interpolation over measured points, the end values
+ * Flywheel speed from launching distance: linear interpolation over measured points, the end values
  * held beyond the table. The hood is fixed, so there are only two columns. Like last season's launch
  * map, minus the hood angle.
  *
  * {@link #TABLE} was measured on the robot on 2026-11-01 with the Shot Map Tuner (a charged battery, real pollen, a 4-element salvo
- * at each point, shooting at the red audience CELL from the audience wall and the corners; the speed depends on the distance only,
+ * at each point, launching at the red audience CELL from the audience wall and the corners; the speed depends on the distance only,
  * so it serves any cell). The first and last speeds are held beyond the table. While the table is empty the coordinator uses the
  * operator's manual setpoint (Mechanisms.manualSetpoint, 1350 ticks/s). With points in the table the D-pad speed keys add a TRIM
  * to the table's speed instead (Mechanisms.speedTrim), so the speed can still be nudged live.
  */
-public final class ShotMap {
+public final class LaunchMap {
 
     /** {distance in inches, flywheel velocity in ticks per second}, ascending distance. */
     public static final double[][] TABLE = {
@@ -26,7 +26,7 @@ public final class ShotMap {
             {82.2, 1650},
     };
 
-    private ShotMap() {}
+    private LaunchMap() {}
 
     public static boolean isEmpty() {
         return TABLE.length == 0;

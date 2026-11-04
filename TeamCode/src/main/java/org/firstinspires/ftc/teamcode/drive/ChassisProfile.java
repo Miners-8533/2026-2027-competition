@@ -55,7 +55,7 @@ public final class ChassisProfile {
 
     /** Direction that makes positive intake power pull elements in. Not yet verified on any chassis. */
     public final DcMotorSimple.Direction intakeDirection;
-    /** Flywheel motor direction (positive power spins it the shooting way) and pusher direction (positive = the forward, pushing way). Both unverified. */
+    /** Flywheel motor direction (positive power spins it the launching way) and pusher direction (positive = the forward, pushing way). Both unverified. */
     public final DcMotorSimple.Direction flywheelDirection, pusherDirection;
     /** Direction of the optional second flywheel motor ("fly_follow", no encoder). It usually faces the first, so the opposite of flywheelDirection. Verified on the flywheel bench: flywheel REVERSE, follower FORWARD (both spun the wrong way with last year's FORWARD / REVERSE). */
     public final DcMotorSimple.Direction flywheelFollowerDirection;

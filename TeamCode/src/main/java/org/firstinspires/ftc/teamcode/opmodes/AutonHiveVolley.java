@@ -28,7 +28,7 @@ import java.util.Locale;
 /**
  * Rudimentary BIOBUZZ auto: drive off the wall (LEAVE), then launch the preload with the real flywheel and pusher (the
  * {@link Mechanisms} coordinator, updated every loop; the flywheel spins from Start). Assumes the launcher can make the first
- * shot from near the starting position itself - no approach-to-the-HIVE drive needed.
+ * launch from near the starting position itself - no approach-to-the-HIVE drive needed.
  * Drivetrain + sequencing only; this is a bring-up test for {@link DriveToPose} as much
  * as it is a real auto skeleton.
  *

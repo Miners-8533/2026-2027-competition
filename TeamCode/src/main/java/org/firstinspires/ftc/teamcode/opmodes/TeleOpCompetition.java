@@ -55,7 +55,7 @@ import java.util.Locale;
  *                        Works with any number of elements held, locked or not. While the target lock (right trigger) is held and not yet ALIGNED the launch is QUEUED until it is
  *                        (LAUNCH_WAITS_FOR_ALIGN): it goes the moment the lock aligns, and is dropped if the trigger is released or LAUNCH_ALIGN_WAIT_SEC passes (10 of 19 salvos on
  *                        2026-11-03 went before the lock was aligned, two pointing 70 to 110 deg off the cell).
- *   right trigger (hold) TARGET LOCK by hand: while it is held the robot turns itself to point its front (intake and shooter end) at the nearest of your alliance's two
+ *   right trigger (hold) TARGET LOCK by hand: while it is held the robot turns itself to point its front (intake and launcher end) at the nearest of your alliance's two
  *                        CELLs while you keep driving; with the left bumper also held the right stick nudges the aim up to 15 deg (without it the stick does nothing while
  *                        locked); ALIGNED on the screen says it is on target. The automatic lock when the robot is full is OFF (AUTO_LOCK_WHEN_FULL = false: a sliding
  *                        pack of 3 pollen lit all four sensors and kept engaging it). Release the trigger to drive normally.
@@ -71,12 +71,12 @@ import java.util.Locale;
  *   D-pad (unguarded)    REPORT where the LAST salvo landed, seen from behind the robot: left = it landed LEFT (the remembered aim for that cell turns 1.5 deg right),
  *                        right = landed RIGHT (1.5 deg left), down = landed LOW / UNDER (speed trim +10 ticks/s), up = landed HIGH / OVER (speed trim -10). The remembered aim is kept
  *                        per CELL (the cell of the last launch), is used by the next lock on that cell, and is cleared by a driver reseed; the speed trim is one shared offset
- *                        added to the shot map's speed (the manual setpoint while the map is empty). Each report is logged with the aim of the last launch.
+ *                        added to the launch map's speed (the manual setpoint while the map is empty). Each report is logged with the aim of the last launch.
  *   hold left bumper + D-pad left / right   clear the remembered aim of the last launched cell;  hold left bumper + D-pad up / down   clear the speed trim
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
  *   right bumper         AUTO-LAUNCH on / off (a toggle, off at Start; a prototype). With it on, while the target lock is on (automatic or manual) and the robot is inside the
- *                        shot zone of the cell it is locked on (see {@link AutoLaunch}), the chassis stops by itself and, once the lock is ALIGNED and the robot has stopped,
- *                        one salvo is launched. It does nothing when the counter reads 0 elements, and the driver gets the robot back if the shot has not gone within
+ *                        launch zone of the cell it is locked on (see {@link AutoLaunch}), the chassis stops by itself and, once the lock is ALIGNED and the robot has stopped,
+ *                        one salvo is launched. It does nothing when the counter reads 0 elements, and the driver gets the robot back if the launch has not gone within
  *                        AutoLaunch.FREEZE_MAX_SEC. The salvo releases the lock as always.
  *   hold left bumper + Y pusher calibration sweep now (the track must be empty; the intake is held off by itself until it ends; again to stop it); Y alone stows
  *   (no control clears a pusher fault: the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
@@ -85,8 +85,8 @@ import java.util.Locale;
  * BACKUP MODE (no trusted pose or heading), one way: it is entered by the driver holding the left bumper and X for BACKUP_HOLD_SEC (1 s), or automatically
  * when the Pinpoint stays faulted or silent for BACKUP_PINPOINT_FAULT_SEC (a blip does not count). Both controllers give three rumble taps.
  * From then on, until the opmode ends: robot-oriented drive (stick up = robot forward), no target lock (auto or manual), no
- * reseed, and the flywheel speed comes from the fixed distance BACKUP_SHOT_DISTANCE_IN (the start position, about 42 in) with the speed trim
- * still working; the driver drives to that spot to shoot. There is no way out: service the robot.
+ * reseed, and the flywheel speed comes from the fixed distance BACKUP_LAUNCH_DISTANCE_IN (the start position, about 42 in) with the speed trim
+ * still working; the driver drives to that spot to launch. There is no way out: service the robot.
  *
  * There are no sensor overrides to toggle: a failed Pinpoint is handled by the backup mode above, a counter that stops reading shows a
  * warning (count by eye; hold the operator's left trigger to push extras out), and the flywheel always runs closed loop.
@@ -118,8 +118,8 @@ public class TeleOpCompetition extends LinearOpMode {
     public static double LAUNCH_ALIGN_WAIT_SEC = 1.5;
     /** One rumble pulse on both controllers each time the robot becomes full (4 elements, confirmed). Needs a gamepad with rumble. */
     public static int FULL_RUMBLE_MS = 250;
-    /** BACKUP MODE: the fixed shot distance (the start position's distance to the cell), and how long the Pinpoint must stay faulted before it is not just a blip. */
-    public static double BACKUP_SHOT_DISTANCE_IN = 42.0;
+    /** BACKUP MODE: the fixed launch distance (the start position's distance to the cell), and how long the Pinpoint must stay faulted before it is not just a blip. */
+    public static double BACKUP_LAUNCH_DISTANCE_IN = 42.0;
     public static double BACKUP_PINPOINT_FAULT_SEC = 0.5;
     /** How long the driver holds left bumper + X to enter the backup mode by hand. */
     public static double BACKUP_HOLD_SEC = 1.0;
@@ -158,20 +158,20 @@ public class TeleOpCompetition extends LinearOpMode {
         if (gamepad.type() != Gamepad.Type.LOGITECH_F310) gamepad.rumbleBlips(n);
     }
 
-    /** Switch to the backup mode for the rest of the run: robot-oriented drive, no lock, a fixed shot speed, three taps on both gamepads. */
+    /** Switch to the backup mode for the rest of the run: robot-oriented drive, no lock, a fixed launch speed, three taps on both gamepads. */
     private void enterBackupMode(String why, Mechanisms mechanisms) {
         if (backupMode) return;
         backupMode = true;
         fieldOriented = false;
-        mechanisms.enterBackupMode(BACKUP_SHOT_DISTANCE_IN);
+        mechanisms.enterBackupMode(BACKUP_LAUNCH_DISTANCE_IN);
         buzzBlips(gamepad1, 3);
         buzzBlips(gamepad2, 3);
-        RunLog.event("BACKUP MODE ENTERED (" + why + "): robot-oriented drive, fixed shot speed, no target lock, no way back this run");
+        RunLog.event("BACKUP MODE ENTERED (" + why + "): robot-oriented drive, fixed launch speed, no target lock, no way back this run");
     }
 
     /**
      * One line describing the aim at this moment, for the LAUNCH log events and the operator's reports: the pose, the target cell and its distance, the bearing to it,
-     * where the target sits relative to the robot's front line, and the miss predicted from the shooter's sideways offset (+ = the shot lands to the
+     * where the target sits relative to the robot's front line, and the miss predicted from the launcher's sideways offset (+ = the launch lands to the
      * LEFT of the target, - = to the RIGHT, seen from behind the robot). Compare the predicted miss with the reports of left or right.
      */
     private String aimSummary(Pose2d pose, Mechanisms mechanisms, boolean blue, boolean lockOn) {
@@ -181,11 +181,11 @@ public class TeleOpCompetition extends LinearOpMode {
         double bearing = Math.atan2(dy, dx);
         double err = Rotation2d.normalize(bearing - pose.heading.toDouble());   // + = the target is counterclockwise (left) of the front
         double targetLeftIn = dist * Math.sin(err);
-        double miss = TargetLock.SHOOTER_OFFSET_LEFT_IN - targetLeftIn;
+        double miss = TargetLock.LAUNCHER_OFFSET_LEFT_IN - targetLeftIn;
         return String.format(Locale.US, "%s, pose (%.1f, %.1f, %.1f deg), target %s (%.1f, %.1f) %.1f in, bearing %.1f deg, target %+.1f deg / %+.1f in left of the front line, "
-                        + "shooter offset %+.1f in + far-cell extra %+.1f in, predicted miss %+.1f in (against the shooter offset alone), setpoint %.0f (trim %+.0f), lock %s, remembered nudge %+.1f deg",
+                        + "launcher offset %+.1f in + far-cell extra %+.1f in, predicted miss %+.1f in (against the launcher offset alone), setpoint %.0f (trim %+.0f), lock %s, remembered nudge %+.1f deg",
                 blue ? "BLUE" : "RED", pose.position.x, pose.position.y, pose.heading.toDegrees(), t, t.x, t.y, dist, Math.toDegrees(bearing),
-                Math.toDegrees(err), targetLeftIn, TargetLock.SHOOTER_OFFSET_LEFT_IN, TargetLock.farCellExtraLeftIn(t, blue), miss, mechanisms.getLastSetpoint(), mechanisms.getSpeedTrim(),
+                Math.toDegrees(err), targetLeftIn, TargetLock.LAUNCHER_OFFSET_LEFT_IN, TargetLock.farCellExtraLeftIn(t, blue), miss, mechanisms.getLastSetpoint(), mechanisms.getSpeedTrim(),
                 lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off", cellNudgeDeg[t.ordinal()]);
     }
 
@@ -412,7 +412,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 }
                 lockWasAligned = aligned;
 
-                // auto-launch (prototype, the operator's right bumper): inside the shot zone of the locked cell the chassis stops, then one salvo goes
+                // auto-launch (prototype, the operator's right bumper): inside the launch zone of the locked cell the chassis stops, then one salvo goes
                 // when the lock is ALIGNED and the robot has stopped. Not with an empty robot (the counter reads 0), and at most FREEZE_MAX_SEC of holding.
                 boolean hasElements = mechanisms.counter == null || !mechanisms.counter.isValid() || mechanisms.counter.count() > 0;
                 boolean inZone = AutoLaunch.inZone(lockTarget, pose.position.x, pose.position.y);
@@ -424,7 +424,7 @@ public class TeleOpCompetition extends LinearOpMode {
                     autoLaunchState = "waiting: no elements";
                 } else if (!inZone) {
                     autoLaunchInZone = false;
-                    autoLaunchState = String.format(Locale.US, "waiting: %.0f in from the %s shot zone", AutoLaunch.distanceFromZone(lockTarget, pose.position.x, pose.position.y) - AutoLaunch.ZONE_RADIUS_IN, lockTarget);
+                    autoLaunchState = String.format(Locale.US, "waiting: %.0f in from the %s launch zone", AutoLaunch.distanceFromZone(lockTarget, pose.position.x, pose.position.y) - AutoLaunch.ZONE_RADIUS_IN, lockTarget);
                 } else {
                     if (!autoLaunchInZone) {
                         autoLaunchInZone = true;
@@ -586,7 +586,7 @@ public class TeleOpCompetition extends LinearOpMode {
             RunLog.tick();
 
             if (backupHeld && !backupMode) telemetry.addData("Backup mode", "keep holding LB + X... %.1f s", BACKUP_HOLD_SEC - backupHold.seconds());
-            if (backupMode) telemetry.addLine(String.format(Locale.US, "*** BACKUP MODE: no pose or heading. Robot-oriented drive, shot speed fixed for %.0f in (drive to that spot), no target lock. Service the robot. ***", BACKUP_SHOT_DISTANCE_IN));
+            if (backupMode) telemetry.addLine(String.format(Locale.US, "*** BACKUP MODE: no pose or heading. Robot-oriented drive, launch speed fixed for %.0f in (drive to that spot), no target lock. Service the robot. ***", BACKUP_LAUNCH_DISTANCE_IN));
             else if (pinpointBad) telemetry.addLine("*** PINPOINT FAULT (backup mode in a moment if it stays) ***");
             telemetry.addData("Alliance", blue ? "BLUE" : "RED");
             telemetry.addData("Pose x / y (in), heading (deg)", "%.1f / %.1f / %.1f",

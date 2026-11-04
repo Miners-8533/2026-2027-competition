@@ -27,13 +27,13 @@ import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 import java.util.Locale;
 
 /**
- * Solo Blue auto designed by the students. The shots, the intake and the ramp are the real mechanisms (the
+ * Solo Blue auto designed by the students. The launches, the intake and the ramp are the real mechanisms (the
  * {@link Mechanisms} coordinator, updated every loop). The flywheel spins from Start; a salvo launches as soon as it is ready.
  *
  * Plan, in field coordinates (origin at field center, X toward the audience, Y toward the
  * Blue Wall, heading 0 = +X, counterclockwise positive):
- *   1. Start on the rear wall at Y=16 facing +X. Shoot all 4 preload (tip 1, overflow).
- *   2. Rotate 90 deg so the FRONT of the robot faces the Blue Wall. ROBOT_1's intake and shooter are at the same
+ *   1. Start on the rear wall at Y=16 facing +X. Launch all 4 preload (tip 1, overflow).
+ *   2. Rotate 90 deg so the FRONT of the robot faces the Blue Wall. ROBOT_1's intake and launcher are at the same
  *      end, the front (the end that leads when the stick is pushed up; confirmed by the team 2026-11-01), so the
  *      garden run leads with the intake: heading +90 (counterclockwise turn), as in the students' notes.
  *      (An earlier version assumed the intake on the back and used -90; GARDEN_HEADING_DEG = -90 restores that.)
@@ -41,13 +41,13 @@ import java.util.Locale;
  *      This collects the blue GARDEN's 4 POLLEN along the rear wall.
  *   4. Drive to (24, 38) facing +X, clear of the HIVE.
  *   5. Drive to the audience wall at Y=11 facing -X (180 deg), toward the blue HIVE's now
- *      upward audience-side CELL. Shoot 4.
+ *      upward audience-side CELL. Launch 4.
  *   6. Drive to (51, 24), intake ON, drive to (59, 24) facing 180 deg at the audience-wall
  *      FLOWER, intake OFF, collecting its 4 POLLEN.
- *   7. Back to the shooting spot, shoot 4 again (8 equivalents in the cell, tip 2). End.
+ *   7. Back to the launching spot, launch 4 again (8 equivalents in the cell, tip 2). End.
  *
  * Mechanisms: the intake stops by itself at 4 elements (the element counter). The ramp is deployed on the way to the
- * flower (deploying turns the intake on) and stowed at the shooting spot, which the path puts clear of the flower, without
+ * flower (deploying turns the intake on) and stowed at the launching spot, which the path puts clear of the flower, without
  * the pose check the operator's stow uses. The open CELL is set to the rear side for the first volley and the audience
  * side after the first tip. The pusher is assumed to be at HOLD at INIT (so it must be, at power-on) and keeps that zero
  * for the TeleOp.
@@ -83,7 +83,7 @@ public class AutonBlueStudents extends LinearOpMode {
         });
     }
 
-    private Action shoot(Mechanisms mechanisms, String label) {
+    private Action launch(Mechanisms mechanisms, String label) {
         return new SequentialAction(
                 note("Launch: " + label),
                 mechanisms.launch());
@@ -114,7 +114,7 @@ public class AutonBlueStudents extends LinearOpMode {
         Pose2d gardenStart = pose(-wall, 50, GARDEN_HEADING_DEG);
         Pose2d gardenEnd = pose(-wall, wall, GARDEN_HEADING_DEG);
         Pose2d clearOfHive = pose(24, 38, 0);
-        Pose2d shootSpot = pose(backWall, 11, 180);
+        Pose2d launchSpot = pose(backWall, 11, 180);
         Pose2d flowerNear = pose(51, 24, 180);
         Pose2d flowerAt = pose(59, 24, 180);
 
@@ -158,7 +158,7 @@ public class AutonBlueStudents extends LinearOpMode {
         mechanisms.setSpinRequested(true);              // ... and spins from Start so the first volley launches at once
 
         Action auto = new SequentialAction(
-                shoot(mechanisms, "preload, tip 1"),
+                launch(mechanisms, "preload, tip 1"),
                 new DriveToPose(drive, facingBlue),
                 new DriveToPose(drive, gardenStart),
                 note("Intake ON: blue garden"),
@@ -168,17 +168,17 @@ public class AutonBlueStudents extends LinearOpMode {
                 mechanisms.setIntake(false),
                 new DriveToPose(drive, clearOfHive),
                 new InstantAction(() -> mechanisms.setOpenCell(HiveTarget.BLUE_AUDIENCE)),   // the tip flipped the cell
-                new DriveToPose(drive, shootSpot),
-                shoot(mechanisms, "volley 2"),
+                new DriveToPose(drive, launchSpot),
+                launch(mechanisms, "volley 2"),
                 new InstantAction(mechanisms::requestDeploy),   // deploys while driving; deploying turns the intake on
                 new DriveToPose(drive, flowerNear),
                 note("Ramp deployed, intake ON: flower"),
                 new DriveToPose(drive, flowerAt),
                 new SleepAction(FLOWER_DWELL_SEC),
                 note("Leaving the flower"),
-                new DriveToPose(drive, shootSpot),
+                new DriveToPose(drive, launchSpot),
                 mechanisms.stowNow(),
-                shoot(mechanisms, "volley 3, tip 2")
+                launch(mechanisms, "volley 3, tip 2")
         );
 
         Actions.runBlocking(this, auto, () -> mechanisms.update(drive.getPose()));
@@ -197,8 +197,8 @@ public class AutonBlueStudents extends LinearOpMode {
             telemetry.addLine("Auto complete.");
             telemetry.addData("Final Pinpoint pose (in, in, deg)", "%.2f, %.2f, %.1f",
                     p.position.x, p.position.y, p.heading.toDegrees());
-            telemetry.addData("Shooting spot (in, in, deg)", "%.2f, %.2f, %.1f",
-                    shootSpot.position.x, shootSpot.position.y, shootSpot.heading.toDegrees());
+            telemetry.addData("Launching spot (in, in, deg)", "%.2f, %.2f, %.1f",
+                    launchSpot.position.x, launchSpot.position.y, launchSpot.heading.toDegrees());
             telemetry.update();
         }
     }

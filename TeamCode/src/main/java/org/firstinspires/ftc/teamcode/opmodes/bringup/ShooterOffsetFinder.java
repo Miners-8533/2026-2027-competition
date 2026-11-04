@@ -24,15 +24,15 @@ import org.firstinspires.ftc.teamcode.util.RunLog;
 import java.util.Locale;
 
 /**
- * Finds where the shooter really points, so the shooter offset (and any hive or heading offset) can be measured instead of inferred from missed shots.
- * Target lock is OFF: the driver drives the robot (field-oriented, as in the TeleOp), lines the shot up with the centerline of a HIVE cell by hand, and launches;
- * a mark on a good salvo writes the robot's pose at that launch, the cell, and what the pose says about the shooter. Do it at each cell, and from the blue and the
+ * Finds where the launcher really points, so the launcher offset (and any hive or heading offset) can be measured instead of inferred from missed launches.
+ * Target lock is OFF: the driver drives the robot (field-oriented, as in the TeleOp), lines the launch up with the centerline of a HIVE cell by hand, and launches;
+ * a mark on a good salvo writes the robot's pose at that launch, the cell, and what the pose says about the launcher. Do it at each cell, and from the blue and the
  * red start poses (both headings) to see whether the effect is symmetric.
  *
  * What a mark records (the pose at the last LAUNCH, since the robot may have moved by the time the mark is pressed): the pose, the cell the robot was
  * nearest, the distance, the bearing, and how far to the LEFT of the robot's front line the cell's center sits (distance * sin(bearing - heading)). If the salvo
- * went into the cell with the shooter's line through its center, that number is the shooter's sideways offset from the pose point (positive = the shooter is
- * left of the origin; TargetLock.SHOOTER_OFFSET_LEFT_IN is the value in use) plus the distance times any angle error of the shot. At one distance the two cannot be
+ * went into the cell with the launcher's line through its center, that number is the launcher's sideways offset from the pose point (positive = the launcher is
+ * left of the origin; TargetLock.LAUNCHER_OFFSET_LEFT_IN is the value in use) plus the distance times any angle error of the launch. At one distance the two cannot be
  * told apart; marks at two distances along the same line can (the offset is the same at both, the angle error grows with the distance).
  *
  * INIT (gamepad 1): D-pad right = BLUE start (back against the rear wall facing +X: (-HALF + 7.6, +16)), D-pad left = RED start (back against the audience wall
@@ -94,9 +94,9 @@ public class ShooterOffsetFinder extends LinearOpMode {
     private String describe(String label, Pose2d pose, HiveTarget cell, Mechanisms mechanisms) {
         double[] a = aim(pose, cell);
         return String.format(Locale.US, "%s pose (%.2f, %.2f, %.1f deg), cell %s (%.2f, %.2f) %.1f in, bearing %.1f deg, cell center %+.1f deg / %+.2f in left of the front line"
-                        + " (shooter offset estimate if the salvo went through the center: %+.2f in; in use %+.1f), setpoint %.0f",
+                        + " (launcher offset estimate if the salvo went through the center: %+.2f in; in use %+.1f), setpoint %.0f",
                 label, pose.position.x, pose.position.y, pose.heading.toDegrees(), cell, cell.x, cell.y, a[0], a[1], a[2], a[3], a[3],
-                TargetLock.SHOOTER_OFFSET_LEFT_IN, mechanisms.getLastSetpoint());
+                TargetLock.LAUNCHER_OFFSET_LEFT_IN, mechanisms.getLastSetpoint());
     }
 
     @Override
@@ -157,8 +157,8 @@ public class ShooterOffsetFinder extends LinearOpMode {
         mechanisms.setIntakeAlwaysOn(true);
         mechanisms.setAutoStopAfterSalvo(false);
         mechanisms.setSpinRequested(true);
-        RunLog.event(String.format(Locale.US, "SETUP profile %s, start %s (%.2f, %.2f, %.1f deg), walls at +-%.1f in, SHOOTER_OFFSET_LEFT_IN %+.1f; %s", profile.name,
-                isBlue ? "BLUE" : "RED", start.position.x, start.position.y, start.heading.toDegrees(), FieldGeometry.HALF_IN, TargetLock.SHOOTER_OFFSET_LEFT_IN, mechanisms.describe()));
+        RunLog.event(String.format(Locale.US, "SETUP profile %s, start %s (%.2f, %.2f, %.1f deg), walls at +-%.1f in, LAUNCHER_OFFSET_LEFT_IN %+.1f; %s", profile.name,
+                isBlue ? "BLUE" : "RED", start.position.x, start.position.y, start.heading.toDegrees(), FieldGeometry.HALF_IN, TargetLock.LAUNCHER_OFFSET_LEFT_IN, mechanisms.describe()));
         RunLog.setSampler("x,y,hdg_deg,cell,dist_in,cell_left_in," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
                 () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%s,%.1f,%.2f,%s", logX, logY, logHeadingDeg, logCell, logDist, logLeftIn, mechanisms.sampleRow()));
 
@@ -225,7 +225,7 @@ public class ShooterOffsetFinder extends LinearOpMode {
             telemetry.addData("Start", isBlue ? "BLUE (facing +X)" : "RED (facing -X)");
             telemetry.addData("Pose x / y (in), heading (deg)", "%.2f / %.2f / %.1f", pose.position.x, pose.position.y, pose.heading.toDegrees());
             telemetry.addData("Nearest cell", "%s at %.1f in, bearing %.1f deg", cell, a[0], a[1]);
-            telemetry.addData("Cell center left of the front line", "%+.2f in   (%+.1f deg)   <- the shooter offset if the shot goes through the center", a[3], a[2]);
+            telemetry.addData("Cell center left of the front line", "%+.2f in   (%+.1f deg)   <- the launcher offset if the launch goes through the center", a[3], a[2]);
             telemetry.addData("Flywheel setpoint", "%.0f ticks/s", mechanisms.getLastSetpoint());
             telemetry.addData("Good marks so far", marksGood);
             if (reseedDown && !reseeded) telemetry.addData("Reseed pose", "keep holding X... %.1f s", RESEED_HOLD_SEC - reseedHold.seconds());

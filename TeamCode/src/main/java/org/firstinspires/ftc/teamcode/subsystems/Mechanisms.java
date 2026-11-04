@@ -92,7 +92,7 @@ public class Mechanisms {
     private boolean flywheelLostSeen = false;
     private boolean manualCalibration = false;   // the operator's pusher calibration sweep is running: the intake is held off
     private boolean flywheelLostNotice = false;
-    private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the shot distance is this, whatever the pose says
+    private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the launch distance is this, whatever the pose says
     private boolean manualIntake = false;
     private boolean intakeAlwaysOn = false;
     private boolean launchQueued = false;
@@ -102,9 +102,9 @@ public class Mechanisms {
     private boolean autoStopAfterSalvo = true;   // the competition TeleOp turns this off and keeps the flywheel running
     private boolean stopScheduled = false;
     private boolean stowPending = false;
-    private boolean useShotMap = true;
-    private double manualSetpoint = 1350.0;   // ticks/s; used while the shot map is empty, tuned with the operator's D-pad
-    private double speedTrim = 0.0;            // ticks/s added to the shot map's speed, nudged with the operator's D-pad
+    private boolean useLaunchMap = true;
+    private double manualSetpoint = 1350.0;   // ticks/s; used while the launch map is empty, tuned with the operator's D-pad
+    private double speedTrim = 0.0;            // ticks/s added to the launch map's speed, nudged with the operator's D-pad
     private HiveTarget openCell = HiveTarget.BLUE_REAR;
     private boolean blueAlliance = true;
     private boolean autoTarget = false;
@@ -300,18 +300,18 @@ public class Mechanisms {
         RunLog.event("COMMAND speed trim reset -> +0 ticks/s");
     }
 
-    /** The operator's speed keys: the manual setpoint while the shot map is empty or unused, else a trim added to the map's speed. */
+    /** The operator's speed keys: the manual setpoint while the launch map is empty or unused, else a trim added to the map's speed. */
     public void adjustManualSetpoint(double delta) {
-        if (useShotMap && !ShotMap.isEmpty()) {
+        if (useLaunchMap && !LaunchMap.isEmpty()) {
             speedTrim += delta;
-            RunLog.event(String.format(Locale.US, "COMMAND speed trim -> %+.0f ticks/s on the shot map", speedTrim));
+            RunLog.event(String.format(Locale.US, "COMMAND speed trim -> %+.0f ticks/s on the launch map", speedTrim));
         } else {
             manualSetpoint = Math.max(0.0, manualSetpoint + delta);
             RunLog.event(String.format(Locale.US, "COMMAND manual setpoint -> %.0f ticks/s", manualSetpoint));
         }
     }
 
-    /** Sets the manual setpoint outright (the shot map tuner follows its recorded points this way). Not logged: it may be called every loop. */
+    /** Sets the manual setpoint outright (the launch map tuner follows its recorded points this way). Not logged: it may be called every loop. */
     public void setManualSetpoint(double ticksPerSecond) {
         manualSetpoint = Math.max(0.0, ticksPerSecond);
     }
@@ -323,7 +323,7 @@ public class Mechanisms {
 
     /**
      * True: the target cell is always the closer of the alliance's own two cells (set by {@link #setBlueAlliance}), with a hysteresis, so the
-     * operator never picks a cell. The shot distance and the target lock both use it. False (the default, as in the autos): the cell set
+     * operator never picks a cell. The launch distance and the target lock both use it. False (the default, as in the autos): the cell set
      * with {@link #setOpenCell} stays.
      */
     public void setAutoTarget(boolean auto) {
@@ -339,8 +339,8 @@ public class Mechanisms {
         return openCell;
     }
 
-    public void setUseShotMap(boolean use) {
-        useShotMap = use;
+    public void setUseLaunchMap(boolean use) {
+        useLaunchMap = use;
     }
 
     /** Override: ignore the element counter (a sensor failed). The intake then runs until the operator turns it off. */
@@ -414,14 +414,14 @@ public class Mechanisms {
     }
 
     /**
-     * BACKUP MODE (one way, until the opmode ends): the pose cannot be trusted, so the shot speed comes from this fixed distance (the
+     * BACKUP MODE (one way, until the opmode ends): the pose cannot be trusted, so the launch speed comes from this fixed distance (the
      * driver is expected to drive to that spot), the target cell stops following the pose, and the warning shows. The speed trim still works.
      */
     public void enterBackupMode(double distanceIn) {
         fixedDistanceIn = distanceIn;
         autoTarget = false;
         poseOverride = true;
-        RunLog.event(String.format(Locale.US, "BACKUP MODE: the shot speed is fixed for %.0f in, no pose", distanceIn));
+        RunLog.event(String.format(Locale.US, "BACKUP MODE: the launch speed is fixed for %.0f in, no pose", distanceIn));
     }
 
     /** True once, right after the flywheel's speed sensor is judged dead (for the opmode to give a signal). */
@@ -440,7 +440,7 @@ public class Mechanisms {
         return salvosDone;
     }
 
-    /** The flywheel speed (ticks/s) the coordinator last set from the shot map, the trim and the distance (for the log). */
+    /** The flywheel speed (ticks/s) the coordinator last set from the launch map, the trim and the distance (for the log). */
     public double getLastSetpoint() {
         return lastSetpoint;
     }
@@ -496,13 +496,13 @@ public class Mechanisms {
             }
         }
         lastDistance = fixedDistanceIn > 0.0 ? fixedDistanceIn : openCell.distanceFrom(pose);
-        boolean mapAvailable = useShotMap && !ShotMap.isEmpty();
-        lastSetpoint = mapAvailable ? Math.max(0.0, ShotMap.velocityFor(lastDistance) + speedTrim) : manualSetpoint;
-        // a dead flywheel encoder: no closed loop, so every shot is the same base power (Flywheel.LOST_BASE_SETPOINT) moved only by the speed trim
+        boolean mapAvailable = useLaunchMap && !LaunchMap.isEmpty();
+        lastSetpoint = mapAvailable ? Math.max(0.0, LaunchMap.velocityFor(lastDistance) + speedTrim) : manualSetpoint;
+        // a dead flywheel encoder: no closed loop, so every launch is the same base power (Flywheel.LOST_BASE_SETPOINT) moved only by the speed trim
         if (flywheel != null && flywheel.isEncoderLost()) lastSetpoint = Math.max(0.0, Flywheel.LOST_BASE_SETPOINT + speedTrim);
-        if (flywheel != null && !mapAvailable) warnings.add("Shot map empty: using the manual setpoint");
+        if (flywheel != null && !mapAvailable) warnings.add("Launch map empty: using the manual setpoint");
         if (flywheel != null && flywheel.isEncoderLost()) {
-            warnings.add(String.format(Locale.US, "FLYWHEEL ENCODER LOST: open loop at a fixed power for %.0f ticks/s %+.0f (speed trim); every shot is the same, drive to the same spot", Flywheel.LOST_BASE_SETPOINT, speedTrim));
+            warnings.add(String.format(Locale.US, "FLYWHEEL ENCODER LOST: open loop at a fixed power for %.0f ticks/s %+.0f (speed trim); every launch is the same, drive to the same spot", Flywheel.LOST_BASE_SETPOINT, speedTrim));
         } else if (flywheel != null && flywheel.isOpenLoop()) warnings.add("FLYWHEEL OPEN LOOP: the speed sensor is ignored, ready is a timer");
 
         fullNow = full;
@@ -510,7 +510,7 @@ public class Mechanisms {
         // rule 5: remembered stow
         if (ramp != null) {
             if (!ramp.isConfigured()) warnings.add("Ramp positions not measured: it will not move");
-            if (poseOverride) warnings.add(String.format(Locale.US, "BACKUP MODE (no pose): robot-oriented drive, shot speed fixed for %.0f in, no target lock; service the robot", fixedDistanceIn));
+            if (poseOverride) warnings.add(String.format(Locale.US, "BACKUP MODE (no pose): robot-oriented drive, launch speed fixed for %.0f in, no target lock; service the robot", fixedDistanceIn));
             if (stowPending) {
                 if (poseOverride || Ramp.isClearOfFlower(pose)) {
                     ramp.stow();
@@ -724,7 +724,7 @@ public class Mechanisms {
         telemetry.addData("Overrides active", overridesCode().equals("-") ? "none" : overridesCode() + "  (C counter, P pose, F flywheel open loop)");
         telemetry.addData("Open cell / distance (in)", "%s / %.1f", openCell, lastDistance);
         telemetry.addData("Flywheel setpoint (ticks/s)", "%.0f   (%s)", lastSetpoint,
-                useShotMap && !ShotMap.isEmpty() ? String.format(Locale.US, "shot map %+.0f trim", speedTrim) : "manual");
+                useLaunchMap && !LaunchMap.isEmpty() ? String.format(Locale.US, "launch map %+.0f trim", speedTrim) : "manual");
         telemetry.addData("Launch", launchQueued ? "QUEUED, waiting for flywheel" : salvoActive ? "SALVO running" : "idle");
         telemetry.addData("Reject", rejectActive ? "running" : "idle");
         if (intake != null) intake.log(telemetry);

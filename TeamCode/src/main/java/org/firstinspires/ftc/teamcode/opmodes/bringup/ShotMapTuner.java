@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.math.Vector2d;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
-import org.firstinspires.ftc.teamcode.subsystems.ShotMap;
+import org.firstinspires.ftc.teamcode.subsystems.LaunchMap;
 import org.firstinspires.ftc.teamcode.util.RunLog;
 
 import java.util.ArrayList;
@@ -24,9 +24,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Builds the shot map on the real robot. Drive to a distance from the open CELL, set the flywheel speed, launch real elements until they
+ * Builds the launch map on the real robot. Drive to a distance from the open CELL, set the flywheel speed, launch real elements until they
  * score, and record the pair. The recorded points are interpolated live (so you can test the map as you go) and printed as lines to
- * paste into ShotMap.TABLE (and written to the log). It runs the real mechanisms (the {@link Mechanisms} coordinator), so a shot is
+ * paste into LaunchMap.TABLE (and written to the log). It runs the real mechanisms (the {@link Mechanisms} coordinator), so a launch is
  * the same as in the match: the flywheel must be ready, the pusher turns, the intake and the element counter work, and the pusher check runs
  * after a salvo.
  *
@@ -57,7 +57,7 @@ import java.util.Locale;
 public class ShotMapTuner extends LinearOpMode {
 
     /**
-     * The start pose for the 2026-11-01 shot map session: against the AUDIENCE wall (X = 72 less half the 17 in robot depth), Y = -16.5, facing the
+     * The start pose for the 2026-11-01 launch map session: against the AUDIENCE wall (X = 72 less half the 17 in robot depth), Y = -16.5, facing the
      * rear wall (180 deg). The HIVE centerlines are Y = +12.75 (blue) and -12.75 (red). The same for either alliance.
      */
     public static double START_X_IN = 63.4;   // FieldGeometry.HALF_IN (71) - the origin's 7.6 in from the back edge (back against the audience wall, facing -X)
@@ -108,8 +108,8 @@ public class ShotMapTuner extends LinearOpMode {
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose());
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
-        mechanisms.setUseShotMap(false);            // the tuner sets the speed itself
-        mechanisms.setAutoStopAfterSalvo(false);    // the flywheel stays on between shots until X
+        mechanisms.setUseLaunchMap(false);            // the tuner sets the speed itself
+        mechanisms.setAutoStopAfterSalvo(false);    // the flywheel stays on between launches until X
 
         boolean blue = true;
         HiveTarget target = nearestCell(startPose());
@@ -215,7 +215,7 @@ public class ShotMapTuner extends LinearOpMode {
                 lastRecorded = null;
             }
 
-            double mapSpeed = ShotMap.interpolate(points, distance);
+            double mapSpeed = LaunchMap.interpolate(points, distance);
             if (autoSpeed && !Double.isNaN(mapSpeed)) setpoint = mapSpeed;
 
             logX = pose.position.x;
@@ -237,16 +237,16 @@ public class ShotMapTuner extends LinearOpMode {
                     pose.position.x, pose.position.y, pose.heading.toDegrees());
             telemetry.addData("Setpoint (ticks/s)", "%.0f   %s", setpoint, autoSpeed ? "(auto, from points)" : "(manual)");
             telemetry.addData("Recorded-points speed here", Double.isNaN(mapSpeed) ? "no points yet" : String.format("%.0f", mapSpeed));
-            telemetry.addData("Saved ShotMap.TABLE", ShotMap.isEmpty() ? "empty" : ShotMap.TABLE.length + " points");
+            telemetry.addData("Saved LaunchMap.TABLE", LaunchMap.isEmpty() ? "empty" : LaunchMap.TABLE.length + " points");
             mechanisms.log(telemetry);
-            telemetry.addLine("--- paste into ShotMap.TABLE ---");
+            telemetry.addLine("--- paste into LaunchMap.TABLE ---");
             for (double[] p : points) {
                 telemetry.addLine(String.format("        {%.1f, %.0f},", p[0], p[1]));
             }
             telemetry.addLine("RT intake, Y LAUNCH, X spin, B record, A undo, D-pad up/down speed, D-pad left/right target, LB auto speed, Back clear fault (hold = reseed pose)");
             telemetry.update();
         }
-        StringBuilder table = new StringBuilder("SHOT MAP at the end of the run, paste into ShotMap.TABLE:");
+        StringBuilder table = new StringBuilder("LAUNCH MAP at the end of the run, paste into LaunchMap.TABLE:");
         for (double[] p : points) table.append(String.format(Locale.US, "\n        {%.1f, %.0f},", p[0], p[1]));
         RunLog.event(table.toString().replace('\n', ' '));
         drive.stop();
