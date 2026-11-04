@@ -30,7 +30,7 @@ import java.util.Arrays;
  * {@link #update()} reads ONE sensor every READ_PERIOD_MS, cycling (about 4 x READ_PERIOD_MS for a full refresh), and does
  * nothing in between. The reported count changes only after the raw count has been steady (COUNT_RISE_STABLE_MS when it
  * goes up; COUNT_FULL_STABLE_MS when it reaches CAPACITY, so four are certain before the intake stops; COUNT_FALL_STABLE_MS when it goes down), because the end sensor flickers
- * for about a second while an element moves. A fourth element is reported about 0.8 s after it is first seen. If a sensor has not been read for STALE_MS the
+ * for about a second while an element moves. A fourth element is reported about 1.3 s after it is first seen (COUNT_FULL_STABLE_MS is 1000 since 2026-11-04, was 500: of the 111 stretches with all four sensors lit on 2026-11-03, 79 lasted 0.5 s or more and 59 lasted 1.0 s or more). If a sensor has not been read for STALE_MS the
  * counter is not {@link #isValid() valid}, and callers should not act on it.
  *
  * The EMPTY baseline is the table below (measured 2026-10-31 with the track empty). Lighting changes the empty readings,
@@ -48,7 +48,7 @@ public class ElementCounter {
     public static double STALE_MS = 1000.0;
     public static double COUNT_RISE_STABLE_MS = 150.0;
     /** Reaching CAPACITY (FULL, which stops the intake) must be steady this long, so a flicker at CS4 does not read as four. */
-    public static double COUNT_FULL_STABLE_MS = 500.0;
+    public static double COUNT_FULL_STABLE_MS = 1000.0;   // 500 before 2026-11-04 (user): a sliding pack lit all four sensors for 0.5 to 1 s at a time
     public static double COUNT_FALL_STABLE_MS = 300.0;
     /** The most elements the robot may hold (rule G407). */
     public static int CAPACITY = 4;
