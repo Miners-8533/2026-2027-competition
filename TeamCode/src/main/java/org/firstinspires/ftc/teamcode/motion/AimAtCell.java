@@ -22,8 +22,10 @@ public final class AimAtCell implements Action {
 
     /** Aligned for this long counts as done. */
     public static double HOLD_SEC = 0.15;
-    /** Gives up and lets the shot go ahead after this long. */
-    public static double TIMEOUT_SEC = 1.5;
+    /** Gives up and lets the shot go ahead after this long (1.5 s before 2026-11-03, when the error sat at +2.0 to +2.2 deg and ran it out twice). */
+    public static double TIMEOUT_SEC = 0.6;
+    /** Aligned means within this many degrees (the lock's own ALIGNED_DEG is 2.0) and turning slower than TargetLock.ALIGNED_MAX_RATE_DEG_PER_S. */
+    public static double ALIGNED_DEG = 2.5;
 
     private final MecanumDrive drive;
     private final HiveTarget cell;
@@ -54,9 +56,11 @@ public final class AimAtCell implements Action {
         Pose2d pose = drive.getPose();
         double turn = lock.turn(pose, measured == null ? 0.0 : measured.angVel, cell, TargetLock.farCellExtraLeftIn(cell, blue), 0.0, 0.0, dt);
         drive.setDrivePowers(new PoseVelocity2d(Vector2d.zero(), turn));
-        if (!lock.isAligned()) held.reset();
+        double rateDegPerS = measured == null ? 0.0 : Math.toDegrees(measured.angVel);
+        boolean near = Math.abs(lock.errorDeg()) <= ALIGNED_DEG && Math.abs(rateDegPerS) <= TargetLock.ALIGNED_MAX_RATE_DEG_PER_S;
+        if (!near) held.reset();
         packet.put("aim/err_deg", lock.errorDeg());
-        boolean aligned = lock.isAligned() && held.seconds() >= HOLD_SEC;
+        boolean aligned = near && held.seconds() >= HOLD_SEC;
         boolean done = aligned || timeout.seconds() >= TIMEOUT_SEC;
         if (done) {
             drive.stop();

@@ -113,6 +113,13 @@ public class AutonSolo extends LinearOpMode {
      * The garden pickup leg (along the rear wall, intake on) is driven slowly so the pollen get in: this is the most power any axis may use (the normal limit is 0.6;
      * speed is about 60 in/s per unit of power, so 0.25 is about 15 in/s, a 23 in leg in about 2 s). Raise it if the pickup is fine slower than needed, lower it if pollen are missed.
      */
+    /**
+     * The cross-field legs (the helper leg and the one after it, 100 and 42 in) use this power limit instead of 0.6 (the leg's hard cap speed scales with it). 0.6 took 2.9 s for the
+     * 101 in leg on 2026-11-03.
+     */
+    public static double CROSS_FIELD_MAX_POWER = 0.85;
+    /** The shot spots only need to be near (the aim step turns onto the cell): a leg ends within this position and heading; the tight 1 in / 2 deg tolerance ran two legs to their timeout each time. */
+    public static double SHOT_POS_TOL_IN = 2.5, SHOT_HEADING_TOL_DEG = 6.0;
     public static double GARDEN_PICKUP_MAX_POWER = 0.35;   // 0.25 moved only about 5.6 in/s on 2026-11-03 and missed the pollen
     /** The leg's hard cap is worked out with a speed of this many in/s per unit of power (a little under the real speed, so it only fires when the robot is stuck). */
     public static double SLOW_IN_PER_S_PER_POWER = 40.0;
@@ -163,6 +170,19 @@ public class AutonSolo extends LinearOpMode {
     /** A drive leg that must settle (the shot spots, the flower): the tight DriveToPose tolerance. */
     private Action leg(String label, MecanumDrive drive, Pose2d target) {
         return timed("drive: " + label, new DriveToPose(drive, target).withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+    }
+
+    /** A fast pass-through leg (the cross-field move): the power is capped at maxPower and the hard cap's speed scales with it. */
+    private Action crossLeg(String label, MecanumDrive drive, Pose2d target, double maxPower, boolean pass) {
+        DriveToPose d = new DriveToPose(drive, target).withMaxOutput(maxPower).withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S * maxPower / 0.6, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC);
+        d.withTolerance(pass ? COARSE_POS_IN : SHOT_POS_TOL_IN, pass ? COARSE_HEADING_DEG : SHOT_HEADING_TOL_DEG);
+        return timed("drive: " + label, d);
+    }
+
+    /** A shot-spot leg: near is enough (SHOT_POS_TOL_IN, SHOT_HEADING_TOL_DEG). */
+    private Action shotLeg(String label, MecanumDrive drive, Pose2d target) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(SHOT_POS_TOL_IN, SHOT_HEADING_TOL_DEG)
+                .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
     }
 
     /** A pass-through leg: ends as soon as the robot is near. */
@@ -339,9 +359,9 @@ public class AutonSolo extends LinearOpMode {
 
                 new InstantAction(() -> mechanisms.setOpenCell(secondCell)),   // the tip flipped the cell; the flywheel follows the new distance on the way
                 note("Around the outside of the hive support rails, intake still ON so every element gets in"),
-                passLeg("helper (outside the support rails)", drive, helper),
+                crossLeg("helper (outside the support rails)", drive, helper, CROSS_FIELD_MAX_POWER, true),
                 note("To the shot spot"),
-                leg("shot spot 1", drive, shotSpot),
+                crossLeg("shot spot 1", drive, shotSpot, CROSS_FIELD_MAX_POWER, false),
                 note("Intake OFF"),
                 mechanisms.setIntake(false),
                 shoot(drive, mechanisms, secondCell, isBlue, "garden pollen"),
@@ -353,11 +373,11 @@ public class AutonSolo extends LinearOpMode {
                 note("Intake ON: flower"),
                 mechanisms.setIntake(true),
                 ramLeg("ram the flower", drive, flowerRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
-                timed("flower jostle", new Jostle(drive, mechanisms::isFull, FLOWER_PAUSE_MAX_SEC)),
+                timed("flower jostle", new Jostle(drive, mechanisms::isFull, () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
                 new InstantAction(mechanisms::requestStow),                     // waits by itself until the robot is clear of the flower
                 note("Back off the flower, then to the shot spot (intake still ON)"),
                 passLeg("flower back-off", drive, flowerBack),
-                leg("shot spot 2", drive, shotSpot),
+                shotLeg("shot spot 2", drive, shotSpot),
                 mechanisms.setIntake(false),
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
                 shoot(drive, mechanisms, secondCell, isBlue, "flower pollen"),
