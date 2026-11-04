@@ -68,6 +68,8 @@ public final class HiveDash {
     /** The launch is requested when the lock is ALIGNED and the chassis has stopped (AutoLaunch.MAX_SPEED_IN_PER_S) for AutoLaunch.ALIGNED_HOLD_SEC. */
     public static double LAUNCH_START_TIMEOUT_SEC = 1.0, LAUNCH_DONE_TIMEOUT_SEC = 6.0;
     public static double SAMPLE_PERIOD_SEC = 0.25;
+    /** False: never send the Dashboard field overlay (a view for testing; each packet costs a few ms of JSON). Turn it off for matches. */
+    public static boolean OVERLAY_ENABLED = true;
     public static double OVERLAY_PERIOD_SEC = 0.2, PLAN_SHOWN_SEC = 5.0;
     public static double REFUSED_SHOWN_SEC = 3.0;
 
@@ -158,6 +160,8 @@ public final class HiveDash {
         this.depthIn = depthIn;
         this.widthIn = widthIn;
         this.fromBackIn = fromBackIn;
+        // one throwaway plan now, so the first real press does not pay for loading and warming the planner (about 25 ms cold against 0.05 ms warm, measured on a PC)
+        HiveRoute.plan(-61.5, 15.25, 0.0, 61.5, 7.5, params());
     }
 
     public State state() {
@@ -437,7 +441,7 @@ public final class HiveDash {
     /** The supports, the route, the goal and the robot on the Dashboard's field view while a plan is shown. Sent as its own packet at 5 per second. */
     private void overlay(Input in) {
         boolean show = state != State.IDLE || (planShown && planShownClock.seconds() < PLAN_SHOWN_SEC);
-        if (!show || plan == null || planParams == null || overlayClock.seconds() < OVERLAY_PERIOD_SEC) return;
+        if (!OVERLAY_ENABLED || !show || plan == null || planParams == null || overlayClock.seconds() < OVERLAY_PERIOD_SEC) return;
         overlayClock.reset();
         try {
             TelemetryPacket packet = new TelemetryPacket();
