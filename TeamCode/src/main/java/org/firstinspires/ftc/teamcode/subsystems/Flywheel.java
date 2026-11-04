@@ -47,6 +47,20 @@ public class Flywheel {
      */
     public static double FEED_FORWARD = 0.35;
     /**
+     * The speed control: 0 = the bang-bang above (full power below the setpoint, FEED_FORWARD at or above it; the default and what every match so far used), 1 = FEED-FORWARD PLUS P
+     * (developed 2026-11-04, NOT yet run on the robot, switch it in from the Dashboard to try it): full power until the filtered speed reaches FFP_SPINUP_BELOW_FRACTION of the setpoint, then
+     * power = FFP_BASE_POWER + FFP_POWER_PER_TICK x (setpoint - FFP_BASE_SPEED) + FFP_KP x error + FFP_KI x the error's integral, clamped to 0..1 (so above the setpoint it coasts at
+     * 0 instead of holding 0.35, which also brings the speed down faster after the setpoint drops). The feed-forward is the average power of the bang-bang at steady speeds (about 0.44 at
+     * 1350, 2026-11-03 logs). tools/flywheel/ffp_sim.py compares the two on a plant fitted to the logs: the idle ripple falls from a standard deviation of 1.1 percent (95th percentile +3.1) to
+     * about 0.3 percent (+0.5), a pollen takes the same speed away but it comes back in about 0.2 s instead of 0.05 s; kP 0.012 hunts in the simulation, so stay at 0.005 or below.
+     */
+    public static int CONTROL_MODE = 0;
+    public static double FFP_BASE_SPEED = 1350.0, FFP_BASE_POWER = 0.44, FFP_POWER_PER_TICK = 4.3e-4;
+    public static double FFP_KP = 0.005, FFP_KI = 0.002, FFP_MAX_INTEGRAL_POWER = 0.15;
+    public static double FFP_SPINUP_BELOW_FRACTION = 0.92;
+    /** True: the P term uses the 5-loop average speed (steadier, a little late); false: the raw hub speed. */
+    public static boolean FFP_USE_FILTERED = true;
+    /**
      * LAUNCH BAND (2026-11-04): a salvo may only START while the filtered speed is between these fractions of the setpoint (checked once, at the start; a salvo that has started
      * goes on whatever the speed does). 0.96 / 1.04 from the 268 salvos of 11-02 and 11-03: the speed at the start was within about -2 to +4 percent in 96 percent of them,
      * the other 12 were -5 to -7 (a first salvo after the spin-up) and +5 to +16 (after the setpoint dropped when the driver moved in: the wheel only coasts down, and READY_FRACTION has no upper limit).
@@ -86,6 +100,8 @@ public class Flywheel {
     private int windowIndex = 0;
     private double windowSum = 0.0;
     private double targetVelocity = 0.0;
+    private double ffpIntegral = 0.0;
+    private final ElapsedTime ffpTimer = new ElapsedTime();
     private boolean openLoop = false;
     private boolean openLoopSpinning = false;
     private boolean encoderLost = false;
@@ -139,6 +155,7 @@ public class Flywheel {
 
     /** Ticks per second; 0 or less turns the flywheel off. */
     public void setTargetVelocity(double ticksPerSecond) {
+        if (Math.abs(Math.max(0.0, ticksPerSecond) - targetVelocity) > 1.0) ffpIntegral = 0.0;
         targetVelocity = Math.max(0.0, ticksPerSecond);
     }
 
@@ -259,11 +276,29 @@ public class Flywheel {
             setPower(0.0);
         } else if (openLoop) {
             setPower(Math.max(0.0, Math.min(1.0, encoderLost ? lostPower() : targetVelocity / OPEN_LOOP_TOP_SPEED)));
+        } else if (CONTROL_MODE == 1) {
+            setPower(feedForwardPlusP());
         } else if (velocity > targetVelocity) {
             setPower(Math.max(0.0, Math.min(1.0, FEED_FORWARD)));
         } else {
             setPower(1.0);
         }
+    }
+
+    /** CONTROL_MODE 1: full power while spinning up, then the feed-forward for the setpoint plus P and a little I on the speed error (see CONTROL_MODE). */
+    private double feedForwardPlusP() {
+        double dt = Math.min(0.1, ffpTimer.seconds());
+        ffpTimer.reset();
+        double v = FFP_USE_FILTERED ? getFilteredVelocity() : velocity;
+        if (v < FFP_SPINUP_BELOW_FRACTION * targetVelocity) {
+            ffpIntegral = 0.0;
+            return 1.0;
+        }
+        double ff = FFP_BASE_POWER + FFP_POWER_PER_TICK * (targetVelocity - FFP_BASE_SPEED);
+        double error = targetVelocity - v;
+        double limit = FFP_KI > 1e-9 ? FFP_MAX_INTEGRAL_POWER / FFP_KI : 0.0;
+        ffpIntegral = Math.max(-limit, Math.min(limit, ffpIntegral + error * dt));
+        return Math.max(0.0, Math.min(1.0, ff + FFP_KP * error + FFP_KI * ffpIntegral));
     }
 
     /** The motor command last written, 0 to 1 (the bang-bang switches it between 1.0 and FEED_FORWARD, so average it over time). */
