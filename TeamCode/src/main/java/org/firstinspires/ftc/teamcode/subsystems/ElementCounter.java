@@ -360,6 +360,16 @@ public class ElementCounter {
                 + Math.pow(lastShares[i][2] - BASE_SHARES[i][2], 2));
     }
 
+    /** The stored empty baselines, for the log (tools/logs/baseline_health.py compares the live empty readings with them). */
+    public static String describeBaselines() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < N; i++) {
+            sb.append(String.format(java.util.Locale.US, "%sCS%d alpha %.3f dist %.2f cm shares %.3f/%.3f/%.3f", i == 0 ? "" : "; ", i + 1, BASE_ALPHA[i], BASE_DIST[i],
+                    BASE_SHARES[i][0], BASE_SHARES[i][1], BASE_SHARES[i][2]));
+        }
+        return sb.toString();
+    }
+
     /** Sensor i's presence result on its latest read, before the debounce. */
     public boolean rawPresent(int i) {
         return candidate[i];

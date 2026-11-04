@@ -29,6 +29,10 @@ Initialize with the pusher at **HOLD** (its zero is assumed there) and the robot
 
 Press A to stop each JOSTLE take. Between takes you may move pollen or reload freely (not recording).
 
+## Checking the baselines after a match
+
+`python tools/logs/baseline_health.py --since <competition day>` reads the `COUNTER EMPTY` lines the TeleOp and autos write once a second while the track is empty (the colour shift of each sensor from its stored empty baseline) and says OK, WATCH or RE-MEASURE per sensor; re-measure with an empty STILL take of this opmode when it says so (see design/run-logs.md).
+
 ## Reading the log
 
 ```

@@ -50,6 +50,8 @@ public class Mechanisms {
     /** True: while a launch is queued or a salvo runs, and for BURST_LOG_AFTER_SEC after it, the log writes a sample row on every loop (see RunLog.setBurst). */
     public static boolean BURST_LOG_SALVOS = true;
     public static double BURST_LOG_AFTER_SEC = 0.6;
+    /** While the track reads empty, a COUNTER EMPTY line is logged this often: the four colour shifts from the stored empty baselines (tools/logs/baseline_health.py reads them). 0 turns it off. */
+    public static double HEALTH_LOG_SEC = 1.0;
     /**
      * PUSHER LOCK (2026-11-04): when the robot is full (4 confirmed) and the arm is at HOLD, move the arm LOCK_DEG (90) forward across the intake entrance so the pollen cannot roll
      * back out; the element count is frozen and the intake runs OUT while locked. A launch goes from the lock (310 deg), a reject unlocks first, and the operator forcing the intake IN (right trigger) unlocks it. No manual lock control and no retry wait (user, 2026-11-04).
@@ -113,6 +115,8 @@ public class Mechanisms {
     private boolean intakeStoppedByFull = false;     // the automatic stop at full cleared the intake request: the intake still runs OUT while locked
     private final ElapsedTime lockClock = new ElapsedTime();
     private final ElapsedTime burstTimer = new ElapsedTime();
+    private final ElapsedTime healthTimer = new ElapsedTime();
+    private boolean baselinesLogged = false;
     private boolean salvoActive = false;
     private boolean rejectActive = false;
     private boolean spinRequested = false;
@@ -614,6 +618,19 @@ public class Mechanisms {
                 int opponentAt = counter.opponentNectarAt(blueAlliance);
                 if (opponentAt > 0) warnings.add("OPPONENT NECTAR at sensor " + opponentAt + " (CS" + opponentAt + "): reject (LB + B)");
             }
+        }
+
+        if (counter != null && !baselinesLogged) {
+            baselinesLogged = true;
+            RunLog.event("COUNTER baselines: " + ElementCounter.describeBaselines() + " | presence ON at shift " + ElementCounter.COLOR_SHIFT_ON + ", OFF below " + ElementCounter.COLOR_SHIFT_OFF);
+        }
+        if (counter != null && HEALTH_LOG_SEC > 0.0 && counter.isValid() && !counterOverride && !counter.isFrozen() && counter.count() == 0 && healthTimer.seconds() >= HEALTH_LOG_SEC) {
+            healthTimer.reset();
+            boolean armNear = pusher != null && pusher.isCalibrated() && (pusher.getAngleDeg() <= ARM_NEAR_AHEAD_DEG || pusher.getAngleDeg() >= 360.0 - ARM_NEAR_BEHIND_DEG);
+            RunLog.event(String.format(Locale.US, "COUNTER EMPTY shift %.3f %.3f %.3f %.3f | alpha %.3f %.3f %.3f %.3f | dist %.1f %.1f %.1f %.1f | arm %s",
+                    counter.colorShift(0), counter.colorShift(1), counter.colorShift(2), counter.colorShift(3),
+                    counter.lastAlpha(0), counter.lastAlpha(1), counter.lastAlpha(2), counter.lastAlpha(3),
+                    counter.lastDistCm(0), counter.lastDistCm(1), counter.lastDistCm(2), counter.lastDistCm(3), armNear ? "near CS4" : "clear"));
         }
 
         if (counter != null && counter.isValid() && counter.count() != prevCount) {
