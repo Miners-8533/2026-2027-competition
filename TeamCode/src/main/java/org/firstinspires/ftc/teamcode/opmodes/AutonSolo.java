@@ -88,10 +88,10 @@ public class AutonSolo extends LinearOpMode {
     /** Deploy the ramp before the garden salvo (true: only if the shooter is known to work with the ramp down) or right after it, while the robot drives to the flower pre-position (false). */
     public static boolean RAMP_DEPLOY_DURING_SHOT = false;
     /**
-     * After the jostle the robot goes straight to the shot spot, turning onto the cell as it backs (true), instead of first backing FLOWER_BACKOFF_IN from the ram point and then
-     * going to the shot spot (false, the old way: a standing turn at the flower jammed it at x 55.3 on 2026-11-03; at the shot spot (x 50) the swept corner reaches about x 62).
+     * After the jostle the robot first backs STRAIGHT out (heading held 0) to FLOWER_AT_X - FLOWER_BACKOFF_IN (x 46.3, ending within BACKOUT_TOL_IN) and only then does the turn move to the shot spot (false, the default).
+     * True goes straight to the shot spot turning as it backs: it caught the edge of the ramp on the flower on 2026-11-03 (the turn started at x 53.4, 4 in from the shot spot).
      */
-    public static boolean FLOWER_TURN_WHILE_BACKING = true;
+    public static boolean FLOWER_TURN_WHILE_BACKING = false;
     /** The flower poses are 3 in toward +Y of the marks (21.3 to 24.3, user 2026-11-03: the pollen did not come out), and the pre-position is 5 in farther back (43 to 38) for a run-up. */
     public static double FLOWER_PRE_X = 38.0, FLOWER_PRE_Y = 26.3, FLOWER_HEADING_DEG = 0.0;   // y 21.3 (the marks) +3 then +2 more (2026-11-03)
     public static double FLOWER_AT_X = 55.3, FLOWER_AT_Y = 26.3;
@@ -102,7 +102,8 @@ public class AutonSolo extends LinearOpMode {
      */
     public static double FLOWER_RAM_POWER = 0.6, FLOWER_RAM_OVERSHOOT_IN = 12.0, FLOWER_RAM_SEC = 0.6;   // 0.9 / 0.8 rammed hard on 2026-11-03 and was not enough; the jostle does the work
     /** After the ram the robot jostles (back FLOWER jostle BACK_IN, push, repeat: see Jostle) until it is full, for at most FLOWER_PAUSE_MAX_SEC; then it backs off this far before turning. */
-    public static double FLOWER_BACKOFF_IN = 10.0;
+    public static double FLOWER_BACKOFF_IN = 9.0;   // 10 from the old turn at the flower; now the straight back-out before the turn (x 46.3), which ends within BACKOUT_TOL_IN of it
+    public static double BACKOUT_TOL_IN = 1.5;
     public static double PARK_X = 51.1, PARK_Y = 54.0, PARK_HEADING_DEG = 180.0;
     /**
      * The helper point between the garden and the shot spot, to go around the OUTSIDE of the hive's two support rails (along the row borders 2|3 and 4|5, columns C to D,
@@ -199,6 +200,12 @@ public class AutonSolo extends LinearOpMode {
     /** A pass-through leg: ends as soon as the robot is near. */
     private Action passLeg(String label, MecanumDrive drive, Pose2d target) {
         return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(COARSE_POS_IN, COARSE_HEADING_DEG)
+                .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+    }
+
+    /** A straight back-out: the leg ends within BACKOUT_TOL_IN of the target (a pass-through leg ended 3 in away, which is not far enough from the flower). */
+    private Action backOutLeg(String label, MecanumDrive drive, Pose2d target) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(BACKOUT_TOL_IN, COARSE_HEADING_DEG)
                 .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
     }
 
@@ -388,7 +395,7 @@ public class AutonSolo extends LinearOpMode {
                 timed("flower jostle", new Jostle(drive, mechanisms::isFull, () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
                 new InstantAction(mechanisms::requestStow),                     // waits by itself until the robot is clear of the flower
                 note("Back off the flower to the shot spot (intake still ON)"),
-                FLOWER_TURN_WHILE_BACKING ? new InstantAction(() -> { }) : passLeg("flower back-off", drive, flowerBack),
+                FLOWER_TURN_WHILE_BACKING ? new InstantAction(() -> { }) : backOutLeg("flower back-out (straight)", drive, flowerBack),
                 shotLeg("shot spot 2", drive, shotSpot),
                 mechanisms.setIntake(false),
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
