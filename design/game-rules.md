@@ -20,5 +20,5 @@ Source: the Competition Manual on https://ftc-resources.firstinspires.org/ftc/ga
 ## Loading zone (Section 9, CAD)
 - Blue: x 23.9 to 46.6, y 59.1 to 70.1 in our frame (against the Blue Wall, audience end). Red is its 180 degree rotation. One zone per alliance; both partners park in it.
 
-## Not settled by the text (the figures decide)
-- Which half of the field is blue by the columns (G304.A, G402): Figures 9-4, 9-5 and 11-1. The start positions of the duo autos (one at the audience wall, one at the rear wall) and the gardens / flowers they gather from have to be on our side.
+## Sides (settled by the user, 2026-11-04)
+- The field is split down the middle THROUGH THE HIVES: blue's side is the Blue Wall half (y > 0 in our frame), red's the Red Wall half. So both duo starts (audience wall y 7.5, rear wall y 16), the blue garden (rear wall, y 47 to 70), both blue flowers and the blue loading zone are on blue's side.
