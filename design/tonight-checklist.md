@@ -31,9 +31,8 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Full robot: arm parks about 90 deg past HOLD after 1 s, intake OUT, count frozen
 - [ ] Launch from the lock clears all four; unlock with reject works; no delay to the launch
 
-## 4. Flywheel (T8, F7)
-- [ ] Mode 0 (default, bang-bang): speed holds at 1325 / 1350 with no creep on a fresh battery
-- [ ] Optional: `CONTROL_MODE` 1, kP 0.003 to 0.005, compare with `launch_stability.py`; set back to 0 after
+## 4. Flywheel (F7)
+- [ ] Bang-bang: speed holds at 1325 / 1350 with no creep on a fresh battery (`FEED_FORWARD` 0.35 is at the edge; lower it if the speed creeps above the setpoint)
 
 ## 5. Auto Launch (T4)
 - [ ] Operator RB on, drive into the audience and rear zones: it stops, aligns, one salvo, lock releases

@@ -22,4 +22,4 @@ Ideas agreed to keep but not to build yet, newest decisions at the top of each l
 
 ## Done from the same list
 
-- Hold position while launching (`drive/HoldPosition.java`, test row T7), the Dashboard values logged at the start of every run (`util/ConfigDump.java`), the sensor baseline health check (`tools/logs/baseline_health.py`), and the switchable flywheel controller (`Flywheel.CONTROL_MODE` 1, simulation in `tools/flywheel/ffp_sim.py`, test row T8).
+- Hold position while launching (`drive/HoldPosition.java`, test row T7), the Dashboard values logged at the start of every run (`util/ConfigDump.java`), the sensor baseline health check (`tools/logs/baseline_health.py`). (A switchable flywheel FF+P controller was built 2026-11-04 and removed 2026-11-05: bang-bang only; commit 4001aba has it.)
