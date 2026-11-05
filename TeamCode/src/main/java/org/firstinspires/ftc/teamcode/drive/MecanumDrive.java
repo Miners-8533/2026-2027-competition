@@ -38,7 +38,17 @@ public final class MecanumDrive {
 
     private PoseVelocity2d lastCommand = PoseVelocity2d.zero();
 
+    /** The autos and test opmodes: the Pinpoint is reset (position zeroed, IMU recalibrated: the robot must be still) and seeded with initialPose. */
     public MecanumDrive(HardwareMap hardwareMap, Pose2d initialPose) {
+        this(hardwareMap, initialPose, false);
+    }
+
+    /**
+     * With adoptPinpointPose true the Pinpoint is NOT reset or written to: its own pose, kept since the last opmode, is used (the TeleOp after an auto;
+     * initialPose is then only the pose the auto saved, used to check the device and as the fallback if it looks restarted). See
+     * {@link PinpointLocalizer#PinpointLocalizer(HardwareMap, Pose2d, boolean)}.
+     */
+    public MecanumDrive(HardwareMap hardwareMap, Pose2d initialPose, boolean adoptPinpointPose) {
         // Bulk reads: one round trip per loop for all motor encoders / currents.
         for (LynxModule module : hardwareMap.getAll(LynxModule.class)) {
             module.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
@@ -60,7 +70,7 @@ public final class MecanumDrive {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
-        localizer = new PinpointLocalizer(hardwareMap, initialPose);
+        localizer = new PinpointLocalizer(hardwareMap, initialPose, adoptPinpointPose);
     }
 
     /**

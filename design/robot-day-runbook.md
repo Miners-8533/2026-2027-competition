@@ -27,7 +27,7 @@ Do this each time the robot is powered on or the app restarted, before INIT of a
 - [ ] **Pusher arm at HOLD** (the back of the arm limiting entry to 4 elements). The zero is assumed here at INIT.
 - [ ] **Ramp stowed**, inside the starting cube. Intake and track **empty** (except the 4-element preload for an auto).
 - [ ] Both gamepads assigned: **Start + A** (driver), **Start + B** (operator) on the Driver Station.
-- [ ] For an auto or a TeleOp: robot placed at its start pose against the wall, **still** from INIT until Start (the Pinpoint recalibrates at INIT). With no auto, the TeleOp's default start is blue (-63.4, +16) against the rear wall facing +X, red (+63.4, -16) against the audience wall facing -X (the origin is 7.6 in from the back edge) (the front, the intake and launcher end, faces away from the wall).
+- [ ] For an auto or a TeleOp: robot placed at its start pose against the wall, **still** from INIT until Start (an auto's INIT recalibrates the Pinpoint; the TeleOp after an auto does NOT reset it and continues from the Pinpoint's own pose, so the robot may be anywhere then). With no auto in the last 5 minutes, the TeleOp's default start is blue (-63.4, +16) against the rear wall facing +X, red (+63.4, -16) against the audience wall facing -X (the origin is 7.6 in from the back edge) (the front, the intake and launcher end, faces away from the wall).
 - [ ] INIT screen: Pinpoint `OK`, the right mechanisms present, element counter `reading`. Anything else, stop and fix it before Start.
 
 ## 2. The day, in order
@@ -97,7 +97,7 @@ Run first with the robot on blocks, then on the floor. Each row of the plan's Ph
 1. Check the start pose at the field: touching the wall, inside the alliance half, not in the loading zone or flower volume, ramp stowed, **4 elements preloaded**, pusher at HOLD.
 2. Run **Auton - Solo** three times from the legal start, without a fault (the old Blue Students and Hive Volley autos were deleted 2026-11-05). Watch the INIT screen: Pinpoint OK, preload `4 elements seen`.
 3. Time each against the auto period (the real volley and ramp waits are in the log).
-4. **Handoff:** run an auto, then **TeleOp - Competition** immediately. The INIT screen should say `AUTO pose, saved N s ago`, and the pose and the pusher zero should still be right after the first salvo.
+4. **Handoff:** run an auto, then **TeleOp - Competition** immediately. The INIT screen should say `AUTO pose, saved N s ago` and `CONTINUING from the auto: the device was not reset or reseeded` (the log: `PINPOINT START mode ADOPTED`), and the pose and the pusher zero should still be right after the first salvo.
 
 ### Block I: Rehearsal and freeze (plan Phase 7)
 

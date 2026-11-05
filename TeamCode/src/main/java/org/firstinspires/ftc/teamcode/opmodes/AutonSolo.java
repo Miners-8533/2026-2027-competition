@@ -419,6 +419,7 @@ public class AutonSolo extends LinearOpMode {
         if (isStopRequested()) return;
         RunLog.started();
         autoClock.reset();
+        RunLog.event(String.format(Locale.US, "PINPOINT START mode %s, seedConfirmed %s, bring-up %.0f ms: %s", loc.startMode, loc.seedConfirmed, loc.bringUpMs, loc.startNote));
 
         // the path for this alliance
         final boolean isBlue = blue;
@@ -507,6 +508,8 @@ public class AutonSolo extends LinearOpMode {
         // hand the final pose (and the alliance) to the TeleOp, whether the auto finished or was stopped
         drive.updatePoseEstimate();
         PoseStorage.save(drive.getPose(), isBlue);
+        RunLog.event(String.format(Locale.US, "PINPOINT handed to the TeleOP: pose (%.2f, %.2f, %.1f deg), alliance %s, device %s (the TeleOp adopts the device's own pose if it starts within the age limit)",
+                drive.getPose().position.x, drive.getPose().position.y, drive.getPose().heading.toDegrees(), isBlue ? "BLUE" : "RED", loc.getDeviceStatus()));
 
         while (opModeIsActive()) {
             drive.updatePoseEstimate();

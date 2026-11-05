@@ -35,16 +35,20 @@ import java.util.Locale;
  * The competition TeleOp: a driver (gamepad 1) drives the chassis FIELD-oriented and an operator (gamepad 2) runs
  * the mechanisms through the {@link Mechanisms} coordinator.
  *
- * Start pose: if an auto ran recently (see AUTO_POSE_MAX_AGE_SEC) the TeleOp starts from the pose and alliance the
- * auto saved in {@link PoseStorage}; otherwise from the alliance's default start pose: blue (-63.4, +16) facing +X against the
+ * Start pose: if an auto ran recently (see AUTO_POSE_MAX_AGE_SEC) the TeleOp starts from the alliance the auto saved in
+ * {@link PoseStorage} and ADOPTS the Pinpoint's own pose: nothing is written to the device and its IMU is not recalibrated, so the pose it
+ * kept tracking since the auto (a bump in the transition included) is used as it is (a device that is not READY, reads (0, 0, 0) while the saved
+ * pose is elsewhere, or reads a pose outside the field is reset and seeded with the saved pose instead). Otherwise (no fresh auto pose: a
+ * practice start, or the app restarted) the Pinpoint is reset, recalibrated and seeded with the alliance's default start pose: blue (-63.4, +16) facing +X against the
  * rear wall, red (+63.4, -16) facing -X against the audience wall (the same pose turned 180 deg about the center, so neither
  * starts on a flower). The INIT screen says which.
  * It also reports whether both gamepads are assigned (Start + A on the driver's controller, Start + B on the
  * operator's), because a gamepad that is not assigned silently does nothing.
  *
- * The drive, the Pinpoint and the mechanisms are built in INIT (the Pinpoint resets and recalibrates there, so do not move the
- * robot after INIT). The INIT screen checks the Pinpoint pose against the start pose, which mechanisms were found, and
- * whether the element counter is reading.
+ * The drive, the Pinpoint and the mechanisms are built in INIT. When the Pinpoint is reset and seeded (no fresh auto pose) the robot must be
+ * still and in the start pose from INIT on; when it is adopted the robot may be anywhere. The INIT screen shows which, checks the Pinpoint
+ * pose (against the start pose, or against the pose the auto saved), which mechanisms were found, and whether the element counter is reading.
+ * The run log's PINPOINT lines (INIT decision, START with the device numbers, reseeds, at Start) say what was done and why.
  *
  * INIT (gamepad 1):
  *   D-pad right / left   BLUE / RED alliance (only when there is no auto pose; an auto pose fixes the alliance)
@@ -240,13 +244,24 @@ public class TeleOpCompetition extends LinearOpMode {
         boolean useAutoPose = PoseStorage.isFresh(AUTO_POSE_MAX_AGE_SEC);
         boolean blue = useAutoPose ? PoseStorage.isBlue() : true;
 
-        // Everything is built here, in INIT, like the autos: the Pinpoint resets and recalibrates its IMU while the robot is
-        // still, and the INIT screen can check the pose, the mechanisms and the element counter before Start. The robot
-        // must not be moved from here until Start. The motors are not driven in INIT (the counter only reads).
+        // Everything is built here, in INIT, like the autos, and the INIT screen can check the pose, the mechanisms and the element counter
+        // before Start. The motors are not driven in INIT (the counter only reads). The Pinpoint: with a fresh auto pose the device is ADOPTED
+        // (nothing written to it, IMU not recalibrated: the auto left it in a good state and it kept tracking through the transition); without
+        // one it is reset, recalibrated and seeded with the default start, and then the robot must be still and not moved until Start.
         boolean seededAuto = useAutoPose, seededBlue = blue;
         Pose2d expected = expectedStart(useAutoPose, blue, startX);
-        MecanumDrive drive = new MecanumDrive(hardwareMap, expected);
+        double savedAgeSec = PoseStorage.ageSec();
+        Pose2d savedPose = PoseStorage.pose();
+        RunLog.event(savedPose == null
+                ? "PINPOINT INIT decision: no saved pose (no auto or TeleOp has run since the app started, or it was discarded): reset, recalibrate and seed the default start"
+                : String.format(Locale.US, "PINPOINT INIT decision: saved pose (%.2f, %.2f, %.1f deg, alliance %s) is %.1f s old, limit %.0f s: %s",
+                        savedPose.position.x, savedPose.position.y, savedPose.heading.toDegrees(), PoseStorage.isBlue() ? "BLUE" : "RED", savedAgeSec,
+                        AUTO_POSE_MAX_AGE_SEC, useAutoPose ? "adopt the device's own pose (no reset, no seed, no IMU recalibration)"
+                                : "too old, reset, recalibrate and seed the default start"));
+        MecanumDrive drive = new MecanumDrive(hardwareMap, expected, useAutoPose);
         PinpointLocalizer loc = (PinpointLocalizer) drive.localizer;
+        RunLog.event(String.format(Locale.US, "PINPOINT START mode %s, seedConfirmed %s, bring-up %.0f ms: %s", loc.startMode, loc.seedConfirmed, loc.bringUpMs, loc.startNote));
+        Pose2d initPose = drive.getPose();   // where the device was after bring-up (and after each reseed in INIT), to see whether the robot moved before Start
         // The ramp is NOT commanded in INIT: the servos sag when the auto ends, the auto may leave the ramp stuck or deployed, and G403 allows no
         // powered movement in the transition. It is stowed once, at Start. (The intake, flywheel and pusher constructors only set power 0.)
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE, false);
@@ -262,24 +277,46 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (gamepad1.dpad_left) blue = false;
             }
             if (useAutoPose != seededAuto || blue != seededBlue) {
+                Pose2d was = drive.getPose();
+                boolean discarded = useAutoPose != seededAuto;
                 seededAuto = useAutoPose;
                 seededBlue = blue;
                 expected = expectedStart(useAutoPose, blue, startX);
                 drive.setPose(expected);
+                initPose = expected;
+                RunLog.event(String.format(Locale.US, "PINPOINT INIT manual reset: %s; the device was reseeded to (%.2f, %.2f, %.1f deg) (it read %.2f, %.2f, %.1f deg; position written only, the IMU is not recalibrated)",
+                        discarded ? "the driver pressed D-pad up and the auto pose is discarded" : "the alliance was changed to " + (blue ? "BLUE" : "RED"),
+                        expected.position.x, expected.position.y, expected.heading.toDegrees(), was.position.x, was.position.y, was.heading.toDegrees()));
             }
             drive.updatePoseEstimate();
             if (mechanisms.counter != null) mechanisms.counter.update();
             Pose2d p = drive.getPose();
-            boolean poseOk = Math.hypot(p.position.x - expected.position.x, p.position.y - expected.position.y) < 1.5
+            // continuing: the device's own pose was adopted (not reset), so the robot may be anywhere and the pose is only checked for a healthy device
+            boolean continuing = useAutoPose && loc.startMode == PinpointLocalizer.StartMode.ADOPTED;
+            boolean poseOk = continuing ? loc.getDeviceStatus() == GoBildaPinpointDriver.DeviceStatus.READY
+                    : Math.hypot(p.position.x - expected.position.x, p.position.y - expected.position.y) < 1.5
                     && Math.abs(Math.toDegrees(Rotation2d.normalize(p.heading.toDouble() - expected.heading.toDouble()))) < 3.0;
+            double savedDiffIn = Math.hypot(p.position.x - expected.position.x, p.position.y - expected.position.y);
+            double savedDiffDeg = Math.abs(Math.toDegrees(Rotation2d.normalize(p.heading.toDouble() - expected.heading.toDouble())));
             telemetry.addData("Chassis profile", profile.label());
             telemetry.addData("Alliance", blue ? "BLUE" : "RED");
             telemetry.addData("Start pose", useAutoPose
-                    ? String.format("AUTO pose, saved %.0f s ago (D-pad up on gamepad 1 discards it)", PoseStorage.ageSec())
+                    ? String.format("AUTO pose, saved %.0f s ago (D-pad up on gamepad 1 discards it and reseeds the default start)", PoseStorage.ageSec())
                     : blue ? "default start pose (blue: rear wall, facing +X)" : "default start pose (red: audience wall, facing -X)");
-            telemetry.addData("Pinpoint", "%s   pose %.1f, %.1f, %.0f deg   %s", loc.getDeviceStatus(),
-                    p.position.x, p.position.y, p.heading.toDegrees(),
-                    poseOk && loc.seedConfirmed ? "OK" : "WARNING: does not match the start pose (do not move the robot after INIT; restart the opmode)");
+            if (continuing) {
+                telemetry.addData("Pinpoint", "%s   pose %.1f, %.1f, %.0f deg   CONTINUING from the auto: the device was not reset or reseeded   %s", loc.getDeviceStatus(),
+                        p.position.x, p.position.y, p.heading.toDegrees(), poseOk ? "OK" : "WARNING: the device is not READY");
+                telemetry.addData("Auto saved", "%.1f, %.1f, %.0f deg; the device differs by %.1f in / %.0f deg%s", expected.position.x, expected.position.y,
+                        expected.heading.toDegrees(), savedDiffIn, savedDiffDeg,
+                        savedDiffIn > 3.0 || savedDiffDeg > 5.0 ? "   CHECK where the robot really is (it moved after the auto's last save, or the save was stale); D-pad up reseeds" : "");
+            } else {
+                telemetry.addData("Pinpoint", "%s   pose %.1f, %.1f, %.0f deg   %s   (%s)", loc.getDeviceStatus(),
+                        p.position.x, p.position.y, p.heading.toDegrees(),
+                        poseOk && loc.seedConfirmed ? "OK" : "WARNING: does not match the start pose (do not move the robot after INIT; restart the opmode)",
+                        loc.startMode == PinpointLocalizer.StartMode.RESEEDED_AFTER_FAILED_ADOPT ? "the device was not usable as it was: reset and reseeded with the auto's pose, see the log"
+                                : loc.startMode == PinpointLocalizer.StartMode.ADOPTED ? "reseeded to the default start (position written, the IMU was not recalibrated)"
+                                : "reset, recalibrated and seeded with the default start");
+            }
             telemetry.addData("Mechanisms present", mechanisms.describe());
             if (mechanisms.rampPositionUnknown()) telemetry.addData("Ramp", "position unknown: not commanded in INIT, it stows when you press Start");
             telemetry.addData("Element counter", mechanisms.counter == null ? "not configured"
@@ -295,7 +332,16 @@ public class TeleOpCompetition extends LinearOpMode {
         RunLog.started();
 
         Pose2d defaultStart = expectedStart(false, blue, startX);
-        Pose2d startPose = expected;
+        boolean continuingAtStart = useAutoPose && loc.startMode == PinpointLocalizer.StartMode.ADOPTED;
+        Pose2d atStart = drive.getPose();
+        Pose2d startPose = continuingAtStart ? atStart : expected;
+        RunLog.event(String.format(Locale.US, "PINPOINT at Start: %s, pose (%.2f, %.2f, %.1f deg), moved %.2f in / %.1f deg since INIT, device %s, seedConfirmed %s%s",
+                continuingAtStart ? "CONTINUING from the auto" : loc.startMode == PinpointLocalizer.StartMode.RESEEDED_AFTER_FAILED_ADOPT && useAutoPose ? "reseeded with the auto's pose" : "seeded with the default start",
+                atStart.position.x, atStart.position.y, atStart.heading.toDegrees(),
+                Math.hypot(atStart.position.x - initPose.position.x, atStart.position.y - initPose.position.y),
+                Math.abs(Math.toDegrees(Rotation2d.normalize(atStart.heading.toDouble() - initPose.heading.toDouble()))),
+                loc.getDeviceStatus(), loc.seedConfirmed,
+                continuingAtStart ? "" : " (the robot must not have moved since INIT: a move shows as an error in the pose)"));
         double driverForwardRad = Math.toRadians(blue ? BLUE_DRIVER_FORWARD_DEG : RED_DRIVER_FORWARD_DEG);
 
         mechanisms.stowRampAtStart();              // the first and only ramp command of the start (it was left alone in INIT)
@@ -307,7 +353,7 @@ public class TeleOpCompetition extends LinearOpMode {
         mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
 
         RunLog.event(String.format("SETUP profile %s, alliance %s, start pose %s (%.1f, %.1f, %.1f deg), driver forward %.0f deg; %s",
-                profile.name, blue ? "BLUE" : "RED", useAutoPose ? "from the AUTO" : "default",
+                profile.name, blue ? "BLUE" : "RED", useAutoPose ? "from the AUTO" : "default",   // (pull_logs.py parses this; the PINPOINT lines say whether the device was adopted)
                 startPose.position.x, startPose.position.y, startPose.heading.toDegrees(), Math.toDegrees(driverForwardRad),
                 mechanisms.describe()));
         RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad1.type() + "), gamepad 2 "

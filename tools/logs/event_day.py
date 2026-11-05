@@ -299,7 +299,7 @@ def analyze(r):
         a["flags"].append("%d salvo(s) started outside +-4%% of the setpoint (%s)" % (len(out_of_band), ", ".join("%+.1f%%" % e for e in out_of_band)))
     a["config_changes"] = [tx[len("CONFIG CHANGED "):] for _, tx in ev if tx.startswith("CONFIG CHANGED ")]
     # events worth reading
-    keys = ("WARNING ", "NOTICE ", "PINPOINT", "BACKUP MODE", "FLYWHEEL ENCODER LOST", "CRASH", "AUTO SKIP", "HIVE DASH refused", "HIVE DASH cancelled", "PUSHER LOCK FAILED",
+    keys = ("WARNING ", "NOTICE ", "PINPOINT fault", "PINPOINT recovered", "PINPOINT START mode RESEEDED_AFTER_FAILED_ADOPT", "PINPOINT INIT manual reset", "BACKUP MODE", "FLYWHEEL ENCODER LOST", "CRASH", "AUTO SKIP", "HIVE DASH refused", "HIVE DASH cancelled", "PUSHER LOCK FAILED",
             "LAUNCH held", "HOLD dropped", "DRIVE TIMED OUT", "AIM TIMED OUT", "AUTO JOSTLE ended", "COMMAND reject started")
     seen = {}
     for t, tx in ev:
