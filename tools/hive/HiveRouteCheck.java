@@ -129,6 +129,24 @@ public class HiveRouteCheck {
         for (double y = 0.0; y <= 20.0; y += 0.5) if (HiveRoute.touchingSupport(10.78, y, 0.0, low) && !HiveRoute.touchingSupport(10.78, y, 0.0, on)) lowOk = false;
         check(lowOk, "a 10 in robot never touches where an 18 in robot does not");
 
+        // Park Dash: from every free start on a 6 in grid, a safe route to each of the four park corners (blue and red, ParkDash.LEFT_X 40 / RIGHT_X 26, y 60)
+        double[][] corners = {{40.0, 60.0}, {26.0, 60.0}, {-40.0, -60.0}, {-26.0, -60.0}};
+        int parkTrips = 0, parkNoRoute = 0, parkUnsafe = 0;
+        for (double sx = -66.0; sx <= 66.0; sx += 6.0) {
+            for (double sy = -66.0; sy <= 66.0; sy += 6.0) {
+                if (HiveRoute.touchingSupport(sx, sy, 0.0, on) || HiveRoute.touchingSupport(sx, sy, Math.PI / 2.0, on)) continue;
+                for (double[] g : corners) {
+                    Plan pl = HiveRoute.plan(sx, sy, 0.0, g[0], g[1], on);
+                    parkTrips++;
+                    if (!pl.ok) parkNoRoute++;
+                    else if (!routeIsSafe(pl, on)) parkUnsafe++;
+                }
+            }
+        }
+        System.out.println("park corner trips planned: " + parkTrips + ", with no route: " + parkNoRoute + ", unsafe: " + parkUnsafe);
+        check(parkUnsafe == 0, "no planned route to a park corner touches a support");
+        check(parkNoRoute * 20 < parkTrips, "at least 95 percent of free starts have a route to a park corner");
+
         System.out.println(checks + " checks, " + fails + " failed");
         System.exit(fails == 0 ? 0 : 1);
     }

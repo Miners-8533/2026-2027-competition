@@ -11,6 +11,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.AutoLaunch;
 import org.firstinspires.ftc.teamcode.drive.HiveDash;
+import org.firstinspires.ftc.teamcode.drive.ParkDash;
 import org.firstinspires.ftc.teamcode.drive.HoldPosition;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.drive.FieldGeometry;
@@ -65,6 +66,10 @@ import java.util.Locale;
  *                        cell on the driver's RIGHT as seen from behind the alliance wall (blue: left = audience cell, right = rear cell; red the other way round). Releasing
  *                        the D-pad cancels at once (the sticks drive again); a salvo already launched always finishes. Refused, with a short rumble and no movement, in backup mode, with a
  *                        Pinpoint fault, when the counter reads and holds nothing, or when the robot is touching a hive support. See {@link HiveDash} and design/hive-dash.md.
+ *   D-pad up / down      (HOLD) PARK DASH: the robot drives to a park corner of its own loading zone and stays there while the D-pad is held. Up = the corner on the driver's LEFT
+ *                        (the audience-side corner for blue), down = the corner on the driver's RIGHT (the hive-side corner). The ramp is stowed when it starts. Releasing the D-pad
+ *                        cancels at once. Refused, with a short rumble and no movement, in backup mode, with a Pinpoint fault, with an unseeded pose, while the Hive Dash runs, or when the
+ *                        robot is touching a hive support. See {@link ParkDash} and design/park-dash.md.
  *   (HOLD POSITION has no control: from a launch request to the end of the salvo, once the robot has settled, it holds that pose with a PID, resisting a push, and the heading too when the
  *                        target lock is not turning it; moving either stick cancels it at once. See {@link HoldPosition} and HoldPosition.ENABLED.)
  *   left + right bumper  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident)
@@ -323,6 +328,8 @@ public class TeleOpCompetition extends LinearOpMode {
         HiveTarget lastLaunchCell = null;    // the cell of the last launch: the operator's report of where it landed applies to this cell
         HiveDash hiveDash = new HiveDash(profile.robotDepthIn, profile.robotWidthIn, profile.originFromBackIn);
         HiveDash.Input dashIn = new HiveDash.Input();
+        ParkDash parkDash = new ParkDash(profile.robotDepthIn, profile.robotWidthIn, profile.originFromBackIn);
+        ParkDash.Input parkIn = new ParkDash.Input();
         HoldPosition hold = new HoldPosition();
         boolean dashOverride = false;   // Hive Dash has taken over the target cell (the nearest-cell logic is off until it lets go)
         ElapsedTime pinpointBadFor = new ElapsedTime();
@@ -383,7 +390,18 @@ public class TeleOpCompetition extends LinearOpMode {
             boolean counterReads = mechanisms.counter != null && mechanisms.counter.isValid();
             dashIn.pose = pose;
             dashIn.measured = measured;
-            dashIn.requestedCell = HiveDash.cellForDpad(gamepad1.dpad_left, gamepad1.dpad_right, blue, driverForwardRad);
+            // Park Dash (driver D-pad up / down, held) shares the loop's pose and flags; the two dashes never run together
+            parkIn.pose = pose;
+            parkIn.measured = measured;
+            parkIn.requested = hiveDash.state() != HiveDash.State.IDLE ? ParkDash.Corner.NONE : ParkDash.cornerForDpad(gamepad1.dpad_up, gamepad1.dpad_down);
+            parkIn.blue = blue;
+            parkIn.driverForwardRad = driverForwardRad;
+            parkIn.blockedWhy = backupMode ? "backup mode" : pinpointBad ? "Pinpoint fault" : !loc.seedConfirmed ? "pose not seeded" : null;
+            parkIn.otherDashBusy = hiveDash.state() != HiveDash.State.IDLE;
+            ParkDash.Output park = parkDash.update(parkIn);
+            if (park.refused) buzz(gamepad1, 150);
+            if (park.stowRamp) mechanisms.requestStowNow();   // the ramp must not be dragged into the zone; the dash does not wait for it
+            dashIn.requestedCell = parkDash.state() != ParkDash.State.IDLE ? null : HiveDash.cellForDpad(gamepad1.dpad_left, gamepad1.dpad_right, blue, driverForwardRad);
             dashIn.blue = blue;
             dashIn.blockedWhy = backupMode ? "backup mode" : pinpointBad ? "Pinpoint fault" : !loc.seedConfirmed ? "pose not seeded" : null;
             dashIn.counterReadsEmpty = counterReads && mechanisms.counter.count() == 0;
@@ -407,6 +425,12 @@ public class TeleOpCompetition extends LinearOpMode {
                 robotLeft = dash.left;
                 cmdForward = dash.forward;
                 cmdLeft = dash.left;
+            }
+            if (park.translation) {
+                robotForward = park.forward;
+                robotLeft = park.left;
+                cmdForward = park.forward;
+                cmdLeft = park.left;
             }
             // target lock: HELD on the driver's right trigger (the automatic lock when full is off unless AUTO_LOCK_WHEN_FULL is set; the operator has no lock control).
             boolean driverLockHeld = gamepad1.right_trigger > TRIGGER_THRESHOLD;
@@ -505,15 +529,15 @@ public class TeleOpCompetition extends LinearOpMode {
                     RunLog.event("TARGET LOCK off");
                 }
                 lockErrDeg = Double.NaN;
-                cmdTurn = dash.turnActive ? dash.turn : manualTurn;
+                cmdTurn = dash.turnActive ? dash.turn : park.turnActive ? park.turn : manualTurn;
                 autoLaunchDone = false;
                 autoLaunchInZone = false;
                 autoLaunchState = autoLaunchOn ? "waiting: no target lock" : "off";
             }
             // hold position while launching: from the launch request to the end of the salvo the robot holds the pose it settled in (the sticks cancel it at once)
-            boolean dashDriving = dash.translation && (Math.abs(dash.forward) + Math.abs(dash.left) > 1e-3);
+            boolean dashDriving = (dash.translation && (Math.abs(dash.forward) + Math.abs(dash.left) > 1e-3)) || (park.translation && (Math.abs(park.forward) + Math.abs(park.left) > 1e-3));
             boolean driverMoving = Math.abs(gamepad1.left_stick_x) > 0.1 || Math.abs(gamepad1.left_stick_y) > 0.1 || (!lockOn && Math.abs(gamepad1.right_stick_x) > 0.1);
-            HoldPosition.Output holding = hold.update(pose, measured, !backupMode && !pinpointBad && mechanisms.isLaunchBusy(), driverMoving || dashDriving || backupMode || pinpointBad, !lockOn);
+            HoldPosition.Output holding = hold.update(pose, measured, !backupMode && !pinpointBad && (mechanisms.isLaunchBusy() || parkDash.holdWanted()), driverMoving || dashDriving || backupMode || pinpointBad, !lockOn);
             if (holding.active) {
                 robotForward = holding.forward;
                 robotLeft = holding.left;
@@ -660,9 +684,10 @@ public class TeleOpCompetition extends LinearOpMode {
                     cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()], mechanisms.getSpeedTrim());
             telemetry.addData("Auto-launch (operator RB toggles)", backupMode ? "off (backup mode)" : autoLaunchOn ? "ON: " + autoLaunchState : "off");
             telemetry.addData("Hive Dash (driver D-pad left / right, held)", hiveDash.status());
+            telemetry.addData("Park Dash (driver D-pad up / down, held)", parkDash.status());
             telemetry.addData("Hold position (from the launch request to the end of the salvo)", hold.status());
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive, hold LT precision, hold RT target lock, A launch, hold D-pad left / right = HIVE DASH (drive to a cell's launch spot and launch), hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
+            telemetry.addLine("GP1: stick drive, hold LT precision, hold RT target lock, A launch, hold D-pad left / right = HIVE DASH (drive to a cell's launch spot and launch), hold D-pad up / down = PARK DASH (drive to the left / right park corner), hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
             telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-launch on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
             telemetry.update();
