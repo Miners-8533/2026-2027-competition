@@ -56,6 +56,8 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 ## 8b. Loop profile (new, every run)
 - [ ] After the TeleOp and auto runs: pull the logs and run `python tools/logs/loop_profile.py` (and `--busiest` for the worst windows). Note pose, drive_write, telemetry, mechanisms (and mech.counter), other; compare the TeleOp with the 28 to 30 ms of 2026-11-03, and look at hive_dash / park_dash / hold maximums during a dash
 
+- [ ] Drive write deadband (T14): the robot drives, creeps, stops and holds the same as before (try `MecanumDrive.writeDeadband` 0 in the Dashboard to compare); the profile's `drive_skipped` count is above 0 with steady sticks
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`
