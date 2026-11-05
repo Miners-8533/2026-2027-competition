@@ -81,3 +81,7 @@ lint/tmp/
 # lint/reports/
 # Robot run logs pulled from the hub by tools/logs/pull_logs.py
 robot-logs/
+
+# Python bytecode (it carries the absolute path of the computer that ran the script)
+__pycache__/
+*.pyc
