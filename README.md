@@ -14,7 +14,7 @@ The robot code for **FIRST Tech Challenge team 8533, the CSPA Miners**, for the 
 |---|---|
 | `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/` | `opmodes/` (the opmodes), `subsystems/` (intake, flywheel, pusher, ramp, element counter, and `Mechanisms`, the coordinator), `drive/` (mecanum drive, Pinpoint localizer, target lock, Hive Dash, hold position, hive routing), `motion/` (drive-to-pose, the auto actions), `util/` (the run log, the Dashboard config dump), `math/` |
 | `design/` | the design notes, test plan and runbooks (start with [integration-plan.md](design/integration-plan.md) and [robot-day-runbook.md](design/robot-day-runbook.md)) |
-| `tools/` | `logs/` (pull and analyse the run logs), `hive/` (router checks on a PC), `flywheel/` (a controller simulation), `autosim/` (a path viewer) |
+| `tools/` | `logs/` (pull and analyse the run logs), `hive/` (router checks on a PC), `flywheel/` (a controller simulation) |
 | `FtcRobotController/` | the FTC SDK app (unchanged) |
 
 ## Build and run
