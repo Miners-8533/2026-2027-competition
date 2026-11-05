@@ -33,6 +33,7 @@ public final class HoldPosition {
     public static double TAIL_SEC = 0.2;
     /** Position gains on the field-frame error, power per inch (the DriveToPose values), an integral to take out a steady offset, and a static term outside the dead band. */
     public static double KP = 0.06, KI = 0.03, KD = 0.006, KS = 0.04;
+    /** The most power the integral can add on each axis. (It is a power, not an inch-seconds cap: as a cap on the summed error, 0.2 let KI add only 0.006 power.) */
     public static double MAX_INTEGRAL = 0.2;
     public static double DEADBAND_IN = 0.4;
     public static double MAX_OUTPUT = 0.7;
@@ -146,7 +147,7 @@ public final class HoldPosition {
             c.kP = KP;
             c.kI = KI;
             c.kD = KD;
-            c.maxIntegral = MAX_INTEGRAL;
+            c.maxIntegral = KI > 1e-9 ? MAX_INTEGRAL / KI : 0.0;   // PidController caps the summed error, so this caps KI x it at MAX_INTEGRAL power
             c.maxOutput = MAX_OUTPUT;
         }
         double vx = 0.0, vy = 0.0;

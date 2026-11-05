@@ -291,9 +291,18 @@ public final class ParkDash {
             startLeg();
         }
         boolean last = legIndex == legs - 1;
-        double vA = last ? clamp(ALONG_KP * remaining, MIN_FINAL_POWER, MAX_POWER) : MAX_POWER;
-        double vC = clamp(-CROSS_KP * cross, -CROSS_MAX, CROSS_MAX);
-        double vfx = ux * vA + nx * vC, vfy = uy * vA + ny * vC;
+        double vfx, vfy;
+        if (last) {
+            // the last leg heads straight for the corner: a robot that overshoots it or passes it to the side is driven back (power along the leg kept pushing it on past)
+            double v = clamp(ALONG_KP * goalDist, MIN_FINAL_POWER, MAX_POWER);
+            double d = Math.max(goalDist, 1e-6);
+            vfx = (goalX - x) / d * v;
+            vfy = (goalY - y) / d * v;
+        } else {
+            double vC = clamp(-CROSS_KP * cross, -CROSS_MAX, CROSS_MAX);
+            vfx = ux * MAX_POWER + nx * vC;
+            vfy = uy * MAX_POWER + ny * vC;
+        }
         double fwd = vfx * Math.cos(h) + vfy * Math.sin(h);
         double left = -vfx * Math.sin(h) + vfy * Math.cos(h);
         // the heading: an aligned leg turns the robot to the leg's heading and slows it by the heading error; a short leg keeps the heading it has

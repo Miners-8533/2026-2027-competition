@@ -22,7 +22,8 @@ import java.util.Locale;
  *
  * The route comes from {@link HiveRoute} (a straight line when clear, otherwise through the helper corners and the lane gates under the hive). Each leg is driven ALIGNED with
  * the wheels (front or rear leading, a mecanum chassis is about a third faster that way than strafing: TeleOp logs 2026-11-01 to 11-03 gave strafe 0.75 of forward) at the
- * dash's power along the leg with a sideways correction; within LOCK_RADIUS_IN of the goal the target lock takes the heading and the speed eases to the goal.
+ * dash's power along the leg with a sideways correction; the last leg drives straight at the goal point and eases off near it, so an overshoot is driven back; within
+ * LOCK_RADIUS_IN of the goal the target lock takes the heading.
  *
  * This class holds the state machine and the follower and touches no hardware: {@code TeleOpCompetition} gives it the loop's buffered pose and flags (nothing here reads a
  * sensor) and applies the {@link Output}. The dash is REFUSED, with no movement, when: backup mode / a Pinpoint fault / the pose is not seeded, the element counter reads and
@@ -39,7 +40,7 @@ public final class HiveDash {
     public static double GOAL_TOL_IN = 2.5;
     /** A via point counts as reached this close (the robot goes on without stopping). */
     public static double PASS_TOL_IN = 3.0;
-    /** Along-the-leg power per inch left on the last leg (the same 0.05 as DriveToPose), and the least power on the last leg so it does not stall short. */
+    /** The last leg drives straight at the goal point: power per inch to the goal (the same 0.05 as DriveToPose), and the least power so it does not stall short. */
     public static double ALONG_KP = 0.05;
     public static double MIN_FINAL_POWER = 0.08;
     /** Sideways correction: power per inch off the leg, and its limit. */
@@ -342,9 +343,18 @@ public final class HiveDash {
             startLeg(in);
         }
         boolean last = legIndex == legs - 1;
-        double vA = last ? clamp(ALONG_KP * remaining, MIN_FINAL_POWER, MAX_POWER) : MAX_POWER;
-        double vC = clamp(-CROSS_KP * cross, -CROSS_MAX, CROSS_MAX);
-        double vfx = ux * vA + nx * vC, vfy = uy * vA + ny * vC;
+        double vfx, vfy;
+        if (last) {
+            // the last leg heads straight for the goal point: a robot that overshoots it or passes it to the side is driven back (power along the leg kept pushing it on past)
+            double v = clamp(ALONG_KP * goalDist, MIN_FINAL_POWER, MAX_POWER);
+            double d = Math.max(goalDist, 1e-6);
+            vfx = (goalX - x) / d * v;
+            vfy = (goalY - y) / d * v;
+        } else {
+            double vC = clamp(-CROSS_KP * cross, -CROSS_MAX, CROSS_MAX);
+            vfx = ux * MAX_POWER + nx * vC;
+            vfy = uy * MAX_POWER + ny * vC;
+        }
         double fwd = vfx * Math.cos(h) + vfy * Math.sin(h);
         double left = -vfx * Math.sin(h) + vfy * Math.cos(h);
         boolean inLock = goalDist <= LOCK_RADIUS_IN;

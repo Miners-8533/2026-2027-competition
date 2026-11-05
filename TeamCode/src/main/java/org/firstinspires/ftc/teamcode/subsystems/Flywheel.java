@@ -58,6 +58,11 @@ public class Flywheel {
     public static double FFP_BASE_SPEED = 1350.0, FFP_BASE_POWER = 0.44, FFP_POWER_PER_TICK = 4.3e-4;
     public static double FFP_KP = 0.005, FFP_KI = 0.002, FFP_MAX_INTEGRAL_POWER = 0.15;
     public static double FFP_SPINUP_BELOW_FRACTION = 0.92;
+    /**
+     * The integral is cleared only when the setpoint steps by more than this fraction (or to or from 0). The setpoint follows the distance every loop, so clearing it on
+     * every change of more than 1 tick/s (as before) cleared it on nearly every loop while the robot moved, and the I term never built up.
+     */
+    public static double FFP_INTEGRAL_RESET_FRACTION = 0.05;
     /** True: the P term uses the 5-loop average speed (steadier, a little late); false: the raw hub speed. */
     public static boolean FFP_USE_FILTERED = true;
     /**
@@ -155,8 +160,10 @@ public class Flywheel {
 
     /** Ticks per second; 0 or less turns the flywheel off. */
     public void setTargetVelocity(double ticksPerSecond) {
-        if (Math.abs(Math.max(0.0, ticksPerSecond) - targetVelocity) > 1.0) ffpIntegral = 0.0;
-        targetVelocity = Math.max(0.0, ticksPerSecond);
+        double next = Math.max(0.0, ticksPerSecond);
+        boolean onOff = (next <= 0.0) != (targetVelocity <= 0.0);
+        if (onOff || Math.abs(next - targetVelocity) > FFP_INTEGRAL_RESET_FRACTION * Math.max(next, targetVelocity)) ffpIntegral = 0.0;
+        targetVelocity = next;
     }
 
     public void stop() {

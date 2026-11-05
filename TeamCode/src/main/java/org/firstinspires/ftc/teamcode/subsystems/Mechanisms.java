@@ -245,6 +245,11 @@ public class Mechanisms {
             rejectActive = false;
             pusher.cancelMove();
         }
+        if (pendingRejectAfterUnlock) {
+            // a reject waiting for the unlock is cancelled the same way (left set, it would go off at the next unlock, long after)
+            RunLog.event("COMMAND launch cancels the reject waiting for the unlock");
+            pendingRejectAfterUnlock = false;
+        }
         launchQueued = true;
         bandWaitLogged = false;
         launchTimer.reset();
@@ -304,6 +309,9 @@ public class Mechanisms {
         if (lockState == LockState.NONE) return;
         RunLog.event("PUSHER LOCK released by the salvo (the arm is " + String.format(Locale.US, "%.1f", pusher.getAnglePastHoldDeg()) + " deg past HOLD)");
         lockState = LockState.NONE;
+        // the salvo can start before an unlock in progress has been seen to finish, so what that unlock was for is dropped here (or it would act at the next unlock)
+        pendingRejectAfterUnlock = false;
+        unlockForIntake = false;
         if (counter != null) counter.setFrozen(false);
         lockClock.reset();
     }
