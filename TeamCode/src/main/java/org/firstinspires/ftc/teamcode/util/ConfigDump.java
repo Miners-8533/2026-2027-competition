@@ -33,7 +33,7 @@ import java.util.Map;
  * a log does not say which trim, speed or tolerance was in force. One {@code CONFIG <class> name=value, ...} event per class, then {@code CONFIG CHANGED} lines for every value
  * that differs from the previous run in this app process (the edits made between the two runs). tools/logs/config_changes.py reads them across runs.
  *
- * The class list is written by hand: add a new {@code @Config} class here (tools/logs/check_config_list.py lists the ones that are missing). Bring-up, verify and the old autos are left out.
+ * The class list is written by hand: add a new {@code @Config} class here (tools/logs/check_config_list.py lists the ones that are missing). Bring-up, verify and auto-build opmodes are left out.
  */
 public final class ConfigDump {
 

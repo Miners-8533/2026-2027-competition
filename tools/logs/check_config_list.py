@@ -2,7 +2,7 @@
 
     python tools/logs/check_config_list.py
 
-Bring-up, verify and the old autos are left out on purpose (see ConfigDump).
+Bring-up, verify and auto-build opmodes are left out on purpose (see ConfigDump).
 """
 import glob
 import os
@@ -10,7 +10,7 @@ import re
 
 SRC = os.path.join("TeamCode", "src", "main", "java", "org", "firstinspires", "ftc", "teamcode")
 SKIP_DIRS = ("bringup", "verify", "autobuild")
-SKIP_FILES = ("AutonBlueStudents.java", "AutonHiveVolley.java")
+SKIP_FILES = ()
 
 
 def main():
@@ -29,7 +29,7 @@ def main():
     if missing:
         print("@Config classes missing from ConfigDump.CLASSES: " + ", ".join(sorted(missing)))
     else:
-        print("Every @Config class (outside bring-up, verify and the old autos) is in ConfigDump.")
+        print("Every @Config class (outside bring-up, verify and auto-build) is in ConfigDump.")
 
 
 if __name__ == "__main__":

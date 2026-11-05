@@ -1,6 +1,6 @@
 # Run logs (the last auto and the last TeleOp)
 
-`TeleOp - Competition`, `Auton - Solo`, `Auton - Blue Students` and `Auton - Hive Volley (Blue)` write a log of the run to the hub, so it can be read after a match. The code is `util/RunLog.java`.
+`TeleOp - Competition` and the autos (`Auton - Solo`, and the duo autos on their branch) write a log of the run to the hub, so it can be read after a match. The code is `util/RunLog.java`.
 
 ## Files
 

@@ -95,7 +95,7 @@ Run first with the robot on blocks, then on the floor. Each row of the plan's Ph
 ### Block H: Autos (plan Phase 6)
 
 1. Check the start pose at the field: touching the wall, inside the alliance half, not in the loading zone or flower volume, ramp stowed, **4 elements preloaded**, pusher at HOLD.
-2. Run **Auton - Hive Volley (Blue)** and **Auton - Blue Students** three times each from the legal start, without a fault. Watch the INIT screen: Pinpoint OK, preload `4 elements seen`.
+2. Run **Auton - Solo** three times from the legal start, without a fault (the old Blue Students and Hive Volley autos were deleted 2026-11-05). Watch the INIT screen: Pinpoint OK, preload `4 elements seen`.
 3. Time each against the auto period (the real volley and ramp waits are in the log).
 4. **Handoff:** run an auto, then **TeleOp - Competition** immediately. The INIT screen should say `AUTO pose, saved N s ago`, and the pose and the pusher zero should still be right after the first salvo.
 
