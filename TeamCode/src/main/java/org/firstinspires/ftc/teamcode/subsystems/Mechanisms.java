@@ -168,12 +168,20 @@ public class Mechanisms {
 
     /** Builds whichever mechanisms the hardware configuration contains. */
     public static Mechanisms fromHardware(HardwareMap hardwareMap, Pusher.Reference pusherReference) {
+        return fromHardware(hardwareMap, pusherReference, true);
+    }
+
+    /**
+     * As above; with commandRampAtInit false the ramp is not commanded when built (the competition TeleOp: G403 allows no powered movement in the
+     * transition, and an auto may leave the ramp stuck or deployed). Call {@link #stowRampAtStart()} at Start.
+     */
+    public static Mechanisms fromHardware(HardwareMap hardwareMap, Pusher.Reference pusherReference, boolean commandRampAtInit) {
         Intake intake = hardwareMap.tryGet(DcMotorEx.class, "intake") != null ? new Intake(hardwareMap) : null;
         Flywheel flywheel = hardwareMap.tryGet(DcMotorEx.class, "fly_motor_enc") != null ? new Flywheel(hardwareMap) : null;
         Pusher pusher = hardwareMap.tryGet(DcMotorEx.class, "gate") != null
                 ? new Pusher(hardwareMap, pusherReference) : null;
         Ramp ramp = hardwareMap.tryGet(Servo.class, "depolLeft") != null
-                && hardwareMap.tryGet(Servo.class, "depolRight") != null ? new Ramp(hardwareMap) : null;
+                && hardwareMap.tryGet(Servo.class, "depolRight") != null ? new Ramp(hardwareMap, commandRampAtInit) : null;
         ElementCounter counter = ElementCounter.tryCreate(hardwareMap);
         return new Mechanisms(intake, flywheel, pusher, ramp, counter);
     }
@@ -414,6 +422,19 @@ public class Mechanisms {
         stowPending = false;
         ramp.stow();
         RunLog.event("COMMAND ramp stow now (no flower check)");
+    }
+
+    /** True while a ramp exists that has not been commanded yet (built with commandRampAtInit false): its position is unknown. For the INIT screen. */
+    public boolean rampPositionUnknown() {
+        return ramp != null && ramp.isConfigured() && !ramp.isPositionKnown();
+    }
+
+    /** The first ramp command of a TeleOp built with commandRampAtInit false: stow, with no flower check (the position is unknown, the servos may have sagged). */
+    public void stowRampAtStart() {
+        if (ramp == null) return;
+        stowPending = false;
+        ramp.stow();
+        RunLog.event("COMMAND ramp stow at Start (not commanded in INIT: the position was unknown)");
     }
 
     public void toggleSpin() {

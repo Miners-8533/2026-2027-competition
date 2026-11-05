@@ -247,7 +247,9 @@ public class TeleOpCompetition extends LinearOpMode {
         Pose2d expected = expectedStart(useAutoPose, blue, startX);
         MecanumDrive drive = new MecanumDrive(hardwareMap, expected);
         PinpointLocalizer loc = (PinpointLocalizer) drive.localizer;
-        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
+        // The ramp is NOT commanded in INIT: the servos sag when the auto ends, the auto may leave the ramp stuck or deployed, and G403 allows no
+        // powered movement in the transition. It is stowed once, at Start. (The intake, flywheel and pusher constructors only set power 0.)
+        Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE, false);
 
         while (!isStarted() && !isStopRequested()) {
             if (gamepad1.dpadUpWasPressed() && useAutoPose) {
@@ -279,6 +281,7 @@ public class TeleOpCompetition extends LinearOpMode {
                     p.position.x, p.position.y, p.heading.toDegrees(),
                     poseOk && loc.seedConfirmed ? "OK" : "WARNING: does not match the start pose (do not move the robot after INIT; restart the opmode)");
             telemetry.addData("Mechanisms present", mechanisms.describe());
+            if (mechanisms.rampPositionUnknown()) telemetry.addData("Ramp", "position unknown: not commanded in INIT, it stows when you press Start");
             telemetry.addData("Element counter", mechanisms.counter == null ? "not configured"
                     : mechanisms.counter.isValid() ? "reading   " + mechanisms.counter.stackString()
                     : "NOT READING (all four sensors must answer; count by eye in the match if it stays this way)");
@@ -295,6 +298,7 @@ public class TeleOpCompetition extends LinearOpMode {
         Pose2d startPose = expected;
         double driverForwardRad = Math.toRadians(blue ? BLUE_DRIVER_FORWARD_DEG : RED_DRIVER_FORWARD_DEG);
 
+        mechanisms.stowRampAtStart();              // the first and only ramp command of the start (it was left alone in INIT)
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
         mechanisms.setAutoTarget(true);            // the target is the closer of the alliance's own two cells: nothing to pick

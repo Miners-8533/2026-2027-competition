@@ -14,7 +14,7 @@ Source: the Competition Manual on https://ftc-resources.firstinspires.org/ftc/ga
 ## Starting, motion, and sides
 - G304: fully contained on its own alliance's side (FIELD columns A, B, C for red, D, E, F for blue; Figure 9-4), touching the perimeter wall, NOT contacting or in the scoring volume of a flower, NOT in the loading zone, in its starting configuration, touching exactly 4 pre-load pollen, motionless after INIT.
 - G402: in AUTO each alliance has priority over the field and elements on ITS side (columns again); controlling scoring elements on the opposing side or contacting an opposing robot on their side disrupts AUTO (major foul).
-- G403: no powered movement of the robot or any mechanism in the transition. The TeleOp's INIT commands the ramp servos to STOWED (the `Ramp` constructor): an auto must end with the ramp stowed, or INIT pressed in the transition moves it (the manual says to wait for TELEOP to press INIT if INIT moves anything).
+- G403: no powered movement of the robot or any mechanism in the transition. The competition TeleOp does NOT command the ramp in INIT (changed 2026-11-05): the servos sag when the auto ends and the ramp may be stuck, so the TeleOp builds `Ramp` with commandStowed false (INIT screen: "position unknown") and stows once at Start. The intake, flywheel and pusher are only set to power 0 in INIT. The autos (and the other opmodes) still command STOWED at their INIT, which is allowed.
 - G407 at most 4 elements controlled at once; G409 do not catch elements spilling from a tipped hive (driving under a hive is allowed, stopping under it repeatedly is the strategic example); G412 / G415 / G417 / G418 as written.
 
 ## Loading zone (Section 9, CAD)

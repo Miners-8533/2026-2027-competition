@@ -11,7 +11,7 @@ Ideas agreed to keep but not to build yet, newest decisions at the top of each l
 
 ## Do later (agreed 2026-11-04)
 
-- **End every auto with the ramp stowed** (G403: no powered movement in the 8 s transition; the TeleOp's INIT commands the ramp servos to stowed, so a deployed ramp would move when INIT is pressed in the transition). `Auton - Solo` already stows before its last launch; check the duo autos and add a final stow if a path can end deployed. Also check the other servo / motor commands in the TeleOp INIT for twitch.
+- **End every auto with the ramp stowed** (still worth doing for the next auto's start and the field: a stowed ramp is not in the way). Since 2026-11-05 the TeleOp no longer commands the ramp in INIT (G403: no powered movement in the 8 s transition; it stows once at Start), and the other INIT commands were checked (power 0 only), so a deployed or stuck ramp no longer breaks the transition. `Auton - Solo` already stows before its last launch; check the duo autos and add a final stow if a path can end deployed.
 - Solo's park at (51.1, 54, 180) only has to break the zone line (user: fine as is); moving it in by 1 in more is the option if it ever looks marginal.
 - The duo autos' timing (the waits, G's last launch and park) is tuned from their first logged runs: do not optimise before then.
 
