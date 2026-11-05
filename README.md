@@ -6,7 +6,7 @@ The robot code for **FIRST Tech Challenge team 8533, the CSPA Miners**, for the 
 
 ## What it does
 - **TeleOp - Competition:** field-oriented drive with a PD target lock on a hive cell, **Auto Launch** (launch by itself in a launch zone), **Hive Dash** (hold D-pad left or right and the robot drives to a cell's launch spot around the hive supports, locks and launches), **hold position while launching**, the **pusher lock** (the arm parks across the intake entrance when the robot is full), a launch map for the flywheel speed by distance, and a backup mode for a lost pose.
-- **Auton - Solo:** launch the preload, take the garden, launch, take the flower, launch, park; blue or red picked at INIT. The two **duo** autos (a flower side and a garden side that tip the hive together with the alliance partner) are being built on the `duo-autos` branch.
+- **Auton - Solo:** launch the preload, take the garden, launch, take the flower, launch, park; blue or red picked at INIT. The two **duo** autos (a flower side and a garden side that tip the hive together with the alliance partner) are on `integration` and have not been run on the robot yet.
 - Every run writes a log to the hub; tools in `tools/logs/` pull the logs and analyse them, including a competition-day report per match.
 
 ## Layout

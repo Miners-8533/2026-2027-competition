@@ -61,6 +61,9 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`
 
-Not on `integration`: the duo autos (`duo-autos` branch, T9 / T10) and both autos need rework.
+## 10. Duo autos (T9, T10; design/duo-autos.md), alone on the field first
+- [ ] Auton - Duo Garden Side (rear wall start): INIT pose OK; blue and red; the preload launch, the Blue Wall flower gather, the wait, then the garden and the last launch and park. Expect it to overrun 30 s: note where it is at 30 s from the `AUTO TIMING` lines (the waits are Dashboard values in `DuoAutos`)
+- [ ] Auton - Duo Flower Side (audience wall start): INIT pose OK; blue and red; waits until `F_FIRST_LAUNCH_NOT_BEFORE_SEC`, launches, gathers the audience flower, launches, parks
+- [ ] Then both together if a partner robot is available
 
 Result notes:
