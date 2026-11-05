@@ -37,6 +37,7 @@ python tools/logs/event_day.py label  --event "<event>"   # label the runs with 
 python tools/logs/event_day.py report --event "<event>"   # per-match and day reports, what stands out
 python tools/logs/launch_stability.py             # flywheel speed during salvos
 python tools/logs/baseline_health.py              # post-match health check of the color sensors' baselines
+python tools/logs/loop_profile.py                 # where the loop time goes (the LOOP PROFILE lines of the newest TeleOp and auto)
 python tools/logs/config_changes.py               # which Dashboard values changed between runs
 ```
 What every log line means is in [run-logs.md](design/run-logs.md).

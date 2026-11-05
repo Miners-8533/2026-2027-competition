@@ -26,6 +26,7 @@ import org.firstinspires.ftc.teamcode.math.Vector2d;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
+import org.firstinspires.ftc.teamcode.util.LoopProfiler;
 import org.firstinspires.ftc.teamcode.util.RunLog;
 
 import java.util.Arrays;
@@ -448,7 +449,9 @@ public class TeleOpCompetition extends LinearOpMode {
             parkIn.driverForwardRad = driverForwardRad;
             parkIn.blockedWhy = backupMode ? "backup mode" : pinpointBad ? "Pinpoint fault" : !loc.seedConfirmed ? "pose not seeded" : null;
             parkIn.otherDashBusy = hiveDash.state() != HiveDash.State.IDLE;
+            long profiledPark = LoopProfiler.start();
             ParkDash.Output park = parkDash.update(parkIn);
+            LoopProfiler.stop("park_dash", profiledPark);
             if (park.refused) buzz(gamepad1, 150);
             if (park.stowRamp) mechanisms.requestStowNow();   // the ramp must not be dragged into the zone; the dash does not wait for it
             dashIn.requestedCell = parkDash.state() != ParkDash.State.IDLE ? null : HiveDash.cellForDpad(gamepad1.dpad_left, gamepad1.dpad_right, blue, driverForwardRad);
@@ -458,7 +461,9 @@ public class TeleOpCompetition extends LinearOpMode {
             dashIn.hasElements = !counterReads || mechanisms.counter.count() > 0;
             dashIn.lockAligned = targetLock.isAligned();
             dashIn.launchBusy = mechanisms.isLaunchBusy();
+            long profiledHive = LoopProfiler.start();
             HiveDash.Output dash = hiveDash.update(dashIn);
+            LoopProfiler.stop("hive_dash", profiledHive);   // route planning on the first loop of a dash shows as the maximum
             if (dash.refused) buzz(gamepad1, 150);
             if (dash.overrideCell != null) {
                 if (!dashOverride) {
@@ -518,8 +523,10 @@ public class TeleOpCompetition extends LinearOpMode {
                             manualLock ? "manual" : dash.lockWanted ? "Hive Dash" : "full", lockTarget, lockTarget.x, lockTarget.y, lockTarget.distanceFrom(pose), pose.position.x, pose.position.y,
                             pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
                 }
+                long profiledLock = LoopProfiler.start();
                 cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget,
                         TargetLock.farCellExtraLeftIn(lockTarget, blue), cellNudgeDeg[lockTarget.ordinal()], gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt);   // the nudge needs the left bumper held
+                LoopProfiler.stop("target_lock", profiledLock);
                 lockErrDeg = targetLock.errorDeg();
                 boolean aligned = targetLock.isAligned();
                 if (aligned && !lockWasAligned) {
@@ -587,7 +594,9 @@ public class TeleOpCompetition extends LinearOpMode {
             // hold position while launching: from the launch request to the end of the salvo the robot holds the pose it settled in (the sticks cancel it at once)
             boolean dashDriving = (dash.translation && (Math.abs(dash.forward) + Math.abs(dash.left) > 1e-3)) || (park.translation && (Math.abs(park.forward) + Math.abs(park.left) > 1e-3));
             boolean driverMoving = Math.abs(gamepad1.left_stick_x) > 0.1 || Math.abs(gamepad1.left_stick_y) > 0.1 || (!lockOn && Math.abs(gamepad1.right_stick_x) > 0.1);
+            long profiledHold = LoopProfiler.start();
             HoldPosition.Output holding = hold.update(pose, measured, !backupMode && !pinpointBad && (mechanisms.isLaunchBusy() || parkDash.holdWanted()), driverMoving || dashDriving || backupMode || pinpointBad, !lockOn);
+            LoopProfiler.stop("hold", profiledHold);
             if (holding.active) {
                 robotForward = holding.forward;
                 robotLeft = holding.left;
@@ -740,7 +749,9 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addLine("GP1: stick drive, hold LT precision, hold RT target lock, A launch, hold D-pad left / right = HIVE DASH (drive to a cell's launch spot and launch), hold D-pad up / down = PARK DASH (drive to the left / right park corner), hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
             telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-launch on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
+            long profiledTelemetry = LoopProfiler.start();
             telemetry.update();
+            LoopProfiler.stop("telemetry", profiledTelemetry);   // the Driver Station and the Dashboard
         }
         drive.stop();
         mechanisms.setIntakeRequested(false);

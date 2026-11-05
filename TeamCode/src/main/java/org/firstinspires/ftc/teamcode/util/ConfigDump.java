@@ -41,7 +41,8 @@ public final class ConfigDump {
             AutoLaunch.class, FieldGeometry.class, HiveDash.class, HoldPosition.class, ParkDash.class, MecanumDrive.class, PinpointLocalizer.class, TargetLock.class,
             AimAtCell.class, DriveToPose.class, Jostle.class, SquareOnWall.class,
             AutonSolo.class, TeleOpCompetition.class,
-            ElementCounter.class, Flywheel.class, Intake.class, Mechanisms.class, Pusher.class, PusherCheck.class, Ramp.class};
+            ElementCounter.class, Flywheel.class, Intake.class, Mechanisms.class, Pusher.class, PusherCheck.class, Ramp.class,
+            LoopProfiler.class};
 
     private static Map<String, String> previous = null;
 

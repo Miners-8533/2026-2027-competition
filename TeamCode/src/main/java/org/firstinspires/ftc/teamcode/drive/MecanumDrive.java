@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
+import org.firstinspires.ftc.teamcode.util.LoopProfiler;
 
 /**
  * Minimal mecanum drivetrain: four motors, open-loop power mixing, plus a {@link Localizer}
@@ -94,10 +95,12 @@ public final class MecanumDrive {
                 Math.max(Math.abs(lb), Math.max(Math.abs(rb), Math.abs(rf)))));
 
         double s = PARAMS.powerScale / max;
+        long t0 = LoopProfiler.start();   // the four hub writes (the SDK skips a power that is exactly the same as the last one sent)
         leftFront.setPower(lf * s);
         leftBack.setPower(lb * s);
         rightBack.setPower(rb * s);
         rightFront.setPower(rf * s);
+        LoopProfiler.stop("drive_write", t0);
     }
 
     public void stop() {
@@ -106,7 +109,12 @@ public final class MecanumDrive {
 
     /** Advance the pose estimate. Call once per loop, before reading {@link #getPose()}. */
     public PoseVelocity2d updatePoseEstimate() {
-        return localizer.update();
+        long t0 = LoopProfiler.start();
+        try {
+            return localizer.update();
+        } finally {
+            LoopProfiler.stop("pose", t0);   // the Pinpoint read
+        }
     }
 
     public Pose2d getPose() {

@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
+import org.firstinspires.ftc.teamcode.util.LoopProfiler;
 import org.firstinspires.ftc.teamcode.util.RunLog;
 import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
@@ -627,6 +628,15 @@ public class Mechanisms {
     // ---- per-loop update ----
 
     public void update(Pose2d pose) {
+        long profiled = LoopProfiler.start();
+        try {
+            updateAll(pose);
+        } finally {
+            LoopProfiler.stop("mechanisms", profiled);   // the sections below (mech.*) are inside this one
+        }
+    }
+
+    private void updateAll(Pose2d pose) {
         warnings.clear();
 
         // the element counter reads one sensor every READ_PERIOD_MS (never more than one per loop)
@@ -636,7 +646,9 @@ public class Mechanisms {
                 double angle = pusher.getAngleDeg();
                 counter.setArmNear(angle <= ARM_NEAR_AHEAD_DEG || angle >= 360.0 - ARM_NEAR_BEHIND_DEG);
             }
+            long profiledCounter = LoopProfiler.start();
             counter.update();
+            LoopProfiler.stop("mech.counter", profiledCounter);   // one color sensor read every READ_PERIOD_MS, so the maximum is the read
             if (counterOverride) {
                 warnings.add("COUNTER OVERRIDE: no 4-element stop and no element warnings; the intake runs until you turn it off");
             } else if (!counter.isValid()) {
@@ -865,8 +877,12 @@ public class Mechanisms {
             }
         }
 
+        long profiledIntake = LoopProfiler.start();
         if (intake != null) intake.update();
+        LoopProfiler.stop("mech.intake", profiledIntake);
+        long profiledFlywheel = LoopProfiler.start();
         if (flywheel != null) flywheel.update();
+        LoopProfiler.stop("mech.flywheel", profiledFlywheel);
         if (flywheel != null && flywheel.isEncoderLost() && !flywheelLostSeen) {
             flywheelLostSeen = true;
             flywheelLostNotice = true;
@@ -874,7 +890,9 @@ public class Mechanisms {
                     + Flywheel.LOST_BASE_SETPOINT + " ticks/s, speed trim " + speedTrim + ")");
             notice("Flywheel encoder lost: open loop at a fixed power. Use the speed trim.");
         }
+        long profiledPusher = LoopProfiler.start();
         if (pusher != null) pusher.update();
+        LoopProfiler.stop("mech.pusher", profiledPusher);
 
         for (String w : warnings) if (!prevWarnings.contains(w)) RunLog.event("WARNING " + w);
         for (String w : prevWarnings) if (!warnings.contains(w)) RunLog.event("WARNING cleared: " + w);

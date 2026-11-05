@@ -181,6 +181,7 @@ public final class RunLog {
     /** Marks the moment the opmode was started (Start pressed). Times in the file keep counting from the open. */
     public static void started() {
         event(MARK_STARTED);
+        LoopProfiler.reset();   // the loop profile (LOOP PROFILE lines) counts from Start
         ConfigDump.logAll();   // the live Dashboard values of this run (and what changed since the last one)
     }
 
@@ -193,6 +194,7 @@ public final class RunLog {
     public static synchronized void close(String reason) {
         RunLog log = active;
         if (log == null) return;
+        LoopProfiler.finish();   // the whole-run LOOP PROFILE line, while the log is still open
         active = null;
         log.write("E," + log.time() + "," + MARK_ENDED + " (" + reason + ")");
         log.queue.offer(POISON);
@@ -249,8 +251,11 @@ public final class RunLog {
 
     /** Call once per loop. Writes a sample when one is due, and notes a loop that took too long. */
     public static void tick() {
+        long t0 = LoopProfiler.start();
         RunLog log = active;
         if (log != null) log.onTick();
+        LoopProfiler.stop("runlog", t0);
+        LoopProfiler.endLoop();   // the loop's own time, and the profiler's window line when one is due
     }
 
     public static boolean isOpen() {

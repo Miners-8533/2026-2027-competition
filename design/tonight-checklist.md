@@ -53,6 +53,9 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] DRY_RUN false: ramp stows at the start; ends in the loading zone corner (up = driver's left); holds while held and resists a push; release cancels
 - [ ] Refused with a rumble when touching a support or in backup mode; left / right still Hive Dash; the two never run together
 
+## 8b. Loop profile (new, every run)
+- [ ] After the TeleOp and auto runs: pull the logs and run `python tools/logs/loop_profile.py` (and `--busiest` for the worst windows). Note pose, drive_write, telemetry, mechanisms (and mech.counter), other; compare the TeleOp with the 28 to 30 ms of 2026-11-03, and look at hive_dash / park_dash / hold maximums during a dash
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`
