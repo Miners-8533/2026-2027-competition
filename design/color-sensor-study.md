@@ -1,42 +1,33 @@
 # Color Sensor Study (procedure)
 
-Opmode **Color Sensor Study** (group Bring-up, `opmodes/bringup/ColorSensorStudy.java`). It records what the four element sensors CS1 to CS4 see, so the element count can be understood and improved (2026-11-03: the count reads 4 for stretches with only 3 inside, which trips a false target lock). It does not decide anything. Built 2026-11-03, **not yet run on the robot**.
+Opmode **Color Sensor Study** (group Bring-up, `opmodes/bringup/ColorSensorStudy.java`). A guided check of the four element sensors CS1 to CS4 for after the rotary transport (or the lighting) changes: it measures the new empty baseline, shows what each sensor sees of the pusher arm, shows the full-load readings, and shows the pollen sliding past the sensors in a slow reject. Reworked 2026-11-05 from the longer study of 2026-11-03 (the jostle takes and the hand-set pollen count are gone); **not yet run on the robot**.
 
-## What it records
+Why: the transport's color changed (2026-11-05) and the empty readings are mostly the transport, so the stored baselines in `ElementCounter` (`BASE_ALPHA`, `BASE_DIST`, `BASE_SHARES`) are probably wrong. A wrong baseline gives a phantom element or a missed one (the false full of 2026-11-03 was exactly this).
 
-About 20 rows a second in the BRINGUP log (`/sdcard/FIRST/runlogs/bringup.log`, pulled with the log tool): for each sensor the distance, alpha, red / green / blue shares, the shift from its empty baseline, whether it is lit before the debounce, and a read counter (a changed counter means a fresh value); the counter's slot string, the number of sensors lit now, and the reported count; the pusher angle (also unwrapped, from HOLD), state, speed and current; intake mode and current; pose, speed, turn rate and the drive commands; and the take's labels. The sensors are read one every 25 ms (each about every 100 ms, the rate at which they refresh) at the SDK's default settings; the robot's own counter reads one every 40 ms. The counter's debounce and steady-count windows run as on the robot, so its count can be compared with the truth.
+## Run it
 
-## Controls (gamepad 1; no Start or Back)
+Initialize with the pusher at **HOLD** (its zero is assumed there), the track **empty**, and the robot still. Nothing else moves: no drive, no flywheel. Gamepad 1 (no Start or Back): **A** starts the step shown and stops a running one, **D-pad left / right** goes to the previous / next step (to repeat or skip one), **right bumper** logs a NOTE, and **holding X** runs the intake IN so pollen can be loaded (between steps only, off while a step runs; a loading aid, not part of a test).
 
-| Control | Does |
-|---|---|
-| A | start / stop a take (during a SWEEP it aborts) |
-| D-pad up / down | take type: STILL, SWEEP, JOSTLE |
-| D-pad left / right | the number of pollen **really inside**, 0 to 4. Set it before the take |
-| X / Y / B | intake IN / OUT / OFF |
-| Sticks | drive (not during a SWEEP) |
-| Right bumper | log a NOTE with the time and take |
+| Step | You do | The opmode does | You get |
+|---|---|---|---|
+| 1. Empty baseline | track empty, still | records about 8 s | the median of each sensor = the new baseline, printed as the three lines to paste into `ElementCounter`, with the spread of each |
+| 2. Pusher sweep, empty | track still empty | 2 s still, the pusher turns back one full turn slowly (power 0.15), 2 s still | every stretch where a sensor sees something (against the baseline just measured) with the pusher angle, and what the counter would call it (the arm should read PUSHER_ARM at CS4) |
+| 3. Full baseline | load 4 pollen, check by eye | records about 8 s | what each sensor reads with 4 pollen at HOLD, and whether it counts as lit |
+| 4. Full slow reject | the same 4 pollen | as 2, with the intake OUT | the lit stretches as in 2: the pollen and the arm passing each sensor. The pollen end up on the floor in front of the intake |
 
-Initialize with the pusher at **HOLD** (its zero is assumed there) and the robot still. Count the pollen by eye and set the number before every take.
+If a sweep is aborted (A, or the arm does not move: raise `SWEEP_POWER` on the Dashboard), the arm is left where it stopped: stop the opmode and initialize again with the arm at HOLD before the next sweep.
 
-## Takes
+## After it
 
-1. **Empty, STILL** (known 0, intake OFF), about 20 s: the baseline.
-2. **Empty, SWEEP** (known 0): the pusher arm's signature alone at each sensor.
-3. **4 pollen at HOLD, STILL** (known 4), about 20 s: the full baseline.
-4. **4 pollen, SWEEP** (known 4): load 4, check by eye, set 4, A. About 2 s still, then the pusher turns backward one full turn slowly with the intake OUT (the pollen leave in order past each sensor), then about 2 s still. The pollen end up on the floor in front of the intake: reload before the next take.
-5. **JOSTLE** takes, one per known count. Load the known number, check by eye, set it, A, then drive: straight and brake, spin in place, a figure eight, a few bumps, about 60 s. Do 3 to 4 takes each at **3** and **4** pollen, and 2 each at 0, 1 and 2. For 3 pollen do some takes with the intake OFF and some with it IN (the situation of the false lock); other counts with it OFF.
+1. Pull the log (`python tools/logs/pull_logs.py`) and run `python tools/logs/sensor_study.py`: it prints each step with the BASELINE and RESULT lines.
+2. Copy the three BASELINE lines into `ElementCounter` (`BASE_ALPHA`, `BASE_DIST`, `BASE_SHARES`), note the date in the comment above them, and rebuild. The screen shows the same lines, so it can be done in the pit without the log.
+3. Look at steps 2 and 4: does CS4 still call the arm PUSHER_ARM (the thresholds `ARM_MIN_BLUE`, `ARM_MAX_RED`, `ARM_MAX_GREEN_BLUE_GAP`, `ARM_MIN_DIST_CM` assume the old colors)? Does pollen still read POLLEN (`POLLEN_MIN_GREEN_OVER_BLUE`, `POLLEN_MAX_RED`)? Do other sensors see the arm too (they should not count it)? In step 3, are all four sensors lit with four pollen?
+4. Check the stored-baseline columns: in the log the `shift` and `on` columns are against the baseline stored in `ElementCounter`, so before the update they show how far off it is (any sensor lit on an empty track is a phantom element).
 
-Press A to stop each JOSTLE take. Between takes you may move pollen or reload freely (not recording).
+The log is the BRINGUP kind (`/sdcard/FIRST/runlogs/bringup.log`), about 20 rows a second: for each sensor the distance, alpha, red / green / blue shares, the shift from the stored baseline, whether it is lit, and a read counter (a changed counter means a fresh value); the counter's slot string, the lit count and the reported count; the pusher angle (also unwrapped, from HOLD), state, speed and current; the intake mode and current. The sensors are read one every 25 ms (each about every 100 ms, the rate at which they refresh) at the SDK's default settings; the robot's own counter reads one every 40 ms.
 
 ## Checking the baselines after a match
 
-`python tools/logs/baseline_health.py --since <competition day>` reads the `COUNTER EMPTY` lines the TeleOp and autos write once a second while the track is empty (the colour shift of each sensor from its stored empty baseline) and says OK, WATCH or RE-MEASURE per sensor; re-measure with an empty STILL take of this opmode when it says so (see design/run-logs.md).
+`python tools/logs/baseline_health.py --since <competition day>` reads the `COUNTER EMPTY` lines the TeleOp and autos write once a second while the track is empty (the colour shift of each sensor from its stored empty baseline) and says OK, WATCH or RE-MEASURE per sensor; re-measure with step 1 of this opmode when it says so (see design/run-logs.md).
 
-## Reading the log
-
-```
-python tools/logs/sensor_study.py            # the newest bringup log
-```
-
-It prints each take (how often the sensors lit now and the reported count were below / equal to / above the known number), then the same pooled by known count with the false-FULL rate, the median reading per sensor for the STILL takes, and for the SWEEP takes every stretch where a sensor was lit with the pusher angle it covered (pollen and arm passes). Dashboard values on the opmode: `SENSOR_READ_PERIOD_MS`, `SAMPLE_PERIOD_MS`, `SWEEP_POWER` (0.15, backward, open loop; raise it if the arm does not move: the take aborts after 2 s), `SWEEP_DEG`, `LEAD_SEC`, `TAIL_SEC`, `DRIVE_SCALE`, `TURN_SCALE`.
+Dashboard values on the opmode: `SENSOR_READ_PERIOD_MS`, `SAMPLE_PERIOD_MS`, `STILL_SEC`, `STILL_SETTLE_SEC`, `SWEEP_POWER`, `SWEEP_DEG`, `SWEEP_MAX_SEC`, `SWEEP_NO_MOVE_SEC`, `LEAD_SEC`, `TAIL_SEC`.
