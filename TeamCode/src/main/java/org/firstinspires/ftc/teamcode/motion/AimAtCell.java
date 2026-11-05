@@ -31,6 +31,8 @@ public final class AimAtCell implements Action {
     private final HiveTarget cell;
     private final boolean blue;
     private final double trimDeg;
+    /** NaN: the lock's own far-cell rule ({@link TargetLock#farCellExtraLeftIn}); a number: this extra sideways offset in inches instead (the duo autos launch only at the cell on their own start side, which needs none). */
+    private final double extraLeftIn;
     private final TargetLock lock = new TargetLock();
     private final ElapsedTime timeout = new ElapsedTime();
     private final ElapsedTime held = new ElapsedTime();
@@ -43,10 +45,15 @@ public final class AimAtCell implements Action {
 
     /** trimDeg: a standing aim correction for this launch, degrees, positive = counterclockwise (left), negative = clockwise (right); the same for either alliance. */
     public AimAtCell(MecanumDrive drive, HiveTarget cell, boolean blue, double trimDeg) {
+        this(drive, cell, blue, trimDeg, Double.NaN);
+    }
+
+    public AimAtCell(MecanumDrive drive, HiveTarget cell, boolean blue, double trimDeg, double extraLeftIn) {
         this.drive = drive;
         this.cell = cell;
         this.blue = blue;
         this.trimDeg = trimDeg;
+        this.extraLeftIn = extraLeftIn;
     }
 
     @Override
@@ -61,7 +68,7 @@ public final class AimAtCell implements Action {
         loop.reset();
         PoseVelocity2d measured = drive.updatePoseEstimate();
         Pose2d pose = drive.getPose();
-        double turn = lock.turn(pose, measured == null ? 0.0 : measured.angVel, cell, TargetLock.farCellExtraLeftIn(cell, blue), trimDeg, 0.0, dt);
+        double turn = lock.turn(pose, measured == null ? 0.0 : measured.angVel, cell, Double.isNaN(extraLeftIn) ? TargetLock.farCellExtraLeftIn(cell, blue) : extraLeftIn, trimDeg, 0.0, dt);
         drive.setDrivePowers(new PoseVelocity2d(Vector2d.zero(), turn));
         double rateDegPerS = measured == null ? 0.0 : Math.toDegrees(measured.angVel);
         boolean near = Math.abs(lock.errorDeg()) <= ALIGNED_DEG && Math.abs(rateDegPerS) <= TargetLock.ALIGNED_MAX_RATE_DEG_PER_S;

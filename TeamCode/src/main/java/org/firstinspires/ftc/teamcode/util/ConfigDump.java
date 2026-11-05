@@ -12,6 +12,7 @@ import org.firstinspires.ftc.teamcode.motion.DriveToPose;
 import org.firstinspires.ftc.teamcode.motion.Jostle;
 import org.firstinspires.ftc.teamcode.motion.SquareOnWall;
 import org.firstinspires.ftc.teamcode.opmodes.AutonSolo;
+import org.firstinspires.ftc.teamcode.opmodes.DuoAutos;
 import org.firstinspires.ftc.teamcode.opmodes.TeleOpCompetition;
 import org.firstinspires.ftc.teamcode.subsystems.ElementCounter;
 import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
@@ -39,7 +40,7 @@ public final class ConfigDump {
     private static final Class<?>[] CLASSES = {
             AutoLaunch.class, FieldGeometry.class, HiveDash.class, HoldPosition.class, MecanumDrive.class, PinpointLocalizer.class, TargetLock.class,
             AimAtCell.class, DriveToPose.class, Jostle.class, SquareOnWall.class,
-            AutonSolo.class, TeleOpCompetition.class,
+            AutonSolo.class, DuoAutos.class, TeleOpCompetition.class,
             ElementCounter.class, Flywheel.class, Intake.class, Mechanisms.class, Pusher.class, PusherCheck.class, Ramp.class};
 
     private static Map<String, String> previous = null;
