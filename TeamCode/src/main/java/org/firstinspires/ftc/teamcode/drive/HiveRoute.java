@@ -149,8 +149,15 @@ public final class HiveRoute {
 
     /** The rectangle swept by a leg from A to B: ext past each end along the leg, halfWidth either side. */
     static Rect swept(double ax, double ay, double bx, double by, double ext, double halfWidth) {
+        return swept(ax, ay, bx, by, ext, ext, halfWidth);
+    }
+
+    /** As above with a different extension behind A (extA) and past B (extB). */
+    static Rect swept(double ax, double ay, double bx, double by, double extA, double extB, double halfWidth) {
         double len = Math.hypot(bx - ax, by - ay);
-        return new Rect((ax + bx) / 2.0, (ay + by) / 2.0, len / 2.0 + ext, halfWidth, Math.atan2(by - ay, bx - ax), false);
+        double dir = Math.atan2(by - ay, bx - ax);
+        double mid = (len + extB - extA) / 2.0;   // the middle of the extended rectangle, measured from A along the leg
+        return new Rect(ax + Math.cos(dir) * mid, ay + Math.sin(dir) * mid, (len + extA + extB) / 2.0, halfWidth, dir, false);
     }
 
     /** Separating-axis test for two oriented rectangles (touching counts as overlapping). */
@@ -181,15 +188,21 @@ public final class HiveRoute {
         return false;
     }
 
-    private static boolean legClear(double ax, double ay, double bx, double by, Params p, List<Rect> rects, boolean exemptLane, boolean[] alignedOut) {
+    private static boolean legClear(double ax, double ay, double bx, double by, Params p, List<Rect> rects, boolean exemptLane, boolean fromStart, boolean[] alignedOut) {
         double len = Math.hypot(bx - ax, by - ay);
         boolean aligned = len >= p.alignMinLegIn;
         if (alignedOut != null) alignedOut[0] = aligned;
         double ext = (aligned ? Math.max(p.frontIn(), p.fromBackIn) : p.radiusIn()) + p.marginIn;
         double halfWidth = (aligned ? p.widthIn / 2.0 : p.radiusIn()) + p.marginIn;
-        Rect sw = swept(ax, ay, bx, by, ext, halfWidth);
+        // behind the START of the route the robot is only moving away, and its footprint there was already checked at the start (the robot is not touching a support). A short
+        // leg's box is a square of half-width radius + margin, whose corner reached about 19 in from the origin and caught a support bar 14 in away (2026-11-05: a Park Dash 22 in from
+        // the corner drove 126 in via a helper point). So a short leg from the start is boxed from the start point onward, and the robot's own circle at the start (radius, no margin: it may
+        // turn there) is checked on its own.
+        boolean shortFromStart = fromStart && !aligned;
+        Rect sw = swept(ax, ay, bx, by, shortFromStart ? 0.0 : ext, ext, halfWidth);
         for (Rect r : rects) {
             if (r.lane && exemptLane) continue;
+            if (shortFromStart && r.distanceTo(ax, ay) <= p.radiusIn()) return false;
             if (overlap(sw, r)) return false;
         }
         return true;
@@ -228,7 +241,7 @@ public final class HiveRoute {
         for (int i = 0; i < n; i++) {
             for (int j = i + 1; j < n; j++) {
                 boolean[] al = new boolean[1];
-                boolean c = legClear(nodes.get(i)[0], nodes.get(i)[1], nodes.get(j)[0], nodes.get(j)[1], p, rects, startInLane && i == 0, al);
+                boolean c = legClear(nodes.get(i)[0], nodes.get(i)[1], nodes.get(j)[0], nodes.get(j)[1], p, rects, startInLane && i == 0, i == 0, al);
                 clear[i][j] = clear[j][i] = c;
                 aligned[i][j] = aligned[j][i] = al[0];
             }

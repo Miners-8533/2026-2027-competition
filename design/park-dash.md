@@ -16,7 +16,9 @@ A TeleOp driver feature: **hold D-pad up or down** and the robot drives to one o
 `PARK DASH start (<corner>)` with the route, `PARK DASH leg <i> of <n>`, `via point ... reached`, `sample` every 0.5 s (pose, speed), `parked after <s> s`, `released` / `cancelled (<why>)`, `refused (<corner>): <why>`.
 
 ## Checks
-`tools/hive/HiveRouteCheck.java` (run `tools/hive/run-check.cmd`) plans from a 6 in grid of free starts to all four corners: 1852 trips, none unsafe, 24 without a route (starts jammed against the supports, which are refused).
+`tools/hive/HiveRouteCheck.java` (run `tools/hive/run-check.cmd`) plans from a 6 in grid of free starts to all four corners: 1852 trips, none unsafe, 16 without a route (starts jammed against the supports, which are refused; 24 before the 2026-11-05 planner change below).
+
+**Planner change 2026-11-05** (`HiveRoute.legClear`): the first Park Dash on the robot (log 20:05, from (25.0, 37.5), 22 in from the right corner) drove 126 in via the helper point (-36, 40) and took 3.85 s, because a short leg's box (a square of half-width radius + margin) reached back over the start and caught the end of a support bar 14 in away. A short leg from the start is now boxed from the start point onward, with the robot's own circle (radius, no margin) checked at the start. Effect on the 1,850-trip grid at 3 in spacing: trips that detour although the straight leg is safe fell from 88 to 4 for goals within 40 in (567 to 515 overall; the rest are long aligned legs and starts within a robot radius of a bar), and the check has a regression test for that exact start.
 
 ## To test (T11 in integration-plan.md)
 `ParkDash.DRY_RUN` first (hold up / down, read the `PARK DASH start` line), then low power with a spotter: from the field center, from the launch zones and from under the hive, both corners, both alliances; cancel on release; the hold at the corner (push it); the refusal paths; D-pad left / right still starts the Hive Dash and not both together.

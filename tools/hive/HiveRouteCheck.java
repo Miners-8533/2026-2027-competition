@@ -143,6 +143,10 @@ public class HiveRouteCheck {
                 }
             }
         }
+        // the Park Dash of 2026-11-05 20:05: from (25.0, 37.5), 22 in from the right corner, it planned 126 in via (-36, 40) because a short leg's box reached back over the support bar
+        Plan logged = HiveRoute.plan(25.0, 37.5, Math.toRadians(-1.6), 26.0, 60.0, on);
+        check(logged.ok && logged.waypoints.length == 2, "a start 22 in from the park corner with the bar behind it plans a direct leg, not a helper-point detour (" + logged.description + ")");
+
         System.out.println("park corner trips planned: " + parkTrips + ", with no route: " + parkNoRoute + ", unsafe: " + parkUnsafe);
         check(parkUnsafe == 0, "no planned route to a park corner touches a support");
         check(parkNoRoute * 20 < parkTrips, "at least 95 percent of free starts have a route to a park corner");
