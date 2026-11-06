@@ -16,7 +16,7 @@ Driver feature in `TeleOp - Competition`: hold the driver D-pad left or right an
 **Goals** (the Auto Launch zone centres, field frame; moved in from x +-61.5 to +-55.4 on 2026-11-06 so the robot's back is 8 in from the wall, 71 - 8 - 7.6): blue rear (-55.4, 15.25), blue audience (55.4, 7.5), red rear (-55.4, -7.5), red audience (55.4, -15.25). The robot's final heading is the target lock's aim heading at the goal.
 
 **Sequence.**
-1. D-pad pressed. Refused (no movement, no waypoints) when: backup mode, pose not seeded, the element counter is reading and holds nothing, or the robot's own footprint already overlaps a keep-out (pressed against a support). A refusal is a short rumble on the driver pad plus a telemetry line.
+1. D-pad pressed. Refused (no movement, no waypoints) when: backup mode, pose not seeded, the element counter is reading and holds nothing, or the robot's own footprint already overlaps a keep-out (pressed against a support). A refusal is a yellow `DASH REFUSED` line on the competition screen (3 s) plus the log line; it was a short rumble until 2026-11-06, when the rumble code was removed (the F310 controllers have none).
 2. DRIVING: follow the planned route (below). Sticks are ignored while the D-pad is held.
 3. Inside the lock radius of the goal (20 in, tunable; on the last leg 32 in out once the robot is at least 36 in from the field center, `EARLY_LOCK_RADIUS_IN` / `EARLY_LOCK_MIN_ABS_X`, since 2026-11-06): the target lock takes the heading, the speed eases, the goal tolerance is 2.5 in / 6 deg.
 4. ARRIVED: stop, finish aligning. Launch when ALIGNED, stopped (under 4 in/s; no hold time since 2026-11-06, `LAUNCH_HOLD_SEC` 0, it was 0.15 s) and the flywheel is ready; skipped if the robot is empty on arrival (the counter reads 0).
@@ -97,7 +97,7 @@ Max power (0.5 for the first runs, 0.85 from 2026-11-05; `TURN_MAX` stays 0.5), 
 ## Decisions and open items
 
 - Robot height: 18 in kept for now (user, 2026-11-04). Anything else under the hive is not a concern for driving under it (user).
-- Refusal signal (short rumble plus telemetry) and the 20 in lock radius: accepted as the starting values (user).
+- Refusal signal (a short rumble plus telemetry; the screen line `DASH REFUSED` replaced the rumble on 2026-11-06) and the 20 in lock radius: accepted as the starting values (user).
 - Under-hive routes: allowed from the start (user).
 - Strafe against forward speed: about 0.75 from the TeleOp logs (see above); confirm in the first dash runs.
 - Still to approve: the whole design, before anything is built.
@@ -109,7 +109,7 @@ The 20:52 run of 2026-11-05 had a Hive Dash at 0.85 power (dash 9: from (62, -55
 Change (`HiveRoute.planningKeepOuts`, `Params.laneHalfWidthIn`, Dashboard `HiveDash.LANE_HALF_WIDTH_IN` 12.35): virtual walls from y = 12.35 to the bars' inner edge (22.75), on both sides and the bars' length (x within 19.47), keep the robot's CENTER within about 4 in of the lane's middle line (y = 0) while it is between the bars (aligned half width 6.85 + margin 1.5 leaves 12.35 - 8.35). The straight diagonal under the hive no longer plans, so a route under the hive goes through the near gate, along y = 0, and out through the far gate (34, 0) to (-34, 0); the planner still picks the outside route around a helper corner when that is cheaper (the logged dash now plans via (-36, -40) around the hive, 160 in against 158 before). Details:
 - The walls are only checked from 10 in along a leg that starts at the robot, so a robot at the lane's mouth can leave or turn away; a robot that starts inside the lane box is exempt on its first leg (it can always leave).
 - A short leg from the start is boxed from the start point onward, with the robot's own circle at the start checked on its own (the Park Dash detour fix, same day).
-- Cost: starts within about 12 in of a bar end at the lane mouths ((+-24, +-12)) no longer plan to the park corners (32 of 1852 trips have no route, was 16; the dash refuses with a rumble and the driver moves).
+- Cost: starts within about 12 in of a bar end at the lane mouths ((+-24, +-12)) no longer plan to the park corners (32 of 1852 trips have no route, was 16; the dash refuses, the screen says DASH REFUSED, and the driver moves).
 
 Checks (`tools/hive/run-check.cmd`): 21 pass, no unsafe route in the 1,852 park trips, and a new check that the largest distance of any route from the lane's middle line between the bars is 3.9 in over 3,640 trips (limit 5.0).
 

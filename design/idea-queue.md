@@ -21,7 +21,7 @@ Ideas agreed to keep but not to build yet, newest decisions at the top of each l
 
 ## Decided against (2026-11-04)
 
-- Launch-ready rumble: Auto Launch and Hive Dash are the primary launch methods, so the driver is not the one timing the launch.
+- Launch-ready rumble (and all rumble code: removed 2026-11-06, the team keeps the F310 controllers, which have none): Auto Launch and Hive Dash are the primary launch methods, so the driver is not the one timing the launch.
 - Heading snap to 0 / 90 / 180 / 270: driving into the wall squares the robot up already.
 
 ## Done from the same list

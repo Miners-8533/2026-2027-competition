@@ -22,7 +22,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 
 ## 2. TeleOp basics (T1 to T3, F4)
 - [ ] Controls: driver A launches, LB chords, precision on LT, target lock on RB (new 2026-11-05), reseed LB + RT (was LB + RB); operator A target lock, LB+B reject, LB+Y sweep
-- [ ] Intake always on: IN under 4, OUT at 4; one rumble when full; the count stops flickering 3 / 4
+- [ ] Intake always on: IN under 4, OUT at 4; the count stops flickering 3 / 4
 - [ ] Target lock on by itself when full, off after the salvo; launch at all four cells (marks: far-cell extra -3.0, offset -2.2)
 - [ ] Backup mode: LB + X held 1 s (banner, three taps)
 - [ ] Pusher: no faults, a launch and a reject cancel each other, count reads 0 after a salvo (P10)
@@ -50,7 +50,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 ## 8. Park Dash (T11)
 - [ ] `ParkDash.DRY_RUN` true: D-pad up / down, read `PARK DASH start`
 - [ ] DRY_RUN false: ramp stows at the start; ends in the loading zone corner (up = driver's left); holds while held and resists a push; release cancels
-- [ ] Refused with a rumble when touching a support or in backup mode; left / right still Hive Dash; the two never run together
+- [ ] Refused (the screen says DASH REFUSED / PARK DASH REFUSED for 3 s, no rumble) when touching a support or in backup mode; left / right still Hive Dash; the two never run together
 
 ## 8b. Loop profile (new, every run)
 - [ ] After the TeleOp and auto runs: pull the logs and run `python tools/logs/loop_profile.py` (and `--busiest` for the worst windows). Note pose, drive_write, telemetry, mechanisms (and mech.counter), other; compare the TeleOp with the 28 to 30 ms of 2026-11-03, and look at hive_dash / park_dash / hold maximums during a dash
