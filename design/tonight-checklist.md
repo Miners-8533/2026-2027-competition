@@ -28,7 +28,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Pusher: no faults, a launch and a reject cancel each other, count reads 0 after a salvo (P10)
 
 ## 3. Pusher lock (T6)
-- [ ] Full robot: arm parks about 90 deg past HOLD after 1 s, intake OUT, count frozen
+- [ ] Changed 2026-11-05: a full robot alone just stops the intake (arm stays at HOLD, no OUT). Hold RT (target lock) with pollen held: the arm parks about 90 deg past HOLD, intake OFF, count frozen; release RT without launching: back to HOLD after 0.5 s and the intake runs again; a Hive Dash locks it on the way
 - [ ] Launch from the lock clears all four; unlock with reject works; no delay to the launch
 
 ## 4. Flywheel (F7)

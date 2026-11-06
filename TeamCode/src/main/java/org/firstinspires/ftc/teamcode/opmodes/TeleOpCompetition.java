@@ -85,8 +85,9 @@ import java.util.Locale;
  *   left trigger (hold)  force the intake OUT
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued launch
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
- *   (the pusher LOCK has no control: when the robot is full the arm moves 90 deg forward of HOLD across the intake entrance by itself, Mechanisms.PUSHER_LOCK_WHEN_FULL; the element count is frozen and the intake
- *                        runs OUT while locked; a launch goes from the lock (310 deg), a reject unlocks first, and holding the right trigger (force IN) unlocks it)
+ *   (the pusher LOCK has no control: while a target lock (driver right trigger, the operator's A, auto-launch) or a Hive Dash is on and something is held, the arm moves 90 deg forward of HOLD across the intake
+ *                        entrance by itself (Mechanisms.PUSHER_LOCK_ENABLED); the element count is frozen and the intake is OFF while locked (it is NOT locked just because the robot is full: the count of 4 is not
+ *                        trusted); a launch goes from the lock (310 deg), a reject unlocks first, holding the right trigger (force IN) unlocks it, and the arm goes back to HOLD 0.5 s after the target lock or dash ends without a launch)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
  *   D-pad (unguarded)    REPORT where the LAST salvo landed, seen from behind the robot: left = it landed LEFT (the remembered aim for that cell turns 1.5 deg right),
  *                        right = landed RIGHT (1.5 deg left), down = landed LOW / UNDER (speed trim +10 ticks/s), up = landed HIGH / OVER (speed trim -10). The remembered aim is kept
@@ -716,6 +717,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 }
             }
 
+            mechanisms.setPusherLockWanted(!backupMode && (lockOn || hiveDash.state() != HiveDash.State.IDLE));   // lock the pusher during a target lock or a Hive Dash
             mechanisms.update(pose);
             if (mechanisms.takeFlywheelLostNotice()) {   // the flywheel's speed sensor died: open loop from now on; two taps on both pads
                 buzzBlips(gamepad1, 2);

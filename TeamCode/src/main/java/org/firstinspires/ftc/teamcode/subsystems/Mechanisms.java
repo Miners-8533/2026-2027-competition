@@ -54,10 +54,14 @@ public class Mechanisms {
     /** While the track reads empty, a COUNTER EMPTY line is logged this often: the four colour shifts from the stored empty baselines (tools/logs/baseline_health.py reads them). 0 turns it off. */
     public static double HEALTH_LOG_SEC = 1.0;
     /**
-     * PUSHER LOCK (2026-11-04): when the robot is full (4 confirmed) and the arm is at HOLD, move the arm LOCK_DEG (90) forward across the intake entrance so the pollen cannot roll
-     * back out; the element count is frozen and the intake runs OUT while locked. A launch goes from the lock (310 deg), a reject unlocks first, and the operator forcing the intake IN (right trigger) unlocks it. No manual lock control and no retry wait (user, 2026-11-04).
+     * PUSHER LOCK (2026-11-04, changed 2026-11-05): while the opmode REQUESTS it ({@link #setPusherLockWanted}: the TeleOp asks during a target lock or a Hive Dash, never because the robot is
+     * full, since the count of 4 cannot be trusted) and the arm is at HOLD, move the arm LOCK_DEG (90) forward across the intake entrance so the pollen cannot roll back out; the element count
+     * is frozen and the intake is OFF while locked (it used to run OUT). A launch goes from the lock (310 deg), a reject unlocks first, and the operator forcing the intake IN (right trigger) unlocks it.
+     * When the request has ended for LOCK_RELEASE_DELAY_SEC the arm goes back to HOLD. The autos never request it. False turns the whole lock off.
      */
-    public static boolean PUSHER_LOCK_WHEN_FULL = true;
+    public static boolean PUSHER_LOCK_ENABLED = true;
+    /** How long the lock request must have been over before the arm is sent back to HOLD (so a quick release and re-press does not move the arm twice). */
+    public static double LOCK_RELEASE_DELAY_SEC = 0.5;
     public static double FLYWHEEL_STOP_DELAY_SEC = 0.5;
     public static double NOTICE_SEC = 4.0;
     /** Rule 6: stop the intake when the element counter reports a full robot. */
@@ -113,7 +117,9 @@ public class Mechanisms {
     private LockState lockState = LockState.NONE;
     private boolean pendingRejectAfterUnlock = false;
     private boolean unlockForIntake = false;     // the unlock in progress was the operator forcing the intake IN
-    private boolean intakeStoppedByFull = false;     // the automatic stop at full cleared the intake request: the intake still runs OUT while locked
+    private boolean intakeStoppedByFull = false;     // the automatic stop at full cleared the intake request (the toggle is off until it is pressed again)
+    private boolean lockWanted = false;              // the opmode asks for the pusher lock (a target lock or a Hive Dash is on)
+    private final ElapsedTime lockWantedOffClock = new ElapsedTime();   // since when the request has been off
     private final ElapsedTime lockClock = new ElapsedTime();
     private final ElapsedTime burstTimer = new ElapsedTime();
     private final ElapsedTime healthTimer = new ElapsedTime();
@@ -272,6 +278,18 @@ public class Mechanisms {
         return lockState == LockState.LOCKED;
     }
 
+    /**
+     * Ask for the pusher lock (the TeleOp: a target lock or a Hive Dash is on) or let it go. The lock only happens when the arm is at HOLD, something is held and nothing else is
+     * moving the pusher; when the request has been off for LOCK_RELEASE_DELAY_SEC the arm goes back to HOLD (a salvo releases it by itself). Call every loop.
+     */
+    public void setPusherLockWanted(boolean wanted) {
+        if (wanted != lockWanted) {
+            lockWanted = wanted;
+            lockWantedOffClock.reset();
+            RunLog.event("PUSHER LOCK request " + (wanted ? "ON (target lock or Hive Dash)" : "off") + " (" + heldText() + ", lock " + lockCode() + ")");
+        }
+    }
+
     /** For the sample rows: - / locking / LOCKED / unlocking. */
     private String lockCode() {
         return lockState == LockState.NONE ? "-" : lockState == LockState.LOCKED ? "LOCKED" : lockState.name().toLowerCase(Locale.US);
@@ -281,9 +299,9 @@ public class Mechanisms {
         if (pusher == null) return "no pusher";
         switch (lockState) {
             case LOCKING: return "locking (the arm is moving across the entrance)";
-            case LOCKED: return "LOCKED: the arm blocks the entrance, the count is frozen, the intake runs OUT; a launch goes from here, a reject unlocks first";
+            case LOCKED: return "LOCKED: the arm blocks the entrance, the count is frozen, the intake is off; a launch goes from here, a reject unlocks first";
             case UNLOCKING: return "unlocking";
-            default: return PUSHER_LOCK_WHEN_FULL ? "off (locks by itself when full)" : "off (automatic lock disabled)";
+            default: return PUSHER_LOCK_ENABLED ? "off (locks during a target lock or a Hive Dash)" : "off (the lock is disabled)";
         }
     }
 
@@ -330,8 +348,8 @@ public class Mechanisms {
         if (!full && lockState == LockState.NONE) intakeStoppedByFull = false;
         switch (lockState) {
             case NONE:
-                if (PUSHER_LOCK_WHEN_FULL && full && !manualIntake && counter.isValid() && !counterOverride && lockRefusal() == null) {
-                    beginLock("full confirmed");
+                if (PUSHER_LOCK_ENABLED && lockWanted && counter.count() > 0 && !manualIntake && counter.isValid() && !counterOverride && lockRefusal() == null) {
+                    beginLock("a target lock or a Hive Dash is on");
                 }
                 break;
             case LOCKING:
@@ -347,6 +365,12 @@ public class Mechanisms {
                         counter.setFrozen(false);
                         lockClock.reset();
                     }
+                }
+                break;
+            case LOCKED:
+                // the request is over (the target lock was released or the dash ended without a launch): back to HOLD so the intake can take more. A queued launch or a salvo releases the lock itself.
+                if (!lockWanted && lockWantedOffClock.seconds() >= LOCK_RELEASE_DELAY_SEC && !launchQueued && !salvoActive && !rejectActive) {
+                    beginUnlock("the target lock or Hive Dash ended without a launch");
                 }
                 break;
             case UNLOCKING:
@@ -861,10 +885,9 @@ public class Mechanisms {
                 else if (manualIntake) mode = Intake.Mode.IN;
                 else mode = full ? (FULL_RUNS_OUT ? Intake.Mode.OUT : Intake.Mode.OFF) : Intake.Mode.IN;
             }
-            // locked: nothing can roll back and nothing is lost, so the intake runs OUT (it clears the entrance) whenever it would have been running or has just stopped at full
-            if (lockState == LockState.LOCKED && !manualIntake && (intakeAlwaysOn || intakeRequested || intakeStoppedByFull || (ramp != null && ramp.isDeployedTarget()))) mode = Intake.Mode.OUT;
-            // while the arm is moving across the entrance the intake is OFF (a fifth pollen must not be pushed into its way); once locked it runs OUT (above)
-            if (lockState == LockState.LOCKING && !manualOuttake && !rejectActive) mode = Intake.Mode.OFF;
+            // locked or locking: the arm is across the entrance, so the intake is OFF (a pollen must not be pushed against it), whatever it would have been doing; it used to run OUT when locked.
+            // The operator's forced outtake and a reject still run it OUT, and forcing it IN unlocks the arm first.
+            if ((lockState == LockState.LOCKED || lockState == LockState.LOCKING) && !manualIntake && !manualOuttake && !rejectActive) mode = Intake.Mode.OFF;
             if (manualCalibration && (pusherCheck == null || !pusherCheck.isActive())) {
                 manualCalibration = false;
                 RunLog.event("COMMAND pusher calibration sweep over: the intake runs again");
