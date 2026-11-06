@@ -31,8 +31,29 @@ final class DuoKit {
     final List<String> timings = new ArrayList<>();
     private final Telemetry telemetry;
 
+    // The Primary asks for the solo auto's faster legs (fastLegs); NaN keeps the old behavior of the other two duo autos.
+    private double legPower = Double.NaN, crossPower = Double.NaN, passSettleSec = Double.NaN;
+
     DuoKit(Telemetry telemetry) {
         this.telemetry = telemetry;
+    }
+
+    /** Every ordinary leg at legMaxPower, the cross-field legs at crossMaxPower, and pass-through legs ending after passSettleSec within tolerance. */
+    void fastLegs(double legMaxPower, double crossMaxPower, double passSettle) {
+        legPower = legMaxPower;
+        crossPower = crossMaxPower;
+        passSettleSec = passSettle;
+    }
+
+    /** A drive to the target with the leg power (when set) and a hard cap whose speed scales with it. */
+    private DriveToPose baseDrive(MecanumDrive drive, Pose2d target) {
+        DriveToPose d = new DriveToPose(drive, target);
+        double scale = 1.0;
+        if (!Double.isNaN(legPower)) {
+            d.withMaxOutput(legPower);
+            scale = legPower / 0.6;
+        }
+        return d.withDistanceTimeout(DuoAutos.TIMEOUT_BASE_SEC, DuoAutos.TIMEOUT_IN_PER_S * scale, DuoAutos.TIMEOUT_MIN_SEC, DuoAutos.TIMEOUT_TURN_EXTRA_SEC, DuoAutos.TIMEOUT_MAX_SEC);
     }
 
     // ---- poses ----
@@ -114,26 +135,31 @@ final class DuoKit {
     // ---- drive legs ----
 
     Action leg(String label, MecanumDrive drive, Pose2d target) {
-        return timed("drive: " + label, new DriveToPose(drive, target).withDistanceTimeout(DuoAutos.TIMEOUT_BASE_SEC, DuoAutos.TIMEOUT_IN_PER_S, DuoAutos.TIMEOUT_MIN_SEC,
-                DuoAutos.TIMEOUT_TURN_EXTRA_SEC, DuoAutos.TIMEOUT_MAX_SEC));
+        return timed("drive: " + label, baseDrive(drive, target));
+    }
+
+    /** The Blue Wall flower's pre-position: near enough (the solo auto's wall tolerances), because it stalled 1.9 in short of 1 in. */
+    Action wallPreLeg(String label, MecanumDrive drive, Pose2d target) {
+        return timed("drive: " + label, baseDrive(drive, target).withTolerance(DuoAutos.WALL_PRE_POS_TOL_IN, DuoAutos.WALL_PRE_HEADING_TOL_DEG));
     }
 
     Action passLeg(String label, MecanumDrive drive, Pose2d target) {
-        return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(DuoAutos.COARSE_POS_IN, DuoAutos.COARSE_HEADING_DEG)
-                .withDistanceTimeout(DuoAutos.TIMEOUT_BASE_SEC, DuoAutos.TIMEOUT_IN_PER_S, DuoAutos.TIMEOUT_MIN_SEC, DuoAutos.TIMEOUT_TURN_EXTRA_SEC, DuoAutos.TIMEOUT_MAX_SEC));
+        DriveToPose d = baseDrive(drive, target).withTolerance(DuoAutos.COARSE_POS_IN, DuoAutos.COARSE_HEADING_DEG);
+        if (!Double.isNaN(passSettleSec)) d.withSettle(passSettleSec);
+        return timed("drive: " + label, d);
     }
 
     /** A launch-spot leg: near is enough (the aim step turns onto the cell). */
     Action launchLeg(String label, MecanumDrive drive, Pose2d target) {
-        return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(DuoAutos.LAUNCH_POS_TOL_IN, DuoAutos.LAUNCH_HEADING_TOL_DEG)
-                .withDistanceTimeout(DuoAutos.TIMEOUT_BASE_SEC, DuoAutos.TIMEOUT_IN_PER_S, DuoAutos.TIMEOUT_MIN_SEC, DuoAutos.TIMEOUT_TURN_EXTRA_SEC, DuoAutos.TIMEOUT_MAX_SEC));
+        return timed("drive: " + label, baseDrive(drive, target).withTolerance(DuoAutos.LAUNCH_POS_TOL_IN, DuoAutos.LAUNCH_HEADING_TOL_DEG));
     }
 
     Action crossLeg(String label, MecanumDrive drive, Pose2d target, boolean pass) {
-        double maxPower = DuoAutos.CROSS_FIELD_MAX_POWER;
+        double maxPower = Double.isNaN(crossPower) ? DuoAutos.CROSS_FIELD_MAX_POWER : crossPower;
         DriveToPose d = new DriveToPose(drive, target).withMaxOutput(maxPower).withDistanceTimeout(DuoAutos.TIMEOUT_BASE_SEC, DuoAutos.TIMEOUT_IN_PER_S * maxPower / 0.6,
                 DuoAutos.TIMEOUT_MIN_SEC, DuoAutos.TIMEOUT_TURN_EXTRA_SEC, DuoAutos.TIMEOUT_MAX_SEC);
         d.withTolerance(pass ? DuoAutos.COARSE_POS_IN : DuoAutos.LAUNCH_POS_TOL_IN, pass ? DuoAutos.COARSE_HEADING_DEG : DuoAutos.LAUNCH_HEADING_TOL_DEG);
+        if (pass && !Double.isNaN(passSettleSec)) d.withSettle(passSettleSec);
         return timed("drive: " + label, d);
     }
 
@@ -144,8 +170,11 @@ final class DuoKit {
     }
 
     Action backOutLeg(String label, MecanumDrive drive, Pose2d target) {
-        return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(DuoAutos.BACKOUT_TOL_IN, DuoAutos.COARSE_HEADING_DEG)
-                .withDistanceTimeout(DuoAutos.TIMEOUT_BASE_SEC, DuoAutos.TIMEOUT_IN_PER_S, DuoAutos.TIMEOUT_MIN_SEC, DuoAutos.TIMEOUT_TURN_EXTRA_SEC, DuoAutos.TIMEOUT_MAX_SEC));
+        return backOutLeg(label, drive, target, DuoAutos.BACKOUT_TOL_IN);
+    }
+
+    Action backOutLeg(String label, MecanumDrive drive, Pose2d target, double tolIn) {
+        return timed("drive: " + label, baseDrive(drive, target).withTolerance(tolIn, DuoAutos.COARSE_HEADING_DEG));
     }
 
     /** Drives hard at a target beyond an obstacle for a fixed time (the flower ram). */
@@ -209,9 +238,14 @@ final class DuoKit {
      * skipIfEmpty: the aim and the salvo are skipped (and logged) when the element counter is reading and holds nothing.
      */
     Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, boolean skipIfEmpty) {
+        return launch(drive, mechanisms, cell, blue, label, trimDeg, skipIfEmpty, 0.0);
+    }
+
+    /** As above with the sideways aim extra: NaN = the far-cell extra of the cell on the opposite side from the alliance's start wall (TargetLock.farCellExtraLeftIn). */
+    Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, boolean skipIfEmpty, double extraLeftIn) {
         Action real = new SequentialAction(
                 note("Aim and launch: " + label),
-                timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg, 0.0)),
+                timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg, extraLeftIn)),
                 timed("launch (wait + salvo): " + label, mechanisms.launch()));
         if (!skipIfEmpty) return real;
         return new Action() {
@@ -225,6 +259,26 @@ final class DuoKit {
                     if (skip) RunLog.event("AUTO SKIP salvo: " + label + " (the robot holds nothing)");
                 }
                 return !skip && real.run(packet);
+            }
+        };
+    }
+
+    /**
+     * Runs {@code inner} only if the auto is not later than latestStartSec when this step is reached; otherwise logs AUTO SKIP and does nothing (so the park still has its time). Decided once.
+     */
+    Action unlessLate(String label, double latestStartSec, Action inner) {
+        return new Action() {
+            private boolean decided = false, run = false;
+
+            @Override
+            public boolean run(TelemetryPacket packet) {
+                if (!decided) {
+                    decided = true;
+                    run = autoClock.seconds() <= latestStartSec;
+                    RunLog.event(String.format(Locale.US, run ? "AUTO %s starts at %.2f s into the auto (latest start %.1f s)" : "AUTO SKIP %s: it would start at %.2f s, later than %.1f s, so the park keeps its time",
+                            label, autoClock.seconds(), latestStartSec));
+                }
+                return run && inner.run(packet);
             }
         };
     }

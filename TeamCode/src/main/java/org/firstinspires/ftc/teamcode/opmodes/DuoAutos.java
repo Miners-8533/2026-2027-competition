@@ -65,6 +65,33 @@ public final class DuoAutos {
     /** F's way to its park goes through this point first (clear of the audience-wall flower and the hive's support rails); heading is the park heading. */
     public static double F_PARK_VIA_X = 46.0, F_PARK_VIA_Y = 32.0;
 
+    // ---- Auton - Duo Primary (2026-11-06, design/duo-autos.md): the rear-wall start of G with a longer program ----
+    /**
+     * The launch spot for the AUDIENCE cell after the Blue Wall flower: the solo auto's, on the audience flower's line (the flower gather follows it), the far cell so the aim takes the far-cell
+     * extra. The launch spot for the REAR cell after the audience flower and after the garden: its mirror, (-50, 26.3), 31.6 in from the rear cell like the audience one is from its cell, 22 in
+     * from the garden's pre-position. Blue frame, heading is the computed aim.
+     */
+    public static double P_AUD_LAUNCH_X = 50.0, P_AUD_LAUNCH_Y = 26.3;
+    public static double P_REAR_LAUNCH_X = -50.0, P_REAR_LAUNCH_Y = 26.3;
+    /** The helper point outside the hive's support rails on the audience side, for the trips between the Blue Wall side and the audience side (the west one is HELPER_X / HELPER_Y). */
+    public static double P_EAST_HELPER_X = 36.0, P_EAST_HELPER_Y = 40.0, P_HELPER_HEADING_DEG = 180.0;
+    public static double P_PRELOAD_TRIM_DEG = 0.0, P_WALL_TRIM_DEG = 0.0, P_AUD_FLOWER_TRIM_DEG = 0.0, P_GARDEN_TRIM_DEG = 0.0;
+    /** Each flower jostle ends by this many seconds into the auto at the latest (it also ends after its one back-and-forth or when the robot is full). */
+    public static double P_WALL_JOSTLE_DEADLINE_SEC = 12.0, P_AUD_JOSTLE_DEADLINE_SEC = 21.0;
+    /**
+     * A step that starts after this many seconds into the auto is skipped (logged as AUTO SKIP) so the park still happens: the audience flower (gather and back-out) and the garden (gather, return
+     * and salvo). 99 = never skipped, for the first runs (the user wants to see the whole program timed before optimizing the garden); about 14 for the garden and 17 for the audience flower
+     * would protect the 30 s with the park (about 3 s).
+     */
+    public static double P_AUD_FLOWER_LATEST_START_SEC = 99.0, P_GARDEN_LATEST_START_SEC = 99.0;
+    /**
+     * The Primary's path speeds, the solo auto's (2026-11-05): every ordinary leg at P_LEG_MAX_POWER (the drive's default is 0.6), the helper and cross-field legs at P_CROSS_MAX_POWER, and the
+     * pass-through legs end the moment they are near (P_PASS_SETTLE_SEC instead of the drive's 0.20 s). The other two duo autos keep their old speeds.
+     */
+    public static double P_LEG_MAX_POWER = 0.85, P_CROSS_MAX_POWER = 1.0, P_PASS_SETTLE_SEC = 0.0;
+    /** The Blue Wall flower's pre-position and back-out stalled 1.7 to 1.9 in short of the solo auto's tolerances (2026-11-05 logs): the same near-enough tolerances here. */
+    public static double WALL_PRE_POS_TOL_IN = 2.5, WALL_PRE_HEADING_TOL_DEG = 4.0, WALL_BACKOUT_TOL_IN = 2.5;
+
     // ---- legs, as in the solo auto ----
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
     public static double COARSE_POS_IN = 3.0, COARSE_HEADING_DEG = 10.0;

@@ -78,6 +78,24 @@ public class DuoPathCheck {
         leg("S wall flower back-out", sWallAt, sWallBack, real);
         leg("S back-out -> hive-side corner park", sWallBack, sPark, real);
 
+        // Duo Primary (2026-11-06): the legs of AutonDuoPrimary with the DuoAutos defaults, against the supports AND the four flower stands (grown 2 in); the ram and back-out legs end at a flower on purpose, so they use the supports only
+        List<Rect> withFlowers = new java.util.ArrayList<>(real);
+        for (Rect f : HiveRoute.flowerKeepOuts(2.0)) withFlowers.add(f);
+        double[] pStart = {-63.4, 16.0, 0.0}, pEastHelper = {36.0, 40.0, 180.0}, pAud = {50.0, 26.3, -170.0}, pRear = {-50.0, 26.3, -26.0}, pWestHelper = {-36.0, 40.0, 180.0};
+        leg("P start -> wall flower pre", pStart, wallPre, withFlowers);
+        leg("P wall flower pre -> ram target", wallPre, wallRam, real);
+        leg("P wall flower back-out -> east helper", wallBack, pEastHelper, withFlowers);
+        leg("P east helper -> audience launch spot", pEastHelper, pAud, withFlowers);
+        leg("P audience launch spot -> flower pre", pAud, flowerPre, withFlowers);
+        leg("P audience flower pre -> ram target", flowerPre, flowerRam, real);
+        leg("P audience flower back-out -> east helper", flowerBack, pEastHelper, withFlowers);
+        leg("P east helper -> west helper", pEastHelper, pWestHelper, withFlowers);
+        leg("P west helper -> rear launch spot", pWestHelper, pRear, withFlowers);
+        leg("P rear launch spot -> garden pre", pRear, gardenPre, withFlowers);
+        leg("P garden square -> rear launch spot", squarePre, pRear, withFlowers);
+        leg("P rear launch spot -> west helper", pRear, pWestHelper, withFlowers);
+        leg("P west helper -> park", pWestHelper, gPark, withFlowers);
+
         System.out.println(fails == 0 ? "All duo and Solo legs clear of the supports." : fails + " leg(s) touch a support.");
         System.exit(fails == 0 ? 0 : 1);
     }
