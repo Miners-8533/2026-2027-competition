@@ -124,7 +124,7 @@ public final class ParkDash {
         this.depthIn = depthIn;
         this.widthIn = widthIn;
         this.fromBackIn = fromBackIn;
-        HiveRoute.plan(-61.5, 15.25, 0.0, 40.0, 60.0, params());   // a throwaway plan to warm the planner (as the Hive Dash does)
+        HiveRoute.plan(-55.4, 15.25, 0.0, 40.0, 60.0, params());   // a throwaway plan to warm the planner (as the Hive Dash does)
     }
 
     public State state() {

@@ -174,7 +174,7 @@ public final class HiveDash {
         this.widthIn = widthIn;
         this.fromBackIn = fromBackIn;
         // one throwaway plan now, so the first real press does not pay for loading and warming the planner (about 25 ms cold against 0.05 ms warm, measured on a PC)
-        HiveRoute.plan(-61.5, 15.25, 0.0, 61.5, 7.5, params());
+        HiveRoute.plan(-55.4, 15.25, 0.0, 55.4, 7.5, params());
     }
 
     public State state() {

@@ -53,7 +53,7 @@ public class HiveRouteCheck {
 
     public static void main(String[] args) {
         Params on = params(true), off = params(false);
-        double[][] zones = {{-61.5, 15.25}, {61.5, 7.5}, {-61.5, -7.5}, {61.5, -15.25}};   // blue rear, blue audience, red rear, red audience
+        double[][] zones = {{-55.4, 15.25}, {55.4, 7.5}, {-55.4, -7.5}, {55.4, -15.25}};   // blue rear, blue audience, red rear, red audience
 
         // geometry: the lane under the hive
         check(!HiveRoute.touchingSupport(10.78, 0.0, 0.0, on), "the lane at the narrowest x (10.78) on y = 0, aligned, is clear");
@@ -65,21 +65,21 @@ public class HiveRouteCheck {
         check(HiveRoute.touchingSupport(0.0, 17.5, 0.0, on), "a robot pressed against a bar is touching");
 
         // routes
-        Plan p1 = HiveRoute.plan(-61.5, 15.25, 0.0, 61.5, 7.5, on);
+        Plan p1 = HiveRoute.plan(-55.4, 15.25, 0.0, 55.4, 7.5, on);
         System.out.println("rear zone -> audience zone, under-hive on: " + p1.description);
         check(p1.ok && p1.description.contains("(34, 0)") && !p1.description.contains("(36, 40)"), "rear zone to audience zone goes through the lane (the gate on the audience side) when under-hive routes are on");
-        Plan p2 = HiveRoute.plan(-61.5, 15.25, 0.0, 61.5, 7.5, off);
+        Plan p2 = HiveRoute.plan(-55.4, 15.25, 0.0, 55.4, 7.5, off);
         System.out.println("rear zone -> audience zone, under-hive off: " + p2.description);
         check(p2.ok && p2.description.contains("(-36, 40)") && p2.description.contains("(36, 40)"), "with under-hive routes off the same trip goes around the outside");
         check(p1.ok && p2.ok && p1.lengthIn < p2.lengthIn, "the lane route is shorter than the outside route (" + String.format("%.0f", p1.lengthIn) + " against " + String.format("%.0f", p2.lengthIn) + " in)");
 
-        Plan p3 = HiveRoute.plan(0.0, 0.0, 0.0, 61.5, 7.5, on);
+        Plan p3 = HiveRoute.plan(0.0, 0.0, 0.0, 55.4, 7.5, on);
         check(p3.ok && p3.description.startsWith("direct"), "from the field origin to the audience zone: " + p3.description);
-        Plan p4 = HiveRoute.plan(0.0, 0.0, 0.0, 61.5, 7.5, off);
+        Plan p4 = HiveRoute.plan(0.0, 0.0, 0.0, 55.4, 7.5, off);
         check(p4.ok, "from the field origin with under-hive routes off, the robot can still leave: " + p4.description);
-        Plan p5 = HiveRoute.plan(0.0, 17.5, 0.0, 61.5, 7.5, on);
+        Plan p5 = HiveRoute.plan(0.0, 17.5, 0.0, 55.4, 7.5, on);
         check(!p5.ok, "a robot pressed against a bar is refused: " + p5.description);
-        Plan p6 = HiveRoute.plan(30.0, 24.0, 0.0, -61.5, 15.25, on);
+        Plan p6 = HiveRoute.plan(30.0, 24.0, 0.0, -55.4, 15.25, on);
         check(p6.ok, "from beside the bar end (30, 24) to the rear zone: " + p6.description);
 
         // every start to every zone, both settings: a route exists and is safe
@@ -111,7 +111,7 @@ public class HiveRouteCheck {
             for (double y = -22.0; y <= 22.0; y += 2.0) {
                 if (HiveRoute.touchingSupport(x, y, 0.0, on)) continue;
                 tight++;
-                Plan pl = HiveRoute.plan(x, y, 0.0, 61.5, 7.5, on);
+                Plan pl = HiveRoute.plan(x, y, 0.0, 55.4, 7.5, on);
                 if (pl.ok) { tightRouted++; if (!routeIsSafe(pl, on)) check(false, "unsafe route from (" + x + ", " + y + ")"); }
             }
         }
@@ -119,7 +119,7 @@ public class HiveRouteCheck {
         check(tightRouted > tight / 2, "most starts under or beside the hive have a route");
 
         // symmetry: the same trip turned 180 degrees about the field center (blue to red) has the same length
-        Plan b = HiveRoute.plan(-61.5, 15.25, 0.0, 61.5, 7.5, on), r = HiveRoute.plan(61.5, -15.25, Math.PI, -61.5, -7.5, on);
+        Plan b = HiveRoute.plan(-55.4, 15.25, 0.0, 55.4, 7.5, on), r = HiveRoute.plan(55.4, -15.25, Math.PI, -55.4, -7.5, on);
         check(b.ok && r.ok && Math.abs(b.lengthIn - r.lengthIn) < 1e-6, "blue and red (turned 180 deg) plan the same length");
 
         // a lower robot never has less room than an 18 in one
@@ -156,7 +156,7 @@ public class HiveRouteCheck {
             for (double sy = -66.0; sy <= 66.0; sy += 6.0) {
                 if (HiveRoute.touchingSupport(sx, sy, 0.0, on) || HiveRoute.touchingSupport(sx, sy, Math.PI / 2.0, on)) continue;
                 boolean startUnder = Math.abs(sx) <= HiveRoute.BAR_HALF_LENGTH_IN && Math.abs(sy) < HiveRoute.BAR_INNER_Y_IN;
-                double[][] goals = {{-61.5, 15.25}, {61.5, 7.5}, {-61.5, -7.5}, {61.5, -15.25}, {40.0, 60.0}, {26.0, 60.0}, {-40.0, -60.0}, {-26.0, -60.0}};
+                double[][] goals = {{-55.4, 15.25}, {55.4, 7.5}, {-55.4, -7.5}, {55.4, -15.25}, {40.0, 60.0}, {26.0, 60.0}, {-40.0, -60.0}, {-26.0, -60.0}};
                 for (double[] g : goals) {
                     Plan pl = HiveRoute.plan(sx, sy, 0.0, g[0], g[1], on);
                     if (!pl.ok) continue;
@@ -177,7 +177,7 @@ public class HiveRouteCheck {
         }
         System.out.println("lane centring: " + laneTrips + " trips, the largest distance of a route from the lane's middle line between the bars: " + String.format("%.1f", worstOffset) + " in (limit " + String.format("%.1f", laneLimit) + "), " + laneOff + " over");
         check(laneOff == 0, "every route that goes under the hive stays within " + String.format("%.0f", laneLimit) + " in of the lane's middle line between the bars");
-        Plan loggedLane = HiveRoute.plan(58.2, -41.0, Math.toRadians(-94.5), -61.5, 15.3, on);
+        Plan loggedLane = HiveRoute.plan(58.2, -41.0, Math.toRadians(-94.5), -55.4, 15.3, on);
         check(loggedLane.ok && !loggedLane.description.equals("via (34, 0), 144 in") && (loggedLane.description.contains("(-34, 0)") || !loggedLane.description.contains("(34, 0)")),
                 "the 2026-11-05 dash that hit a support (from (58.2, -41.0) to the blue rear zone via the near gate only) no longer takes the diagonal under the hive (" + loggedLane.description + ")");
 

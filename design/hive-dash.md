@@ -13,7 +13,7 @@ Driver feature in `TeleOp - Competition`: hold the driver D-pad left or right an
 | blue (driver looks toward -Y) | audience cell | rear cell |
 | red (driver looks toward +Y) | rear cell | audience cell |
 
-**Goals** (the Auto Launch zone centres, field frame): blue rear (-61.5, 15.25), blue audience (61.5, 7.5), red rear (-61.5, -7.5), red audience (61.5, -15.25). The robot's final heading is the target lock's aim heading at the goal.
+**Goals** (the Auto Launch zone centres, field frame; moved in from x +-61.5 to +-55.4 on 2026-11-06 so the robot's back is 8 in from the wall, 71 - 8 - 7.6): blue rear (-55.4, 15.25), blue audience (55.4, 7.5), red rear (-55.4, -7.5), red audience (55.4, -15.25). The robot's final heading is the target lock's aim heading at the goal.
 
 **Sequence.**
 1. D-pad pressed. Refused (no movement, no waypoints) when: backup mode, pose not seeded, the element counter is reading and holds nothing, or the robot's own footprint already overlaps a keep-out (pressed against a support). A refusal is a short rumble on the driver pad plus a telemetry line.

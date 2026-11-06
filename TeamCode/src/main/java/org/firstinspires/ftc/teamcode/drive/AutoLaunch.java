@@ -9,8 +9,9 @@ import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
  * robot is inside the LAUNCH ZONE of the cell it is locked on, the TeleOp stops the chassis (the driver's translation is ignored) and, once the lock
  * is ALIGNED and the robot has stopped, launches one salvo by itself. The zones keep the launch roughly straight on to the cell and not too close.
  *
- * A zone is a circle of ZONE_RADIUS_IN around a good launch spot for the cell, about 40 in out along the cell's axis (inside the launch map's flat part,
- * 32 to 47 in) with the launcher's line on that axis: ROBOT_1's launcher sits 2.5 in right of the centerline, so the rear cell's spot is at
+ * A zone is a circle of ZONE_RADIUS_IN around a good launch spot for the cell, about 34 in out along the cell's axis (inside the launch map's flat part,
+ * 32 to 42 in; the spots were 40 in out, 2 in from the wall, until 2026-11-06, when the user moved them to 8 in from the wall: x +-55.4 = 71 - 8 - 7.6, so a pollen on the floor by the wall
+ * is not pinned and the dash can always reach its spot, and the routes no longer hug the wall past a flower) with the launcher's line on that axis: ROBOT_1's launcher sits 2.5 in right of the centerline, so the rear cell's spot is at
  * y = 12.75 + 2.5 = 15.25 (heading 0), and the audience cell's at y = 12.75 - 2.5 - TargetLock.FAR_CELL_EXTRA = 7.5 (heading 180). The red zones are the
  * blue ones turned 180 deg about the field center. Chosen 2026-11-03 from the marked launches of 2026-11-02; the audience zone is from the geometry
  * (the marks there do not separate yet), so re-check it with marks.
@@ -27,10 +28,10 @@ public final class AutoLaunch {
     /** The chassis is held for at most this long after entering the zone; if the launch has not been taken by then, the driver gets the robot back. */
     public static double FREEZE_MAX_SEC = 2.5;
 
-    public static double BLUE_REAR_X = -61.5, BLUE_REAR_Y = 15.25;
-    public static double BLUE_AUDIENCE_X = 61.5, BLUE_AUDIENCE_Y = 7.5;
-    public static double RED_AUDIENCE_X = 61.5, RED_AUDIENCE_Y = -15.25;
-    public static double RED_REAR_X = -61.5, RED_REAR_Y = -7.5;
+    public static double BLUE_REAR_X = -55.4, BLUE_REAR_Y = 15.25;
+    public static double BLUE_AUDIENCE_X = 55.4, BLUE_AUDIENCE_Y = 7.5;
+    public static double RED_AUDIENCE_X = 55.4, RED_AUDIENCE_Y = -15.25;
+    public static double RED_REAR_X = -55.4, RED_REAR_Y = -7.5;
 
     private AutoLaunch() {}
 
