@@ -61,7 +61,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Driver right BUMPER (hold) is the target lock; the right trigger does nothing; LB + RB does nothing; the nudge (LB + right stick while RB is held) works and does not reseed
 - [ ] Reseed is LB + right TRIGGER, hold 1 s (the screen counts it); the pose goes to the default start
 - [ ] Operator D-pad left / right: the remembered aim moves 3 deg per report (max 10; log `REPORT landed ...`)
-- [ ] Autos' flower gather: the log's `AUTO JOSTLE start` line says press 1.0 s first, back 0.25 in at power 0.3, press 1.0 s per cycle; check the robot actually moves back (about 0.25 to 0.75 in) and does not stay jammed; raise `Jostle.BACK_POWER` if it does not move; check that the duo and Solo timing still fits 30 s
+- [ ] Autos' flower gather: the log's `AUTO JOSTLE start` line says press 1.0 s first, back 0.25 in at power 0.3, press 1.0 s per cycle, at most 1 cycle (`Jostle.MAX_CYCLES`; the jostle now ends after one back-and-forth, `AUTO JOSTLE ended ... the 1 back-and-forth cycle(s) are done`); check the robot actually moves back (about 0.25 to 0.75 in) and does not stay jammed; raise `Jostle.BACK_POWER` if it does not move; check that the duo and Solo timing still fits 30 s
 
 ## 8d. Pusher active hold (T15)
 - [ ] Idle with the arm parked: push it 10 to 20 deg by hand, let go: it returns; `pusher_hold` is 0.05 to 0.15 while it corrects; no `GAVE UP` lines; the motor is not warm after a long idle
