@@ -51,6 +51,12 @@ CAD axes: CAD X = our Y, CAD Z = our X (confirmed by the bars lying on the row b
 
 Worked lengths: rear zone to audience zone about 149 in around the outside via (-36, 40) and (36, 40), about 128 in through the lane via (-34, 0) and (34, 0).
 
+## Flowers and the flywheel (2026-11-06)
+
+**Flower keep-outs.** The router also keeps the robot out of the four flower stands (`HiveRoute.flowerKeepOuts`): a rectangle per flower from the field CAD, the top ring plate's footprint, 5.8 in along the wall by 4.8 in out, centered on the opening center (68.45 in from the field center along the wall's normal, 23.4 in to one side of the wall's midpoint: audience (68.45, 23.4), Blue Wall (-23.4, 68.45), rear (-68.45, -23.4), Red Wall (23.4, -68.45)). The middle ring and the pipes below it fill the same footprint, so there is no passing under. A first leg that starts within reach of a flower and moves away from it is exempt from that flower (a robot that has just gathered from one stands next to it). Why: the 2026-11-06 TeleOp log had dashes to the rear cell passing 7.8 to 9.9 in from the rear flower's center along x = -61, with the old spots 2 in from the wall.
+
+**Flywheel at the start.** While a dash runs the launch speed is worked out for the launch spot's distance to the cell (`Output.overrideDistanceIn`, `Mechanisms.setDashLaunchDistance`), not for the robot's distance now, so the flywheel is sent to that speed when the dash starts instead of following the route's distances (it arrived above the launch band 9 times in the 2026-11-06 log and the launch waited up to 0.7 s).
+
 ## Driving in line with the wheels
 
 On each leg the heading is the travel direction, with the front or the rear leading, whichever needs less rotation (and, on the last leg, whichever leaves the smaller turn for the lock: the launch zones are straight out from their cells, so arriving rear-first means the front already faces the cell). The sides of a mecanum chassis strafe slower than forward, and aligned is the narrowest profile for the keep-outs. Short legs (under about 40 in) are not aligned.

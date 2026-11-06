@@ -185,6 +185,69 @@ public class HiveRouteCheck {
         check(parkUnsafe == 0, "no planned route to a park corner touches a support");
         check(parkNoRoute * 20 < parkTrips, "at least 95 percent of free starts have a route to a park corner");
 
+        // flowers (2026-11-06): no planned route touches a flower stand, from any free start that is not itself next to one
+        List<Rect> flowers = HiveRoute.flowerKeepOuts();
+        double[][] allGoals = {{-55.4, 15.25}, {55.4, 7.5}, {-55.4, -7.5}, {55.4, -15.25}, {40.0, 60.0}, {26.0, 60.0}, {-40.0, -60.0}, {-26.0, -60.0}};
+        int flowerTrips = 0, flowerTouch = 0;
+        double minClear = 1e9;
+        for (double sx = -66.0; sx <= 66.0; sx += 6.0) {
+            for (double sy = -66.0; sy <= 66.0; sy += 6.0) {
+                if (HiveRoute.touchingSupport(sx, sy, 0.0, on) || HiveRoute.touchingSupport(sx, sy, Math.PI / 2.0, on)) continue;
+                boolean nextToFlower = false;
+                for (Rect f : flowers) if (f.distanceTo(sx, sy) <= on.radiusIn() + on.marginIn + 2.0) nextToFlower = true;
+                if (nextToFlower) continue;
+                for (double[] g : allGoals) {
+                    Plan pl = HiveRoute.plan(sx, sy, 0.0, g[0], g[1], on);
+                    if (!pl.ok) continue;
+                    flowerTrips++;
+                    boolean touched = false;
+                    for (int k = 0; k + 1 < pl.waypoints.length && !touched; k++) {
+                        double ax = pl.waypoints[k][0], ay = pl.waypoints[k][1], bx = pl.waypoints[k + 1][0], by = pl.waypoints[k + 1][1];
+                        double len = Math.hypot(bx - ax, by - ay), dir = Math.atan2(by - ay, bx - ax);
+                        for (double u = 0.0; u <= len && !touched; u += 0.5) {
+                            double x = ax + (bx - ax) * u / Math.max(len, 1e-9), y = ay + (by - ay) * u / Math.max(len, 1e-9);
+                            for (Rect f : flowers) {
+                                if (pl.aligned[k]) {
+                                    if (HiveRoute.overlap(HiveRoute.poseRect(x, y, dir, on, 0.0), f) || HiveRoute.overlap(HiveRoute.poseRect(x, y, dir + Math.PI, on, 0.0), f)) touched = true;
+                                } else if (f.distanceTo(x, y) <= on.radiusIn()) {
+                                    touched = true;
+                                }
+                                if (pl.aligned[k]) minClear = Math.min(minClear, f.distanceTo(x, y) - Math.max(on.frontIn(), on.fromBackIn));
+                            }
+                        }
+                    }
+                    if (touched) flowerTouch++;
+                }
+            }
+        }
+        System.out.println("flower check: " + flowerTrips + " trips from free starts not next to a flower, " + flowerTouch + " touch one");
+        check(flowerTouch == 0, "no planned route to a launch spot or a park corner touches a flower stand");
+        // the 2026-11-06 dashes to the rear cell that passed 7.8 to 9.9 in from the rear flower's center (from the log): they must clear it now
+        double[][] loggedStarts = {{47.7, -58.4, -87.8}, {43.0, -48.3, 4.7}, {-61.3, -57.1, -128.0}, {-66.0, -57.7, -106.6}, {-61.7, -59.1, -92.7}};
+        for (double[] l : loggedStarts) {
+            Plan pl = HiveRoute.plan(l[0], l[1], Math.toRadians(l[2]), -55.4, 15.25, on);
+            double worst = 1e9;
+            if (pl.ok) {
+                for (int k = 0; k + 1 < pl.waypoints.length; k++) {
+                    double ax = pl.waypoints[k][0], ay = pl.waypoints[k][1], bx = pl.waypoints[k + 1][0], by = pl.waypoints[k + 1][1];
+                    double len = Math.hypot(bx - ax, by - ay);
+                    for (double u = 0.0; u <= len; u += 0.5) {
+                        double x = ax + (bx - ax) * u / Math.max(len, 1e-9), y = ay + (by - ay) * u / Math.max(len, 1e-9);
+                        if (k == 0 && Math.hypot(x - l[0], y - l[1]) < 3.0) continue;
+                        worst = Math.min(worst, flowers.get(2).distanceTo(x, y));
+                    }
+                }
+            }
+            System.out.println(String.format("logged start (%.1f, %.1f): %s, the center comes within %.1f in of the rear flower stand (robot radius %.1f)", l[0], l[1], pl.ok ? pl.description : pl.refusal, worst, on.radiusIn()));
+            check(pl.ok && worst > on.radiusIn(), "the logged dash from (" + l[0] + ", " + l[1] + ") to the rear cell clears the rear flower by more than the robot's radius");
+        }
+        // a robot that has just gathered from a flower stands next to it: it must still get a route to the cell on its side
+        double[][] atFlower = {{57.0, 24.0, 0.0, 55.4, 7.5}, {-57.0, -24.0, Math.PI, -55.4, -7.5}, {57.0, 24.0, 0.0, -55.4, 15.25}};
+        for (double[] a : atFlower) {
+            Plan pl = HiveRoute.plan(a[0], a[1], a[2], a[3], a[4], on);
+            check(pl.ok, "a start next to a flower stand (" + a[0] + ", " + a[1] + ") has a route to (" + a[3] + ", " + a[4] + "): " + (pl.ok ? pl.description : pl.refusal));
+        }
+
         System.out.println(checks + " checks, " + fails + " failed");
         System.exit(fails == 0 ? 0 : 1);
     }

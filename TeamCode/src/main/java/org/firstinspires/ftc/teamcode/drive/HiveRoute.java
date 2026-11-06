@@ -12,6 +12,9 @@ import java.util.Locale;
  *  - two foot bars, x -19.47 to +19.47, |y| 22.75 to 24.73, 2.15 in tall (the chassis cannot cross them);
  *  - four A-frame legs that lean inward both ways: for a robot of height H the leg is the thick line from its foot (|x| 18.56, |y| 23.81 at 0.53 in) to its point at height H
  *    (|x| = 18.56 - 0.445 (H - 0.53), |y| = 23.81 - 0.273 (H - 0.53); at 18 in: 10.78, 19.04), 1.14 in thick.
+ *  - the four FLOWERS (2026-11-06, field CAD: opening centers 23.4 in either side of each wall's midpoint, 68.45 in from the field center; footprint of the top ring plate, 5.8 in along the wall by
+ *    4.8 in out from it, as a rectangle: the middle ring and the four pipes below it fill the same footprint, so a robot cannot pass under). The Hive Dash logs of 2026-11-06 showed dashes to the rear
+ *    cell passing 7.8 to 9.9 in from the rear flower's center, inside the robot's radius.
  *  - when under-hive routes are off, a virtual box between the bars (x +-19.47, |y| up to 22.75) so no route crosses the hive; a robot that STARTS inside it may leave.
  *
  * ROUTE: a straight line when it is clear, otherwise the cheapest chain (at most MAX_VIA points) through the given points (the helper corners and the lane gates), over legs
@@ -30,6 +33,11 @@ public final class HiveRoute {
     public static final double LEG_DX_PER_IN = 0.445;
     public static final double LEG_DY_PER_IN = 0.273;
     public static final double LEG_HALF_THICK_IN = 0.57;
+
+    /** A flower's opening center is this far from the field center along its wall's normal, and this far to one side of the wall's midpoint. */
+    public static final double FLOWER_NORMAL_IN = 68.45, FLOWER_OFFSET_IN = 23.4;
+    /** Half the flower footprint along the wall (5.8 in) and out from it (4.8 in). */
+    public static final double FLOWER_ALONG_HALF_IN = 2.9, FLOWER_OUT_HALF_IN = 2.4;
 
     public static final int MAX_VIA = 3;
     /** The virtual lane walls are not checked against the first this-many inches of a leg that starts at the robot (see legClear). */
@@ -70,8 +78,14 @@ public final class HiveRoute {
     public static final class Rect {
         public final double cx, cy, hx, hy, ang;
         public final boolean lane;   // the virtual box between the bars
+        public final boolean flower; // a flower stand (a route may start next to one and leave it)
 
         Rect(double cx, double cy, double hx, double hy, double ang, boolean lane) {
+            this(cx, cy, hx, hy, ang, lane, false);
+        }
+
+        Rect(double cx, double cy, double hx, double hy, double ang, boolean lane, boolean flower) {
+            this.flower = flower;
             this.cx = cx;
             this.cy = cy;
             this.hx = hx;
@@ -149,12 +163,25 @@ public final class HiveRoute {
         return out;
     }
 
+    /** The four flower stands (audience wall, Blue Wall, rear wall, Red Wall), field frame (+X audience, +Y Blue Wall). */
+    public static List<Rect> flowerKeepOuts() {
+        List<Rect> out = new ArrayList<>();
+        double n = FLOWER_NORMAL_IN, o = FLOWER_OFFSET_IN;
+        out.add(new Rect(n, o, FLOWER_OUT_HALF_IN, FLOWER_ALONG_HALF_IN, 0.0, false, true));     // audience wall (+X), toward the Blue Wall side
+        out.add(new Rect(-o, n, FLOWER_ALONG_HALF_IN, FLOWER_OUT_HALF_IN, 0.0, false, true));    // Blue Wall (+Y)
+        out.add(new Rect(-n, -o, FLOWER_OUT_HALF_IN, FLOWER_ALONG_HALF_IN, 0.0, false, true));   // rear wall (-X)
+        out.add(new Rect(o, -n, FLOWER_ALONG_HALF_IN, FLOWER_OUT_HALF_IN, 0.0, false, true));    // Red Wall (-Y)
+        return out;
+    }
+
     /**
      * What the planner keeps the robot out of: the real supports, plus virtual lane walls (flagged lane) that centre the route under the hive (underHive) or the whole lane box (not underHive).
-     * A route that starts inside the lane box is exempt from the virtual ones on its first leg, so a robot that starts under the hive can always leave.
+     * A route that starts inside the lane box is exempt from the virtual ones on its first leg, so a robot that starts under the hive can always leave. The flower stands are always in; a first leg
+     * that starts within reach of a flower and moves away from it is exempt from that flower (a robot that has just gathered from one is next to it).
      */
     public static List<Rect> planningKeepOuts(Params p) {
         List<Rect> out = keepOuts(p, !p.underHive);
+        out.addAll(flowerKeepOuts());
         if (p.underHive && p.laneHalfWidthIn < BAR_INNER_Y_IN) {
             double mid = (p.laneHalfWidthIn + BAR_INNER_Y_IN) / 2.0, half = (BAR_INNER_Y_IN - p.laneHalfWidthIn) / 2.0;
             out.add(new Rect(0.0, mid, BAR_HALF_LENGTH_IN, half, 0.0, true));
@@ -236,6 +263,7 @@ public final class HiveRoute {
         }
         for (Rect r : rects) {
             if (r.lane && (exemptLane || virtualSkipped)) continue;
+            if (r.flower && fromStart && r.distanceTo(ax, ay) <= p.radiusIn() + p.marginIn && r.distanceTo(bx, by) > r.distanceTo(ax, ay)) continue;   // leaving a flower it stands next to
             if (shortFromStart && !r.lane && r.distanceTo(ax, ay) <= p.radiusIn()) return false;
             if (overlap(r.lane ? swVirtual : sw, r)) return false;
         }

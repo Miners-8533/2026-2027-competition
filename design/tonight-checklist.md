@@ -83,6 +83,11 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] The final gather's wall flower pre-position and back-out no longer run to their timeouts (they stalled 1.9 in and 1.7 in short in the 23:50 and 23:59 runs): each ends within `WALL_PRE_POS_TOL_IN` 2.5 in / `WALL_BACKOUT_TOL_IN` 2.5 in in about 1 s, and the ram still reaches the flower
 - [ ] If a leg misbehaves: `AutonSolo.LEG_MAX_POWER` back to 0.6, `CROSS_FIELD_MAX_POWER` to 0.85, `PASS_SETTLE_SEC` to 0.2 (all on the Dashboard)
 
+## 8i. Hive Dash: aim, flywheel, spots and flowers (T18)
+- [ ] Dashes to each of the four cells (both alliances) from the near and the far side: the robot has finished turning on arrival and launches at once (read arrival to `HIVE DASH launching`); no wait for the flywheel above the band (`DASH launch speed fixed ...` at the start of each dash)
+- [ ] The robot stops 8 in from the wall (x +-55.4) and nothing is pinned against the wall; with a pollen lying near the old spot the dash still arrives; the launch from the new spot (34 in, flat part of the map) lands
+- [ ] No dash touches a flower stand: rear flower from the rear wall side, audience flower from the loading zone; right after gathering at a flower the dash starts (no refusal) and leaves it
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`
