@@ -5,7 +5,7 @@ import org.firstinspires.ftc.teamcode.drive.HiveRoute.Rect;
 import java.util.List;
 
 /**
- * Checks on a PC that the legs of the two duo autos (blue frame, the DuoAutos defaults) keep the robot's footprint (17.48 x 13.70 in, the heading turning evenly along each leg) off the hive's
+ * Checks on a PC that the legs of the two duo autos (blue frame, the DuoAutos defaults) and the Solo auto's final gather (the AutonSolo defaults) keep the robot's footprint (17.48 x 13.70 in, the heading turning evenly along each leg) off the hive's
  * support rails, and report the least clearance on each leg. Red is the same turned 180 deg, so blue is enough. Exit code 0 = no leg touches a support.
  * Run with tools/hive/run-check.cmd. The numbers below are copies of the DuoAutos defaults: change both together.
  */
@@ -70,7 +70,15 @@ public class DuoPathCheck {
         leg("F launch spot -> park via", fLaunch, parkVia, real);
         leg("F park via -> park", parkVia, fPark, real);
 
-        System.out.println(fails == 0 ? "All duo legs clear of the supports." : fails + " leg(s) touch a support.");
+        // Solo final gather (2026-11-05): launch spot 2, around the outside via the helper, the Blue Wall flower, back out, the hive-side corner (the AutonSolo defaults)
+        double[] sLaunch2 = {50.0, 26.3, -145.0}, sHelper = {36.0, 40.0, 180.0}, sWallPre = {-26.3, 38.0, 90.0}, sWallRam = {-26.3, 67.3, 90.0}, sWallAt = {-26.3, 55.3, 90.0}, sWallBack = {-26.3, 46.3, 90.0}, sPark = {26.0, 60.0, 90.0};
+        leg("S launch spot 2 -> final helper", sLaunch2, sHelper, real);
+        leg("S final helper -> wall flower pre", sHelper, sWallPre, real);
+        leg("S wall flower pre -> ram target", sWallPre, sWallRam, real);
+        leg("S wall flower back-out", sWallAt, sWallBack, real);
+        leg("S back-out -> hive-side corner park", sWallBack, sPark, real);
+
+        System.out.println(fails == 0 ? "All duo and Solo legs clear of the supports." : fails + " leg(s) touch a support.");
         System.exit(fails == 0 ? 0 : 1);
     }
 }

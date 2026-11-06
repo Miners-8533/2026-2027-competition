@@ -74,6 +74,10 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 ## 8f. Intake current watch (2026-11-05)
 - [ ] Run the intake in and out with nothing in it: `intake_amps` about 1.0 A in, 1.5 A out; no `INTAKE HIGH CURRENT` / `INTAKE LOW CURRENT` lines in normal use; if the intake sticks again, the log shows the current and the event lines; adjust `Intake.HIGH_AMPS` / `LOW_AMPS` from what a real jam reads
 
+## 8g. Solo final gather (T16)
+- [ ] `Auton - Solo`, blue and red: after the flower salvo it crosses outside the hive to the alliance-wall flower, rams, jostles one cycle, backs out, and parks in the hive-side corner; note the finish time (nominal about 29.8 s) and whether the park is complete before 30 s; `AUTO FINAL GATHER starts at ... s` line, pollen held at the end
+- [ ] The intake works (check `intake_amps` and the `INTAKE ...CURRENT` lines if it does not); the ramp stows on the way to the corner; no contact with the Blue Wall flower stand or the hive; if it runs late the jostle ends at 26.5 s and the park still completes
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`

@@ -48,7 +48,9 @@ import java.util.Locale;
  *   4. Deploy the ramp (after the salvo, or during it with RAMP_DEPLOY_DURING_LAUNCH) while backing to the flower pre-position and turning to heading 0, wait for it to settle;
  *      drive onto the flower with the intake running; jostle it (back and push, repeated: see Jostle) until the robot holds 4 elements (at most FLOWER_PAUSE_MAX_SEC).
  *   5. Stow the ramp, back off along the flower's line to the launch spot while turning onto the cell (FLOWER_TURN_WHILE_BACKING), aim, launch.
- *   6. Park (straight from the launch spot; PARK_VIA_POINT can add a point level with it).
+ *   6. FINAL GATHER (2026-11-05, FINAL_FLOWER_ENABLED, only if step 5's salvo was done by FINAL_FLOWER_LATEST_START_SEC): around the outside of the hive via the helper point to the flower on the robot's own
+ *      alliance wall (the Blue Wall flower for blue), ram, a one-cycle jostle (ends by FINAL_JOSTLE_DEADLINE_SEC), back out, the ramp stows, and park in the hive-side corner of the loading zone
+ *      (FINAL_PARK_X / Y); the intake is held IN from the ram to the park and the pollen stay for the TeleOp. Otherwise: the old park (straight from the launch spot; PARK_VIA_POINT can add a point level with it).
  *
  * The launch spot's heading is not snapped: it is the heading that points the launcher's line at the cell from there ({@link TargetLock#aimHeadingRad},
  * with the launcher offset and the far-cell extra), and {@link AimAtCell} takes out what is left before each launch. The straight run from the garden
@@ -131,6 +133,19 @@ public class AutonSolo extends LinearOpMode {
     public static double HELPER_X = 36.0, HELPER_Y = 40.0;
     /** Drive to a point level with the launch spot (x = PARK_X, y = LAUNCH_Y) before the park run. Off since the launch spot moved onto the flower's line: the run to the park is straight up the field, 15 in clear of the flower. */
     public static boolean PARK_VIA_POINT = false;
+    /**
+     * FINAL GATHER (2026-11-05, user): after the flower salvo the robot gathers the flower on its OWN alliance wall (the Blue Wall flower for blue, the audience-wall flower's poses turned 90 deg
+     * counterclockwise, as the Duo Garden Side does; red is turned 180 deg), keeps what it gets for the TeleOp, and parks in the OTHER (hive-side) corner of the loading zone at (FINAL_PARK_X, FINAL_PARK_Y)
+     * instead of the old park beside the audience flower. It runs only if the flower salvo ended by FINAL_FLOWER_LATEST_START_SEC into the auto (otherwise the old park runs), the jostle there ends at
+     * FINAL_JOSTLE_DEADLINE_SEC so the park always has its time (about 1.0 s back-out plus 1.5 s park), and the intake is held IN from the ram to the park. Nominal: about 29.8 s with a full one-cycle jostle.
+     */
+    public static boolean FINAL_FLOWER_ENABLED = true;
+    public static double FINAL_FLOWER_LATEST_START_SEC = 23.0;
+    public static double FINAL_JOSTLE_DEADLINE_SEC = 26.5;
+    public static double FINAL_PARK_X = 26.0, FINAL_PARK_Y = 60.0, FINAL_PARK_HEADING_DEG = 90.0, FINAL_PARK_OVERSHOOT_IN = 0.0;
+    /** The helper point outside the support rails for the trip back across, and the heading it is taken at (along the leg, toward -X). Nudge of the wall flower poses (blue frame, before the alliance turn). */
+    public static double FINAL_HELPER_HEADING_DEG = 180.0;
+    public static double FINAL_FLOWER_DX_IN = 0.0, FINAL_FLOWER_DY_IN = 0.0;
 
     // ---- timing ----
     /** At the flower: pause until the robot holds 4 elements, but no longer than this. */
@@ -164,6 +179,16 @@ public class AutonSolo extends LinearOpMode {
     }
 
     /** The blue-frame pose as this alliance sees it: red is the blue pose turned 180 deg about the field center. */
+    /** A blue-frame pose turned 90 deg counterclockwise about the field center (the audience-wall flower's poses become the Blue Wall flower's). */
+    private static Pose2d rotate90(Pose2d p) {
+        return new Pose2d(-p.position.y, p.position.x, p.heading.toDouble() + Math.PI / 2.0);
+    }
+
+    /** Adds the Dashboard nudge to a blue-frame wall flower pose. */
+    private static Pose2d wallNudge(Pose2d p) {
+        return new Pose2d(p.position.x + FINAL_FLOWER_DX_IN, p.position.y + FINAL_FLOWER_DY_IN, p.heading.toDouble());
+    }
+
     private static Pose2d forAlliance(Pose2d p, boolean blue) {
         return blue ? p : new Pose2d(-p.position.x, -p.position.y, p.heading.toDouble() + Math.PI);
     }
@@ -290,6 +315,19 @@ public class AutonSolo extends LinearOpMode {
         };
     }
 
+    /** Decides once, when it first runs, which of two actions to run. */
+    private Action choose(java.util.function.BooleanSupplier condition, Action ifTrue, Action ifFalse) {
+        return new Action() {
+            private Action chosen = null;
+
+            @Override
+            public boolean run(TelemetryPacket packet) {
+                if (chosen == null) chosen = condition.getAsBoolean() ? ifTrue : ifFalse;
+                return chosen.run(packet);
+            }
+        };
+    }
+
     /** Aim at the cell with the lock, launch one salvo, and finish when it is done. */
     private Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label) {
         return launch(drive, mechanisms, cell, blue, label, 0.0, false);
@@ -297,16 +335,20 @@ public class AutonSolo extends LinearOpMode {
 
     /** The jostle is done when the robot is full or JOSTLE_DEADLINE_SEC into the auto has passed (logged once). */
     private java.util.function.BooleanSupplier jostleDone(Mechanisms mechanisms) {
+        return jostleDone(mechanisms, JOSTLE_DEADLINE_SEC);
+    }
+
+    private java.util.function.BooleanSupplier jostleDone(Mechanisms mechanisms, double deadlineSec) {
         return new java.util.function.BooleanSupplier() {
             private boolean logged = false;
 
             @Override
             public boolean getAsBoolean() {
                 if (mechanisms.isFull()) return true;
-                if (autoClock.seconds() >= JOSTLE_DEADLINE_SEC) {
+                if (autoClock.seconds() >= deadlineSec) {
                     if (!logged) {
                         logged = true;
-                        RunLog.event(String.format(Locale.US, "AUTO jostle deadline reached at %.2f s into the auto: moving on to the launch with %d held", autoClock.seconds(),
+                        RunLog.event(String.format(Locale.US, "AUTO jostle deadline (%.1f s) reached at %.2f s into the auto: moving on with %d held", deadlineSec, autoClock.seconds(),
                                 mechanisms.counter == null ? -1 : mechanisms.counter.count()));
                     }
                     return true;
@@ -444,6 +486,12 @@ public class AutonSolo extends LinearOpMode {
         Pose2d flowerRam = forAlliance(pose(FLOWER_AT_X + FLOWER_RAM_OVERSHOOT_IN, FLOWER_AT_Y, FLOWER_HEADING_DEG), isBlue);   // past the flower: the ram target
         Pose2d parkVia = forAlliance(pose(PARK_X, LAUNCH_Y, PARK_HEADING_DEG), isBlue);
         Pose2d park = forAlliance(pose(PARK_X, PARK_Y + PARK_OVERSHOOT_IN, PARK_HEADING_DEG), isBlue);   // pushed through the stall: see PARK_OVERSHOOT_IN
+        // the final gather: the alliance-wall flower (the audience flower's poses turned 90 deg, plus the Dashboard nudge) and the hive-side corner of the loading zone
+        Pose2d wallPre = forAlliance(wallNudge(rotate90(pose(FLOWER_PRE_X, FLOWER_PRE_Y, FLOWER_HEADING_DEG))), isBlue);
+        Pose2d wallRam = forAlliance(wallNudge(rotate90(pose(FLOWER_AT_X + FLOWER_RAM_OVERSHOOT_IN, FLOWER_AT_Y, FLOWER_HEADING_DEG))), isBlue);
+        Pose2d wallBack = forAlliance(wallNudge(rotate90(pose(FLOWER_AT_X - FLOWER_BACKOFF_IN, FLOWER_AT_Y, FLOWER_HEADING_DEG))), isBlue);
+        Pose2d finalHelper = forAlliance(pose(HELPER_X, HELPER_Y, FINAL_HELPER_HEADING_DEG), isBlue);
+        Pose2d finalPark = forAlliance(pose(FINAL_PARK_X, FINAL_PARK_Y + FINAL_PARK_OVERSHOOT_IN, FINAL_PARK_HEADING_DEG), isBlue);
 
         RunLog.event(String.format(Locale.US, "SETUP profile %s, alliance %s, start pose (%.1f, %.1f, %.1f deg), cells %s then %s, launch spot (%.1f, %.1f, %.1f deg), %s",
                 profile.name, isBlue ? "BLUE" : "RED", drive.getPose().position.x, drive.getPose().position.y, drive.getPose().heading.toDegrees(),
@@ -498,9 +546,34 @@ public class AutonSolo extends LinearOpMode {
                 mechanisms.forceIntakeIn(false),
                 mechanisms.setIntake(false),
 
-                note("Park"),
-                PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),
-                parkLeg("park (full power)", drive, park),
+                choose(() -> {
+                            boolean go = FINAL_FLOWER_ENABLED && autoClock.seconds() <= FINAL_FLOWER_LATEST_START_SEC;
+                            RunLog.event(String.format(Locale.US, "AUTO %s at %.2f s into the auto (the final gather needs the flower salvo done by %.1f s)",
+                                    go ? "FINAL GATHER starts" : "FINAL GATHER skipped: the old park runs", autoClock.seconds(), FINAL_FLOWER_LATEST_START_SEC));
+                            return go;
+                        },
+                        new SequentialAction(
+                                note("Final gather: the alliance-wall flower, then the hive-side corner"),
+                                new InstantAction(mechanisms::requestDeploy),   // deploys on the way
+                                passLeg("final helper (outside the support rails)", drive, finalHelper),
+                                leg("wall flower pre-position", drive, wallPre),
+                                timed("ramp deploy (wait)", rampTo(mechanisms, true)),
+                                note("Intake ON: wall flower (held IN until the park)"),
+                                mechanisms.setIntake(true),
+                                mechanisms.forceIntakeIn(true),
+                                ramLeg("ram the wall flower", drive, wallRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
+                                timed("wall flower jostle", new Jostle(drive, jostleDone(mechanisms, FINAL_JOSTLE_DEADLINE_SEC),
+                                        () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
+                                backOutLeg("wall flower back-out (straight)", drive, wallBack),
+                                new InstantAction(mechanisms::requestStowNow),   // clear of the flower: the ramp stows on the way to the corner
+                                parkLeg("park (hive-side corner, full power)", drive, finalPark),
+                                timed("ramp stow (wait)", rampTo(mechanisms, false)),
+                                mechanisms.forceIntakeIn(false),
+                                mechanisms.setIntake(false)),
+                        new SequentialAction(
+                                note("Park"),
+                                PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),
+                                parkLeg("park (full power)", drive, park))),
                 new InstantAction(mechanisms::stopFlywheel)
         );
 
