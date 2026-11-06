@@ -9,6 +9,7 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.drive.AutoLaunch;
 import org.firstinspires.ftc.teamcode.drive.HiveDash;
 import org.firstinspires.ftc.teamcode.drive.ParkDash;
@@ -133,6 +134,11 @@ public class TeleOpCompetition extends LinearOpMode {
     public static double AUTO_POSE_MAX_AGE_SEC = 300.0;
     public static double RESEED_HOLD_SEC = 1.0;
     /** True: target lock also engages by itself when the robot holds a full load (until the salvo is done). OFF since 2026-11-03: the lock is held by the driver (the right trigger, the right bumper since 2026-11-05). */
+    /**
+     * False (the match screen, 2026-11-06): the short, large, colored HTML screen of CompetitionScreen. True: the old detailed screen (every value, the controls cheat sheet) in the plain display
+     * format, for the pit and practice. Changed on the Dashboard; read every loop.
+     */
+    public static boolean TELEMETRY_VERBOSE = false;
     public static boolean AUTO_LOCK_WHEN_FULL = false;
     /** With the lock held and not ALIGNED, the driver's launch waits for ALIGNED (at most this long, then it is dropped) instead of firing at once. */
     public static boolean LAUNCH_WAITS_FOR_ALIGN = true;
@@ -370,6 +376,7 @@ public class TeleOpCompetition extends LinearOpMode {
         ElapsedTime backupHold = new ElapsedTime();
         ElapsedTime reseedHold = new ElapsedTime();
         boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, wasFull = false, pinpointBad = false;
+        Telemetry.DisplayFormat shownFormat = null;   // the display format last set (the match screen is HTML, the verbose one CLASSIC)
         boolean launchWaiting = false;   // a driver launch queued until the lock is ALIGNED
         ElapsedTime launchAlignClock = new ElapsedTime();
         boolean autoLaunchOn = false, autoLaunchDone = false, autoLaunchInZone = false;   // auto-launch: the operator's toggle, taken or given up for this lock, inside a zone now
@@ -726,6 +733,43 @@ public class TeleOpCompetition extends LinearOpMode {
             }
             RunLog.tick();
 
+            Telemetry.DisplayFormat wanted = TELEMETRY_VERBOSE ? Telemetry.DisplayFormat.CLASSIC : Telemetry.DisplayFormat.HTML;
+            if (wanted != shownFormat) {
+                shownFormat = wanted;
+                telemetry.setDisplayFormat(wanted);
+            }
+            if (!TELEMETRY_VERBOSE) {
+                CompetitionScreen.State screen = new CompetitionScreen.State();
+                screen.blue = blue;
+                screen.x = pose.position.x;
+                screen.y = pose.position.y;
+                screen.headingDeg = pose.heading.toDegrees();
+                if (backupMode) screen.alert(CompetitionScreen.RED, "BACKUP MODE");
+                else if (pinpointBad) screen.alert(CompetitionScreen.RED, "PINPOINT FAULT");
+                if (backupHeld && !backupMode) screen.alert(CompetitionScreen.YELLOW, String.format(Locale.US, "BACKUP IN %.1f s", Math.max(0.0, BACKUP_HOLD_SEC - backupHold.seconds())));
+                if (reseedDown && !reseeded) screen.alert(CompetitionScreen.YELLOW, String.format(Locale.US, "RESEED IN %.1f s", Math.max(0.0, RESEED_HOLD_SEC - reseedHold.seconds())));
+                CompetitionScreen.fromMechanisms(screen, mechanisms, backupMode, BACKUP_LAUNCH_DISTANCE_IN);
+                HiveTarget dashCell = hiveDash.cell();
+                if (dashCell != null) {
+                    String dashName = dashCell.name().endsWith("REAR") ? "REAR" : "AUDIENCE";
+                    HiveDash.State ds = hiveDash.state();
+                    screen.activity = ds == HiveDash.State.DRIVING ? "DASH: " + dashName : ds == HiveDash.State.ARRIVED ? "DASH: AIMING" : "DASH: LAUNCHING";
+                } else if (parkDash.state() != ParkDash.State.IDLE) {
+                    screen.activity = parkDash.state() == ParkDash.State.PARKED ? "PARKED" : "PARK DASH";
+                } else if (mechanisms.isLaunchBusy()) {
+                    screen.activity = "LAUNCHING";
+                } else if (launchWaiting) {
+                    screen.activity = "WAITING FOR AIM";
+                    screen.activityColor = CompetitionScreen.YELLOW;
+                } else if (mechanisms.isRejectActive()) {
+                    screen.activity = "REJECTING";
+                    screen.activityColor = CompetitionScreen.YELLOW;
+                } else if (lockOn) {
+                    screen.activity = targetLock.isAligned() ? "LOCK ALIGNED" : "LOCKING";
+                    screen.activityColor = targetLock.isAligned() ? CompetitionScreen.GREEN : CompetitionScreen.CYAN;
+                }
+                CompetitionScreen.render(telemetry, screen);
+            } else {
             if (backupHeld && !backupMode) telemetry.addData("Backup mode", "keep holding LB + X... %.1f s", BACKUP_HOLD_SEC - backupHold.seconds());
             if (backupMode) telemetry.addLine(String.format(Locale.US, "*** BACKUP MODE: no pose or heading. Robot-oriented drive, launch speed fixed for %.0f in (drive to that spot), no target lock. Service the robot. ***", BACKUP_LAUNCH_DISTANCE_IN));
             else if (pinpointBad) telemetry.addLine("*** PINPOINT FAULT (backup mode in a moment if it stays) ***");
@@ -752,6 +796,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addLine("GP1: stick drive, hold LT precision, hold RB target lock, A launch, hold D-pad left / right = HIVE DASH (drive to a cell's launch spot and launch), hold D-pad up / down = PARK DASH (drive to the left / right park corner), hold LB + RT = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
             telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-launch on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
+            }
             long profiledTelemetry = LoopProfiler.start();
             telemetry.update();
             LoopProfiler.stop("telemetry", profiledTelemetry);   // the Driver Station and the Dashboard

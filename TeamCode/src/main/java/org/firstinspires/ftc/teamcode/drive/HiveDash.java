@@ -194,6 +194,11 @@ public final class HiveDash {
         return state;
     }
 
+    /** The cell of the dash in progress, or null when no dash is running (for the competition screen). */
+    public HiveTarget cell() {
+        return state == State.IDLE ? null : cell;
+    }
+
     /** One line for the telemetry. */
     public String status() {
         return status;

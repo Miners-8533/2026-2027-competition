@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes.bringup;
 
+import org.firstinspires.ftc.teamcode.opmodes.CompetitionScreen;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
@@ -23,7 +24,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 @TeleOp(name = "Telemetry Font Test", group = "Bring-up")
 public class TelemetryFontTest extends LinearOpMode {
 
-    private static final int PAGES = 9;
+    private static final int PAGES = 12;
 
     private Telemetry.DisplayFormat format = Telemetry.DisplayFormat.HTML;
     private int page = 0;
@@ -81,7 +82,10 @@ public class TelemetryFontTest extends LinearOpMode {
                 case 5: mockupPage(); break;
                 case 6: widthPage(); break;
                 case 7: linesPage(false); break;
-                default: linesPage(true); break;
+                case 8: linesPage(true); break;
+                case 9: competitionPage(0); break;
+                case 10: competitionPage(1); break;
+                default: competitionPage(2); break;
             }
             if (gamepad1.getGamepadId() == Gamepad.ID_UNASSOCIATED) telemetry.addLine("Gamepad 1 is not assigned: press Start + A on it.");
             telemetry.update();
@@ -178,6 +182,12 @@ public class TelemetryFontTest extends LinearOpMode {
         line("<h2>h2: " + r + "</h2>");
         line("<small>small: " + r + "</small>");
         line("<tt>tt: " + r + "</tt>");
+    }
+
+    // 10 to 12: the competition TeleOp's screen (CompetitionScreen) with sample facts; only the HTML format shows it as designed
+    private void competitionPage(int variant) {
+        raw("PAGE " + (10 + variant) + ": the competition screen, sample " + (variant == 0 ? "normal driving" : variant == 1 ? "a dash with a warning" : "faults and a red alliance"));
+        CompetitionScreen.render(telemetry, CompetitionScreen.sample(variant));
     }
 
     // 8 and 9: how many lines fit

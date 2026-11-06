@@ -660,6 +660,25 @@ public class Mechanisms {
         return speedTrim;
     }
 
+    /** The distance the launch speed was last worked out for (the open cell, the dash's spot or the backup mode's fixed distance), inches. For the competition screen. */
+    public double getLastDistance() {
+        return lastDistance;
+    }
+
+    /** A copy of the current warnings (for the competition screen). */
+    public java.util.List<String> getWarnings() {
+        return new ArrayList<>(warnings);
+    }
+
+    /** The notice while it is still shown (NOTICE_SEC), else an empty string. */
+    public String getNotice() {
+        return !notice.isEmpty() && noticeTimer.seconds() < NOTICE_SEC ? notice : "";
+    }
+
+    public boolean isRejectActive() {
+        return rejectActive;
+    }
+
     public boolean isLaunchBusy() {
         return launchQueued || salvoActive;
     }
