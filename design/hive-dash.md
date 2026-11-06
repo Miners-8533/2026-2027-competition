@@ -18,8 +18,8 @@ Driver feature in `TeleOp - Competition`: hold the driver D-pad left or right an
 **Sequence.**
 1. D-pad pressed. Refused (no movement, no waypoints) when: backup mode, pose not seeded, the element counter is reading and holds nothing, or the robot's own footprint already overlaps a keep-out (pressed against a support). A refusal is a short rumble on the driver pad plus a telemetry line.
 2. DRIVING: follow the planned route (below). Sticks are ignored while the D-pad is held.
-3. Inside the lock radius of the goal (20 in, tunable): the target lock takes the heading, the speed eases, the goal tolerance is 2.5 in / 6 deg.
-4. ARRIVED: stop, finish aligning. Launch when ALIGNED, stopped (0.15 s) and the flywheel is ready; skipped if the robot is empty on arrival (the counter reads 0).
+3. Inside the lock radius of the goal (20 in, tunable; on the last leg 32 in out once the robot is at least 36 in from the field center, `EARLY_LOCK_RADIUS_IN` / `EARLY_LOCK_MIN_ABS_X`, since 2026-11-06): the target lock takes the heading, the speed eases, the goal tolerance is 2.5 in / 6 deg.
+4. ARRIVED: stop, finish aligning. Launch when ALIGNED, stopped (under 4 in/s; no hold time since 2026-11-06, `LAUNCH_HOLD_SEC` 0, it was 0.15 s) and the flywheel is ready; skipped if the robot is empty on arrival (the counter reads 0).
 5. The salvo always finishes, even if the D-pad was released. The dash ends after the salvo.
 
 **Cancel.** Releasing the D-pad cancels at once and the sticks take over, also during a salvo (the salvo still completes). No stuck check and no timeout: the driver sees a stuck robot and lets go.
@@ -71,7 +71,7 @@ On each leg the heading is the travel direction, with the front or the rear lead
 
 ## Tunables (Dashboard)
 
-Max power (0.5 for the first runs, 0.85 from 2026-11-05; `TURN_MAX` stays 0.5), margin 1.5 in, `ROBOT_HEIGHT_IN` 18, lock radius 20 in, goal tolerance 2.5 in / 6 deg, pass-through tolerance 3 in / 10 deg, turn penalty, align threshold 40 in, `UNDER_HIVE_ROUTES` on (user, 2026-11-04), the helper and gate points.
+Max power (0.5 for the first runs, 0.85 from 2026-11-05; `TURN_MAX` stays 0.5), margin 1.5 in, `ROBOT_HEIGHT_IN` 18, lock radius 20 in (`EARLY_LOCK_RADIUS_IN` 32 in / `EARLY_LOCK_MIN_ABS_X` 36 in on the last leg, `LAUNCH_HOLD_SEC` 0), goal tolerance 2.5 in / 6 deg, pass-through tolerance 3 in / 10 deg, turn penalty, align threshold 40 in, `UNDER_HIVE_ROUTES` on (user, 2026-11-04), the helper and gate points.
 
 ## Test plan
 

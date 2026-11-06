@@ -466,6 +466,7 @@ public class TeleOpCompetition extends LinearOpMode {
             HiveDash.Output dash = hiveDash.update(dashIn);
             LoopProfiler.stop("hive_dash", profiledHive);   // route planning on the first loop of a dash shows as the maximum
             if (dash.refused) buzz(gamepad1, 150);
+            mechanisms.setDashLaunchDistance(dash.overrideCell != null ? dash.overrideDistanceIn : 0.0);
             if (dash.overrideCell != null) {
                 if (!dashOverride) {
                     dashOverride = true;

@@ -37,6 +37,13 @@ public final class HiveDash {
     public static double MAX_POWER = 0.85;
     /** Within this many inches of the goal the target lock takes the heading and the speed eases. */
     public static double LOCK_RADIUS_IN = 20.0;
+    /**
+     * On the last leg the target lock takes the heading this far out (and not before the robot is at least EARLY_LOCK_MIN_ABS_X from the field center, so never under or beside the hive), so the
+     * turn onto the cell is done on arrival: in the 2026-11-06 log the arrival ran 0 to 0.56 s ahead of the aim because the turn only began 20 in out. 0 or less: the old radius only.
+     */
+    public static double EARLY_LOCK_RADIUS_IN = 32.0, EARLY_LOCK_MIN_ABS_X = 36.0;
+    /** The lock is ALIGNED and the chassis stopped for this long before the launch (was AutoLaunch.ALIGNED_HOLD_SEC, 0.15 s, which the dash waited out on every arrival); 0 launches the moment both hold. */
+    public static double LAUNCH_HOLD_SEC = 0.0;
     public static double GOAL_TOL_IN = 2.5;
     /** A via point counts as reached this close (the robot goes on without stopping). */
     public static double PASS_TOL_IN = 3.0;
@@ -68,7 +75,7 @@ public final class HiveDash {
     public static boolean DRY_RUN = false;
 
     // ---- launch and logging ----
-    /** The launch is requested when the lock is ALIGNED and the chassis has stopped (AutoLaunch.MAX_SPEED_IN_PER_S) for AutoLaunch.ALIGNED_HOLD_SEC. */
+    /** The launch is requested when the lock is ALIGNED and the chassis has stopped (AutoLaunch.MAX_SPEED_IN_PER_S) for LAUNCH_HOLD_SEC. */
     public static double LAUNCH_START_TIMEOUT_SEC = 1.0, LAUNCH_DONE_TIMEOUT_SEC = 6.0;
     public static double SAMPLE_PERIOD_SEC = 0.25;
     /** False: never send the Dashboard field overlay (a view for testing; each packet costs a few ms of JSON). Turn it off for matches. */
@@ -107,6 +114,8 @@ public final class HiveDash {
         public boolean launchNow;
         /** The cell the launch speed and the lock must use for as long as the dash needs it, or null (the nearest-cell logic resumes). */
         public HiveTarget overrideCell;
+        /** While overrideCell is set: the distance the launch speed must be worked out for (the launch spot to the cell), so the flywheel goes to that speed at the start of the dash; 0 otherwise. */
+        public double overrideDistanceIn;
         /** The D-pad was just refused (give the driver a short rumble). */
         public boolean refused;
 
@@ -118,6 +127,7 @@ public final class HiveDash {
             lockWanted = false;
             launchNow = false;
             overrideCell = null;
+            overrideDistanceIn = 0.0;
             refused = false;
         }
     }
@@ -231,6 +241,7 @@ public final class HiveDash {
             default:
                 break;
         }
+        if (out.overrideCell != null) out.overrideDistanceIn = cell.distanceFrom(new Pose2d(goalX, goalY, 0.0));
         status = statusLine(in);
         sample(in);
         overlay(in);
@@ -360,7 +371,8 @@ public final class HiveDash {
         }
         double fwd = vfx * Math.cos(h) + vfy * Math.sin(h);
         double left = -vfx * Math.sin(h) + vfy * Math.cos(h);
-        boolean inLock = goalDist <= LOCK_RADIUS_IN;
+        boolean inLock = goalDist <= LOCK_RADIUS_IN
+                || (last && EARLY_LOCK_RADIUS_IN > 0.0 && goalDist <= EARLY_LOCK_RADIUS_IN && Math.abs(x) >= EARLY_LOCK_MIN_ABS_X);
         out.overrideCell = cell;
         if (inLock) {
             out.lockWanted = true;
@@ -389,7 +401,7 @@ public final class HiveDash {
         boolean still = in.lockAligned && speed <= AutoLaunch.MAX_SPEED_IN_PER_S;
         if (!still) stillClock.reset();
         if (!in.hasElements) return;   // nothing to launch: wait for the driver to let go
-        if (stillClock.seconds() >= AutoLaunch.ALIGNED_HOLD_SEC && !in.launchBusy) {
+        if (stillClock.seconds() >= LAUNCH_HOLD_SEC && !in.launchBusy) {
             out.launchNow = true;
             state = State.LAUNCHING;
             sawBusy = false;

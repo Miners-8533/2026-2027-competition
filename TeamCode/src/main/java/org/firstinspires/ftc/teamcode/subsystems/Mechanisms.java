@@ -113,6 +113,7 @@ public class Mechanisms {
     private boolean flywheelLostSeen = false;
     private boolean manualCalibration = false;   // the operator's pusher calibration sweep is running: the intake is held off
     private boolean flywheelLostNotice = false;
+    private double dashDistanceIn = 0.0;       // > 0 during a Hive Dash: the launch speed is worked out for this distance (the launch spot) from the start of the dash, not for where the robot is now
     private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the launch distance is this, whatever the pose says
     private boolean manualIntake = false;
     private boolean forcedIntakeIn = false;   // an auto holds the intake IN whatever the count says (forceIntakeIn)
@@ -622,6 +623,18 @@ public class Mechanisms {
         RunLog.event(String.format(Locale.US, "BACKUP MODE: the launch speed is fixed for %.0f in, no pose", distanceIn));
     }
 
+    /**
+     * The Hive Dash knows where it will launch from, so the flywheel goes to that speed at once instead of following the distance to the cell all the way along the route (a flywheel that was
+     * sent up for a far point arrived above the launch band and the launch waited for it to coast down: 9 times, up to 0.7 s, in the 2026-11-06 log). 0 or less clears it.
+     */
+    public void setDashLaunchDistance(double distanceIn) {
+        double next = Math.max(0.0, distanceIn);
+        if ((next > 0.0) != (dashDistanceIn > 0.0)) {
+            RunLog.event(next > 0.0 ? String.format(Locale.US, "DASH launch speed fixed for the launch spot, %.1f in from the cell", next) : "DASH launch speed back to the pose distance");
+        }
+        dashDistanceIn = next;
+    }
+
     /** True once, right after the flywheel's speed sensor is judged dead (for the opmode to give a signal). */
     public boolean takeFlywheelLostNotice() {
         boolean n = flywheelLostNotice;
@@ -717,7 +730,7 @@ public class Mechanisms {
                 setOpenCell(near);
             }
         }
-        lastDistance = fixedDistanceIn > 0.0 ? fixedDistanceIn : openCell.distanceFrom(pose);
+        lastDistance = fixedDistanceIn > 0.0 ? fixedDistanceIn : dashDistanceIn > 0.0 ? dashDistanceIn : openCell.distanceFrom(pose);
         boolean mapAvailable = useLaunchMap && !LaunchMap.isEmpty();
         lastSetpoint = mapAvailable ? Math.max(0.0, LaunchMap.velocityFor(lastDistance) + speedTrim) : manualSetpoint;
         // a dead flywheel encoder: no closed loop, so every launch is the same base power (Flywheel.LOST_BASE_SETPOINT) moved only by the speed trim
