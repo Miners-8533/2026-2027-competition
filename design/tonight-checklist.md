@@ -97,6 +97,10 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] `Auton - Duo Primary` (rear wall start, blue and red): INIT pose OK; read the `AUTO TIMING` lines for every step and where the 30 s ended; the order is preload (rear cell), Blue Wall flower (audience cell), audience flower (rear cell), garden (rear cell), park; no `TIMED OUT` on the pre-positions; every salvo is launched whatever the counter says, so a dry run with no pollen fires all four (the autos no longer skip on an empty count)
 - [ ] The two spots: the audience one (50, 26.3) and the rear one (-50, 26.3) launch from about 32 in with the aim at each cell; check the landings and set `DuoAutos.P_*_TRIM_DEG`; `P_GARDEN_LATEST_START_SEC` is 18 s, so the garden is skipped and the park should end near 25 s (`AUTO SKIP garden` in the log); `P_AUD_FLOWER_LATEST_START_SEC` stays 99
 
+## 8l. The competition screen (T21)
+- [ ] `Telemetry Font Test` pages 10 to 12 on the Driver Station: nothing wraps or is cut, the alliance banner and the colors read at a glance
+- [ ] `TeleOp - Competition`: the screen follows the robot (READY / SPIN UP, the count, LOCKING / LOCK ALIGNED, the dash states, the target and distance, the pose); an alert line appears for a real fault (cover a counter sensor, hold LB + X for the backup countdown) and goes away; `TELEMETRY_VERBOSE` true on the Dashboard brings back the old screen
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`
