@@ -60,6 +60,12 @@ public class Mechanisms {
      * When the request has ended for LOCK_RELEASE_DELAY_SEC the arm goes back to HOLD. The autos never request it. False turns the whole lock off.
      */
     public static boolean PUSHER_LOCK_ENABLED = true;
+    /**
+     * AUTOS (2026-11-05, user): the flower gather keeps the intake running IN, whatever the count says, from the ram until the flower salvo is done ({@link #forceIntakeIn}), so pollen still
+     * coming off the ramp keep coming in while the robot backs off, turns and aims. False: the old behavior (the intake is requested at the ram and the automatic stop at 4 can end it).
+     * A robot that takes in more than it can launch holds the rest for the TeleOp (the user decided against an automatic second salvo).
+     */
+    public static boolean FLOWER_INTAKE_THROUGH_SALVO = true;
     /** How long the lock request must have been over before the arm is sent back to HOLD (so a quick release and re-press does not move the arm twice). */
     public static double LOCK_RELEASE_DELAY_SEC = 0.5;
     public static double FLYWHEEL_STOP_DELAY_SEC = 0.5;
@@ -109,6 +115,7 @@ public class Mechanisms {
     private boolean flywheelLostNotice = false;
     private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the launch distance is this, whatever the pose says
     private boolean manualIntake = false;
+    private boolean forcedIntakeIn = false;   // an auto holds the intake IN whatever the count says (forceIntakeIn)
     private boolean intakeAlwaysOn = false;
     private boolean launchQueued = false;
     private boolean bandWaitLogged = false;
@@ -885,6 +892,8 @@ public class Mechanisms {
                 else if (manualIntake) mode = Intake.Mode.IN;
                 else mode = full ? (FULL_RUNS_OUT ? Intake.Mode.OUT : Intake.Mode.OFF) : Intake.Mode.IN;
             }
+            // an auto's flower gather holds the intake IN through the flower salvo, whatever the count says (a reject or the operator's outtake still wins)
+            if (forcedIntakeIn && !rejectActive && !manualOuttake) mode = Intake.Mode.IN;
             // locked or locking: the arm is across the entrance, so the intake is OFF (a pollen must not be pushed against it), whatever it would have been doing; it used to run OUT when locked.
             // The operator's forced outtake and a reject still run it OUT, and forcing it IN unlocks the arm first.
             if ((lockState == LockState.LOCKED || lockState == LockState.LOCKING) && !manualIntake && !manualOuttake && !rejectActive) mode = Intake.Mode.OFF;
@@ -1022,6 +1031,20 @@ public class Mechanisms {
     /** Action: ask for the intake on or off. Finishes in the same loop. */
     public Action setIntake(boolean on) {
         return new InstantAction(() -> setIntakeRequested(on));
+    }
+
+    /**
+     * Action (autos): hold the intake IN whatever the element count says (the automatic stop at 4 does not end it), or let go. A reject and the outtake still win. It does nothing unless
+     * FLOWER_INTAKE_THROUGH_SALVO is true. Finishes in the same loop.
+     */
+    public Action forceIntakeIn(boolean on) {
+        return new InstantAction(() -> {
+            boolean next = on && FLOWER_INTAKE_THROUGH_SALVO;
+            if (next != forcedIntakeIn) {
+                forcedIntakeIn = next;
+                RunLog.event("COMMAND intake forced IN (auto, through the flower salvo) -> " + (next ? "ON" : "off") + " (" + heldText() + ")");
+            }
+        });
     }
 
     /** Action: deploy the ramp and finish once it has settled. */

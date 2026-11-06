@@ -62,6 +62,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Reseed is LB + right TRIGGER, hold 1 s (the screen counts it); the pose goes to the default start
 - [ ] Operator D-pad left / right: the remembered aim moves 3 deg per report (max 10; log `REPORT landed ...`)
 - [ ] Autos' flower gather: the log's `AUTO JOSTLE start` line says press 1.0 s first, back 0.25 in at power 0.3, press 1.0 s per cycle, at most 1 cycle (`Jostle.MAX_CYCLES`; the jostle now ends after one back-and-forth, `AUTO JOSTLE ended ... the 1 back-and-forth cycle(s) are done`); check the robot actually moves back (about 0.25 to 0.75 in) and does not stay jammed; raise `Jostle.BACK_POWER` if it does not move; check that the duo and Solo timing still fits 30 s
+- [ ] Autos: the intake stays IN from the flower ram until the flower salvo is done, even at 4 held (log: `COMMAND intake forced IN (auto, through the flower salvo) -> ON`, then `off` after the salvo; `INTAKE mode` lines): pollen still coming off the ramp keep coming in while the robot backs off and aims; watch the held count (it can exceed 4: the extra stays for the TeleOp, there is no second salvo) and that the salvo still feeds cleanly with the intake running
 
 ## 8d. Pusher active hold (T15)
 - [ ] Idle with the arm parked: push it 10 to 20 deg by hand, let go: it returns; `pusher_hold` is 0.05 to 0.15 while it corrects; no `GAVE UP` lines; the motor is not warm after a long idle

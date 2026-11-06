@@ -484,16 +484,19 @@ public class AutonSolo extends LinearOpMode {
                 note("Back to the flower pre-position, turning to the flower"),
                 leg("flower pre-position", drive, flowerPre),
                 timed("ramp deploy (wait)", rampTo(mechanisms, true)),         // fully deployed before it goes on; no second command
-                note("Intake ON: flower"),
+                note("Intake ON: flower (held IN, whatever the count, until the flower salvo is done)"),
                 mechanisms.setIntake(true),
+                mechanisms.forceIntakeIn(true),
                 ramLeg("ram the flower", drive, flowerRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
                 timed("flower jostle", new Jostle(drive, jostleDone(mechanisms), () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
                 note("Back off the flower to the launch spot (intake still ON)"),
                 FLOWER_TURN_WHILE_BACKING ? new InstantAction(() -> { }) : backOutLeg("flower back-out (straight)", drive, flowerBack),
                 stowWhenTurned(launchLeg("launch spot 2", drive, launchSpot), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
-                mechanisms.setIntake(false),
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
                 launch(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG, true),
+                note("Intake OFF (the flower salvo is done)"),
+                mechanisms.forceIntakeIn(false),
+                mechanisms.setIntake(false),
 
                 note("Park"),
                 PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),
