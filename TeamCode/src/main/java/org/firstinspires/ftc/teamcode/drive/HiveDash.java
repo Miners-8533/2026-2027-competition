@@ -129,8 +129,6 @@ public final class HiveDash {
         public HiveTarget overrideCell;
         /** While overrideCell is set: the distance the launch speed must be worked out for (the launch spot to the cell), so the flywheel goes to that speed at the start of the dash; 0 otherwise. */
         public double overrideDistanceIn;
-        /** The D-pad was just refused (give the driver a short rumble). */
-        public boolean refused;
 
         void reset() {
             translation = false;
@@ -141,7 +139,6 @@ public final class HiveDash {
             launchNow = false;
             overrideCell = null;
             overrideDistanceIn = 0.0;
-            refused = false;
         }
     }
 
@@ -270,7 +267,6 @@ public final class HiveDash {
     // ---- start / refuse / cancel ----
 
     private void refuse(HiveTarget requested, String why) {
-        out.refused = true;
         refusedWhy = why;
         everRefused = true;
         refusedClock.reset();

@@ -70,8 +70,6 @@ public final class ParkDash {
         public double turn;
         /** Stow the ramp now (once, at the start). */
         public boolean stowRamp;
-        /** The D-pad was just refused (give the driver a short rumble). */
-        public boolean refused;
 
         void reset() {
             translation = false;
@@ -79,7 +77,6 @@ public final class ParkDash {
             turnActive = false;
             turn = 0.0;
             stowRamp = false;
-            refused = false;
         }
     }
 
@@ -200,7 +197,6 @@ public final class ParkDash {
     }
 
     private void refuse(Corner requested, String why) {
-        out.refused = true;
         refusedWhy = why;
         everRefused = true;
         refusedClock.reset();

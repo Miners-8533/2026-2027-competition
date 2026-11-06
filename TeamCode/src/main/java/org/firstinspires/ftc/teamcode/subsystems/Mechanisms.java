@@ -112,7 +112,6 @@ public class Mechanisms {
     private int salvosDone = 0;
     private boolean flywheelLostSeen = false;
     private boolean manualCalibration = false;   // the operator's pusher calibration sweep is running: the intake is held off
-    private boolean flywheelLostNotice = false;
     private double dashDistanceIn = 0.0;       // > 0 during a Hive Dash: the launch speed is worked out for this distance (the launch spot) from the start of the dash, not for where the robot is now
     private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the launch distance is this, whatever the pose says
     private boolean manualIntake = false;
@@ -635,13 +634,6 @@ public class Mechanisms {
         dashDistanceIn = next;
     }
 
-    /** True once, right after the flywheel's speed sensor is judged dead (for the opmode to give a signal). */
-    public boolean takeFlywheelLostNotice() {
-        boolean n = flywheelLostNotice;
-        flywheelLostNotice = false;
-        return n;
-    }
-
     public boolean isBackupMode() {
         return fixedDistanceIn > 0.0;
     }
@@ -959,7 +951,6 @@ public class Mechanisms {
         LoopProfiler.stop("mech.flywheel", profiledFlywheel);
         if (flywheel != null && flywheel.isEncoderLost() && !flywheelLostSeen) {
             flywheelLostSeen = true;
-            flywheelLostNotice = true;
             RunLog.event("FLYWHEEL ENCODER LOST: " + flywheel.getLostReason() + "; open loop for the rest of the run (base power for "
                     + Flywheel.LOST_BASE_SETPOINT + " ticks/s, speed trim " + speedTrim + ")");
             notice("Flywheel encoder lost: open loop at a fixed power. Use the speed trim.");

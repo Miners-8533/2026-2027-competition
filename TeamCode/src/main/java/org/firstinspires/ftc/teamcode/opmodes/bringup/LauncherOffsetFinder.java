@@ -202,7 +202,6 @@ public class LauncherOffsetFinder extends LinearOpMode {
                 if (markGood) marksGood++;
                 RunLog.event("MARK " + (markGood ? "good" : markLeft ? "landed LEFT" : "landed RIGHT") + " | AT THE LAST LAUNCH: " + lastLaunch
                         + " | NOW: " + describe("", pose, cell, mechanisms));
-                if (gamepad1.type() != com.qualcomm.robotcore.hardware.Gamepad.Type.LOGITECH_F310) gamepad1.rumble(80);
             }
             if (gamepad1.x) {
                 if (!reseedDown) {
