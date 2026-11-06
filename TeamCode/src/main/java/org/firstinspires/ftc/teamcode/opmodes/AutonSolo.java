@@ -167,7 +167,14 @@ public class AutonSolo extends LinearOpMode {
      * The cross-field legs (the helper leg and the one after it, 100 and 42 in) use this power limit instead of 0.6 (the leg's hard cap speed scales with it). 0.6 took 2.9 s for the
      * 101 in leg on 2026-11-03.
      */
-    public static double CROSS_FIELD_MAX_POWER = 0.85;
+    public static double CROSS_FIELD_MAX_POWER = 1.0;   // 0.85 until 2026-11-05 (3.01 s for the helper leg); the dashes run at 0.85 without trouble and this leg is outside the support rails
+    /**
+     * Every other leg (garden and flower pre-positions, the square approach, the back-outs, the launch spot after the flower) runs at this power limit instead of the drive's 0.6 (2026-11-05, to gain time;
+     * the hard cap's speed scales with it). Only a leg longer than about 1/kP times this (17 in at 0.85) ever reaches it. 0.6 restores the old speed.
+     */
+    public static double LEG_MAX_POWER = 0.85;
+    /** Pass-through legs (the garden pre-position, the square approach, the helper legs) end the moment they are within the coarse tolerance instead of waiting the drive's 0.20 s settle; the next leg takes over at speed. */
+    public static double PASS_SETTLE_SEC = 0.0;
     /** The launch spots only need to be near (the aim step turns onto the cell): a leg ends within this position and heading; the tight 1 in / 2 deg tolerance ran two legs to their timeout each time. */
     public static double LAUNCH_POS_TOL_IN = 2.5, LAUNCH_HEADING_TOL_DEG = 6.0;
     public static double GARDEN_PICKUP_MAX_POWER = 0.35;   // 0.25 moved only about 5.6 in/s on 2026-11-03 and missed the pollen
@@ -229,32 +236,36 @@ public class AutonSolo extends LinearOpMode {
 
     /** A drive leg that must settle (the launch spots, the flower): the tight DriveToPose tolerance. */
     private Action leg(String label, MecanumDrive drive, Pose2d target) {
-        return timed("drive: " + label, new DriveToPose(drive, target).withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+        return timed("drive: " + label, legDrive(drive, target));
+    }
+
+    /** A drive at LEG_MAX_POWER whose hard cap's speed scales with the power. */
+    private DriveToPose legDrive(MecanumDrive drive, Pose2d target) {
+        return new DriveToPose(drive, target).withMaxOutput(LEG_MAX_POWER)
+                .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S * LEG_MAX_POWER / 0.6, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC);
     }
 
     /** A fast pass-through leg (the cross-field move): the power is capped at maxPower and the hard cap's speed scales with it. */
     private Action crossLeg(String label, MecanumDrive drive, Pose2d target, double maxPower, boolean pass) {
         DriveToPose d = new DriveToPose(drive, target).withMaxOutput(maxPower).withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S * maxPower / 0.6, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC);
         d.withTolerance(pass ? COARSE_POS_IN : LAUNCH_POS_TOL_IN, pass ? COARSE_HEADING_DEG : LAUNCH_HEADING_TOL_DEG);
+        if (pass) d.withSettle(PASS_SETTLE_SEC);
         return timed("drive: " + label, d);
     }
 
     /** A launch-spot leg: near is enough (LAUNCH_POS_TOL_IN, LAUNCH_HEADING_TOL_DEG). */
     private Action launchLeg(String label, MecanumDrive drive, Pose2d target) {
-        return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(LAUNCH_POS_TOL_IN, LAUNCH_HEADING_TOL_DEG)
-                .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+        return timed("drive: " + label, legDrive(drive, target).withTolerance(LAUNCH_POS_TOL_IN, LAUNCH_HEADING_TOL_DEG));
     }
 
     /** A pass-through leg: ends as soon as the robot is near. */
     private Action passLeg(String label, MecanumDrive drive, Pose2d target) {
-        return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(COARSE_POS_IN, COARSE_HEADING_DEG)
-                .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+        return timed("drive: " + label, legDrive(drive, target).withTolerance(COARSE_POS_IN, COARSE_HEADING_DEG).withSettle(PASS_SETTLE_SEC));
     }
 
     /** A straight back-out: the leg ends within BACKOUT_TOL_IN of the target (a pass-through leg ended 3 in away, which is not far enough from the flower). */
     private Action backOutLeg(String label, MecanumDrive drive, Pose2d target) {
-        return timed("drive: " + label, new DriveToPose(drive, target).withTolerance(BACKOUT_TOL_IN, COARSE_HEADING_DEG)
-                .withDistanceTimeout(TIMEOUT_BASE_SEC, TIMEOUT_IN_PER_S, TIMEOUT_MIN_SEC, TIMEOUT_TURN_EXTRA_SEC, TIMEOUT_MAX_SEC));
+        return timed("drive: " + label, legDrive(drive, target).withTolerance(BACKOUT_TOL_IN, COARSE_HEADING_DEG));
     }
 
     /** Runs {@code inner} (a drive) and commands the ramp to stow as soon as the robot has turned STOW_TURN_DEG from flowerHeadingRad (once). */
@@ -555,7 +566,7 @@ public class AutonSolo extends LinearOpMode {
                         new SequentialAction(
                                 note("Final gather: the alliance-wall flower, then the hive-side corner"),
                                 new InstantAction(mechanisms::requestDeploy),   // deploys on the way
-                                passLeg("final helper (outside the support rails)", drive, finalHelper),
+                                crossLeg("final helper (outside the support rails)", drive, finalHelper, CROSS_FIELD_MAX_POWER, true),
                                 leg("wall flower pre-position", drive, wallPre),
                                 timed("ramp deploy (wait)", rampTo(mechanisms, true)),
                                 note("Intake ON: wall flower (held IN until the park)"),

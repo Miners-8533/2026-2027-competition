@@ -78,6 +78,10 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] `Auton - Solo`, blue and red: after the flower salvo it crosses outside the hive to the alliance-wall flower, rams, jostles one cycle, backs out, and parks in the hive-side corner; note the finish time (nominal about 29.8 s) and whether the park is complete before 30 s; `AUTO FINAL GATHER starts at ... s` line, pollen held at the end
 - [ ] The intake works (check `intake_amps` and the `INTAKE ...CURRENT` lines if it does not); the ramp stows on the way to the corner; no contact with the Blue Wall flower stand or the hive; if it runs late the jostle ends at 26.5 s and the park still completes
 
+## 8h. Solo path speeds (T17)
+- [ ] `Auton - Solo`, blue and red: compare the `DRIVE` leg times with the 23:07 run (helper 3.01, garden pre-position 1.37, flower pre-position 1.03, back-out 0.95, launch spot 2 0.98 s); arrival errors at the launch spots under about 2.5 in, at the flower pre-positions under 1 in; no overshoot into a wall, support or flower stand
+- [ ] If a leg misbehaves: `AutonSolo.LEG_MAX_POWER` back to 0.6, `CROSS_FIELD_MAX_POWER` to 0.85, `PASS_SETTLE_SEC` to 0.2 (all on the Dashboard)
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`
