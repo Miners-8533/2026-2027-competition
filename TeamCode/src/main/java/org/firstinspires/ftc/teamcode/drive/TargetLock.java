@@ -7,7 +7,7 @@ import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 
 /**
- * Target lock: while the driver holds the button, the robot turns itself to point its front (the intake and shooter end) at the open
+ * Target lock: while the driver holds the button, the robot turns itself to point its front (the intake and launcher end) at the open
  * CELL, and the driver keeps full control of the translation. The turn command replaces the driver's turn stick.
  *
  * The bearing comes from the Pinpoint pose to the target point ({@link HiveTarget}); heading 0 is +X and the front points along
@@ -15,10 +15,10 @@ import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
  * it does not stall near the target, a dead band, and a cap. While locked the driver's turn stick nudges the aim up to
  * MAX_TRIM_DEG either way (stick right = clockwise); the nudge is forgotten when the lock is released.
  *
- * It reports {@link #isAligned()} (within ALIGNED_DEG and nearly stopped) so the driver can fire at the right moment. The gains are a
+ * It reports {@link #isAligned()} (within ALIGNED_DEG and nearly stopped) so the driver can launch at the right moment. The gains are a
  * starting point from a simulation of the measured turn response (about 335 deg/s per unit of power): tune them on the robot.
- * AIM_OFFSET_DEG corrects a shooter whose line is not exactly the robot's forward. The shooter fires along a line parallel to the
- * front but SHOOTER_OFFSET_LEFT_IN to the side of the pose point (ROBOT_1: 2.5 in to the right, ON again since 2026-11-02 for the BLUE-bias test), so with it set
+ * AIM_OFFSET_DEG corrects a launcher whose line is not exactly the robot's forward. The launcher launches along a line parallel to the
+ * front but LAUNCHER_OFFSET_LEFT_IN to the side of the pose point (ROBOT_1: 2.5 in to the right, ON again since 2026-11-02 for the BLUE-bias test), so with it set
  * the robot aims that line, not its centerline, at the target: the heading is the bearing minus asin(offset / distance).
  */
 @Config
@@ -35,16 +35,16 @@ public final class TargetLock {
     /** Aligned = the error is within this and the robot has nearly stopped turning. */
     public static double ALIGNED_DEG = 2.0;
     public static double ALIGNED_MAX_RATE_DEG_PER_S = 25.0;
-    /** The shooter's line relative to the robot's forward (positive = counterclockwise). Calibrate from where shots land. */
+    /** The launcher's line relative to the robot's forward (positive = counterclockwise). Calibrate from where launches land. */
     public static double AIM_OFFSET_DEG = 0.0;
     /**
-     * Sideways position of the shooter's line from the robot's centerline, inches, positive = to the robot's left. ROBOT_1's shooter is 2.5 in
-     * to the right, so the compensation is ON at -2.5 (2026-11-02, to test the shots that landed right). Set 0 to turn it off: the lock then aims the centerline.
+     * Sideways position of the launcher's line from the robot's centerline, inches, positive = to the robot's left. ROBOT_1's launcher is 2.5 in
+     * to the right, so the compensation is ON at -2.5 (2026-11-02, to test the launches that landed right). Set 0 to turn it off: the lock then aims the centerline.
      */
-    public static double SHOOTER_OFFSET_LEFT_IN = -2.5;
+    public static double LAUNCHER_OFFSET_LEFT_IN = -2.5;
     /**
      * Extra sideways offset, inches (negative = further right, so the lock turns further left), added for the cell on the OPPOSITE side of the field from the
-     * alliance's start wall (see {@link #farCellExtraLeftIn}). The marks of 2026-11-02 showed shots at that cell (blue: the audience cell, shot facing away from the
+     * alliance's start wall (see {@link #farCellExtraLeftIn}). The marks of 2026-11-02 showed launches at that cell (blue: the audience cell, launch facing away from the
      * start heading; red by the 180 deg symmetry: the rear cell) needing about 4 in more at 23 to 41 in, but the run with 4.5 in landed LEFT at 34 to 36 in and needed a 9.9 deg right nudge at 47 in (all at headings 10 to 46 deg past straight at the rear wall,
      * from y 11 to 20), so it is 3.0 for now, a compromise; retune from the marks. The cell on the start side needed none.
      * It looks tied to the heading relative to the start, so if the start wall ever changes the cell that needs it moves too. Set 0 to turn it off.
@@ -70,13 +70,13 @@ public final class TargetLock {
     }
 
     /**
-     * The heading, radians, that points the shooter's line at the target from (x, y): the bearing minus the parallax of the shooter's sideways
-     * offset (SHOOTER_OFFSET_LEFT_IN + the extra), plus AIM_OFFSET_DEG. The lock turns to this (plus the driver's nudge); an auto can drive to it.
+     * The heading, radians, that points the launcher's line at the target from (x, y): the bearing minus the parallax of the launcher's sideways
+     * offset (LAUNCHER_OFFSET_LEFT_IN + the extra), plus AIM_OFFSET_DEG. The lock turns to this (plus the driver's nudge); an auto can drive to it.
      */
     public static double aimHeadingRad(double x, double y, HiveTarget target, double extraOffsetLeftIn) {
         double dx = target.x - x, dy = target.y - y;
-        // the shooter's line sits SHOOTER_OFFSET_LEFT_IN to the side of the pose point, so turn until THAT line passes through the target
-        double parallax = Math.asin(clamp((SHOOTER_OFFSET_LEFT_IN + extraOffsetLeftIn) / Math.hypot(dx, dy), -0.9, 0.9));
+        // the launcher's line sits LAUNCHER_OFFSET_LEFT_IN to the side of the pose point, so turn until THAT line passes through the target
+        double parallax = Math.asin(clamp((LAUNCHER_OFFSET_LEFT_IN + extraOffsetLeftIn) / Math.hypot(dx, dy), -0.9, 0.9));
         return Math.atan2(dy, dx) - parallax + Math.toRadians(AIM_OFFSET_DEG);
     }
 
@@ -86,7 +86,7 @@ public final class TargetLock {
      * @param pose      the robot's pose
      * @param angVel    its measured angular velocity, rad/s, counterclockwise positive
      * @param target    the point to aim at
-     * @param extraOffsetLeftIn  added to {@link #SHOOTER_OFFSET_LEFT_IN} for this target (see {@link #farCellExtraLeftIn})
+     * @param extraOffsetLeftIn  added to {@link #LAUNCHER_OFFSET_LEFT_IN} for this target (see {@link #farCellExtraLeftIn})
      * @param rememberedDeg      a standing aim correction for this target, degrees, positive = counterclockwise (the operator's reports of where the last salvo landed); added to the driver's nudge
      * @param stickX    the driver's turn stick (right = positive), used only to nudge the aim
      * @param dtSec     seconds since the last call

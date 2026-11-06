@@ -34,8 +34,8 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * (ENCODER_SIGN), and the motor runs WITHOUT the hub's closed-loop encoder modes.
  *
  * Landing accuracy depends on calibrating SWEEP_POWER, APPROACH_POWER and STOP_EARLY_DEG on the real pusher
- * (the Shot Map Tuner or the TeleOp); the reading to watch is the error to the nearest HOLD. Nothing holds the arm
- * against a push beyond the brake, except a small nudge forward if it comes to rest a little short.
+ * (the Launch Map Tuner or the TeleOp); the reading to watch is the error to the nearest HOLD. Since 2026-11-05 an ACTIVE HOLD
+ * (HOLD_SERVO_ENABLED) latches the angle where the arm comes to rest and pushes it back when it drifts, besides the small nudge forward if it comes to rest a little short.
  * Call {@link #update()} once per loop.
  */
 @Config
@@ -79,8 +79,32 @@ public class Pusher {
     public static double STOP_SPEED_TICKS_PER_SEC = 30.0;
     /** If it comes to rest short of HOLD by more than the tolerance but less than this, it nudges forward. 0 turns the nudge off. */
     public static double AUTO_CORRECT_MAX_DEG = 45.0;
+    /**
+     * ACTIVE HOLD (2026-11-05): in the HOLD state the motor used to be at 0 power with the brake, which resists motion but does not hold a position, so a push or the pollen pressure
+     * could walk the arm away (logs of 2026-11-05: the arm sat more than 10 deg from where it stopped for 30 to 46 percent of the parked time). Now, once the arm has been still
+     * for HOLD_LATCH_SEC wherever it came to rest (HOLD, the 40 deg past it after a salvo, the lock), that angle is latched and a small P power pushes it back when it
+     * drifts more than HOLD_DEADBAND_DEG: HOLD_KP_POWER_PER_DEG per degree, at least HOLD_MIN_POWER (to beat the friction), at most HOLD_MAX_POWER, in 0.01 steps (each change is
+     * a hub write). If it needs the maximum for HOLD_GIVE_UP_SEC (it cannot be held: a jam, or a stack pushing harder than the cap) the hold is released until the next move so the
+     * motor does not cook. Not used after a move gave up, or when the pusher is not calibrated.
+     */
+    public static boolean HOLD_SERVO_ENABLED = true;
+    public static double HOLD_KP_POWER_PER_DEG = 0.012;
+    public static double HOLD_MIN_POWER = 0.05;
+    public static double HOLD_MAX_POWER = 0.15;
+    public static double HOLD_DEADBAND_DEG = 2.0;
+    public static double HOLD_LATCH_SEC = 0.3;
+    public static double HOLD_GIVE_UP_SEC = 2.0;
     /** Default power for a seek (a short move to a given position, either direction). */
     public static double SEEK_POWER = 0.2;
+    /**
+     * The LOCK position (2026-11-04): with the robot full the arm moves this far forward of a HOLD and rests there, across the intake entrance, so the pollen cannot roll back
+     * out (and a fifth cannot get in). It moves the pollen forward a little but does not launch one. A salvo from here targets the nearest HOLD behind plus SALVO_DEG, so it
+     * turns SALVO_DEG - LOCK_DEG (310). Unlocking reverses to that HOLD. The lock and unlock are seeks at LOCK_POWER.
+     */
+    public static double LOCK_DEG = 90.0;
+    public static double LOCK_POWER = 0.25;
+    /** The arm counts as locked when it is stopped within this many degrees of LOCK_DEG past a HOLD. */
+    public static double LOCK_TOLERANCE_DEG = 12.0;
 
     /** How often (ms) the motor current is refreshed for the display when no stall check needs it. */
     public static double CURRENT_DISPLAY_REFRESH_MS = 250.0;
@@ -124,6 +148,18 @@ public class Pusher {
     private double seekPower = 0.2;
     private double targetTicks = 0.0;
     private boolean stalling = false;
+    // active hold (HOLD_SERVO_ENABLED)
+    private boolean holdLatched = false;
+    private double holdLatchTicks = 0.0;
+    private double holdPowerNow = 0.0;
+    private boolean holdSaturated = false;
+    private boolean holdGaveUp = false;
+    private final ElapsedTime holdSaturatedClock = new ElapsedTime();
+    private final ElapsedTime holdEpisodeClock = new ElapsedTime();
+    private double holdPeakErrDeg = 0.0, holdPeakPower = 0.0, holdActiveSec = 0.0;
+    private boolean holdActive = false;
+    private final ElapsedTime holdActiveClock = new ElapsedTime();
+    private String holdReport = null;
     private boolean gaveUp = false;   // the last move timed out (MOVE_TIMEOUT_S): the arm stays where it is until the next move is commanded
     private String faultReason = "";
     private double progressBest = Double.NEGATIVE_INFINITY;
@@ -369,6 +405,43 @@ public class Pusher {
         resetProgress();
     }
 
+    /** Moves the arm from HOLD to the LOCK position (LOCK_DEG forward of the nearest HOLD). Ignored until calibrated, or while faulted. */
+    public void startLock() {
+        if (!isCalibrated() || state == State.STALLED) {
+            lastCommand = "lock IGNORED: " + (isCalibrated() ? "the pusher is faulted" : "TICKS_PER_REV is not set");
+            return;
+        }
+        startSeek(nearestHoldTicks() + LOCK_DEG * TICKS_PER_REV / 360.0, LOCK_POWER);
+        lastCommand = "LOCK: " + lastCommand;
+    }
+
+    /** Moves the arm back from the LOCK position to the nearest HOLD (a reverse of LOCK_DEG; never forward, which would sweep the pollen into the flywheel). */
+    public void startUnlock() {
+        if (!isCalibrated() || state == State.STALLED) {
+            lastCommand = "unlock IGNORED: " + (isCalibrated() ? "the pusher is faulted" : "TICKS_PER_REV is not set");
+            return;
+        }
+        double target = nearestHoldTicks();
+        if (target > getUnwrappedTicks()) {   // already behind that HOLD: nothing to reverse
+            stopHere();
+            lastCommand = "UNLOCK: already at or behind HOLD";
+            return;
+        }
+        startSeek(target, LOCK_POWER);
+        lastCommand = "UNLOCK: " + lastCommand;
+    }
+
+    /** The degrees past the nearest HOLD (negative = before it), for the lock check and the log. */
+    public double getAnglePastHoldDeg() {
+        return (getUnwrappedTicks() - nearestHoldTicks()) * 360.0 / TICKS_PER_REV;
+    }
+
+    /** Idle, stopped, and within LOCK_TOLERANCE_DEG of the LOCK position. */
+    public boolean isLocked() {
+        return state == State.HOLD && isCalibrated() && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC
+                && Math.abs(getAnglePastHoldDeg() - LOCK_DEG) <= LOCK_TOLERANCE_DEG;
+    }
+
     /** Ends a jog where it is: the state goes back to HOLD (so {@link #isStopped} can be true) without moving to a HOLD. */
     public void stopInPlace() {
         if (state == State.JOG) stopHere();
@@ -449,6 +522,97 @@ public class Pusher {
         setMotorPower(0.0);
         restTimer.reset();
         resetProgress();
+        endHoldEpisode();   // a new rest: the hold latches again where the arm settles
+    }
+
+    /** The active hold's push on the motor as of the last update (0 when it is not correcting), for the log. */
+    public double getHoldPower() {
+        return holdPowerNow;
+    }
+
+    /** One line about the last stretch the active hold was latched, when it had to correct or gave up (else null); returns it once. For the run log. */
+    public String takeHoldReport() {
+        String r = holdReport;
+        holdReport = null;
+        return r;
+    }
+
+    private void endHoldEpisode() {
+        if (holdLatched) {
+            if (holdActive) holdActiveSec += holdActiveClock.seconds();
+            if (holdPeakErrDeg > HOLD_DEADBAND_DEG + 2.0) {
+                holdReport = String.format(java.util.Locale.US, "PUSHER HOLD SERVO held the arm for %.1f s: peak drift %.1f deg, corrected for %.2f s, peak power %.2f",
+                        holdEpisodeClock.seconds(), holdPeakErrDeg, holdActiveSec, holdPeakPower);
+            }
+        }
+        holdLatched = false;
+        holdGaveUp = false;
+        holdActive = false;
+        holdSaturated = false;
+        holdPowerNow = 0.0;
+        holdPeakErrDeg = 0.0;
+        holdPeakPower = 0.0;
+        holdActiveSec = 0.0;
+    }
+
+    /** The active hold's power for this loop (see HOLD_SERVO_ENABLED); 0 until the arm has been still long enough to latch. */
+    private double holdServoPower(double unwrapped, double ticksPerDeg) {
+        if (!HOLD_SERVO_ENABLED || !isCalibrated() || gaveUp || holdGaveUp) {
+            holdPowerNow = 0.0;
+            return 0.0;
+        }
+        if (!holdLatched) {
+            if (restTimer.seconds() >= HOLD_LATCH_SEC && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC) {
+                holdLatched = true;
+                holdLatchTicks = unwrapped;
+                holdEpisodeClock.reset();
+                holdPeakErrDeg = 0.0;
+                holdPeakPower = 0.0;
+                holdActiveSec = 0.0;
+                holdActive = false;
+                holdSaturated = false;
+            }
+            holdPowerNow = 0.0;
+            return 0.0;
+        }
+        double errDeg = (holdLatchTicks - unwrapped) / ticksPerDeg;   // positive: the arm has gone back from where it rested, so push it forward
+        holdPeakErrDeg = Math.max(holdPeakErrDeg, Math.abs(errDeg));
+        double power = 0.0;
+        if (Math.abs(errDeg) > HOLD_DEADBAND_DEG) {
+            double mag = Math.min(HOLD_MAX_POWER, Math.max(HOLD_MIN_POWER, HOLD_KP_POWER_PER_DEG * Math.abs(errDeg)));
+            power = Math.signum(errDeg) * Math.round(mag * 100.0) / 100.0;
+        }
+        if (power != 0.0) {
+            if (!holdActive) {
+                holdActive = true;
+                holdActiveClock.reset();
+            }
+            holdPeakPower = Math.max(holdPeakPower, Math.abs(power));
+            if (Math.abs(power) >= HOLD_MAX_POWER - 1e-9) {
+                if (!holdSaturated) {
+                    holdSaturated = true;
+                    holdSaturatedClock.reset();
+                } else if (holdSaturatedClock.seconds() > HOLD_GIVE_UP_SEC) {
+                    // it cannot be held: release it until the next move, and say so
+                    holdActiveSec += holdActiveClock.seconds();
+                    holdReport = String.format(java.util.Locale.US, "PUSHER HOLD SERVO GAVE UP after %.1f s: peak drift %.1f deg, the maximum power %.2f was needed for %.1f s without holding; released until the next move",
+                            holdEpisodeClock.seconds(), holdPeakErrDeg, HOLD_MAX_POWER, HOLD_GIVE_UP_SEC);
+                    holdGaveUp = true;
+                    holdActive = false;
+                    holdLatched = false;
+                    holdPowerNow = 0.0;
+                    return 0.0;
+                }
+            } else {
+                holdSaturated = false;
+            }
+        } else if (holdActive) {
+            holdActive = false;
+            holdActiveSec += holdActiveClock.seconds();
+            holdSaturated = false;
+        }
+        holdPowerNow = power;
+        return power;
     }
 
     private void resetProgress() {
@@ -498,7 +662,7 @@ public class Pusher {
 
         switch (state) {
             case HOLD:
-                setMotorPower(0.0);
+                setMotorPower(holdServoPower(unwrapped, ticksPerDeg));
                 if (pendingSettle && isCalibrated() && restTimer.seconds() > 0.25
                         && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC) {
                     recordSettle();

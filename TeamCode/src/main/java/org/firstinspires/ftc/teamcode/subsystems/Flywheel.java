@@ -14,7 +14,7 @@ import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
 
 /**
- * The shooter flywheel: one encoder motor "fly_motor_enc", hood fixed. (The optional second motor "fly_follow"
+ * The launcher flywheel: one encoder motor "fly_motor_enc", hood fixed. (The optional second motor "fly_follow"
  * is commented out for now; search for "fly_follow" to restore it.) Design notes: design/mechanisms.md.
  *
  * Control is last season's bang-bang plus feedforward: full power while below the setpoint, a single
@@ -26,7 +26,7 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * The motor runs WITHOUT the hub's closed-loop encoder modes, so a power is a plain duty cycle (a closed-loop mode
  * would turn the same number into a speed target, and runs away if the encoder counts opposite to its motor). The
  * encoder is only a sensor:
- * ENCODER_SIGN makes the speed positive when the wheel turns the shooting way. A dead or reversed encoder is a
+ * ENCODER_SIGN makes the speed positive when the wheel turns the launching way. A dead or reversed encoder is a
  * wiring problem for the pit check to find. If the speed sensor DIES in a match this class notices (see
  * {@link #isEncoderLost}): the motor commanded at 0.9 or more for LOST_DETECT_SEC while the speed never reaches
  * LOST_SPEED_MAX. It then latches, for the rest of the run, into an open-loop mode at a fixed power for
@@ -41,14 +41,21 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
 public class Flywheel {
 
     /**
-     * Motor command (0 to 1) applied once the speed is at or above the setpoint. It must not exceed the power that HOLDS the slowest shot-map speed
+     * Motor command (0 to 1) applied once the speed is at or above the setpoint. It must not exceed the power that HOLDS the slowest launch-map speed
      * (1325 ticks/s): the 2026-11-02 logs put that at about 0.38 on average, 0.37 on a battery above 12.3 V, and 0.29 to 0.35 for some warm stretches, so
      * 0.35 (the user's choice, 2026-11-03; 0.2 before) is at the edge: if the speed creeps above the setpoint at the slowest entry on a fresh battery, lower it.
      */
     public static double FEED_FORWARD = 0.35;
+    /**
+     * LAUNCH BAND (2026-11-04): a salvo may only START while the filtered speed is between these fractions of the setpoint (checked once, at the start; a salvo that has started
+     * goes on whatever the speed does). 0.96 / 1.04 from the 268 salvos of 11-02 and 11-03: the speed at the start was within about -2 to +4 percent in 96 percent of them,
+     * the other 12 were -5 to -7 (a first salvo after the spin-up) and +5 to +16 (after the setpoint dropped when the driver moved in: the wheel only coasts down, and READY_FRACTION has no upper limit).
+     */
+    public static double LAUNCH_BAND_LOW_FRACTION = 0.96;
+    public static double LAUNCH_BAND_HIGH_FRACTION = 1.04;
     /** Filtered speed, as a fraction of the setpoint, that counts as ready. */
     public static double READY_FRACTION = 0.95;
-    /** +1 if the SDK encoder count rises when the wheel turns the shooting way, -1 if it falls. */
+    /** +1 if the SDK encoder count rises when the wheel turns the launching way, -1 if it falls. */
     public static double ENCODER_SIGN = 1.0;
     /** Open-loop override: power = target / this (about the speed at full power, measured on the bench). */
     public static double OPEN_LOOP_TOP_SPEED = 2200.0;
@@ -144,7 +151,7 @@ public class Flywheel {
         return targetVelocity;
     }
 
-    /** Speed in ticks per second, positive when the wheel turns the shooting way (after ENCODER_SIGN). */
+    /** Speed in ticks per second, positive when the wheel turns the launching way (after ENCODER_SIGN). */
     public double getVelocity() {
         return velocity;
     }
@@ -160,6 +167,23 @@ public class Flywheel {
                     && openLoopTimer.seconds() >= (encoderLost ? LOST_READY_SEC : OPEN_LOOP_READY_SEC);
         }
         return targetVelocity > 0.0 && getFilteredVelocity() >= targetVelocity * READY_FRACTION;
+    }
+
+    /**
+     * True when a salvo may start: the filtered speed is inside the launch band (LAUNCH_BAND_LOW_FRACTION to LAUNCH_BAND_HIGH_FRACTION of the setpoint). With the speed sensor
+     * overridden or lost there is no speed to check, so it is the same as {@link #isReady}.
+     */
+    public boolean isInLaunchBand() {
+        if (openLoop) return isReady();
+        double v = getFilteredVelocity();
+        return targetVelocity > 0.0 && v >= targetVelocity * LAUNCH_BAND_LOW_FRACTION && v <= targetVelocity * LAUNCH_BAND_HIGH_FRACTION;
+    }
+
+    /** "in the band", "BELOW the band" or "ABOVE the band", for the log and the notices. */
+    public String launchBandState() {
+        if (openLoop || targetVelocity <= 0.0) return isReady() ? "in the band" : "BELOW the band";
+        double v = getFilteredVelocity();
+        return v < targetVelocity * LAUNCH_BAND_LOW_FRACTION ? "BELOW the band" : v > targetVelocity * LAUNCH_BAND_HIGH_FRACTION ? "ABOVE the band" : "in the band";
     }
 
     /**

@@ -6,7 +6,7 @@ The robot code for **FIRST Tech Challenge team 8533, the CSPA Miners**, for the 
 
 ## What it does
 - **TeleOp - Competition:** field-oriented drive with a PD target lock on a hive cell, **Auto Launch** (launch by itself in a launch zone), **Hive Dash** (hold D-pad left or right and the robot drives to a cell's launch spot around the hive supports, locks and launches), **hold position while launching**, the **pusher lock** (the arm parks across the intake entrance when the robot is full), a launch map for the flywheel speed by distance, and a backup mode for a lost pose.
-- **Auton - Solo:** launch the preload, take the garden, launch, take the flower, launch, park; blue or red picked at INIT. The two **duo** autos (a flower side and a garden side that tip the hive together with the alliance partner) are being built on the `duo-autos` branch.
+- **Auton - Solo:** launch the preload, take the garden, launch, take the flower, launch, park; blue or red picked at INIT. The two **duo** autos (a flower side and a garden side that tip the hive together with the alliance partner) are on `integration` and have not been run on the robot yet.
 - Every run writes a log to the hub; tools in `tools/logs/` pull the logs and analyse them, including a competition-day report per match.
 
 ## Layout
@@ -14,7 +14,7 @@ The robot code for **FIRST Tech Challenge team 8533, the CSPA Miners**, for the 
 |---|---|
 | `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/` | `opmodes/` (the opmodes), `subsystems/` (intake, flywheel, pusher, ramp, element counter, and `Mechanisms`, the coordinator), `drive/` (mecanum drive, Pinpoint localizer, target lock, Hive Dash, hold position, hive routing), `motion/` (drive-to-pose, the auto actions), `util/` (the run log, the Dashboard config dump), `math/` |
 | `design/` | the design notes, test plan and runbooks (start with [integration-plan.md](design/integration-plan.md) and [robot-day-runbook.md](design/robot-day-runbook.md)) |
-| `tools/` | `logs/` (pull and analyse the run logs), `hive/` (router checks on a PC), `flywheel/` (a controller simulation), `autosim/` (a path viewer) |
+| `tools/` | `logs/` (pull and analyse the run logs), `hive/` (router checks on a PC) |
 | `FtcRobotController/` | the FTC SDK app (unchanged) |
 
 ## Build and run
@@ -37,6 +37,7 @@ python tools/logs/event_day.py label  --event "<event>"   # label the runs with 
 python tools/logs/event_day.py report --event "<event>"   # per-match and day reports, what stands out
 python tools/logs/launch_stability.py             # flywheel speed during salvos
 python tools/logs/baseline_health.py              # post-match health check of the color sensors' baselines
+python tools/logs/loop_profile.py                 # where the loop time goes (the LOOP PROFILE lines of the newest TeleOp and auto)
 python tools/logs/config_changes.py               # which Dashboard values changed between runs
 ```
 What every log line means is in [run-logs.md](design/run-logs.md).

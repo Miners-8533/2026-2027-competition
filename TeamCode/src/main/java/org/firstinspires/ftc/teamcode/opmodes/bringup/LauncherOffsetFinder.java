@@ -24,15 +24,15 @@ import org.firstinspires.ftc.teamcode.util.RunLog;
 import java.util.Locale;
 
 /**
- * Finds where the shooter really points, so the shooter offset (and any hive or heading offset) can be measured instead of inferred from missed shots.
- * Target lock is OFF: the driver drives the robot (field-oriented, as in the TeleOp), lines the shot up with the centerline of a HIVE cell by hand, and fires;
- * a mark on a good salvo writes the robot's pose at that fire, the cell, and what the pose says about the shooter. Do it at each cell, and from the blue and the
+ * Finds where the launcher really points, so the launcher offset (and any hive or heading offset) can be measured instead of inferred from missed launches.
+ * Target lock is OFF: the driver drives the robot (field-oriented, as in the TeleOp), lines the launch up with the centerline of a HIVE cell by hand, and launches;
+ * a mark on a good salvo writes the robot's pose at that launch, the cell, and what the pose says about the launcher. Do it at each cell, and from the blue and the
  * red start poses (both headings) to see whether the effect is symmetric.
  *
- * What a mark records (the pose at the last FIRE, since the robot may have moved by the time the mark is pressed): the pose, the cell the robot was
+ * What a mark records (the pose at the last LAUNCH, since the robot may have moved by the time the mark is pressed): the pose, the cell the robot was
  * nearest, the distance, the bearing, and how far to the LEFT of the robot's front line the cell's center sits (distance * sin(bearing - heading)). If the salvo
- * went into the cell with the shooter's line through its center, that number is the shooter's sideways offset from the pose point (positive = the shooter is
- * left of the origin; TargetLock.SHOOTER_OFFSET_LEFT_IN is the value in use) plus the distance times any angle error of the shot. At one distance the two cannot be
+ * went into the cell with the launcher's line through its center, that number is the launcher's sideways offset from the pose point (positive = the launcher is
+ * left of the origin; TargetLock.LAUNCHER_OFFSET_LEFT_IN is the value in use) plus the distance times any angle error of the launch. At one distance the two cannot be
  * told apart; marks at two distances along the same line can (the offset is the same at both, the angle error grows with the distance).
  *
  * INIT (gamepad 1): D-pad right = BLUE start (back against the rear wall facing +X: (-HALF + 7.6, +16)), D-pad left = RED start (back against the audience wall
@@ -43,17 +43,17 @@ import java.util.Locale;
  *   left bumper (hold)           precision drive (30%), for lining up
  *   right trigger (hold)         intake IN, even when full (the intake also runs IN by itself until the robot holds 4, like the TeleOp)
  *   left trigger (hold)          intake OUT
- *   A                            fire a salvo
+ *   A                            launch a salvo
  *   Y                            MARK a good salvo
  *   D-pad left / right           MARK a salvo that landed LEFT / RIGHT of the cell
  *   X (hold 1 s)                 reseed the pose to the INIT start pose (put the robot on that spot first)
  *
  * The target for the flywheel speed is the HIVE cell nearest the robot (all four, no alliance). The flywheel runs from Start and the speed trim is not used.
- * The log is the BRINGUP kind (bringup.log); read it with tools/logs/shooter_offset.py. Procedure: design/shooter-offset-finder.md.
+ * The log is the BRINGUP kind (bringup.log); read it with tools/logs/launcher_offset.py. Procedure: design/launcher-offset-finder.md.
  */
 @Config
-@TeleOp(name = "Shooter Offset Finder", group = "Bring-up")
-public class ShooterOffsetFinder extends LinearOpMode {
+@TeleOp(name = "Launcher Offset Finder", group = "Bring-up")
+public class LauncherOffsetFinder extends LinearOpMode {
 
     public static double START_Y_IN = 16.0;
     public static double TURN_SCALE = 0.5;
@@ -94,14 +94,14 @@ public class ShooterOffsetFinder extends LinearOpMode {
     private String describe(String label, Pose2d pose, HiveTarget cell, Mechanisms mechanisms) {
         double[] a = aim(pose, cell);
         return String.format(Locale.US, "%s pose (%.2f, %.2f, %.1f deg), cell %s (%.2f, %.2f) %.1f in, bearing %.1f deg, cell center %+.1f deg / %+.2f in left of the front line"
-                        + " (shooter offset estimate if the salvo went through the center: %+.2f in; in use %+.1f), setpoint %.0f",
+                        + " (launcher offset estimate if the salvo went through the center: %+.2f in; in use %+.1f), setpoint %.0f",
                 label, pose.position.x, pose.position.y, pose.heading.toDegrees(), cell, cell.x, cell.y, a[0], a[1], a[2], a[3], a[3],
-                TargetLock.SHOOTER_OFFSET_LEFT_IN, mechanisms.getLastSetpoint());
+                TargetLock.LAUNCHER_OFFSET_LEFT_IN, mechanisms.getLastSetpoint());
     }
 
     @Override
     public void runOpMode() {
-        RunLog.open(RunLog.Kind.BRINGUP, "Shooter Offset Finder", hardwareMap);
+        RunLog.open(RunLog.Kind.BRINGUP, "Launcher Offset Finder", hardwareMap);
         try {
             find();
         } catch (Throwable t) {
@@ -136,7 +136,7 @@ public class ShooterOffsetFinder extends LinearOpMode {
             boolean poseOk = loc.seedConfirmed
                     && Math.hypot(p.position.x - start.position.x, p.position.y - start.position.y) < 1.5
                     && Math.abs(Math.toDegrees(Rotation2d.normalize(p.heading.toDouble() - start.heading.toDouble()))) < 3.0;
-            telemetry.addLine("Shooter Offset Finder. Target lock is OFF. Place the robot at the start pose, still.");
+            telemetry.addLine("Launcher Offset Finder. Target lock is OFF. Place the robot at the start pose, still.");
             telemetry.addData("Start", blue ? "BLUE: back against the rear wall, facing +X, y +" + START_Y_IN : "RED: back against the audience wall, facing -X, y -" + START_Y_IN);
             telemetry.addData("Start pose", "%.2f, %.2f, %.1f deg   (walls at +-%.1f in)", start.position.x, start.position.y, start.heading.toDegrees(), FieldGeometry.HALF_IN);
             telemetry.addData("Pinpoint", "%s   pose %.1f, %.1f, %.0f deg   %s", loc.getDeviceStatus(), p.position.x, p.position.y, p.heading.toDegrees(),
@@ -157,12 +157,12 @@ public class ShooterOffsetFinder extends LinearOpMode {
         mechanisms.setIntakeAlwaysOn(true);
         mechanisms.setAutoStopAfterSalvo(false);
         mechanisms.setSpinRequested(true);
-        RunLog.event(String.format(Locale.US, "SETUP profile %s, start %s (%.2f, %.2f, %.1f deg), walls at +-%.1f in, SHOOTER_OFFSET_LEFT_IN %+.1f; %s", profile.name,
-                isBlue ? "BLUE" : "RED", start.position.x, start.position.y, start.heading.toDegrees(), FieldGeometry.HALF_IN, TargetLock.SHOOTER_OFFSET_LEFT_IN, mechanisms.describe()));
+        RunLog.event(String.format(Locale.US, "SETUP profile %s, start %s (%.2f, %.2f, %.1f deg), walls at +-%.1f in, LAUNCHER_OFFSET_LEFT_IN %+.1f; %s", profile.name,
+                isBlue ? "BLUE" : "RED", start.position.x, start.position.y, start.heading.toDegrees(), FieldGeometry.HALF_IN, TargetLock.LAUNCHER_OFFSET_LEFT_IN, mechanisms.describe()));
         RunLog.setSampler("x,y,hdg_deg,cell,dist_in,cell_left_in," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
                 () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%s,%.1f,%.2f,%s", logX, logY, logHeadingDeg, logCell, logDist, logLeftIn, mechanisms.sampleRow()));
 
-        String lastFire = "none yet";
+        String lastLaunch = "none yet";
         int marksGood = 0;
         boolean reseedDown = false, reseeded = false;
         ElapsedTime reseedHold = new ElapsedTime();
@@ -193,14 +193,14 @@ public class ShooterOffsetFinder extends LinearOpMode {
             mechanisms.setManualIntake(gamepad1.right_trigger > TRIGGER_THRESHOLD);
             mechanisms.setManualOuttake(gamepad1.left_trigger > TRIGGER_THRESHOLD);
             if (gamepad1.aWasPressed()) {
-                lastFire = describe("FIRE", pose, cell, mechanisms);
-                RunLog.event(lastFire);
-                mechanisms.requestFire();
+                lastLaunch = describe("LAUNCH", pose, cell, mechanisms);
+                RunLog.event(lastLaunch);
+                mechanisms.requestLaunch();
             }
             boolean markGood = gamepad1.yWasPressed(), markLeft = gamepad1.dpadLeftWasPressed(), markRight = gamepad1.dpadRightWasPressed();
             if (markGood || markLeft || markRight) {
                 if (markGood) marksGood++;
-                RunLog.event("MARK " + (markGood ? "good" : markLeft ? "landed LEFT" : "landed RIGHT") + " | AT THE LAST FIRE: " + lastFire
+                RunLog.event("MARK " + (markGood ? "good" : markLeft ? "landed LEFT" : "landed RIGHT") + " | AT THE LAST LAUNCH: " + lastLaunch
                         + " | NOW: " + describe("", pose, cell, mechanisms));
                 if (gamepad1.type() != com.qualcomm.robotcore.hardware.Gamepad.Type.LOGITECH_F310) gamepad1.rumble(80);
             }
@@ -225,12 +225,12 @@ public class ShooterOffsetFinder extends LinearOpMode {
             telemetry.addData("Start", isBlue ? "BLUE (facing +X)" : "RED (facing -X)");
             telemetry.addData("Pose x / y (in), heading (deg)", "%.2f / %.2f / %.1f", pose.position.x, pose.position.y, pose.heading.toDegrees());
             telemetry.addData("Nearest cell", "%s at %.1f in, bearing %.1f deg", cell, a[0], a[1]);
-            telemetry.addData("Cell center left of the front line", "%+.2f in   (%+.1f deg)   <- the shooter offset if the shot goes through the center", a[3], a[2]);
+            telemetry.addData("Cell center left of the front line", "%+.2f in   (%+.1f deg)   <- the launcher offset if the launch goes through the center", a[3], a[2]);
             telemetry.addData("Flywheel setpoint", "%.0f ticks/s", mechanisms.getLastSetpoint());
             telemetry.addData("Good marks so far", marksGood);
             if (reseedDown && !reseeded) telemetry.addData("Reseed pose", "keep holding X... %.1f s", RESEED_HOLD_SEC - reseedHold.seconds());
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive (LB precision), RT intake IN, LT intake OUT, A fire, Y MARK good, D-pad left / right MARK landed LEFT / RIGHT, hold X 1 s = reseed the pose to the start");
+            telemetry.addLine("GP1: stick drive (LB precision), RT intake IN, LT intake OUT, A launch, Y MARK good, D-pad left / right MARK landed LEFT / RIGHT, hold X 1 s = reseed the pose to the start");
             telemetry.update();
         }
         drive.stop();

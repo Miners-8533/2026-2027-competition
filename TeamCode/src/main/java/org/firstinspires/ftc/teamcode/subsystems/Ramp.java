@@ -21,7 +21,8 @@ import org.firstinspires.ftc.teamcode.math.Pose2d;
  * "settled" simply means TRAVEL_SEC has passed since the last command, so TRAVEL_SEC is measured once.
  *
  * The robot starts STOWED (it must fit the 18 in starting cube), so the constructor commands the stowed
- * positions. The robot must drive out from under the flower before stowing: {@link #isClearOfFlower}
+ * positions (except for the competition TeleOp, which builds it with commandStowed false and stows at Start: see the constructor).
+ * The robot must drive out from under the flower before stowing: {@link #isClearOfFlower}
  * provides the check; the coordinator decides what to do about it. Deploying should switch the intake on and
  * stowing off, also the coordinator's job. Both servos must be set to the same mode (goBILDA dual-mode servos
  * can be positional, continuous or multi-turn). Hardware config: servos named "depolLeft" and "depolRight".
@@ -47,8 +48,20 @@ public class Ramp {
     private final double stowedLeft, stowedRight, deployedLeft, deployedRight;
     private final ElapsedTime sinceCommand = new ElapsedTime();
     private boolean deployedTarget = false;
+    /** Whether a position has been commanded since this object was built. Until then the ramp is unpowered and its position is unknown. */
+    private boolean commanded = false;
 
+    /** The autos and test opmodes: the constructor commands the stowed positions (the robot starts stowed, and no match rule limits INIT). */
     public Ramp(HardwareMap hardwareMap) {
+        this(hardwareMap, true);
+    }
+
+    /**
+     * With commandStowed false nothing is commanded here: the servos sag when an opmode ends, and an auto may end with the ramp stuck or deployed,
+     * so the competition TeleOp must not move it in INIT (G403: no powered movement in the transition). The first {@link #stow()} or
+     * {@link #deploy()} (the TeleOp stows at Start) commands it; until then {@link #isPositionKnown()} is false.
+     */
+    public Ramp(HardwareMap hardwareMap, boolean commandStowed) {
         ChassisProfile profile = ChassisProfile.detect(hardwareMap);
         stowedLeft = profile.rampStowedLeft;
         stowedRight = profile.rampStowedRight;
@@ -58,11 +71,17 @@ public class Ramp {
         left = hardwareMap.get(Servo.class, "depolLeft");
         right = hardwareMap.get(Servo.class, "depolRight");
 
-        if (isConfigured()) {
+        if (commandStowed && isConfigured()) {
             left.setPosition(stowedLeft);
             right.setPosition(stowedRight);
+            commanded = true;
         }
         sinceCommand.reset();
+    }
+
+    /** False until the first stow or deploy command (a Ramp built with commandStowed false): the servos are unpowered and the position is unknown. */
+    public boolean isPositionKnown() {
+        return commanded;
     }
 
     /** True once all four positions are known. Nothing moves before that. */
@@ -74,6 +93,7 @@ public class Ramp {
     public void deploy() {
         if (!isConfigured()) return;
         deployedTarget = true;
+        commanded = true;
         left.setPosition(deployedLeft);
         right.setPosition(deployedRight);
         sinceCommand.reset();
@@ -82,6 +102,7 @@ public class Ramp {
     public void stow() {
         if (!isConfigured()) return;
         deployedTarget = false;
+        commanded = true;
         left.setPosition(stowedLeft);
         right.setPosition(stowedRight);
         sinceCommand.reset();
@@ -106,6 +127,7 @@ public class Ramp {
 
     public void log(Telemetry telemetry) {
         telemetry.addData("Ramp", !isConfigured() ? "NOT CONFIGURED: positions not measured, it will not move"
+                : !commanded ? "position UNKNOWN (not commanded yet)"
                 : (deployedTarget ? "target DEPLOYED" : "target STOWED") + (isSettled() ? " (settled)" : " (moving)"));
     }
 }

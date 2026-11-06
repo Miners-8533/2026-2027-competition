@@ -80,6 +80,7 @@ public final class RunLog {
     private RowSource source;
     private long samplePeriodNs;
     private long nextSampleNs;
+    private boolean burst = false;
     private long lastTickNs;
     private long lastSlowEventNs;
     private double loopSumMs;
@@ -180,6 +181,8 @@ public final class RunLog {
     /** Marks the moment the opmode was started (Start pressed). Times in the file keep counting from the open. */
     public static void started() {
         event(MARK_STARTED);
+        LoopProfiler.reset();   // the loop profile (LOOP PROFILE lines) counts from Start
+        ConfigDump.logAll();   // the live Dashboard values of this run (and what changed since the last one)
     }
 
     /** Ends the log. Call it in a finally block, so every way out of the opmode is recorded. */
@@ -191,6 +194,7 @@ public final class RunLog {
     public static synchronized void close(String reason) {
         RunLog log = active;
         if (log == null) return;
+        LoopProfiler.finish();   // the whole-run LOOP PROFILE line, while the log is still open
         active = null;
         log.write("E," + log.time() + "," + MARK_ENDED + " (" + reason + ")");
         log.queue.offer(POISON);
@@ -234,10 +238,24 @@ public final class RunLog {
         log.write("H,t,loop_ms,loop_max_ms,volt," + columns);
     }
 
+    /**
+     * BURST: while on, a sample row is written on every loop instead of every sample period (the loop is about 25 ms against the 100 ms period, so about 4 times the rows).
+     * The mechanisms switch it on around a salvo, so a salvo's flywheel speed, pusher angle and element slots are logged at loop rate. Call from the opmode thread.
+     */
+    public static void setBurst(boolean on) {
+        RunLog log = active;
+        if (log == null || log.burst == on) return;
+        log.burst = on;
+        if (on) log.nextSampleNs = 0L;
+    }
+
     /** Call once per loop. Writes a sample when one is due, and notes a loop that took too long. */
     public static void tick() {
+        long t0 = LoopProfiler.start();
         RunLog log = active;
         if (log != null) log.onTick();
+        LoopProfiler.stop("runlog", t0);
+        LoopProfiler.endLoop();   // the loop's own time, and the profiler's window line when one is due
     }
 
     public static boolean isOpen() {
@@ -259,7 +277,7 @@ public final class RunLog {
         lastTickNs = now;
 
         if (source == null || now < nextSampleNs) return;
-        nextSampleNs = now + samplePeriodNs;
+        nextSampleNs = burst ? 0L : now + samplePeriodNs;
         if (battery != null && now - voltageAtNs > VOLTAGE_PERIOD_NS) {
             voltageAtNs = now;
             try {

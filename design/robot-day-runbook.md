@@ -27,7 +27,7 @@ Do this each time the robot is powered on or the app restarted, before INIT of a
 - [ ] **Pusher arm at HOLD** (the back of the arm limiting entry to 4 elements). The zero is assumed here at INIT.
 - [ ] **Ramp stowed**, inside the starting cube. Intake and track **empty** (except the 4-element preload for an auto).
 - [ ] Both gamepads assigned: **Start + A** (driver), **Start + B** (operator) on the Driver Station.
-- [ ] For an auto or a TeleOp: robot placed at its start pose against the wall, **still** from INIT until Start (the Pinpoint recalibrates at INIT). With no auto, the TeleOp's default start is blue (-63.4, +16) against the rear wall facing +X, red (+63.4, -16) against the audience wall facing -X (the origin is 7.6 in from the back edge) (the front, the intake and shooter end, faces away from the wall).
+- [ ] For an auto or a TeleOp: robot placed at its start pose against the wall, **still** from INIT until Start (an auto's INIT recalibrates the Pinpoint; the TeleOp after an auto does NOT reset it and continues from the Pinpoint's own pose, so the robot may be anywhere then). With no auto in the last 5 minutes, the TeleOp's default start is blue (-63.4, +16) against the rear wall facing +X, red (+63.4, -16) against the audience wall facing -X (the origin is 7.6 in from the back edge) (the front, the intake and launcher end, faces away from the wall).
 - [ ] INIT screen: Pinpoint `OK`, the right mechanisms present, element counter `reading`. Anything else, stop and fix it before Start.
 
 ## 2. The day, in order
@@ -54,16 +54,16 @@ Redo this in the pit at each venue if the lighting changes.
 
 ### Block C: Pusher calibration (done 2026-11-01)
 
-The pusher measurements are finished (the arm is seen about 328 deg ahead of the mark, `TICKS_PER_REV` confirmed, the salvo is 400 deg) and the two tools that made them, **Pusher Sensor Matrix** and **Pusher Check Test**, were removed on 2026-11-02 (they are in git history). The pusher check now runs inside **TeleOp - Competition**: automatically after a salvo and once after power-up, and by hand with the operator's left bumper + Y (plan rows P8 and P9). If the arm is not seen at the arc, tune `PusherCheck.ARM_CENTER_DEG` in the Dashboard and commit the value. `Mechanisms.AUTO_PUSHER_CHECK` (Dashboard) turns the automatic check off. Still open: the smallest belt slip worth catching (item 4), and the `COAST_LOOKAHEAD_S` decision (find a value from the `SALVO done` lines of the Shot Map Tuner or TeleOp logs, or remove the lookahead).
+The pusher measurements are finished (the arm is seen about 328 deg ahead of the mark, `TICKS_PER_REV` confirmed, the salvo is 400 deg) and the two tools that made them, **Pusher Sensor Matrix** and **Pusher Check Test**, were removed on 2026-11-02 (they are in git history). The pusher check now runs inside **TeleOp - Competition**: automatically after a salvo and once after power-up, and by hand with the operator's left bumper + Y (plan rows P8 and P9). If the arm is not seen at the arc, tune `PusherCheck.ARM_CENTER_DEG` in the Dashboard and commit the value. `Mechanisms.AUTO_PUSHER_CHECK` (Dashboard) turns the automatic check off. Still open: the smallest belt slip worth catching (item 4), and the `COAST_LOOKAHEAD_S` decision (find a value from the `SALVO done` lines of the Launch Map Tuner or TeleOp logs, or remove the lookahead).
 
-### Block D: Shots with real elements (plan Phase 3)
+### Block D: Launches with real elements (plan Phase 3)
 
-1. The **Shot Test** opmode was removed on 2026-11-02. Use **TeleOp - Competition**, or the **Shot Map Tuner** (disabled: delete `@Disabled` and its import in `ShotMapTuner.java` to use it). Fire with the real elements (pollen and both nectars).
+1. The **Launch Test** opmode was removed on 2026-11-02. Use **TeleOp - Competition**, or the **Launch Map Tuner** (disabled: delete `@Disabled` and its import in `LaunchMapTuner.java` to use it). Launch with the real elements (pollen and both nectars).
 2. Record per speed: speed at release, lowest speed during the salvo (the `SALVO done` log line), whether all four leave and in what order.
-3. Tune `FEED_FORWARD` (Dashboard) so the hold power is just enough at about 600, 1000 and 1500 ticks/s. Tie it to the minimum shot speed.
+3. Tune `FEED_FORWARD` (Dashboard) so the hold power is just enough at about 600, 1000 and 1500 ticks/s. Tie it to the minimum launch speed.
 4. Record the pusher's settle after each salvo (the `SALVO done` line shows where the arm rested) over **10 salvos in a row**, including with 4 elements: min and max landing error, no fault.
 5. Intake feeding the pusher: with the pusher at HOLD, exactly 4 fit and a 5th is held out.
-6. **`Pusher.hold()` (return to HOLD) turns nearly a full turn forward when the arm rests more than 8 deg past HOLD** and fires the stack. The pusher check and the bring-up tools call it; this is an open decision (see "Open decisions").
+6. **`Pusher.hold()` (return to HOLD) turns nearly a full turn forward when the arm rests more than 8 deg past HOLD** and launches the stack. The pusher check and the bring-up tools call it; this is an open decision (see "Open decisions").
 7. Everything powered while driving: drive with the flywheel spinning and the intake running. Record the **minimum battery voltage** and the **loop time**; no brown-out, no Pinpoint jumps.
 
 ### Block E: TeleOp - Competition (plan Phase 4)
@@ -71,20 +71,20 @@ The pusher measurements are finished (the arm is seen about 328 deg ahead of the
 Run first with the robot on blocks, then on the floor. Each row of the plan's Phase 4 table must pass **three times in a row**. In this order:
 
 1. INIT checks: alliance select for both alliances; Pinpoint OK; the INIT screen shows the mechanisms and the counter.
-2. Drive: field-oriented stick up = away from the driver on both alliances; precision mode; **hold left + right bumper 1 s** reseeds the pose (also the fix for a wrong heading). If a stick direction is wrong at the field, correct `BLUE_DRIVER_FORWARD_DEG` / `RED_DRIVER_FORWARD_DEG`.
+2. Drive: field-oriented stick up = away from the driver on both alliances; precision mode; **hold left bumper + right trigger 1 s** reseeds the pose (also the fix for a wrong heading). If a stick direction is wrong at the field, correct `BLUE_DRIVER_FORWARD_DEG` / `RED_DRIVER_FORWARD_DEG`.
 3. Intake toggle (operator RT), outtake (LT held), deploy (X) and stow (Y), including **stow under each of the four flowers** (it must wait, then release when clear). Measure the real ramp reach and set `CLEAR_DISTANCE_IN` (placeholder 24).
-4. Fire (A) cold and warm, fire when the setpoint is too high (it must drop after the timeout, not stick), reject (B), the flywheel toggles (RB / LB), the setpoint D-pad.
+4. Launch (A) cold and warm, launch when the setpoint is too high (it must drop after the timeout, not stick), reject (B), the flywheel toggles (RB / LB), the setpoint D-pad.
 5. **Element counter rows C1 to C5:** 1 to 4 elements fill from CS4; the 4th stops the intake about half a second later and clears the toggle; a salvo from full drops the count to 0; opponent nectar raises a warning only. Note the loop time with the counter on.
-6. **Jam handling** (the pusher does not fault for now: B cancels a salvo, A cancels a reject), a salvo chain with the arm resting past HOLD (each must fire; none sticks).
-7. **Backup mode (F2, F4, F5)** (no way back within a run): driver holds LB + X for 1 s, or a Pinpoint fault lasting 0.5 s: robot-oriented drive, fixed shot speed for 42 in, no target lock, three rumble taps on both pads. There are no sensor overrides to toggle any more (the counter and the flywheel open loop were removed from the controls).
+6. **Jam handling** (the pusher does not fault for now: B cancels a salvo, A cancels a reject), a salvo chain with the arm resting past HOLD (each must launch; none sticks).
+7. **Backup mode (F2, F4, F5)** (no way back within a run): driver holds LB + X for 1 s, or a Pinpoint fault lasting 0.5 s: robot-oriented drive, fixed launch speed for 42 in, no target lock, three rumble taps on both pads. There are no sensor overrides to toggle any more (the counter and the flywheel open loop were removed from the controls).
 8. Drive while firing: pose stays correct, nothing locks up. The target cell is picked automatically (the nearer of your alliance's two cells, switching only when the other is 6 in closer): drive across the middle and watch it switch once, not flip-flop.
 9. Driver and operator feel (precision scale, turn scale, trigger thresholds, layout): collect changes from the drivers, change one at a time.
 
-### Block F: Shot map (plan Phase 5)
+### Block F: Launch map (plan Phase 5)
 
-1. **Shot Map Tuner** (single gamepad; it runs the real mechanisms since 2026-11-01): right trigger loads elements (the intake stops itself at 4), **X** spins the flywheel, D-pad up/down sets the speed, **Y** fires a salvo, **B** records (distance, speed), **A** undoes the last point, D-pad left/right picks the target cell, left bumper follows the recorded points, Back clears a pusher fault (hold it 1 s to reseed the pose).
-2. For each distance, from the closest legal shooting position to the farthest you intend to use, for each target cell that matters: drive there (the distance is the Pinpoint's, or type a tape-measured one into `MANUAL_DISTANCE_IN`), load 4, fire, and raise or lower the speed until the shots score; validate with a full 4-element salvo and count the scores; then **B**.
-3. Paste the printed lines (also in `bringup.log` as `RECORD` and a final `SHOT MAP` event) into `ShotMap.TABLE`. Confirm pollen and nectar both score from the same speed, or note the exception.
+1. **Launch Map Tuner** (single gamepad; it runs the real mechanisms since 2026-11-01): right trigger loads elements (the intake stops itself at 4), **X** spins the flywheel, D-pad up/down sets the speed, **Y** launches a salvo, **B** records (distance, speed), **A** undoes the last point, D-pad left/right picks the target cell, left bumper follows the recorded points, Back clears a pusher fault (hold it 1 s to reseed the pose).
+2. For each distance, from the closest legal launching position to the farthest you intend to use, for each target cell that matters: drive there (the distance is the Pinpoint's, or type a tape-measured one into `MANUAL_DISTANCE_IN`), load 4, launch, and raise or lower the speed until the launches score; validate with a full 4-element salvo and count the scores; then **B**.
+3. Paste the printed lines (also in `bringup.log` as `RECORD` and a final `LAUNCH MAP` event) into `LaunchMap.TABLE`. Confirm pollen and nectar both score from the same speed, or note the exception.
 
 ### Block G: Pinpoint offsets and drive PID (autos only)
 
@@ -95,13 +95,13 @@ Run first with the robot on blocks, then on the floor. Each row of the plan's Ph
 ### Block H: Autos (plan Phase 6)
 
 1. Check the start pose at the field: touching the wall, inside the alliance half, not in the loading zone or flower volume, ramp stowed, **4 elements preloaded**, pusher at HOLD.
-2. Run **Auton - Hive Volley (Blue)** and **Auton - Blue Students** three times each from the legal start, without a fault. Watch the INIT screen: Pinpoint OK, preload `4 elements seen`.
+2. Run **Auton - Solo** three times from the legal start, without a fault (the old Blue Students and Hive Volley autos were deleted 2026-11-05). Watch the INIT screen: Pinpoint OK, preload `4 elements seen`.
 3. Time each against the auto period (the real volley and ramp waits are in the log).
-4. **Handoff:** run an auto, then **TeleOp - Competition** immediately. The INIT screen should say `AUTO pose, saved N s ago`, and the pose and the pusher zero should still be right after the first salvo.
+4. **Handoff:** run an auto, then **TeleOp - Competition** immediately. The INIT screen should say `AUTO pose, saved N s ago` and `CONTINUING from the auto: the device was not reset or reseeded` (the log: `PINPOINT START mode ADOPTED`), and the pose and the pusher zero should still be right after the first salvo.
 
 ### Block I: Rehearsal and freeze (plan Phase 7)
 
-- Full-match rehearsals (auto then the full TeleOp period), three times with the drivers, including at a **mid-drained battery** (recheck the pusher landing and a shot or two).
+- Full-match rehearsals (auto then the full TeleOp period), three times with the drivers, including at a **mid-drained battery** (recheck the pusher landing and a launch or two).
 - Check motor and drivetrain temperature, fasteners and wires.
 - Run **Pit Check** one last time; it must read `ALL PASS`.
 - Inspection list against the current manual, then freeze: tag `integration-v1`, merge into `main`, keep a copy of the build used.
@@ -133,8 +133,8 @@ Fill the plan's **record sheet**, then write these into the code and commit:
 |---|---|
 | Pusher `TICKS_PER_REV`, `SWEEP_POWER`, `APPROACH_POWER`, `STOP_EARLY_DEG`, `COAST_LOOKAHEAD_S`, `REJECT_POWER` | `Pusher.java` |
 | Flywheel `FEED_FORWARD`, `ENCODER_SIGN` | `Flywheel.java` |
-| `Mechanisms` manual setpoint start (now 1350) and `FIRE_TIMEOUT_SEC` | `Mechanisms.java` |
-| Shot map points | `ShotMap.TABLE` |
+| `Mechanisms` manual setpoint start (now 1350) and `LAUNCH_TIMEOUT_SEC` | `Mechanisms.java` |
+| Launch map points | `LaunchMap.TABLE` |
 | Element counter baseline (`BASE_ALPHA`, `BASE_DIST`, `BASE_SHARES`) | `ElementCounter.java` |
 | Ramp `CLEAR_DISTANCE_IN` | `Ramp.java` |
 | Pinpoint offsets `xOffsetMM`, `yOffsetMM` | `ChassisProfile.ROBOT_1` |
@@ -147,9 +147,9 @@ Rebuild and reinstall after committing, and confirm the Dashboard shows the new 
 
 **INIT (gamepad 1):** D-pad right = BLUE, D-pad left = RED (only when there is no auto pose); D-pad up = discard the auto pose.
 
-**Driver (gamepad 1):** left stick drives (field-oriented, up = away from the driver); right stick X turns; left trigger held = precision (30%); **A** = fire (also cancels a running reject; works with any number of elements; with the lock held and not yet aligned the fire waits for ALIGNED, at most 1.5 s, then drops); **hold the right trigger** = target lock by hand (the automatic lock when full is off; the robot turns to point its front at the nearest cell while you keep driving; hold the left bumper and use the right stick to nudge the aim up to 15 deg (the stick does nothing while locked without the bumper); ALIGNED on the screen means on target); **hold left + right bumper 1 s** = reseed the pose; **hold left bumper + X for 1 s** = BACKUP MODE (robot-oriented drive, flywheel fixed for 42 in, no target lock, no way back this run).
+**Driver (gamepad 1):** left stick drives (field-oriented, up = away from the driver); right stick X turns; left trigger held = precision (30%); **hold D-pad left / right** = HIVE DASH (drives to the launch spot of the cell on your left / right, target locks and launches when aligned; let go to cancel and drive, a salvo already launched finishes; refused with a short rumble when the robot holds nothing, in backup mode, or when it is touching a hive support; see design/hive-dash.md); **hold D-pad up / down** = PARK DASH (drives to the park corner on your left / right and stays there while held; stows the ramp; design/park-dash.md); **A** = launch (also cancels a running reject; works with any number of elements; with the lock held and not yet aligned the launch waits for ALIGNED, at most 1.5 s, then drops); **hold the right bumper** = target lock by hand (the right trigger until 2026-11-05) (the automatic lock when full is off; the robot turns to point its front at the nearest cell while you keep driving; hold the left bumper and use the right stick to nudge the aim up to 15 deg (the stick does nothing while locked without the bumper); ALIGNED on the screen means on target); **hold left bumper + right trigger 1 s** = reseed the pose (it was left + right bumper until 2026-11-05); **hold left bumper + X for 1 s** = BACKUP MODE (robot-oriented drive, flywheel fixed for 42 in, no target lock, no way back this run).
 
-**Operator (gamepad 2):** the intake is automatic (IN until 4 elements, then it stops); **hold right trigger** = force IN even when full; **hold left trigger** = force OUT; **right bumper** = AUTO-FIRE on / off (prototype, off at Start: in the shot zone of the locked cell the chassis stops and one salvo fires by itself once the lock is aligned and the robot has stopped); **hold left bumper + B** reject (also cancels a running salvo: the way out of a jam); **X** deploy ramp; **Y** stow ramp (at once, no flower check); **hold left bumper + Y** pusher calibration sweep (track empty; the intake stops by itself until it ends); the flywheel has no control (it runs from Start and never stops); **D-pad (unguarded)** = report where the LAST salvo landed, seen from behind the robot: left = landed LEFT (that cell's remembered aim turns 1.5 deg right), right = landed RIGHT (1.5 deg left), down = landed LOW (speed trim +10 ticks/s), up = landed HIGH (speed trim -10); the remembered aim is per cell, kept for the next lock on that cell and cleared by a driver reseed; **hold left bumper + D-pad left/right** clears that cell's remembered aim, **hold left bumper + D-pad up/down** clears the speed trim (the target cell is the nearest of the alliance's two, automatically); (the pusher does not fault for now, `Pusher.FAULTS_ENABLED` = false); both controllers rumble once when the robot becomes full (a rumble pad only; the F310 has none).
+**Operator (gamepad 2):** the intake is automatic (IN until 4 elements, then it stops); **hold right trigger** = force IN even when full; **hold left trigger** = force OUT; (no control for the PUSHER LOCK: the arm moves 90 deg across the intake entrance by itself while a target lock or a Hive Dash is on and something is held; the count is frozen and the intake is off while locked; a launch goes from the lock, a reject or holding the right trigger unlocks it, and it goes back to HOLD 0.5 s after the target lock or dash ends without a launch; a full robot alone just stops the intake); **right bumper** = AUTO-LAUNCH on / off (prototype, off at Start: in the launch zone of the locked cell the chassis stops and one salvo launches by itself once the lock is aligned and the robot has stopped); **hold left bumper + B** reject (also cancels a running salvo: the way out of a jam); **X** deploy ramp; **Y** stow ramp (at once, no flower check); **hold left bumper + Y** pusher calibration sweep (track empty; the intake stops by itself until it ends); the flywheel has no control (it runs from Start and never stops); **D-pad (unguarded)** = report where the LAST salvo landed, seen from behind the robot: left = landed LEFT (that cell's remembered aim turns 3 deg right), right = landed RIGHT (3 deg left), down = landed LOW (speed trim +10 ticks/s), up = landed HIGH (speed trim -10); the remembered aim is per cell, kept for the next lock on that cell and cleared by a driver reseed; **hold left bumper + D-pad left/right** clears that cell's remembered aim, **hold left bumper + D-pad up/down** clears the speed trim (the target cell is the nearest of the alliance's two, automatically); (the pusher does not fault for now, `Pusher.FAULTS_ENABLED` = false); both controllers rumble once when the robot becomes full (a rumble pad only; the F310 has none).
 
 ## 6. If something is wrong
 
@@ -159,18 +159,18 @@ Rebuild and reinstall after committing, and confirm the Dashboard shows the new 
 | Pinpoint not OK on INIT | Robot moved after INIT, pod or I2C cable, or the start pose is wrong | restart the opmode with the robot still; Pit Check "Pinpoint" |
 | "ELEMENT COUNTER NOT READING" | A color sensor dropped off its bus or the cable is loose | Pit Check lines CS1-CS4; in a match count by eye and hold the left trigger to push extras out |
 | Count wrong or "FULL" with an empty track | The baseline does not match today's lighting | Block B |
-| Fire is dropped ("flywheel not ready in time") | Setpoint too high or battery low (a dead encoder now switches to a fixed-power open loop by itself) | `fly_vel`, `fly_power` in `teleop.log`; Pit Check "Flywheel encoder" |
+| Launch is dropped ("flywheel not ready in time") | Setpoint too high or battery low (a dead encoder now switches to a fixed-power open loop by itself) | `fly_vel`, `fly_power` in `teleop.log`; Pit Check "Flywheel encoder" |
 | Pusher angles or salvos look off after a run | Stale zero (belt slip, or the arm moved) | the pusher check corrects it after the next salvo (`PUSHER CHECK` lines in the log; a LOST warning means it could not); otherwise put the arm at HOLD and restart the app |
 | "SALVO running" never ends, or "Pusher STALLED" | Jam (the pusher does not fault for now) | B cancels a salvo, A cancels a reject; read `last settle` and the log's `PUSHER` lines |
-| Field-oriented sticks feel wrong | Heading drift or the wrong driver-forward direction | hold LB + RB to reseed the pose (resets the heading); hold LB + X for backup mode if the Pinpoint is bad; correct `*_DRIVER_FORWARD_DEG` |
+| Field-oriented sticks feel wrong | Heading drift or the wrong driver-forward direction | hold LB + RT to reseed the pose (resets the heading); hold LB + X for backup mode if the Pinpoint is bad; correct `*_DRIVER_FORWARD_DEG` |
 | An opmode throws "Unrecognized Control Hub" | This hub is not registered in `ChassisProfile` | the error lists the hub ids: add one (the serial is preferred) to a profile in `ChassisProfile.java` |
 | Values you tuned are back to the old ones | They were only in the Dashboard; the app was reinstalled or restarted | Block 4: write them into the code |
 
 ## 7. Open decisions to settle on the day
 
-- **`Pusher.hold()`:** turns nearly a full turn forward when the arm rests more than 8 deg past HOLD (fires the stack); salvos land 5-12 deg past. Decide the behavior.
+- **`Pusher.hold()`:** turns nearly a full turn forward when the arm rests more than 8 deg past HOLD (launches the stack); salvos land 5-12 deg past. Decide the behavior.
 - **`COAST_LOOKAHEAD_S`:** find a value from the logs, or remove the lookahead.
 - **Smallest belt slip to catch (item 4):** picks the pusher check's tolerance.
 - **Pusher zero in TeleOp:** it trusts the saved zero; the automatic pusher check now corrects a slip after a salvo (not yet run on the robot).
-- **Autos' time budget** with the real mechanisms against the auto period, and whether to stow at the shooting spot without the pose check (it does now) once the real ramp reach is known.
+- **Autos' time budget** with the real mechanisms against the auto period, and whether to stow at the launching spot without the pose check (it does now) once the real ramp reach is known.
 - Whether the operator's stick-button overrides are too easy to press by accident.

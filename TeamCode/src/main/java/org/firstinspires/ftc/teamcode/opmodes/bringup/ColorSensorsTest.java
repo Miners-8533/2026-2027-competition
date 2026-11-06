@@ -38,7 +38,7 @@ import java.util.Locale;
  *
  * Layout: the sensors are numbered along the track, intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel (CS4 is deepest, nearest
  * the flywheel and the pusher arm; CS1 is nearest the intake). The test shows the pattern as a STACK line, how many are in a
- * row from the flywheel end, and the element at the deepest slot (it fires first). The fill order (from the flywheel end)
+ * row from the flywheel end, and the element at the deepest slot (it launches first). The fill order (from the flywheel end)
  * is an assumption: a GAP warning means an element is seen without a neighbor toward the flywheel.
  *
  * Reading: each sensor read is two blocking I2C transactions (about 13 ms), and the sensors only refresh every 100 ms,
@@ -392,7 +392,7 @@ public class ColorSensorsTest extends LinearOpMode {
                     armCount > 0 ? "   [CS4 sees the pusher arm: not counted]" : "");
 
             // The track runs intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel, and the stack is expected to fill from the
-            // flywheel end. Show the pattern, the contiguous run from CS4, and the element at the deepest slot (it fires first).
+            // flywheel end. Show the pattern, the contiguous run from CS4, and the element at the deepest slot (it launches first).
             StringBuilder stack = new StringBuilder("intake > ");
             int contiguous = 0;
             boolean unbroken = true;

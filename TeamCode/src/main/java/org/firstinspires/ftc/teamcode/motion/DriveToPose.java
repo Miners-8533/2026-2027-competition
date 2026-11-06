@@ -57,6 +57,7 @@ public final class DriveToPose implements Action {
     private final Pose2d target;
     private double timeoutSec = TIMEOUT_SEC;
     private double posTolIn = Double.NaN, headTolDeg = Double.NaN;   // NaN: the statics
+    private double settleSecOverride = Double.NaN;                   // NaN: SETTLE_SEC
     private boolean distanceTimeout = false;
     private double maxOutputOverride = Double.NaN;   // NaN: MAX_OUTPUT
     private double dtBaseSec, dtInPerSec, dtMinSec, dtTurnExtraSec, dtMaxSec;
@@ -81,6 +82,12 @@ public final class DriveToPose implements Action {
     }
 
     /** Use this position (inches) and heading (degrees) tolerance for this drive instead of the statics: a coarse one for a pass-through point. */
+    /** The time inside the tolerance before the drive is done (the static SETTLE_SEC is 0.20 s); 0 ends the drive the moment it is near, for a pass-through leg that must not wait. */
+    public DriveToPose withSettle(double settleSec) {
+        settleSecOverride = settleSec;
+        return this;
+    }
+
     public DriveToPose withTolerance(double posIn, double headingDeg) {
         posTolIn = posIn;
         headTolDeg = headingDeg;
@@ -156,7 +163,7 @@ public final class DriveToPose implements Action {
         if (!inTolerance) {
             settle.reset();
         }
-        boolean done = (inTolerance && settle.seconds() >= SETTLE_SEC)
+        boolean done = (inTolerance && settle.seconds() >= (Double.isNaN(settleSecOverride) ? SETTLE_SEC : settleSecOverride))
                 || timeout.seconds() >= timeoutSec;
 
         packet.put("dtp/errX_in", errX);

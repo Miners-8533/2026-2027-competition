@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
+import org.firstinspires.ftc.teamcode.util.LoopProfiler;
 
 /**
  * Minimal mecanum drivetrain: four motors, open-loop power mixing, plus a {@link Localizer}
@@ -27,6 +28,12 @@ public final class MecanumDrive {
     public static class Params {
         /** Global scale on all wheel powers (e.g. a "slow"/precision mode multiplier). */
         public double powerScale = 1.0;
+        /**
+         * A wheel power within this of the last one SENT is not sent (each hub write blocks for a few ms). 0 sends every change. A stop (0 after a non-zero power)
+         * is always sent, and a power is re-sent at least every refreshMs so the hub's own refresh and the motor controller never go long without a command.
+         */
+        public double writeDeadband = 0.01;
+        public double refreshMs = 200.0;
     }
 
     public static Params PARAMS = new Params();
@@ -38,7 +45,17 @@ public final class MecanumDrive {
 
     private PoseVelocity2d lastCommand = PoseVelocity2d.zero();
 
+    /** The autos and test opmodes: the Pinpoint is reset (position zeroed, IMU recalibrated: the robot must be still) and seeded with initialPose. */
     public MecanumDrive(HardwareMap hardwareMap, Pose2d initialPose) {
+        this(hardwareMap, initialPose, false);
+    }
+
+    /**
+     * With adoptPinpointPose true the Pinpoint is NOT reset or written to: its own pose, kept since the last opmode, is used (the TeleOp after an auto;
+     * initialPose is then only the pose the auto saved, used to check the device and as the fallback if it looks restarted). See
+     * {@link PinpointLocalizer#PinpointLocalizer(HardwareMap, Pose2d, boolean)}.
+     */
+    public MecanumDrive(HardwareMap hardwareMap, Pose2d initialPose, boolean adoptPinpointPose) {
         // Bulk reads: one round trip per loop for all motor encoders / currents.
         for (LynxModule module : hardwareMap.getAll(LynxModule.class)) {
             module.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
@@ -60,7 +77,7 @@ public final class MecanumDrive {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
-        localizer = new PinpointLocalizer(hardwareMap, initialPose);
+        localizer = new PinpointLocalizer(hardwareMap, initialPose, adoptPinpointPose);
     }
 
     /**
@@ -84,10 +101,33 @@ public final class MecanumDrive {
                 Math.max(Math.abs(lb), Math.max(Math.abs(rb), Math.abs(rf)))));
 
         double s = PARAMS.powerScale / max;
-        leftFront.setPower(lf * s);
-        leftBack.setPower(lb * s);
-        rightBack.setPower(rb * s);
-        rightFront.setPower(rf * s);
+        long t0 = LoopProfiler.start();   // the hub writes (the SDK itself skips only a power exactly equal to the last one; see writePower)
+        long now = System.nanoTime();
+        writePower(0, leftFront, lf * s, now);
+        writePower(1, leftBack, lb * s, now);
+        writePower(2, rightBack, rb * s, now);
+        writePower(3, rightFront, rf * s, now);
+        LoopProfiler.stop("drive_write", t0);
+    }
+
+    private final double[] sentPower = new double[4];   // the last power actually sent to each motor
+    private final long[] sentAtNs = new long[4];         // 0 = nothing sent yet
+
+    /** Sends a wheel power unless it is within PARAMS.writeDeadband of the last one sent (a stop and the periodic refresh are always sent). */
+    private void writePower(int i, DcMotorEx motor, double power, long nowNs) {
+        double dead = PARAMS.writeDeadband;
+        boolean skip = dead > 0.0 && sentAtNs[i] != 0L
+                && Math.abs(power - sentPower[i]) < dead
+                && !(power == 0.0 && sentPower[i] != 0.0)
+                && (nowNs - sentAtNs[i]) < PARAMS.refreshMs * 1e6;
+        if (skip) {
+            LoopProfiler.count("drive_skipped");
+            return;
+        }
+        motor.setPower(power);
+        sentPower[i] = power;
+        sentAtNs[i] = nowNs;
+        LoopProfiler.count("drive_sent");
     }
 
     public void stop() {
@@ -96,7 +136,12 @@ public final class MecanumDrive {
 
     /** Advance the pose estimate. Call once per loop, before reading {@link #getPose()}. */
     public PoseVelocity2d updatePoseEstimate() {
-        return localizer.update();
+        long t0 = LoopProfiler.start();
+        try {
+            return localizer.update();
+        } finally {
+            LoopProfiler.stop("pose", t0);   // the Pinpoint read
+        }
     }
 
     public Pose2d getPose() {

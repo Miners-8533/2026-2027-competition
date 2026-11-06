@@ -55,7 +55,7 @@ public final class ChassisProfile {
 
     /** Direction that makes positive intake power pull elements in. Not yet verified on any chassis. */
     public final DcMotorSimple.Direction intakeDirection;
-    /** Flywheel motor direction (positive power spins it the shooting way) and pusher direction (positive = the forward, pushing way). Both unverified. */
+    /** Flywheel motor direction (positive power spins it the launching way) and pusher direction (positive = the forward, pushing way). Both unverified. */
     public final DcMotorSimple.Direction flywheelDirection, pusherDirection;
     /** Direction of the optional second flywheel motor ("fly_follow", no encoder). It usually faces the first, so the opposite of flywheelDirection. Verified on the flywheel bench: flywheel REVERSE, follower FORWARD (both spun the wrong way with last year's FORWARD / REVERSE). */
     public final DcMotorSimple.Direction flywheelFollowerDirection;
@@ -125,7 +125,7 @@ public final class ChassisProfile {
      * does not matter); then corrected by the first Pinpoint Offset Check (2026-11-01, 3 turns: wobble 2.58 in, forward-axis error -31.4 mm,
      * strafe-axis error 9.5 mm) to x -133.7 mm, y +9.5 mm. The pods' own ticks over those turns give the same: the X pod 5.28 in (134 mm) right of the
      * rotation center and the Y pod 8.5 mm ahead of it. (The tape said 6.5 in and 0: the robot's rotation center is not its geometric center.) The Y pod direction is REVERSED (the Push Test of 2026-11-01 read a left
-     * push as -Y, with the pod ticks falling about 5,600 for 11.5 in); the X pod and the heading passed. The ramp pair is mirrored: stowed left 1.0 / right 0.0, deployed left 0.0 / right 1.0 (set
+     * push as -Y, with the pod ticks falling about 5,600 for 11.5 in); the X pod and the heading passed. The ramp pair is mirrored: stowed left 0.9 / right 0.1 (moved 10 % toward deployed on 2026-11-05 at the user's request; it was 1.0 / 0.0), deployed left 0.0 / right 1.0 (set
      * 2026-10-31 from the Ramp Test, ramp seen stowed up at left 1.0 / right 0.0; the servos have no feedback, so
      * these are commanded values; TRAVEL_SEC = 0.8 s was measured by the team). The intake direction was flipped to FORWARD on
      * 2026-10-31 (it ran backwards with REVERSE; not yet re-checked after the flip). The footprint
@@ -139,7 +139,7 @@ public final class ChassisProfile {
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED,   // Y pod reversed: Pinpoint Push Test 2026-11-01 read a left push as -Y
             -133.7, 9.5, 17.48, 13.70, 7.598, DcMotorSimple.Direction.FORWARD,   // offsets from the Offset Check of 2026-11-01 (0.16 in wobble then). On 2026-11-03 the check showed 2.1 to 2.2 in with these and suggested about -158.7 / +22.8; the CAD-based -139.0 / +1.0 gave 2.45 to 3.60 in. Kept as they are for now (user decision)
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
-            1.0, 0.0, 0.0, 1.0);   // ramp: stowed left / right, deployed left / right (the tied servos are mirrored)
+            0.9, 0.1, 0.0, 1.0);   // ramp: stowed left / right, deployed left / right (the tied servos are mirrored); stowed moved 10 % toward deployed on 2026-11-05 (user), from 1.0 / 0.0
 
     private static final ChassisProfile[] ALL = {PROTOTYPE, DRAFT_1, ROBOT_1};
     private static final ChassisProfile DEFAULT = DRAFT_1;

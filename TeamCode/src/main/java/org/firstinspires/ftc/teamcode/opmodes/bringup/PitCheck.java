@@ -45,7 +45,7 @@ import java.util.TreeSet;
  * Automatic, no motion (right after Start): configuration (every name and type, where each device is plugged in, stale entries),
  * battery, Pinpoint, color sensors (the track must be EMPTY).
  * Then, one step at a time, each asking first:
- *   flywheel   spins at low power: the encoder must count the right way (automatic), the wheel must turn the shooting way (you judge)
+ *   flywheel   spins at low power: the encoder must count the right way (automatic), the wheel must turn the launching way (you judge)
  *   pusher     turns the arm about PUSHER_TEST_DEG forward and back to where it started (the encoder sign and the return are
  *              automatic, the pushing direction is yours to judge)
  *   intake     pulses IN then OUT (you judge the direction; the motor current is shown)
@@ -280,7 +280,7 @@ public class PitCheck extends LinearOpMode {
         } else {
             record("Flywheel encoder", Verdict.FAIL, "reads about 0 while the motor runs: no encoder counts (check the encoder cable and port), or the motor did not turn");
         }
-        judge("Flywheel direction", "Did the flywheel turn the SHOOTING way (the way that throws an element out)?",
+        judge("Flywheel direction", "Did the flywheel turn the LAUNCHING way (the way that throws an element out)?",
                 "flip flywheelDirection for this chassis in ChassisProfile (and then Flywheel.ENCODER_SIGN if the encoder check fails)");
     }
 

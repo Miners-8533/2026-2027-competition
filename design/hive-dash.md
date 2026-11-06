@@ -1,0 +1,116 @@
+# Hive Dash (BUILT 2026-11-04, not yet run on the robot)
+
+Built as designed below: `drive/HiveRoute.java` (the router, tested on a PC by `tools/hive/run-check.cmd`), `drive/HiveDash.java` (state machine and follower) and the wiring in `opmodes/TeleOpCompetition.java`. Differences from the text: the geometry constants live in `HiveRoute` (so it runs without the SDK) instead of `FieldGeometry`; an unaligned leg costs length / 0.75 in the route search (without it a chain of short legs beat a clear direct line); a robot standing right beside a leg under the hive can be refused as `no clear route` (the swept rectangle plus the 1.5 in margin) - drive clear by hand.
+
+Driver feature in `TeleOp - Competition`: hold the driver D-pad left or right and the robot drives to the launch spot of a hive cell, target locks, and launches when aligned. Named by the user 2026-11-04.
+
+## Behaviour
+
+**Control.** Driver (gamepad 1) D-pad left / right, hold to run. The mapping follows the DRIVER'S view of the field (the same orientation as the field-oriented sticks):
+
+| alliance | D-pad left | D-pad right |
+|---|---|---|
+| blue (driver looks toward -Y) | audience cell | rear cell |
+| red (driver looks toward +Y) | rear cell | audience cell |
+
+**Goals** (the Auto Launch zone centres, field frame; moved in from x +-61.5 to +-55.4 on 2026-11-06 so the robot's back is 8 in from the wall, 71 - 8 - 7.6): blue rear (-55.4, 15.25), blue audience (55.4, 7.5), red rear (-55.4, -7.5), red audience (55.4, -15.25). The robot's final heading is the target lock's aim heading at the goal.
+
+**Sequence.**
+1. D-pad pressed. Refused (no movement, no waypoints) when: backup mode, pose not seeded, the element counter is reading and holds nothing, or the robot's own footprint already overlaps a keep-out (pressed against a support). A refusal is a short rumble on the driver pad plus a telemetry line.
+2. DRIVING: follow the planned route (below). Sticks are ignored while the D-pad is held.
+3. Inside the lock radius of the goal (20 in, tunable; on the last leg 32 in out once the robot is at least 36 in from the field center, `EARLY_LOCK_RADIUS_IN` / `EARLY_LOCK_MIN_ABS_X`, since 2026-11-06): the target lock takes the heading, the speed eases, the goal tolerance is 2.5 in / 6 deg.
+4. ARRIVED: stop, finish aligning. Launch when ALIGNED, stopped (under 4 in/s; no hold time since 2026-11-06, `LAUNCH_HOLD_SEC` 0, it was 0.15 s) and the flywheel is ready; skipped if the robot is empty on arrival (the counter reads 0).
+5. The salvo always finishes, even if the D-pad was released. The dash ends after the salvo.
+
+**Cancel.** Releasing the D-pad cancels at once and the sticks take over, also during a salvo (the salvo still completes). No stuck check and no timeout: the driver sees a stuck robot and lets go.
+
+**Cell choice.** The D-pad's cell overrides the nearest-cell logic for the length of the dash (the launch map follows the distance to that cell); the normal logic resumes afterwards.
+
+## Field geometry (CAD, field STEP v26-27.2, parts am-5878 and am-5876)
+
+CAD axes: CAD X = our Y, CAD Z = our X (confirmed by the bars lying on the row borders 2|3 and 4|5). Everything is symmetric in sign, so the same four obstacles serve both alliances.
+
+**Foot bars** (ground obstacles, 2.15 in tall, the chassis cannot cross): two of them, x -19.47 to +19.47, |y| 22.75 to 24.73.
+
+**A-frame legs** (4, one per quadrant; 1 in square tube, 45.75 in long) lean inward both ways: foot centreline at height 0.53 in is (|x|, |y|) = (18.56, 23.81); at height 18 in it is (10.78, 19.04); at 41.08 in it is (0.51, 12.74). The robot is treated as 18 in tall (`ROBOT_HEIGHT_IN`, Dashboard), so for the chassis each leg is the thick line segment from its foot to its 18 in point, half thickness 0.57 in. At 18 in the tube outer faces are |x| 10.24 to 11.33 and |y| 18.47 to 19.61.
+
+**The lane under the hive.** The narrowest point is at |x| = 10.78, where the inner faces are 36.9 in apart in y. A 13.70 in wide robot driving along x on y = 0 clears each leg by 11.6 in; even turned any way (the 12.0 in far-corner radius) it clears by 6.5 in. So the lane on y = 0 needs no heading constraint. (The supports lean inward, so the OUTSIDE of the hive is not narrowed by the lean.)
+
+## Route planning (hand-placed points, no fancy logic)
+
+**Points** (field frame, mirrored for all four signs): corner helpers (+-36, +-40), the user's tuned point; lane gates at the hive's entrance and exit (+-34, 0). The user will refine these later; they are Dashboard values.
+
+**Footprint.** The real rectangle: 17.48 x 13.70 in, origin 7.60 in from the back and 9.88 in from the front. Each straight leg is the footprint swept along the leg with the robot ALIGNED to the leg (front or rear leading), tested against the keep-outs (2 bars + 4 leg segments) with a separating-axis check plus a margin (1.5 in, tunable). At a point where the heading changes the footprint is tested as a circle of 12.0 in (far corner) plus the margin.
+
+**Algorithm.**
+1. If the straight line from the robot to the goal is clear, go straight.
+2. Otherwise the shortest chain through the points over legs that are clear (a small graph, at most 8 points plus start and goal): a leg's cost is its length plus a turn penalty (inches per degree, tunable).
+3. The route is chosen once when the D-pad is pressed and kept for the dash.
+4. `UNDER_HIVE_ROUTES` (Dashboard, on from the start, user 2026-11-04) controls whether a route between two outside points may use the lane (it removes the gate-to-gate link). A robot that STARTS under the hive always has a clear leg to a gate, so it can leave with no special case.
+5. If the robot starts overlapping a keep-out, the dash is refused (see above).
+
+Worked lengths: rear zone to audience zone about 149 in around the outside via (-36, 40) and (36, 40), about 128 in through the lane via (-34, 0) and (34, 0).
+
+## Flowers and the flywheel (2026-11-06)
+
+**Flower keep-outs.** The router also keeps the robot out of the four flower stands (`HiveRoute.flowerKeepOuts`): a rectangle per flower from the field CAD, the top ring plate's footprint, 5.8 in along the wall by 4.8 in out, centered on the opening center (68.45 in from the field center along the wall's normal, 23.4 in to one side of the wall's midpoint: audience (68.45, 23.4), Blue Wall (-23.4, 68.45), rear (-68.45, -23.4), Red Wall (23.4, -68.45)). The middle ring and the pipes below it fill the same footprint, so there is no passing under. A first leg that starts within reach of a flower and moves away from it is exempt from that flower (a robot that has just gathered from one stands next to it). Why: the 2026-11-06 TeleOp log had dashes to the rear cell passing 7.8 to 9.9 in from the rear flower's center along x = -61, with the old spots 2 in from the wall.
+
+**Flywheel at the start.** While a dash runs the launch speed is worked out for the launch spot's distance to the cell (`Output.overrideDistanceIn`, `Mechanisms.setDashLaunchDistance`), not for the robot's distance now, so the flywheel is sent to that speed when the dash starts instead of following the route's distances (it arrived above the launch band 9 times in the 2026-11-06 log and the launch waited up to 0.7 s).
+
+## Overshoot, corners and flower clearance (2026-11-06, from the 00:43 log)
+
+The log showed arrivals at 20 to 55 in/s that coasted 2 to 8 in past the spot (toward the flower), and two dashes that passed the helper point (36, 40) at 70 in/s and swung 17 in wide (to x 59, y 29) into the audience flower, where the speed fell from 42 to 8 in/s. Three changes:
+
+1. **Approach cap.** On the last leg the power is limited to `APPROACH_POWER` 0.5 (about 40 in/s) within `APPROACH_RADIUS_IN` 32 in of the spot, where the aim turn starts. The measured deceleration is about 240 in/s^2, so 40 in/s stops in about 3 in.
+2. **Corner slowdown.** Before a via point the power ramps down (0.03 of power per inch, about 12 in out) to a corner power that depends on the turn there: none up to `CORNER_FREE_DEG` 20 deg, `CORNER_POWER` 0.5 from `CORNER_FULL_DEG` 90 deg on, in proportion between. The (36, 40) corner in the log was a 121 deg turn.
+3. **Flower clearance.** The planner grows each flower rectangle by `FLOWER_CLEARANCE_IN` 3 in (plus the 1.5 in margin) because a robot that turns onto the cell sweeps its 12 in radius. Legs that end at the launch spot are judged with the far-corner circle at the spot only (no box past the end), since the audience spot is only 6.8 in from the flower. 3 in is the most that keeps every spot reachable (4 in cut 812 of 1500 trips to a spot); the north outside route to the audience spot is now blocked, so a dash from the Blue Wall side to the audience cell goes under the hive (87 in from (60.6, 58.4) instead of 51 in straight down the wall).
+
+## Driving in line with the wheels
+
+On each leg the heading is the travel direction, with the front or the rear leading, whichever needs less rotation (and, on the last leg, whichever leaves the smaller turn for the lock: the launch zones are straight out from their cells, so arriving rear-first means the front already faces the cell). The sides of a mecanum chassis strafe slower than forward, and aligned is the narrowest profile for the keep-outs. Short legs (under about 40 in) are not aligned.
+
+**Leg follower** (new, small): field velocity along the leg at full power for the leg, a correction for sideways error; the last leg drives straight at the goal point instead and eases off near it (so a robot that overshoots the goal, or passes it more than the tolerance to the side, is driven back to it; 2026-11-05, it used to keep a little power along the leg past the goal); the translation is converted to the robot frame with the current heading, so the robot moves along the leg while it is still turning, with the speed scaled by how well aligned it is (floor 40 percent). `DriveToPose`'s gains are kept for the final settle only (its per-axis clamp made a 45 degree first move on diagonals).
+
+**Strafe speed (measured from our own logs, 2026-11-04).** No published figure exists for a standard 4-wheel mecanum chassis (Game Manual 0 only says the strafe to forward ratio is noticeably less than 1; a forum quotes 70.7 percent ideal and 87 percent on one VEX robot). From the 31 TeleOp logs of 2026-11-01 to 11-03 (100 ms pose samples, travel direction against heading, no lateral multiplier in `MecanumDrive`, so a full stick drives every wheel at 1.0 in either direction): 99th-percentile speed forward 70.6 in/s, backward 71.8, strafe 52.7, diagonals about 51; so **strafe is about 0.75 of forward (0.76 at the 90th percentile), the diagonals about 0.72, backward equals forward** (about plus or minus 0.05). The first Hive Dash runs log speed against travel angle to confirm it. Consequence: an aligned leg is about 1.33 times faster than a strafed one, but the turn is not free, so the align threshold is 40 in (not 15), a Dashboard value to refine from the logs.
+
+## Code
+
+- `drive/HiveRoute.java`: pure geometry, no hardware; `plan(start, goal, underHive)` returns the waypoints and headings. Testable on a PC.
+- `drive/FieldGeometry.java`: the bar and leg constants.
+- `drive/HiveDash.java`: the state machine and the leg follower; returns translation, whether to lock, and a launch request. `TeleOpCompetition` applies it.
+- Pose and sensors are read once at the top of the loop and buffered; nothing in the dash reads the Pinpoint again.
+- Logging: `HIVE DASH start (route, via ...)`, `waypoint reached`, `arrived`, `aligned`, `launch`, `cancelled at (x, y)`, `refused: <why>`, `finished`; plus speed against travel angle for the strafe measurement.
+- Dry run: the Dashboard field overlay draws the keep-outs, the route and the goal in every mode; `HIVE_DASH_DRY_RUN` plans and draws without driving.
+- Docs: the controls page, `robot-day-runbook.md`, `run-logs.md`.
+
+## Tunables (Dashboard)
+
+Max power (0.5 for the first runs, 0.85 from 2026-11-05; `TURN_MAX` stays 0.5), margin 1.5 in, `ROBOT_HEIGHT_IN` 18, lock radius 20 in (`EARLY_LOCK_RADIUS_IN` 32 in / `EARLY_LOCK_MIN_ABS_X` 36 in on the last leg, `LAUNCH_HOLD_SEC` 0, `APPROACH_POWER` 0.5 / `APPROACH_RADIUS_IN` 32, `CORNER_POWER` 0.5 / `CORNER_FREE_DEG` 20 / `CORNER_FULL_DEG` 90 / `CORNER_RAMP_PER_IN` 0.03, `FLOWER_CLEARANCE_IN` 3), goal tolerance 2.5 in / 6 deg, pass-through tolerance 3 in / 10 deg, turn penalty, align threshold 40 in, `UNDER_HIVE_ROUTES` on (user, 2026-11-04), the helper and gate points.
+
+## Test plan
+
+1. PC test of the router: direct line, one point, two points, both alliances, start under the hive (origin), start against a bar (refused), every goal from every corner.
+2. Dry run on the robot, watching the overlay.
+3. Low-power runs with a spotter: crossing between the two zones, from the garden corners, both alliances; then the lane.
+4. Read the logs.
+
+## Decisions and open items
+
+- Robot height: 18 in kept for now (user, 2026-11-04). Anything else under the hive is not a concern for driving under it (user).
+- Refusal signal (short rumble plus telemetry) and the 20 in lock radius: accepted as the starting values (user).
+- Under-hive routes: allowed from the start (user).
+- Strafe against forward speed: about 0.75 from the TeleOp logs (see above); confirm in the first dash runs.
+- Still to approve: the whole design, before anything is built.
+
+## Lane centering (2026-11-05)
+
+The 20:52 run of 2026-11-05 had a Hive Dash at 0.85 power (dash 9: from (62, -55) to the blue rear zone via the near gate (34, 0)) that hit a hive support and stopped under the hive at (-11.9, 13.8, -21.7 deg). The robot reached the gate at 69 in/s, still turning 53 deg onto the lane leg, drifted to y 14.7 at x 20 (the line was at about 2) and entered the lane about 11 in off the line and 17 deg off the leg's heading. The planner's straight leg from the gate to the launch spot also ran toward the supports (y 5 to 8 inside the lane, 2 to 3 in of clearance even at 0.5 power: one dash touched by 0.2 in at 0.5).
+
+Change (`HiveRoute.planningKeepOuts`, `Params.laneHalfWidthIn`, Dashboard `HiveDash.LANE_HALF_WIDTH_IN` 12.35): virtual walls from y = 12.35 to the bars' inner edge (22.75), on both sides and the bars' length (x within 19.47), keep the robot's CENTER within about 4 in of the lane's middle line (y = 0) while it is between the bars (aligned half width 6.85 + margin 1.5 leaves 12.35 - 8.35). The straight diagonal under the hive no longer plans, so a route under the hive goes through the near gate, along y = 0, and out through the far gate (34, 0) to (-34, 0); the planner still picks the outside route around a helper corner when that is cheaper (the logged dash now plans via (-36, -40) around the hive, 160 in against 158 before). Details:
+- The walls are only checked from 10 in along a leg that starts at the robot, so a robot at the lane's mouth can leave or turn away; a robot that starts inside the lane box is exempt on its first leg (it can always leave).
+- A short leg from the start is boxed from the start point onward, with the robot's own circle at the start checked on its own (the Park Dash detour fix, same day).
+- Cost: starts within about 12 in of a bar end at the lane mouths ((+-24, +-12)) no longer plan to the park corners (32 of 1852 trips have no route, was 16; the dash refuses with a rumble and the driver moves).
+
+Checks (`tools/hive/run-check.cmd`): 21 pass, no unsafe route in the 1,852 park trips, and a new check that the largest distance of any route from the lane's middle line between the bars is 3.9 in over 3,640 trips (limit 5.0).
+
+What this does NOT change: the robot still turns at the gate while moving fast (no slowing, by decision), so it can still arrive at the lane entrance off the line; the lane is now centered, so the margin to the legs after a 10 in drift is smaller than 8 in. If dashes under the hive still touch at 0.85, the next steps are a farther gate (`HiveDash.GATE_X` 34 to about 44, more runway before the lane) and a heading condition at the gate.

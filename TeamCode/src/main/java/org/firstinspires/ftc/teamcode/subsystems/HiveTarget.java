@@ -10,8 +10,8 @@ import org.firstinspires.ftc.teamcode.math.Pose2d;
  * open CELL is on the rear side and red's on the audience side; a tip flips them. The opening is
  * 53.5 to 65.6 in above the tiles.
  *
- * Distance is measured from the robot's center to this point. Any offset to the real shooter exit is
- * absorbed by measuring the shot map on the real robot.
+ * Distance is measured from the robot's center to this point. Any offset to the real launcher exit is
+ * absorbed by measuring the launch map on the real robot.
  */
 public enum HiveTarget {
     BLUE_REAR(-21.5, 12.75),

@@ -30,7 +30,7 @@ import java.util.Arrays;
  * {@link #update()} reads ONE sensor every READ_PERIOD_MS, cycling (about 4 x READ_PERIOD_MS for a full refresh), and does
  * nothing in between. The reported count changes only after the raw count has been steady (COUNT_RISE_STABLE_MS when it
  * goes up; COUNT_FULL_STABLE_MS when it reaches CAPACITY, so four are certain before the intake stops; COUNT_FALL_STABLE_MS when it goes down), because the end sensor flickers
- * for about a second while an element moves. A fourth element is reported about 0.8 s after it is first seen. If a sensor has not been read for STALE_MS the
+ * for about a second while an element moves. A fourth element is reported about 1.3 s after it is first seen (COUNT_FULL_STABLE_MS is 1000 since 2026-11-04, was 500: of the 111 stretches with all four sensors lit on 2026-11-03, 79 lasted 0.5 s or more and 59 lasted 1.0 s or more). If a sensor has not been read for STALE_MS the
  * counter is not {@link #isValid() valid}, and callers should not act on it.
  *
  * The EMPTY baseline is the table below (measured 2026-10-31 with the track empty). Lighting changes the empty readings,
@@ -48,7 +48,7 @@ public class ElementCounter {
     public static double STALE_MS = 1000.0;
     public static double COUNT_RISE_STABLE_MS = 150.0;
     /** Reaching CAPACITY (FULL, which stops the intake) must be steady this long, so a flicker at CS4 does not read as four. */
-    public static double COUNT_FULL_STABLE_MS = 500.0;
+    public static double COUNT_FULL_STABLE_MS = 1000.0;   // 500 before 2026-11-04 (user): a sliding pack lit all four sensors for 0.5 to 1 s at a time
     public static double COUNT_FALL_STABLE_MS = 300.0;
     /** The most elements the robot may hold (rule G407). */
     public static int CAPACITY = 4;
@@ -83,22 +83,30 @@ public class ElementCounter {
     /** The arm is only expected at CS4; ColorSensorsTest turns this on to hold it in front of any sensor. */
     public static boolean ARM_ANY_SENSOR = false;
     public static boolean ARM_REQUIRE_DISTANCE = true;
-    public static double ARM_MIN_DIST_CM = 5.5;
+    /**
+     * The arm reads farther than pollen at CS4 (pollen about 3.0 cm, an empty track about 7.7). 4.0 since 2026-11-05 (was 5.5): with the recolored transport the arm's CENTER reads 5.1 to 5.2 cm and only
+     * its shoulders read 5.8 cm or more, so 5.5 accepted only the shoulders: the pusher check saw a crossing 8 to 18 deg wide instead of about 46 and corrected the zero by 14 to 29 deg (and by 94 and 155 deg
+     * in two runs) from the wrong center. Checked on the Color Sensor Study of 2026-11-05: no pollen read at CS4 is accepted at 4.0 (0 of 130 still reads).
+     */
+    public static double ARM_MIN_DIST_CM = 4.0;
 
     public static final String[] NAMES = {"CS1", "CS2", "CS3", "CS4"};
     public static final int N = NAMES.length;
     public static final int ARM_SENSOR = 3;   // CS4
 
     /**
-     * Empty-track readings: alpha, distance (cm), and the red / green / blue shares, per sensor. Re-measured 2026-11-03 from the empty STILL takes of the
+     * Empty-track readings: alpha, distance (cm), and the red / green / blue shares, per sensor. RE-MEASURED 2026-11-05 after the rotary transport was
+     * recolored (Color Sensor Study step 1, 8 s, 57 reads per sensor, the alpha spread within 0.003): the old values read CS1 to CS3 as lit on an empty track
+     * (shifts 0.10, 0.14 and 0.06 against the 0.05 ON threshold); the values before this were alpha 0.062 0.023 0.173 0.039, distance 3.69 5.39 4.11 7.75, shares
+     * 0.318/0.389/0.293 0.328/0.429/0.244 0.274/0.402/0.325 0.266/0.403/0.331. Re-measured 2026-11-03 from the empty STILL takes of the
      * Color Sensor Study (874 rows, two runs): CS2's empty view had changed (alpha 0.080 -> 0.023, shares 0.29/0.42/0.29 -> 0.33/0.43/0.24), which put it 0.06 from
      * the old baseline, over the 0.05 ON threshold, so the empty track read one POLLEN at CS2 for good and the count was always one too high. (Measured
      * 2026-10-31: alpha 0.077 0.080 0.173 0.038, distance 3.68 5.23 4.11 7.87, shares 0.32/0.38/0.30 0.29/0.42/0.29 0.28/0.40/0.32 0.30/0.39/0.31.)
      * Lighting and the sensor views change: re-measure in the pit (Color Sensor Study: an empty STILL take) and copy the medians here.
      */
-    private static final double[] BASE_ALPHA = {0.062, 0.023, 0.173, 0.039};
-    private static final double[] BASE_DIST = {3.69, 5.39, 4.11, 7.75};
-    private static final double[][] BASE_SHARES = {{0.318, 0.389, 0.293}, {0.328, 0.429, 0.244}, {0.274, 0.402, 0.325}, {0.266, 0.403, 0.331}};
+    private static final double[] BASE_ALPHA = {0.209, 0.109, 0.353, 0.061};
+    private static final double[] BASE_DIST = {3.60, 5.20, 3.92, 7.67};
+    private static final double[][] BASE_SHARES = {{0.238, 0.410, 0.352}, {0.220, 0.448, 0.332}, {0.226, 0.414, 0.360}, {0.240, 0.408, 0.352}};
 
     private final NormalizedColorSensor[] color = new NormalizedColorSensor[N];
     private final DistanceSensor[] distance = new DistanceSensor[N];
@@ -179,6 +187,7 @@ public class ElementCounter {
             readSensor(nextSensor, now);
             nextSensor = (nextSensor + 1) % N;
         }
+        if (frozen) return;   // the pusher lock: the sensors are still read (and logged) but the count stays where it was
         // the count changes only after the raw count has been steady for COUNT_STABLE_MS
         int raw = elementsSeen();
         if (raw != rawCount) {
@@ -250,6 +259,34 @@ public class ElementCounter {
         countIgnoredUntilNs = System.nanoTime() + (long) (seconds * 1e9);
     }
 
+    private boolean frozen = false;
+
+    /**
+     * True holds the reported count where it is (the sensors are still read, so the slots can be logged). The pusher lock uses it: with the arm parked across the entrance the
+     * arm may read as an element at one of the sensors, and nothing can enter or leave while it is locked. Set false and the count follows the sensors again after the usual steady time.
+     */
+    public void setFrozen(boolean on) {
+        setFrozen(on, false);
+    }
+
+    /**
+     * requalifyFull (only when releasing): a reported FULL drops to CAPACITY - 1 if the sensors still read CAPACITY, so FULL has to be confirmed again by the normal COUNT_FULL_STABLE_MS
+     * (used when the operator forces the intake IN through the pusher lock: the robot is locked again as soon as the sensors have shown full for that long, with no further wait).
+     */
+    public void setFrozen(boolean on, boolean requalifyFull) {
+        if (on == frozen) return;
+        frozen = on;
+        if (!on) {
+            rawCount = elementsSeen();
+            rawSinceNs = System.nanoTime();
+            if (requalifyFull && stableCount >= CAPACITY && rawCount >= CAPACITY) stableCount = CAPACITY - 1;
+        }
+    }
+
+    public boolean isFrozen() {
+        return frozen;
+    }
+
     /** Sensors that currently see an element (not the pusher arm). */
     private int elementsSeen() {
         int n = 0;
@@ -297,7 +334,7 @@ public class ElementCounter {
         return slot[i];
     }
 
-    /** The element at the deepest slot (it fires first), or EMPTY if CS4 holds none. */
+    /** The element at the deepest slot (it launches first), or EMPTY if CS4 holds none. */
     public Slot next() {
         return isElement(N - 1) ? slot[N - 1] : Slot.EMPTY;
     }
@@ -329,6 +366,16 @@ public class ElementCounter {
     public double colorShift(int i) {
         return Math.sqrt(Math.pow(lastShares[i][0] - BASE_SHARES[i][0], 2) + Math.pow(lastShares[i][1] - BASE_SHARES[i][1], 2)
                 + Math.pow(lastShares[i][2] - BASE_SHARES[i][2], 2));
+    }
+
+    /** The stored empty baselines, for the log (tools/logs/baseline_health.py compares the live empty readings with them). */
+    public static String describeBaselines() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < N; i++) {
+            sb.append(String.format(java.util.Locale.US, "%sCS%d alpha %.3f dist %.2f cm shares %.3f/%.3f/%.3f", i == 0 ? "" : "; ", i + 1, BASE_ALPHA[i], BASE_DIST[i],
+                    BASE_SHARES[i][0], BASE_SHARES[i][1], BASE_SHARES[i][2]));
+        }
+        return sb.toString();
     }
 
     /** Sensor i's presence result on its latest read, before the debounce. */

@@ -10,7 +10,7 @@ import java.util.List;
  * Runs its child actions one after another. Finished when the last child finishes.
  *
  * If a child finishes on a given loop, the next child starts on the SAME loop, so a
- * run of {@link InstantAction}s (or other instantly-done actions) all fire in one tick.
+ * run of {@link InstantAction}s (or other instantly-done actions) all launch in one tick.
  */
 public final class SequentialAction implements Action {
 

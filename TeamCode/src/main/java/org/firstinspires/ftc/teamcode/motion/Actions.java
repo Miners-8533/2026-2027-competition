@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
+import org.firstinspires.ftc.teamcode.util.LoopProfiler;
 import org.firstinspires.ftc.teamcode.util.RunLog;
 
 /** Helpers for running {@link Action}s from a LinearOpMode. */
@@ -31,10 +32,14 @@ public final class Actions {
         boolean running = true;
         while (running && opMode.opModeIsActive()) {
             TelemetryPacket packet = new TelemetryPacket();
+            long profiledAction = LoopProfiler.start();
             running = action.run(packet);
+            LoopProfiler.stop("action", profiledAction);   // a drive leg's pose read and drive writes (pose, drive_write) are inside this one
             everyLoop.run();
-            RunLog.tick();
+            long profiledPacket = LoopProfiler.start();
             dashboard.sendTelemetryPacket(packet);
+            LoopProfiler.stop("dash_packet", profiledPacket);
+            RunLog.tick();
         }
     }
 
