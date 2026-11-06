@@ -80,7 +80,7 @@ public class AutonDuoGardenSide extends AutonDuoBase {
         Pose2d park = DuoKit.forAlliance(DuoKit.pose(DuoAutos.G_PARK_X, DuoAutos.G_PARK_Y + DuoAutos.PARK_OVERSHOOT_IN, DuoAutos.PARK_HEADING_DEG), blue);
 
         return new SequentialAction(
-                k.launch(drive, m, cell, blue, "preload", DuoAutos.G_PRELOAD_TRIM_DEG, false),
+                k.launch(drive, m, cell, blue, "preload", DuoAutos.G_PRELOAD_TRIM_DEG),
 
                 new InstantAction(m::requestDeploy),   // deploys on the way
                 k.note("To the Blue Wall flower pre-position, turning to it"),
@@ -97,7 +97,7 @@ public class AutonDuoGardenSide extends AutonDuoBase {
                 k.stowWhenTurned(k.launchLeg("launch spot 1", drive, launchSpot), drive, m, wallPre.heading.toDouble()),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.waitUntil("second launch (partner's tip)", DuoAutos.G_SECOND_LAUNCH_NOT_BEFORE_SEC),
-                k.launch(drive, m, cell, blue, "flower pollen", DuoAutos.G_FLOWER_TRIM_DEG, true),
+                k.launch(drive, m, cell, blue, "flower pollen", DuoAutos.G_FLOWER_TRIM_DEG),
                 k.note("Intake OFF (the flower salvo is done)"),
                 m.forceIntakeIn(false),
                 m.setIntake(false),
@@ -113,7 +113,7 @@ public class AutonDuoGardenSide extends AutonDuoBase {
                 k.note("Back to the launch spot (intake still ON so every element gets in)"),
                 k.launchLeg("launch spot 2", drive, launchSpot),
                 m.setIntake(false),
-                k.launch(drive, m, cell, blue, "garden pollen", DuoAutos.G_GARDEN_TRIM_DEG, true),
+                k.launch(drive, m, cell, blue, "garden pollen", DuoAutos.G_GARDEN_TRIM_DEG),
 
                 k.note("Park"),
                 k.passLeg("park helper (clear of the hive supports)", drive, helper),

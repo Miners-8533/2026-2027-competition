@@ -22,8 +22,7 @@ import java.util.Locale;
 import java.util.function.BooleanSupplier;
 
 /**
- * The building blocks of the two duo autos: the drive legs with their timeouts, the timed steps (an {@code AUTO TIMING} log line each), the launch (aim, then launch, skipped when the robot
- * holds nothing), the ramp helpers, the wait until a time, and the jostle's end condition. They are the same pieces as in {@code AutonSolo}, with their numbers from {@link DuoAutos}.
+ * The building blocks of the two duo autos: the drive legs with their timeouts, the timed steps (an {@code AUTO TIMING} log line each), the launch (aim, then launch, always: never skipped for an empty count), the ramp helpers, the wait until a time, and the jostle's end condition. They are the same pieces as in {@code AutonSolo}, with their numbers from {@link DuoAutos}.
  */
 final class DuoKit {
 
@@ -234,33 +233,19 @@ final class DuoKit {
     // ---- launch and jostle ----
 
     /**
-     * Aim at the cell with the lock, launch one salvo, and finish when it is done. extraLeftIn 0: no far-cell correction (these autos only launch at the cell on their own start side).
-     * skipIfEmpty: the aim and the salvo are skipped (and logged) when the element counter is reading and holds nothing.
+     * Aim at the cell with the lock, launch one salvo, and finish when it is done. The salvo is ALWAYS launched, whatever the element counter says (the user, 2026-11-06: a counter that under-reads
+     * must never throw a salvo away). extraLeftIn 0: no far-cell correction (the duo autos launch at the cell on their own start side).
      */
-    Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, boolean skipIfEmpty) {
-        return launch(drive, mechanisms, cell, blue, label, trimDeg, skipIfEmpty, 0.0);
+    Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg) {
+        return launch(drive, mechanisms, cell, blue, label, trimDeg, 0.0);
     }
 
     /** As above with the sideways aim extra: NaN = the far-cell extra of the cell on the opposite side from the alliance's start wall (TargetLock.farCellExtraLeftIn). */
-    Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, boolean skipIfEmpty, double extraLeftIn) {
-        Action real = new SequentialAction(
+    Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, double extraLeftIn) {
+        return new SequentialAction(
                 note("Aim and launch: " + label),
                 timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg, extraLeftIn)),
                 timed("launch (wait + salvo): " + label, mechanisms.launch()));
-        if (!skipIfEmpty) return real;
-        return new Action() {
-            private boolean decided = false, skip = false;
-
-            @Override
-            public boolean run(TelemetryPacket packet) {
-                if (!decided) {
-                    decided = true;
-                    skip = mechanisms.counter != null && mechanisms.counter.isValid() && mechanisms.counter.count() == 0;
-                    if (skip) RunLog.event("AUTO SKIP salvo: " + label + " (the robot holds nothing)");
-                }
-                return !skip && real.run(packet);
-            }
-        };
     }
 
     /**

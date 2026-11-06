@@ -351,7 +351,7 @@ public class AutonSolo extends LinearOpMode {
 
     /** Aim at the cell with the lock, launch one salvo, and finish when it is done. */
     private Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label) {
-        return launch(drive, mechanisms, cell, blue, label, 0.0, false);
+        return launch(drive, mechanisms, cell, blue, label, 0.0);
     }
 
     /** The jostle is done when the robot is full or JOSTLE_DEADLINE_SEC into the auto has passed (logged once). */
@@ -379,26 +379,8 @@ public class AutonSolo extends LinearOpMode {
         };
     }
 
-    /** skipIfEmpty: the aim and the salvo are skipped (and logged) when the element counter is reading and holds nothing; any other count launches. */
-    private Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, boolean skipIfEmpty) {
-        Action real = launchNow(drive, mechanisms, cell, blue, label, trimDeg);
-        if (!skipIfEmpty) return real;
-        return new Action() {
-            private boolean decided = false, skip = false;
-
-            @Override
-            public boolean run(TelemetryPacket packet) {
-                if (!decided) {
-                    decided = true;
-                    skip = mechanisms.counter != null && mechanisms.counter.isValid() && mechanisms.counter.count() == 0;
-                    if (skip) RunLog.event("AUTO SKIP salvo: " + label + " (the robot holds nothing)");
-                }
-                return !skip && real.run(packet);
-            }
-        };
-    }
-
-    private Action launchNow(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg) {
+    /** Aim at the cell and launch one salvo, ALWAYS (the user, 2026-11-06: whatever the element counter says; a counter that under-reads must never throw a salvo away). */
+    private Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg) {
         return new SequentialAction(
                 note("Aim and launch: " + label),
                 timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg)),
@@ -547,7 +529,7 @@ public class AutonSolo extends LinearOpMode {
                 note("Intake OFF"),
                 mechanisms.setIntake(false),
                 RAMP_DEPLOY_DURING_LAUNCH ? new InstantAction(mechanisms::requestDeploy) : new InstantAction(() -> { }),   // deploys while it launches
-                launch(drive, mechanisms, secondCell, isBlue, "garden pollen", GARDEN_AIM_TRIM_DEG, true),
+                launch(drive, mechanisms, secondCell, isBlue, "garden pollen", GARDEN_AIM_TRIM_DEG),
 
                 RAMP_DEPLOY_DURING_LAUNCH ? new InstantAction(() -> { }) : new InstantAction(mechanisms::requestDeploy),   // deploys on the way
                 note("Back to the flower pre-position, turning to the flower"),
@@ -562,7 +544,7 @@ public class AutonSolo extends LinearOpMode {
                 FLOWER_TURN_WHILE_BACKING ? new InstantAction(() -> { }) : backOutLeg("flower back-out (straight)", drive, flowerBack),
                 stowWhenTurned(launchLeg("launch spot 2", drive, launchSpot), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
-                launch(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG, true),
+                launch(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG),
                 note("Intake OFF (the flower salvo is done)"),
                 mechanisms.forceIntakeIn(false),
                 mechanisms.setIntake(false),

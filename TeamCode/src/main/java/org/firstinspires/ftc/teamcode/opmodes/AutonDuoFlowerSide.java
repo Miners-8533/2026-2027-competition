@@ -61,7 +61,7 @@ public class AutonDuoFlowerSide extends AutonDuoBase {
 
         return new SequentialAction(
                 k.waitUntil("first launch (partner's tip)", DuoAutos.F_FIRST_LAUNCH_NOT_BEFORE_SEC),
-                k.launch(drive, m, cell, blue, "preload", DuoAutos.F_PRELOAD_TRIM_DEG, false),
+                k.launch(drive, m, cell, blue, "preload", DuoAutos.F_PRELOAD_TRIM_DEG),
 
                 new InstantAction(m::requestDeploy),   // deploys on the way
                 k.note("To the flower pre-position, turning to the flower"),
@@ -77,7 +77,7 @@ public class AutonDuoFlowerSide extends AutonDuoBase {
                 k.backOutLeg("flower back-out (straight)", drive, flowerBack),
                 k.stowWhenTurned(k.launchLeg("launch spot", drive, launchSpot), drive, m, flowerPre.heading.toDouble()),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
-                k.launch(drive, m, cell, blue, "flower pollen", DuoAutos.F_FLOWER_TRIM_DEG, true),
+                k.launch(drive, m, cell, blue, "flower pollen", DuoAutos.F_FLOWER_TRIM_DEG),
                 k.note("Intake OFF (the flower salvo is done)"),
                 m.forceIntakeIn(false),
                 m.setIntake(false),

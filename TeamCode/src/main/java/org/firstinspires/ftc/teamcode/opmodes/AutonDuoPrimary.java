@@ -93,7 +93,7 @@ public class AutonDuoPrimary extends AutonDuoBase {
 
         return new SequentialAction(
                 // 1. the preload into the rear cell
-                k.launch(drive, m, rearCell, blue, "preload", DuoAutos.P_PRELOAD_TRIM_DEG, false),
+                k.launch(drive, m, rearCell, blue, "preload", DuoAutos.P_PRELOAD_TRIM_DEG),
 
                 // 2. the Blue Wall flower
                 new InstantAction(m::requestDeploy),   // deploys on the way
@@ -115,7 +115,7 @@ public class AutonDuoPrimary extends AutonDuoBase {
                 new InstantAction(() -> m.setOpenCell(audCell)),
                 k.launchLeg("audience launch spot", drive, audSpot),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
-                k.launch(drive, m, audCell, blue, "wall flower pollen", DuoAutos.P_WALL_TRIM_DEG, true, Double.NaN),
+                k.launch(drive, m, audCell, blue, "wall flower pollen", DuoAutos.P_WALL_TRIM_DEG, Double.NaN),
                 k.note("Intake OFF (the wall flower salvo is done)"),
                 m.forceIntakeIn(false),
                 m.setIntake(false),
@@ -142,7 +142,7 @@ public class AutonDuoPrimary extends AutonDuoBase {
                 new InstantAction(() -> m.setOpenCell(rearCell)),
                 k.launchLeg("rear launch spot", drive, rearSpot),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
-                k.launch(drive, m, rearCell, blue, "audience flower pollen", DuoAutos.P_AUD_FLOWER_TRIM_DEG, true),
+                k.launch(drive, m, rearCell, blue, "audience flower pollen", DuoAutos.P_AUD_FLOWER_TRIM_DEG),
                 k.note("Intake OFF (the audience flower salvo is done)"),
                 m.forceIntakeIn(false),
                 m.setIntake(false),
@@ -160,7 +160,7 @@ public class AutonDuoPrimary extends AutonDuoBase {
                         k.note("Back to the rear launch spot (intake still ON so every element gets in)"),
                         k.launchLeg("rear launch spot 2", drive, rearSpot),
                         m.setIntake(false),
-                        k.launch(drive, m, rearCell, blue, "garden pollen", DuoAutos.P_GARDEN_TRIM_DEG, true))),
+                        k.launch(drive, m, rearCell, blue, "garden pollen", DuoAutos.P_GARDEN_TRIM_DEG))),
 
                 // 7. the park in the hive-side corner of the loading zone
                 k.note("Park"),
