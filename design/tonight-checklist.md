@@ -95,7 +95,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 
 ## 8k. Duo Primary (T20)
 - [ ] `Auton - Duo Primary` (rear wall start, blue and red): INIT pose OK; read the `AUTO TIMING` lines for every step and where the 30 s ended; the order is preload (rear cell), Blue Wall flower (audience cell), audience flower (rear cell), garden (rear cell), park; no `TIMED OUT` on the pre-positions; every salvo is launched whatever the counter says, so a dry run with no pollen fires all four (the autos no longer skip on an empty count)
-- [ ] The two spots: the audience one (50, 26.3) and the rear one (-50, 26.3) launch from about 32 in with the aim at each cell; check the landings and set `DuoAutos.P_*_TRIM_DEG`; set `P_GARDEN_LATEST_START_SEC` (about 14) and `P_AUD_FLOWER_LATEST_START_SEC` (about 17) to protect the park when it will not fit
+- [ ] The two spots: the audience one (50, 26.3) and the rear one (-50, 26.3) launch from about 32 in with the aim at each cell; check the landings and set `DuoAutos.P_*_TRIM_DEG`; `P_GARDEN_LATEST_START_SEC` is 18 s, so the garden is skipped and the park should end near 25 s (`AUTO SKIP garden` in the log); `P_AUD_FLOWER_LATEST_START_SEC` stays 99
 
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)

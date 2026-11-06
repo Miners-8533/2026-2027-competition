@@ -27,8 +27,8 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *   5. Back across the north side (east helper, west helper) to the mid-field spot on the rear side (P_REAR_LAUNCH, the mirror of the audience one) and launch into the REAR cell.
  *   6. The garden as in the solo auto (angled approach, slow pickup, square on the wall), back to the same spot, launch into the REAR cell. [skipped when later than P_GARDEN_LATEST_START_SEC]
  *   7. Park in the hive-side corner of the loading zone (the garden side's park, (26, 60)) through the west helper, ramp stowed.
- * Nothing is cut by default (the latest starts are 99 s) so the first runs time the whole program; the user will optimize the garden gather and the paths from those timings. It will not fit 30 s as
- * it stands (design/duo-autos.md has the estimate); set the two latest-start values to protect the park. Faster legs than the other duo autos: DuoAutos.P_LEG_MAX_POWER and friends.
+ * The garden (step 6) is skipped when it would start after P_GARDEN_LATEST_START_SEC (18 s) so the park keeps its time: the 2026-11-06 01:57 run, with the garden, reached it at 21.8 s and the park was cut
+ * off at 30 s. The user will optimize the garden gather and the paths later (design/duo-autos.md). Faster legs than the other duo autos: DuoAutos.P_LEG_MAX_POWER and friends.
  */
 @Autonomous(name = "Auton - Duo Primary", group = "Auto")
 public class AutonDuoPrimary extends AutonDuoBase {

@@ -80,10 +80,9 @@ public final class DuoAutos {
     public static double P_WALL_JOSTLE_DEADLINE_SEC = 12.0, P_AUD_JOSTLE_DEADLINE_SEC = 21.0;
     /**
      * A step that starts after this many seconds into the auto is skipped (logged as AUTO SKIP) so the park still happens: the audience flower (gather and back-out) and the garden (gather, return
-     * and salvo). 99 = never skipped, for the first runs (the user wants to see the whole program timed before optimizing the garden); about 14 for the garden and 17 for the audience flower
-     * would protect the 30 s with the park (about 3 s).
+     * and salvo). 99 = never skipped. The garden's is 18 s since 2026-11-06 (the first full run reached it at 21.8 s and lost the park); the audience flower's stays 99 (it started at 10.4 s).
      */
-    public static double P_AUD_FLOWER_LATEST_START_SEC = 99.0, P_GARDEN_LATEST_START_SEC = 99.0;
+    public static double P_AUD_FLOWER_LATEST_START_SEC = 99.0, P_GARDEN_LATEST_START_SEC = 18.0;   // the garden at 18 s: the 01:57 run reached it at 21.8 s, ran its salvo to 28.1 s and the park was cut off at 30 s; garden step 6.3 s + park 3.0 s need a start by about 20.7 s, 18 leaves margin. The user (2026-11-06): skip the garden to protect the park for now
     /**
      * The Primary's path speeds, the solo auto's (2026-11-05): every ordinary leg at P_LEG_MAX_POWER (the drive's default is 0.6), the helper and cross-field legs at P_CROSS_MAX_POWER, and the
      * pass-through legs end the moment they are near (P_PASS_SETTLE_SEC instead of the drive's 0.20 s). The other two duo autos keep their old speeds.
