@@ -63,6 +63,10 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Operator D-pad left / right: the remembered aim moves 3 deg per report (max 10; log `REPORT landed ...`)
 - [ ] Autos' flower gather: the log's `AUTO JOSTLE start` line says press 1.0 s first, back 0.25 in at power 0.3, press 1.0 s per cycle; check the robot actually moves back (about 0.25 to 0.75 in) and does not stay jammed; raise `Jostle.BACK_POWER` if it does not move; check that the duo and Solo timing still fits 30 s
 
+## 8d. Pusher active hold (T15)
+- [ ] Idle with the arm parked: push it 10 to 20 deg by hand, let go: it returns; `pusher_hold` is 0.05 to 0.15 while it corrects; no `GAVE UP` lines; the motor is not warm after a long idle
+- [ ] Over a session: the pusher check's zero corrections are small (a few deg), salvos start from within a few deg; compare with `Pusher.HOLD_SERVO_ENABLED` false if it looks wrong
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`

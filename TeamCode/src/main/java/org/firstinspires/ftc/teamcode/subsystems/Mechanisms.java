@@ -914,7 +914,11 @@ public class Mechanisms {
             notice("Flywheel encoder lost: open loop at a fixed power. Use the speed trim.");
         }
         long profiledPusher = LoopProfiler.start();
-        if (pusher != null) pusher.update();
+        if (pusher != null) {
+            pusher.update();
+            String holdReport = pusher.takeHoldReport();
+            if (holdReport != null) RunLog.event(holdReport);
+        }
         LoopProfiler.stop("mech.pusher", profiledPusher);
 
         for (String w : warnings) if (!prevWarnings.contains(w)) RunLog.event("WARNING " + w);
@@ -935,12 +939,12 @@ public class Mechanisms {
     }
 
     /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
-    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock";
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold";
 
     /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
     public String sampleRow() {
         String launch = launchQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
-        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s",
+        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s,%s",
                 lastSetpoint,
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getVelocity()),
@@ -956,7 +960,8 @@ public class Mechanisms {
                 launch, warnings.size(), overridesCode(), pusherCheck == null ? "" : pusherCheck.statusCode(),
                 flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getLastPower()),
                 flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getCurrentAmps()),
-                lockCode());
+                lockCode(),
+                pusher == null ? "" : String.format(Locale.US, "%.2f", pusher.getHoldPower()));
     }
 
     public void log(Telemetry telemetry) {
