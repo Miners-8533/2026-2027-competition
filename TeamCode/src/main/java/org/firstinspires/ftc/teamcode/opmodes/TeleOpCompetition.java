@@ -60,10 +60,10 @@ import java.util.Locale;
  *   right stick X        turn
  *   left trigger (hold)  precision mode (30%)
  *   A                    launch a salvo (spins up and launches when ready); also cancels a running reject, the way out of a jam the other way.
- *                        Works with any number of elements held, locked or not. While the target lock (right trigger) is held and not yet ALIGNED the launch is QUEUED until it is
+ *                        Works with any number of elements held, locked or not. While the target lock (right bumper) is held and not yet ALIGNED the launch is QUEUED until it is
  *                        (LAUNCH_WAITS_FOR_ALIGN): it goes the moment the lock aligns, and is dropped if the trigger is released or LAUNCH_ALIGN_WAIT_SEC passes (10 of 19 salvos on
  *                        2026-11-03 went before the lock was aligned, two pointing 70 to 110 deg off the cell).
- *   right trigger (hold) TARGET LOCK by hand: while it is held the robot turns itself to point its front (intake and launcher end) at the nearest of your alliance's two
+ *   right bumper (hold)  TARGET LOCK by hand (it was the right trigger until 2026-11-05): while it is held the robot turns itself to point its front (intake and launcher end) at the nearest of your alliance's two
  *                        CELLs while you keep driving; with the left bumper also held the right stick nudges the aim up to 15 deg (without it the stick does nothing while
  *                        locked); ALIGNED on the screen says it is on target. The automatic lock when the robot is full is OFF (AUTO_LOCK_WHEN_FULL = false: a sliding
  *                        pack of 3 pollen lit all four sensors and kept engaging it). Release the trigger to drive normally.
@@ -77,7 +77,7 @@ import java.util.Locale;
  *                        robot is touching a hive support. See {@link ParkDash} and design/park-dash.md.
  *   (HOLD POSITION has no control: from a launch request to the end of the salvo, once the robot has settled, it holds that pose with a PID, resisting a push, and the heading too when the
  *                        target lock is not turning it; moving either stick cancels it at once. See {@link HoldPosition} and HoldPosition.ENABLED.)
- *   left + right bumper  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident)
+ *   left bumper + right trigger  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident; it was left + right bumper until 2026-11-05, when the right bumper became the target lock)
  *
  * Gamepad 2 (operator):
  *   (the intake has no toggle: it runs IN until the robot holds 4 elements, then stops; Mechanisms.FULL_RUNS_OUT makes it run OUT instead)
@@ -85,12 +85,12 @@ import java.util.Locale;
  *   left trigger (hold)  force the intake OUT
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued launch
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
- *   (the pusher LOCK has no control: while a target lock (driver right trigger, the operator's A, auto-launch) or a Hive Dash is on and something is held, the arm moves 90 deg forward of HOLD across the intake
+ *   (the pusher LOCK has no control: while a target lock (driver right bumper, the operator's A, auto-launch) or a Hive Dash is on and something is held, the arm moves 90 deg forward of HOLD across the intake
  *                        entrance by itself (Mechanisms.PUSHER_LOCK_ENABLED); the element count is frozen and the intake is OFF while locked (it is NOT locked just because the robot is full: the count of 4 is not
  *                        trusted); a launch goes from the lock (310 deg), a reject unlocks first, holding the right trigger (force IN) unlocks it, and the arm goes back to HOLD 0.5 s after the target lock or dash ends without a launch)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
- *   D-pad (unguarded)    REPORT where the LAST salvo landed, seen from behind the robot: left = it landed LEFT (the remembered aim for that cell turns 1.5 deg right),
- *                        right = landed RIGHT (1.5 deg left), down = landed LOW / UNDER (speed trim +10 ticks/s), up = landed HIGH / OVER (speed trim -10). The remembered aim is kept
+ *   D-pad (unguarded)    REPORT where the LAST salvo landed, seen from behind the robot: left = it landed LEFT (the remembered aim for that cell turns 3 deg right),
+ *                        right = landed RIGHT (3 deg left), down = landed LOW / UNDER (speed trim +10 ticks/s), up = landed HIGH / OVER (speed trim -10). The remembered aim is kept
  *                        per CELL (the cell of the last launch), is used by the next lock on that cell, and is cleared by a driver reseed; the speed trim is one shared offset
  *                        added to the launch map's speed (the manual setpoint while the map is empty). Each report is logged with the aim of the last launch.
  *   hold left bumper + D-pad left / right   clear the remembered aim of the last launched cell;  hold left bumper + D-pad up / down   clear the speed trim
@@ -132,7 +132,7 @@ public class TeleOpCompetition extends LinearOpMode {
     /** An auto pose older than this is ignored (a leftover from an earlier run). */
     public static double AUTO_POSE_MAX_AGE_SEC = 300.0;
     public static double RESEED_HOLD_SEC = 1.0;
-    /** True: target lock also engages by itself when the robot holds a full load (until the salvo is done). OFF since 2026-11-03: the lock is held by the driver's right trigger. */
+    /** True: target lock also engages by itself when the robot holds a full load (until the salvo is done). OFF since 2026-11-03: the lock is held by the driver (the right trigger, the right bumper since 2026-11-05). */
     public static boolean AUTO_LOCK_WHEN_FULL = false;
     /** With the lock held and not ALIGNED, the driver's launch waits for ALIGNED (at most this long, then it is dropped) instead of firing at once. */
     public static boolean LAUNCH_WAITS_FOR_ALIGN = true;
@@ -149,7 +149,7 @@ public class TeleOpCompetition extends LinearOpMode {
     public static double TRIGGER_THRESHOLD = 0.3;
     public static double SETPOINT_STEP = 10.0;
     /** One D-pad report of a salvo that landed left or right turns the remembered aim for that cell by this much, up to NUDGE_MAX_DEG either way. */
-    public static double NUDGE_STEP_DEG = 1.5;
+    public static double NUDGE_STEP_DEG = 3.0;   // 1.5 until 2026-11-05 (user)
     public static double NUDGE_MAX_DEG = 10.0;
     /** How often the log writes a sample row (events are written when they happen). */
     public static long SAMPLE_PERIOD_MS = 100;
@@ -488,11 +488,11 @@ public class TeleOpCompetition extends LinearOpMode {
                 cmdForward = park.forward;
                 cmdLeft = park.left;
             }
-            // target lock: HELD on the driver's right trigger (the automatic lock when full is off unless AUTO_LOCK_WHEN_FULL is set; the operator has no lock control).
-            boolean driverLockHeld = gamepad1.right_trigger > TRIGGER_THRESHOLD;
+            // target lock: HELD on the driver's right bumper (it was the right trigger until 2026-11-05; the automatic lock when full is off unless AUTO_LOCK_WHEN_FULL is set; the operator has no lock control).
+            boolean driverLockHeld = gamepad1.right_bumper;
             if (driverLockHeld != prevDriverLock) {
                 prevDriverLock = driverLockHeld;
-                RunLog.event("COMMAND target lock " + (driverLockHeld ? "held ON (driver right trigger)" : "released (driver right trigger)") + (backupMode ? " (no effect: backup mode)" : ""));
+                RunLog.event("COMMAND target lock " + (driverLockHeld ? "held ON (driver right bumper)" : "released (driver right bumper)") + (backupMode ? " (no effect: backup mode)" : ""));
             }
             manualLockOn = driverLockHeld;
             if (mechanisms.getSalvosDone() != salvosSeen) {
@@ -629,7 +629,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 backupHeld = false;
             }
 
-            if (gamepad1.left_bumper && gamepad1.right_bumper && !backupMode) {
+            if (gamepad1.left_bumper && gamepad1.right_trigger > TRIGGER_THRESHOLD && !backupMode) {   // the reseed chord: left bumper + right trigger (the right bumper is the target lock)
                 if (!reseedDown) {
                     reseedDown = true;
                     reseeded = false;
@@ -732,11 +732,11 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Pose x / y (in), heading (deg)", "%.1f / %.1f / %.1f",
                     pose.position.x, pose.position.y, pose.heading.toDegrees());
             if (reseedDown && !reseeded) {
-                telemetry.addData("Reseed pose", "keep holding LB + RB... %.1f s", RESEED_HOLD_SEC - reseedHold.seconds());
+                telemetry.addData("Reseed pose", "keep holding LB + RT... %.1f s", RESEED_HOLD_SEC - reseedHold.seconds());
             }
             telemetry.addData("Drive", backupMode ? "ROBOT-ORIENTED (backup mode)" : fieldOriented ? "field-oriented" : "robot-oriented");
             if (launchWaiting) telemetry.addData("Launch", "QUEUED: waiting for the lock to be ALIGNED (%.1f s left)", Math.max(0.0, LAUNCH_ALIGN_WAIT_SEC - launchAlignClock.seconds()));
-            telemetry.addData("Target lock (driver right trigger, held)", lockOn
+            telemetry.addData("Target lock (driver right bumper, held)", lockOn
                     ? String.format(Locale.US, "ON -> %s, bearing %.1f deg, error %+.1f deg%s", mechanisms.getOpenCell(), targetLock.bearingDeg(),
                             targetLock.errorDeg(), targetLock.isAligned() ? "   ALIGNED" : "")
                     : "off");
@@ -748,7 +748,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Park Dash (driver D-pad up / down, held)", parkDash.status());
             telemetry.addData("Hold position (from the launch request to the end of the salvo)", hold.status());
             mechanisms.log(telemetry);
-            telemetry.addLine("GP1: stick drive, hold LT precision, hold RT target lock, A launch, hold D-pad left / right = HIVE DASH (drive to a cell's launch spot and launch), hold D-pad up / down = PARK DASH (drive to the left / right park corner), hold LB + RB = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
+            telemetry.addLine("GP1: stick drive, hold LT precision, hold RB target lock, A launch, hold D-pad left / right = HIVE DASH (drive to a cell's launch spot and launch), hold D-pad up / down = PARK DASH (drive to the left / right park corner), hold LB + RT = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
             telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-launch on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
             long profiledTelemetry = LoopProfiler.start();

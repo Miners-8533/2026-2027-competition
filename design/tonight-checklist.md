@@ -21,14 +21,14 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Save the TeleOp and auto logs from this: the PINPOINT lines are what we debug from
 
 ## 2. TeleOp basics (T1 to T3, F4)
-- [ ] Controls: driver A launches, LB chords, precision on RT; operator A target lock, LB+B reject, LB+Y sweep
+- [ ] Controls: driver A launches, LB chords, precision on LT, target lock on RB (new 2026-11-05), reseed LB + RT (was LB + RB); operator A target lock, LB+B reject, LB+Y sweep
 - [ ] Intake always on: IN under 4, OUT at 4; one rumble when full; the count stops flickering 3 / 4
 - [ ] Target lock on by itself when full, off after the salvo; launch at all four cells (marks: far-cell extra -3.0, offset -2.2)
 - [ ] Backup mode: LB + X held 1 s (banner, three taps)
 - [ ] Pusher: no faults, a launch and a reject cancel each other, count reads 0 after a salvo (P10)
 
 ## 3. Pusher lock (T6)
-- [ ] Changed 2026-11-05: a full robot alone just stops the intake (arm stays at HOLD, no OUT). Hold RT (target lock) with pollen held: the arm parks about 90 deg past HOLD, intake OFF, count frozen; release RT without launching: back to HOLD after 0.5 s and the intake runs again; a Hive Dash locks it on the way
+- [ ] Changed 2026-11-05: a full robot alone just stops the intake (arm stays at HOLD, no OUT). Hold RB (target lock) with pollen held: the arm parks about 90 deg past HOLD, intake OFF, count frozen; release RB without launching: back to HOLD after 0.5 s and the intake runs again; a Hive Dash locks it on the way
 - [ ] Launch from the lock clears all four; unlock with reject works; no delay to the launch
 
 ## 4. Flywheel (F7)
@@ -56,6 +56,11 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] After the TeleOp and auto runs: pull the logs and run `python tools/logs/loop_profile.py` (and `--busiest` for the worst windows). Note pose, drive_write, telemetry, mechanisms (and mech.counter), other; compare the TeleOp with the 28 to 30 ms of 2026-11-03, and look at hive_dash / park_dash / hold maximums during a dash
 
 - [ ] Drive write deadband (T14): the robot drives, creeps, stops and holds the same as before (try `MecanumDrive.writeDeadband` 0 in the Dashboard to compare); the profile's `drive_skipped` count is above 0 with steady sticks
+
+## 8c. Controls and jostle changes of 2026-11-05 (evening)
+- [ ] Driver right BUMPER (hold) is the target lock; the right trigger does nothing; LB + RB does nothing; the nudge (LB + right stick while RB is held) works and does not reseed
+- [ ] Reseed is LB + right TRIGGER, hold 1 s (the screen counts it); the pose goes to the default start
+- [ ] Operator D-pad left / right: the remembered aim moves 3 deg per report (max 10; log `REPORT landed ...`)
 
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
