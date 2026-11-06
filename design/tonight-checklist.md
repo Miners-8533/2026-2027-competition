@@ -71,6 +71,9 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 ## 8e. Hive Dash under the hive (lane centering, 2026-11-05)
 - [ ] Dashes that cross the lane (rear to audience and back, from the far side of the field) at 0.85: the route now goes along the middle line (log: `via (34, 0) (-34, 0)` or around a helper corner); no contact with a support, no stuck robot; note the entry speed and any drift at the gate (the `HIVE DASH sample` lines)
 
+## 8f. Intake current watch (2026-11-05)
+- [ ] Run the intake in and out with nothing in it: `intake_amps` about 1.0 A in, 1.5 A out; no `INTAKE HIGH CURRENT` / `INTAKE LOW CURRENT` lines in normal use; if the intake sticks again, the log shows the current and the event lines; adjust `Intake.HIGH_AMPS` / `LOW_AMPS` from what a real jam reads
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`

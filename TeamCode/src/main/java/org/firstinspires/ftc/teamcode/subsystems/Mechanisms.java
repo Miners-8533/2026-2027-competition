@@ -910,7 +910,11 @@ public class Mechanisms {
         }
 
         long profiledIntake = LoopProfiler.start();
-        if (intake != null) intake.update();
+        if (intake != null) {
+            intake.update();
+            String intakeNote = intake.takeNote();
+            if (intakeNote != null) RunLog.event(intakeNote + " (" + heldText() + ")");
+        }
         LoopProfiler.stop("mech.intake", profiledIntake);
         long profiledFlywheel = LoopProfiler.start();
         if (flywheel != null) flywheel.update();
@@ -948,12 +952,12 @@ public class Mechanisms {
     }
 
     /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
-    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold";
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps";
 
     /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
     public String sampleRow() {
         String launch = launchQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
-        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s,%s",
+        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s",
                 lastSetpoint,
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getVelocity()),
@@ -970,7 +974,8 @@ public class Mechanisms {
                 flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getLastPower()),
                 flywheel == null ? "" : String.format(Locale.US, "%.2f", flywheel.getCurrentAmps()),
                 lockCode(),
-                pusher == null ? "" : String.format(Locale.US, "%.2f", pusher.getHoldPower()));
+                pusher == null ? "" : String.format(Locale.US, "%.2f", pusher.getHoldPower()),
+                intake == null ? "" : String.format(Locale.US, "%.2f", intake.getCachedCurrentAmps()));
     }
 
     public void log(Telemetry telemetry) {
