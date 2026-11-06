@@ -67,6 +67,8 @@ public final class HiveDash {
      * the ramp starts CORNER_RAMP_PER_IN of power per inch out (0.03: about 12 in for 0.85 down to 0.5). CORNER_POWER 0 or CORNER_FULL_DEG below CORNER_FREE_DEG turns it off.
      */
     public static double CORNER_POWER = 0.5, CORNER_FREE_DEG = 20.0, CORNER_FULL_DEG = 90.0, CORNER_RAMP_PER_IN = 0.03;
+    /** The router keeps this far (plus MARGIN_IN) from every flower stand: HiveRoute.Params.flowerClearanceIn. */
+    public static double FLOWER_CLEARANCE_IN = 3.0;
 
     // ---- planning ----
     public static double ROBOT_HEIGHT_IN = 18.0;
@@ -209,6 +211,7 @@ public final class HiveDash {
         p.unalignedSpeedRatio = UNALIGNED_SPEED_RATIO;
         p.underHive = UNDER_HIVE_ROUTES;
         p.laneHalfWidthIn = LANE_HALF_WIDTH_IN;
+        p.flowerClearanceIn = FLOWER_CLEARANCE_IN;
         for (int sx = -1; sx <= 1; sx += 2) {
             for (int sy = -1; sy <= 1; sy += 2) p.points.add(new double[]{sx * HELPER_X, sy * HELPER_Y});
             p.points.add(new double[]{sx * GATE_X, 0.0});

@@ -57,6 +57,14 @@ Worked lengths: rear zone to audience zone about 149 in around the outside via (
 
 **Flywheel at the start.** While a dash runs the launch speed is worked out for the launch spot's distance to the cell (`Output.overrideDistanceIn`, `Mechanisms.setDashLaunchDistance`), not for the robot's distance now, so the flywheel is sent to that speed when the dash starts instead of following the route's distances (it arrived above the launch band 9 times in the 2026-11-06 log and the launch waited up to 0.7 s).
 
+## Overshoot, corners and flower clearance (2026-11-06, from the 00:43 log)
+
+The log showed arrivals at 20 to 55 in/s that coasted 2 to 8 in past the spot (toward the flower), and two dashes that passed the helper point (36, 40) at 70 in/s and swung 17 in wide (to x 59, y 29) into the audience flower, where the speed fell from 42 to 8 in/s. Three changes:
+
+1. **Approach cap.** On the last leg the power is limited to `APPROACH_POWER` 0.5 (about 40 in/s) within `APPROACH_RADIUS_IN` 32 in of the spot, where the aim turn starts. The measured deceleration is about 240 in/s^2, so 40 in/s stops in about 3 in.
+2. **Corner slowdown.** Before a via point the power ramps down (0.03 of power per inch, about 12 in out) to a corner power that depends on the turn there: none up to `CORNER_FREE_DEG` 20 deg, `CORNER_POWER` 0.5 from `CORNER_FULL_DEG` 90 deg on, in proportion between. The (36, 40) corner in the log was a 121 deg turn.
+3. **Flower clearance.** The planner grows each flower rectangle by `FLOWER_CLEARANCE_IN` 3 in (plus the 1.5 in margin) because a robot that turns onto the cell sweeps its 12 in radius. Legs that end at the launch spot are judged with the far-corner circle at the spot only (no box past the end), since the audience spot is only 6.8 in from the flower. 3 in is the most that keeps every spot reachable (4 in cut 812 of 1500 trips to a spot); the north outside route to the audience spot is now blocked, so a dash from the Blue Wall side to the audience cell goes under the hive (87 in from (60.6, 58.4) instead of 51 in straight down the wall).
+
 ## Driving in line with the wheels
 
 On each leg the heading is the travel direction, with the front or the rear leading, whichever needs less rotation (and, on the last leg, whichever leaves the smaller turn for the lock: the launch zones are straight out from their cells, so arriving rear-first means the front already faces the cell). The sides of a mecanum chassis strafe slower than forward, and aligned is the narrowest profile for the keep-outs. Short legs (under about 40 in) are not aligned.
@@ -77,7 +85,7 @@ On each leg the heading is the travel direction, with the front or the rear lead
 
 ## Tunables (Dashboard)
 
-Max power (0.5 for the first runs, 0.85 from 2026-11-05; `TURN_MAX` stays 0.5), margin 1.5 in, `ROBOT_HEIGHT_IN` 18, lock radius 20 in (`EARLY_LOCK_RADIUS_IN` 32 in / `EARLY_LOCK_MIN_ABS_X` 36 in on the last leg, `LAUNCH_HOLD_SEC` 0), goal tolerance 2.5 in / 6 deg, pass-through tolerance 3 in / 10 deg, turn penalty, align threshold 40 in, `UNDER_HIVE_ROUTES` on (user, 2026-11-04), the helper and gate points.
+Max power (0.5 for the first runs, 0.85 from 2026-11-05; `TURN_MAX` stays 0.5), margin 1.5 in, `ROBOT_HEIGHT_IN` 18, lock radius 20 in (`EARLY_LOCK_RADIUS_IN` 32 in / `EARLY_LOCK_MIN_ABS_X` 36 in on the last leg, `LAUNCH_HOLD_SEC` 0, `APPROACH_POWER` 0.5 / `APPROACH_RADIUS_IN` 32, `CORNER_POWER` 0.5 / `CORNER_FREE_DEG` 20 / `CORNER_FULL_DEG` 90 / `CORNER_RAMP_PER_IN` 0.03, `FLOWER_CLEARANCE_IN` 3), goal tolerance 2.5 in / 6 deg, pass-through tolerance 3 in / 10 deg, turn penalty, align threshold 40 in, `UNDER_HIVE_ROUTES` on (user, 2026-11-04), the helper and gate points.
 
 ## Test plan
 

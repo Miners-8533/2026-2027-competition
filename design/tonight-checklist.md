@@ -88,6 +88,11 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] The robot stops 8 in from the wall (x +-55.4) and nothing is pinned against the wall; with a pollen lying near the old spot the dash still arrives; the launch from the new spot (34 in, flat part of the map) lands
 - [ ] No dash touches a flower stand: rear flower from the rear wall side, audience flower from the loading zone; right after gathering at a flower the dash starts (no refusal) and leaves it
 
+## 8j. Hive Dash overshoot, corners and flower clearance (T19)
+- [ ] Dashes to the audience cell from the Blue Wall side (it now goes under the hive), from the far side and from beside the hive, and to the rear cell: arrival within 2.5 in, stopped quickly, no coasting 2 to 8 in past the spot; the speed at arrival is about 40 in/s or less
+- [ ] The helper corners (36, +-40) are taken at about 0.5 power (watch the sample rows: the speed falls before the via point) and the robot does not swing wide toward a flower
+- [ ] No contact with the audience or rear flower stand on any dash; the first dash after gathering at a flower leaves it normally; the dash time rises by under about 0.5 s (`HiveDash.APPROACH_POWER` / `CORNER_POWER` 0 turn the caps off if it is too slow)
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`

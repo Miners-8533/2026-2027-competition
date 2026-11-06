@@ -70,7 +70,8 @@ public class HiveRouteCheck {
         check(p1.ok && p1.description.contains("(34, 0)") && !p1.description.contains("(36, 40)"), "rear zone to audience zone goes through the lane (the gate on the audience side) when under-hive routes are on");
         Plan p2 = HiveRoute.plan(-55.4, 15.25, 0.0, 55.4, 7.5, off);
         System.out.println("rear zone -> audience zone, under-hive off: " + p2.description);
-        check(p2.ok && p2.description.contains("(-36, 40)") && p2.description.contains("(36, 40)"), "with under-hive routes off the same trip goes around the outside");
+        // since the flower clearance (2026-11-06) the north side is blocked at the audience end (the last leg from (36, 40) passes the audience flower within the grown keep-out), so the outside route may be the south one
+        check(p2.ok && ((p2.description.contains("(-36, 40)") && p2.description.contains("(36, 40)")) || (p2.description.contains("(-36, -40)") && p2.description.contains("(36, -40)"))), "with under-hive routes off the same trip goes around the outside");
         check(p1.ok && p2.ok && p1.lengthIn < p2.lengthIn, "the lane route is shorter than the outside route (" + String.format("%.0f", p1.lengthIn) + " against " + String.format("%.0f", p2.lengthIn) + " in)");
 
         Plan p3 = HiveRoute.plan(0.0, 0.0, 0.0, 55.4, 7.5, on);
@@ -194,7 +195,7 @@ public class HiveRouteCheck {
             for (double sy = -66.0; sy <= 66.0; sy += 6.0) {
                 if (HiveRoute.touchingSupport(sx, sy, 0.0, on) || HiveRoute.touchingSupport(sx, sy, Math.PI / 2.0, on)) continue;
                 boolean nextToFlower = false;
-                for (Rect f : flowers) if (f.distanceTo(sx, sy) <= on.radiusIn() + on.marginIn + 2.0) nextToFlower = true;
+                for (Rect f : flowers) if (f.distanceTo(sx, sy) <= on.radiusIn() + on.marginIn + on.flowerClearanceIn + 2.0) nextToFlower = true;
                 if (nextToFlower) continue;
                 for (double[] g : allGoals) {
                     Plan pl = HiveRoute.plan(sx, sy, 0.0, g[0], g[1], on);
@@ -208,8 +209,8 @@ public class HiveRouteCheck {
                             double x = ax + (bx - ax) * u / Math.max(len, 1e-9), y = ay + (by - ay) * u / Math.max(len, 1e-9);
                             for (Rect f : flowers) {
                                 if (pl.aligned[k]) {
-                                    if (HiveRoute.overlap(HiveRoute.poseRect(x, y, dir, on, 0.0), f) || HiveRoute.overlap(HiveRoute.poseRect(x, y, dir + Math.PI, on, 0.0), f)) touched = true;
-                                } else if (f.distanceTo(x, y) <= on.radiusIn()) {
+                                    if (HiveRoute.overlap(HiveRoute.poseRect(x, y, dir, on, 2.0), f) || HiveRoute.overlap(HiveRoute.poseRect(x, y, dir + Math.PI, on, 2.0), f)) touched = true;
+                                } else if (f.distanceTo(x, y) <= on.radiusIn() + 2.0) {
                                     touched = true;
                                 }
                                 if (pl.aligned[k]) minClear = Math.min(minClear, f.distanceTo(x, y) - Math.max(on.frontIn(), on.fromBackIn));
@@ -241,6 +242,25 @@ public class HiveRouteCheck {
             System.out.println(String.format("logged start (%.1f, %.1f): %s, the center comes within %.1f in of the rear flower stand (robot radius %.1f)", l[0], l[1], pl.ok ? pl.description : pl.refusal, worst, on.radiusIn()));
             check(pl.ok && worst > on.radiusIn(), "the logged dash from (" + l[0] + ", " + l[1] + ") to the rear cell clears the rear flower by more than the robot's radius");
         }
+        // 2026-11-06: the dash down the audience wall from (60.6, 58.4) used to run straight past the audience flower with the box clearing it by 0.5 in and the robot touched it; it must detour inward now
+        Plan wallSide = HiveRoute.plan(60.6, 58.4, Math.toRadians(88.6), 55.4, 7.5, on);
+        check(wallSide.ok && wallSide.waypoints.length > 2, "a dash down the audience wall from (60.6, 58.4) detours inward (" + (wallSide.ok ? wallSide.description : wallSide.refusal) + ")");
+        // and the launch spots stay reachable: the same share of trips as before the clearance (lost none in the sweep)
+        int spotTrips = 0, spotNoRoute = 0;
+        for (double sx = -66.0; sx <= 66.0; sx += 6.0) {
+            for (double sy = -66.0; sy <= 66.0; sy += 6.0) {
+                if (HiveRoute.touchingSupport(sx, sy, 0.0, on) || HiveRoute.touchingSupport(sx, sy, Math.PI / 2.0, on)) continue;
+                boolean nearFlower = false;
+                for (Rect f : flowers) if (f.distanceTo(sx, sy) <= on.radiusIn() + on.marginIn + on.flowerClearanceIn + 2.0) nearFlower = true;
+                if (nearFlower) continue;
+                for (int g = 0; g < 4; g++) {
+                    spotTrips++;
+                    if (!HiveRoute.plan(sx, sy, 0.0, allGoals[g][0], allGoals[g][1], on).ok) spotNoRoute++;
+                }
+            }
+        }
+        System.out.println("launch spot trips from free starts not next to a flower: " + spotTrips + ", with no route: " + spotNoRoute);
+        check(spotNoRoute * 40 < spotTrips, "at least 97.5 percent of those trips to a launch spot have a route with the flower clearance");
         // a robot that has just gathered from a flower stands next to it: it must still get a route to the cell on its side
         double[][] atFlower = {{57.0, 24.0, 0.0, 55.4, 7.5}, {-57.0, -24.0, Math.PI, -55.4, -7.5}, {57.0, 24.0, 0.0, -55.4, 15.25}};
         for (double[] a : atFlower) {

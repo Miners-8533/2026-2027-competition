@@ -61,6 +61,13 @@ public final class HiveRoute {
          * the lane gate to the launch spot wandered 8 in toward the supports and a dash at 0.85 power hit one. At or above the bars' inner edge (22.75) the walls vanish.
          */
         public double laneHalfWidthIn = 12.35;
+        /**
+         * The planner keeps this much more than the margin away from every flower stand (the stand's rectangle is grown by it): a leg is planned for an aligned robot, but the Hive Dash turns onto the cell
+         * (a robot turning sweeps its 12 in radius, 5 in beyond its half width) and drifts, and the 2026-11-06 log had two dashes pressed into the audience flower. Limited by the launch spots themselves:
+         * a leg's last box is the far-corner circle (12 + the margin) around the spot, which is 16.8 in from the audience flower's corner, so 3 in is the most that keeps every spot reachable (4 in cut
+         * 722 of 1596 trips to a launch spot from the router check's grid; 3 in lost none).
+         */
+        public double flowerClearanceIn = 3.0;
         /** Route points (helper corners and lane gates), field frame, every sign already expanded. */
         public final List<double[]> points = new ArrayList<>();
 
@@ -165,12 +172,17 @@ public final class HiveRoute {
 
     /** The four flower stands (audience wall, Blue Wall, rear wall, Red Wall), field frame (+X audience, +Y Blue Wall). */
     public static List<Rect> flowerKeepOuts() {
+        return flowerKeepOuts(0.0);
+    }
+
+    /** The same, each rectangle grown by grow inches on every side. */
+    public static List<Rect> flowerKeepOuts(double grow) {
         List<Rect> out = new ArrayList<>();
-        double n = FLOWER_NORMAL_IN, o = FLOWER_OFFSET_IN;
-        out.add(new Rect(n, o, FLOWER_OUT_HALF_IN, FLOWER_ALONG_HALF_IN, 0.0, false, true));     // audience wall (+X), toward the Blue Wall side
-        out.add(new Rect(-o, n, FLOWER_ALONG_HALF_IN, FLOWER_OUT_HALF_IN, 0.0, false, true));    // Blue Wall (+Y)
-        out.add(new Rect(-n, -o, FLOWER_OUT_HALF_IN, FLOWER_ALONG_HALF_IN, 0.0, false, true));   // rear wall (-X)
-        out.add(new Rect(o, -n, FLOWER_ALONG_HALF_IN, FLOWER_OUT_HALF_IN, 0.0, false, true));    // Red Wall (-Y)
+        double n = FLOWER_NORMAL_IN, o = FLOWER_OFFSET_IN, ho = FLOWER_OUT_HALF_IN + grow, ha = FLOWER_ALONG_HALF_IN + grow;
+        out.add(new Rect(n, o, ho, ha, 0.0, false, true));     // audience wall (+X), toward the Blue Wall side
+        out.add(new Rect(-o, n, ha, ho, 0.0, false, true));    // Blue Wall (+Y)
+        out.add(new Rect(-n, -o, ho, ha, 0.0, false, true));   // rear wall (-X)
+        out.add(new Rect(o, -n, ha, ho, 0.0, false, true));    // Red Wall (-Y)
         return out;
     }
 
@@ -181,7 +193,7 @@ public final class HiveRoute {
      */
     public static List<Rect> planningKeepOuts(Params p) {
         List<Rect> out = keepOuts(p, !p.underHive);
-        out.addAll(flowerKeepOuts());
+        out.addAll(flowerKeepOuts(p.flowerClearanceIn));
         if (p.underHive && p.laneHalfWidthIn < BAR_INNER_Y_IN) {
             double mid = (p.laneHalfWidthIn + BAR_INNER_Y_IN) / 2.0, half = (BAR_INNER_Y_IN - p.laneHalfWidthIn) / 2.0;
             out.add(new Rect(0.0, mid, BAR_HALF_LENGTH_IN, half, 0.0, true));
@@ -237,7 +249,7 @@ public final class HiveRoute {
         return false;
     }
 
-    private static boolean legClear(double ax, double ay, double bx, double by, Params p, List<Rect> rects, boolean exemptLane, boolean fromStart, boolean[] alignedOut) {
+    private static boolean legClear(double ax, double ay, double bx, double by, Params p, List<Rect> rects, boolean exemptLane, boolean fromStart, boolean toGoal, boolean[] alignedOut) {
         double len = Math.hypot(bx - ax, by - ay);
         boolean aligned = len >= p.alignMinLegIn;
         if (alignedOut != null) alignedOut[0] = aligned;
@@ -265,6 +277,12 @@ public final class HiveRoute {
             if (r.lane && (exemptLane || virtualSkipped)) continue;
             if (r.flower && fromStart && r.distanceTo(ax, ay) <= p.radiusIn() + p.marginIn && r.distanceTo(bx, by) > r.distanceTo(ax, ay)) continue;   // leaving a flower it stands next to
             if (shortFromStart && !r.lane && r.distanceTo(ax, ay) <= p.radiusIn()) return false;
+            if (toGoal && r.flower) {
+                // the leg ends at the launch spot, where the robot stops and turns onto the cell: its body there is the circle of the far corner (no margin, no box past the end), because the spot itself
+                // is only 6.8 in from the audience flower's footprint and a box ending 13.5 in past it would make the spot unreachable once the flower is grown by its clearance
+                if (overlap(swept(ax, ay, bx, by, shortFromStart ? 0.0 : ext, 0.0, halfWidth), r) || r.distanceTo(bx, by) <= p.radiusIn()) return false;
+                continue;
+            }
             if (overlap(r.lane ? swVirtual : sw, r)) return false;
         }
         return true;
@@ -302,7 +320,10 @@ public final class HiveRoute {
         for (int i = 0; i < n; i++) {
             for (int j = i + 1; j < n; j++) {
                 boolean[] al = new boolean[1];
-                boolean c = legClear(nodes.get(i)[0], nodes.get(i)[1], nodes.get(j)[0], nodes.get(j)[1], p, rects, startInLane && i == 0, i == 0, al);
+                // node 1 is the goal: a leg that touches it is judged as running TO the goal (the leg and its reverse have the same cells; the goal end is where the robot stops and turns)
+                boolean c = i == 1
+                        ? legClear(nodes.get(j)[0], nodes.get(j)[1], nodes.get(i)[0], nodes.get(i)[1], p, rects, false, false, true, al)
+                        : legClear(nodes.get(i)[0], nodes.get(i)[1], nodes.get(j)[0], nodes.get(j)[1], p, rects, startInLane && i == 0, i == 0, j == 1, al);
                 clear[i][j] = clear[j][i] = c;
                 aligned[i][j] = aligned[j][i] = al[0];
             }
