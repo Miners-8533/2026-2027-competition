@@ -401,7 +401,7 @@ public final class HiveDash {
         boolean still = in.lockAligned && speed <= AutoLaunch.MAX_SPEED_IN_PER_S;
         if (!still) stillClock.reset();
         if (!in.hasElements) return;   // nothing to launch: wait for the driver to let go
-        if (stillClock.seconds() >= LAUNCH_HOLD_SEC && !in.launchBusy) {
+        if (still && stillClock.seconds() >= LAUNCH_HOLD_SEC && !in.launchBusy) {   // 'still' is needed on its own: with a hold of 0 the reset clock already reads 0 (the 2026-11-06 00:43 log launched on arrival at heading 55 deg and at up to 48 in/s)
             out.launchNow = true;
             state = State.LAUNCHING;
             sawBusy = false;
