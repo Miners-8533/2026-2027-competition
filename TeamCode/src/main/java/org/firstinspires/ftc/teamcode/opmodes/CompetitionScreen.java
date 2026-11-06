@@ -121,6 +121,7 @@ public final class CompetitionScreen {
             else if (w.startsWith("FLYWHEEL OPEN LOOP")) s.alert(RED, "FLY OPEN LOOP");
             else if (w.startsWith("Pusher STALLED")) s.alert(RED, "PUSHER STALLED");
             else if (w.startsWith("Pusher not calibrated")) s.alert(RED, "PUSHER NOT CALIBRATED");
+            else if (w.startsWith("Pusher JAMMED")) s.alert(RED, "PUSHER JAMMED");
             else if (w.startsWith("PUSHER ZERO UNCERTAIN")) s.alert(YELLOW, "PUSHER ZERO?");
             else if (w.startsWith("OPPONENT NECTAR")) s.alert(YELLOW, "OPPONENT NECTAR: REJECT");
             else if (w.startsWith("ELEMENT COUNTER NOT READING")) s.alert(YELLOW, "COUNTER NOT READING");

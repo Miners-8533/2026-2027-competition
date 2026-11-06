@@ -675,6 +675,11 @@ public class Mechanisms {
         return !notice.isEmpty() && noticeTimer.seconds() < NOTICE_SEC ? notice : "";
     }
 
+    /** The most jam back-offs per pusher move (the autos use Pusher.JAM_RETRIES_AUTO). */
+    public void setJamRetries(int n) {
+        if (pusher != null) pusher.setMaxJamRetries(n);
+    }
+
     public boolean isRejectActive() {
         return rejectActive;
     }
@@ -780,6 +785,7 @@ public class Mechanisms {
         if (pusher != null) {
             if (!pusher.isCalibrated()) warnings.add("Pusher not calibrated: salvos and rejects disabled");
             if (pusher.isStalled()) warnings.add("Pusher STALLED: clear it before the next move");
+            if (pusher.isJamUnresolved()) warnings.add("Pusher JAMMED: the arm could not be freed; reject (LB + B) or launch again");
             // finished means stopped, wherever it came to rest: not "within the HOLD tolerance", which a salvo that
             // lands a few degrees past HOLD never satisfies
             boolean pusherIdle = pusher.isStopped();
@@ -963,6 +969,9 @@ public class Mechanisms {
             pusher.update();
             String holdReport = pusher.takeHoldReport();
             if (holdReport != null) RunLog.event(holdReport);
+            String jamReport = pusher.takeJamReport();
+            if (jamReport != null) RunLog.event(jamReport + " (" + heldText() + ")");
+            if (pusher.takeJamResolvedNotice()) notice("Pusher jam cleared");
         }
         LoopProfiler.stop("mech.pusher", profiledPusher);
 

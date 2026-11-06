@@ -506,6 +506,7 @@ public class AutonSolo extends LinearOpMode {
 
         mechanisms.setBlueAlliance(isBlue);
         mechanisms.setOpenCell(firstCell);
+        mechanisms.setJamRetries(Pusher.JAM_RETRIES_AUTO);   // one jam back-off per pusher move: the autos are tight on time
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel stays up between launches ...
         mechanisms.setSpinRequested(true);         // ... and spins from Start, so it is at speed on arrival at each launch spot
 
