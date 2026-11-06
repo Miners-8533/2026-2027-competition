@@ -152,6 +152,7 @@ public final class ParkDash {
         p.turnPenaltyInPerDeg = HiveDash.TURN_PENALTY_IN_PER_DEG;
         p.unalignedSpeedRatio = HiveDash.UNALIGNED_SPEED_RATIO;
         p.underHive = HiveDash.UNDER_HIVE_ROUTES;
+        p.laneHalfWidthIn = HiveDash.LANE_HALF_WIDTH_IN;
         for (int sx = -1; sx <= 1; sx += 2) {
             for (int sy = -1; sy <= 1; sy += 2) p.points.add(new double[]{sx * HiveDash.HELPER_X, sy * HiveDash.HELPER_Y});
             p.points.add(new double[]{sx * HiveDash.GATE_X, 0.0});

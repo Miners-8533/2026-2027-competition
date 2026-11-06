@@ -60,6 +60,8 @@ public final class HiveDash {
     public static double UNALIGNED_SPEED_RATIO = 0.75;
     /** True: routes between two outside points may use the lane under the hive. A robot that starts under the hive can always leave. */
     public static boolean UNDER_HIVE_ROUTES = true;
+    /** Under the hive the route keeps the robot's center within (this - 8.35) in of the lane's middle line (the planner's virtual lane walls, see HiveRoute.Params.laneHalfWidthIn). 22.75 or more turns it off. */
+    public static double LANE_HALF_WIDTH_IN = 12.35;
     /** The helper corners (+-HELPER_X, +-HELPER_Y) and the lane gates (+-GATE_X, 0). */
     public static double HELPER_X = 36.0, HELPER_Y = 40.0, GATE_X = 34.0;
     /** True: plan, log and draw the route but do not drive. */
@@ -185,6 +187,7 @@ public final class HiveDash {
         p.turnPenaltyInPerDeg = TURN_PENALTY_IN_PER_DEG;
         p.unalignedSpeedRatio = UNALIGNED_SPEED_RATIO;
         p.underHive = UNDER_HIVE_ROUTES;
+        p.laneHalfWidthIn = LANE_HALF_WIDTH_IN;
         for (int sx = -1; sx <= 1; sx += 2) {
             for (int sy = -1; sy <= 1; sy += 2) p.points.add(new double[]{sx * HELPER_X, sy * HELPER_Y});
             p.points.add(new double[]{sx * GATE_X, 0.0});
@@ -456,7 +459,7 @@ public final class HiveDash {
         try {
             TelemetryPacket packet = new TelemetryPacket();
             Canvas c = packet.fieldOverlay();
-            List<HiveRoute.Rect> rects = HiveRoute.keepOuts(planParams, !planParams.underHive);
+            List<HiveRoute.Rect> rects = HiveRoute.planningKeepOuts(planParams);
             for (HiveRoute.Rect r : rects) {
                 double[] k = r.corners();
                 double[] xs = {k[0], k[2], k[4], k[6]}, ys = {k[1], k[3], k[5], k[7]};

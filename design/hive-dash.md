@@ -87,3 +87,16 @@ Max power (0.5 for the first runs, 0.85 from 2026-11-05; `TURN_MAX` stays 0.5), 
 - Under-hive routes: allowed from the start (user).
 - Strafe against forward speed: about 0.75 from the TeleOp logs (see above); confirm in the first dash runs.
 - Still to approve: the whole design, before anything is built.
+
+## Lane centering (2026-11-05)
+
+The 20:52 run of 2026-11-05 had a Hive Dash at 0.85 power (dash 9: from (62, -55) to the blue rear zone via the near gate (34, 0)) that hit a hive support and stopped under the hive at (-11.9, 13.8, -21.7 deg). The robot reached the gate at 69 in/s, still turning 53 deg onto the lane leg, drifted to y 14.7 at x 20 (the line was at about 2) and entered the lane about 11 in off the line and 17 deg off the leg's heading. The planner's straight leg from the gate to the launch spot also ran toward the supports (y 5 to 8 inside the lane, 2 to 3 in of clearance even at 0.5 power: one dash touched by 0.2 in at 0.5).
+
+Change (`HiveRoute.planningKeepOuts`, `Params.laneHalfWidthIn`, Dashboard `HiveDash.LANE_HALF_WIDTH_IN` 12.35): virtual walls from y = 12.35 to the bars' inner edge (22.75), on both sides and the bars' length (x within 19.47), keep the robot's CENTER within about 4 in of the lane's middle line (y = 0) while it is between the bars (aligned half width 6.85 + margin 1.5 leaves 12.35 - 8.35). The straight diagonal under the hive no longer plans, so a route under the hive goes through the near gate, along y = 0, and out through the far gate (34, 0) to (-34, 0); the planner still picks the outside route around a helper corner when that is cheaper (the logged dash now plans via (-36, -40) around the hive, 160 in against 158 before). Details:
+- The walls are only checked from 10 in along a leg that starts at the robot, so a robot at the lane's mouth can leave or turn away; a robot that starts inside the lane box is exempt on its first leg (it can always leave).
+- A short leg from the start is boxed from the start point onward, with the robot's own circle at the start checked on its own (the Park Dash detour fix, same day).
+- Cost: starts within about 12 in of a bar end at the lane mouths ((+-24, +-12)) no longer plan to the park corners (32 of 1852 trips have no route, was 16; the dash refuses with a rumble and the driver moves).
+
+Checks (`tools/hive/run-check.cmd`): 21 pass, no unsafe route in the 1,852 park trips, and a new check that the largest distance of any route from the lane's middle line between the bars is 3.9 in over 3,640 trips (limit 5.0).
+
+What this does NOT change: the robot still turns at the gate while moving fast (no slowing, by decision), so it can still arrive at the lane entrance off the line; the lane is now centered, so the margin to the legs after a 10 in drift is smaller than 8 in. If dashes under the hive still touch at 0.85, the next steps are a farther gate (`HiveDash.GATE_X` 34 to about 44, more runway before the lane) and a heading condition at the gate.

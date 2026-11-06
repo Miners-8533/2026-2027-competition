@@ -67,6 +67,9 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Idle with the arm parked: push it 10 to 20 deg by hand, let go: it returns; `pusher_hold` is 0.05 to 0.15 while it corrects; no `GAVE UP` lines; the motor is not warm after a long idle
 - [ ] Over a session: the pusher check's zero corrections are small (a few deg), salvos start from within a few deg; compare with `Pusher.HOLD_SERVO_ENABLED` false if it looks wrong
 
+## 8e. Hive Dash under the hive (lane centering, 2026-11-05)
+- [ ] Dashes that cross the lane (rear to audience and back, from the far side of the field) at 0.85: the route now goes along the middle line (log: `via (34, 0) (-34, 0)` or around a helper corner); no contact with a support, no stuck robot; note the entry speed and any drift at the gate (the `HIVE DASH sample` lines)
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`

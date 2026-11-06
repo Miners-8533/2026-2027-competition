@@ -147,6 +147,40 @@ public class HiveRouteCheck {
         Plan logged = HiveRoute.plan(25.0, 37.5, Math.toRadians(-1.6), 26.0, 60.0, on);
         check(logged.ok && logged.waypoints.length == 2, "a start 22 in from the park corner with the bar behind it plans a direct leg, not a helper-point detour (" + logged.description + ")");
 
+        // lane centring (2026-11-05): a route that goes under the hive keeps the robot's center near the lane's middle line while it is between the bars. The first leg of a start that is already
+        // under the hive is exempt. Limit: laneHalfWidth - (half width + margin) = 12.35 - 8.35 = 4 in, plus 1 in for the sampling.
+        double laneLimit = on.laneHalfWidthIn - (on.widthIn / 2.0 + on.marginIn) + 1.0;
+        int laneTrips = 0, laneOff = 0;
+        double worstOffset = 0.0;
+        for (double sx = -66.0; sx <= 66.0; sx += 6.0) {
+            for (double sy = -66.0; sy <= 66.0; sy += 6.0) {
+                if (HiveRoute.touchingSupport(sx, sy, 0.0, on) || HiveRoute.touchingSupport(sx, sy, Math.PI / 2.0, on)) continue;
+                boolean startUnder = Math.abs(sx) <= HiveRoute.BAR_HALF_LENGTH_IN && Math.abs(sy) < HiveRoute.BAR_INNER_Y_IN;
+                double[][] goals = {{-61.5, 15.25}, {61.5, 7.5}, {-61.5, -7.5}, {61.5, -15.25}, {40.0, 60.0}, {26.0, 60.0}, {-40.0, -60.0}, {-26.0, -60.0}};
+                for (double[] g : goals) {
+                    Plan pl = HiveRoute.plan(sx, sy, 0.0, g[0], g[1], on);
+                    if (!pl.ok) continue;
+                    double offset = 0.0;
+                    for (int k = (startUnder ? 1 : 0); k + 1 < pl.waypoints.length; k++) {
+                        double ax = pl.waypoints[k][0], ay = pl.waypoints[k][1], bx = pl.waypoints[k + 1][0], by = pl.waypoints[k + 1][1];
+                        double len = Math.hypot(bx - ax, by - ay);
+                        for (double u = 0.0; u <= len; u += 0.5) {
+                            double x = ax + (bx - ax) * u / Math.max(len, 1e-9), y = ay + (by - ay) * u / Math.max(len, 1e-9);
+                            if (Math.abs(x) <= HiveRoute.BAR_HALF_LENGTH_IN && Math.abs(y) < HiveRoute.BAR_INNER_Y_IN) offset = Math.max(offset, Math.abs(y));   // inside the lane (between the bars)
+                        }
+                    }
+                    laneTrips++;
+                    worstOffset = Math.max(worstOffset, offset);
+                    if (offset > laneLimit) laneOff++;
+                }
+            }
+        }
+        System.out.println("lane centring: " + laneTrips + " trips, the largest distance of a route from the lane's middle line between the bars: " + String.format("%.1f", worstOffset) + " in (limit " + String.format("%.1f", laneLimit) + "), " + laneOff + " over");
+        check(laneOff == 0, "every route that goes under the hive stays within " + String.format("%.0f", laneLimit) + " in of the lane's middle line between the bars");
+        Plan loggedLane = HiveRoute.plan(58.2, -41.0, Math.toRadians(-94.5), -61.5, 15.3, on);
+        check(loggedLane.ok && !loggedLane.description.equals("via (34, 0), 144 in") && (loggedLane.description.contains("(-34, 0)") || !loggedLane.description.contains("(34, 0)")),
+                "the 2026-11-05 dash that hit a support (from (58.2, -41.0) to the blue rear zone via the near gate only) no longer takes the diagonal under the hive (" + loggedLane.description + ")");
+
         System.out.println("park corner trips planned: " + parkTrips + ", with no route: " + parkNoRoute + ", unsafe: " + parkUnsafe);
         check(parkUnsafe == 0, "no planned route to a park corner touches a support");
         check(parkNoRoute * 20 < parkTrips, "at least 95 percent of free starts have a route to a park corner");

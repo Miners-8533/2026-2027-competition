@@ -32,6 +32,8 @@ public final class HiveRoute {
     public static final double LEG_HALF_THICK_IN = 0.57;
 
     public static final int MAX_VIA = 3;
+    /** The virtual lane walls are not checked against the first this-many inches of a leg that starts at the robot (see legClear). */
+    static final double LANE_START_GRACE_IN = 10.0;
 
     private HiveRoute() {}
 
@@ -45,6 +47,12 @@ public final class HiveRoute {
         /** Speed of a leg that is not driven aligned (short legs, so they strafe or go diagonal) as a fraction of an aligned one: measured 0.72 to 0.75 from the TeleOp logs of 2026-11-01 to 11-03. */
         public double unalignedSpeedRatio = 0.75;
         public boolean underHive = true;
+        /**
+         * Routes under the hive keep the robot's center inside this half-width of the lane's middle line (y = 0) while it is between the support bars (virtual walls from here to the bars): with the
+         * default 12.35 and an aligned robot (half width 6.85 + margin 1.5) the center stays within about 4 in of y = 0, which leaves 8 in or more to the legs. Before 2026-11-05 the straight leg from
+         * the lane gate to the launch spot wandered 8 in toward the supports and a dash at 0.85 power hit one. At or above the bars' inner edge (22.75) the walls vanish.
+         */
+        public double laneHalfWidthIn = 12.35;
         /** Route points (helper corners and lane gates), field frame, every sign already expanded. */
         public final List<double[]> points = new ArrayList<>();
 
@@ -141,6 +149,20 @@ public final class HiveRoute {
         return out;
     }
 
+    /**
+     * What the planner keeps the robot out of: the real supports, plus virtual lane walls (flagged lane) that centre the route under the hive (underHive) or the whole lane box (not underHive).
+     * A route that starts inside the lane box is exempt from the virtual ones on its first leg, so a robot that starts under the hive can always leave.
+     */
+    public static List<Rect> planningKeepOuts(Params p) {
+        List<Rect> out = keepOuts(p, !p.underHive);
+        if (p.underHive && p.laneHalfWidthIn < BAR_INNER_Y_IN) {
+            double mid = (p.laneHalfWidthIn + BAR_INNER_Y_IN) / 2.0, half = (BAR_INNER_Y_IN - p.laneHalfWidthIn) / 2.0;
+            out.add(new Rect(0.0, mid, BAR_HALF_LENGTH_IN, half, 0.0, true));
+            out.add(new Rect(0.0, -mid, BAR_HALF_LENGTH_IN, half, 0.0, true));
+        }
+        return out;
+    }
+
     /** The robot's rectangle at a pose, grown by grow on every side. */
     public static Rect poseRect(double x, double y, double heading, Params p, double grow) {
         double mid = (p.frontIn() - p.fromBackIn) / 2.0;
@@ -200,10 +222,22 @@ public final class HiveRoute {
         // turn there) is checked on its own.
         boolean shortFromStart = fromStart && !aligned;
         Rect sw = swept(ax, ay, bx, by, shortFromStart ? 0.0 : ext, ext, halfWidth);
+        // the virtual lane walls only centre a route that ENTERS the lane: they are checked from LANE_START_GRACE_IN along a leg that starts at the robot (nothing behind that), so a robot at
+        // the lane's mouth can leave or turn away (a start at the exit side heading out is fine) while one heading into the lane must be centred (a start at the entry side must use the gates)
+        Rect swVirtual = sw;
+        boolean virtualSkipped = false;
+        if (fromStart && p.underHive) {
+            if (len <= LANE_START_GRACE_IN) {
+                virtualSkipped = true;
+            } else {
+                double ux = (bx - ax) / len, uy = (by - ay) / len;
+                swVirtual = swept(ax + ux * LANE_START_GRACE_IN, ay + uy * LANE_START_GRACE_IN, bx, by, 0.0, ext, halfWidth);
+            }
+        }
         for (Rect r : rects) {
-            if (r.lane && exemptLane) continue;
-            if (shortFromStart && r.distanceTo(ax, ay) <= p.radiusIn()) return false;
-            if (overlap(sw, r)) return false;
+            if (r.lane && (exemptLane || virtualSkipped)) continue;
+            if (shortFromStart && !r.lane && r.distanceTo(ax, ay) <= p.radiusIn()) return false;
+            if (overlap(r.lane ? swVirtual : sw, r)) return false;
         }
         return true;
     }
@@ -222,9 +256,8 @@ public final class HiveRoute {
     /** Plans a route from the robot's pose to a goal. */
     public static Plan plan(double sx, double sy, double sHeading, double gx, double gy, Params p) {
         if (touchingSupport(sx, sy, sHeading, p)) return Plan.refused("the robot is touching a hive support: drive clear of it by hand");
-        List<Rect> rects = keepOuts(p, !p.underHive);
-        boolean startInLane = false;
-        if (!p.underHive) for (Rect r : rects) if (r.lane && r.contains(sx, sy)) startInLane = true;
+        List<Rect> rects = planningKeepOuts(p);
+        boolean startInLane = new Rect(0.0, 0.0, BAR_HALF_LENGTH_IN, BAR_INNER_Y_IN, 0.0, true).contains(sx, sy);
 
         // nodes: 0 start, 1 goal, 2.. route points that are not inside a keep-out (the far-corner circle plus the margin)
         List<double[]> nodes = new ArrayList<>();
