@@ -83,7 +83,12 @@ public class ElementCounter {
     /** The arm is only expected at CS4; ColorSensorsTest turns this on to hold it in front of any sensor. */
     public static boolean ARM_ANY_SENSOR = false;
     public static boolean ARM_REQUIRE_DISTANCE = true;
-    public static double ARM_MIN_DIST_CM = 5.5;
+    /**
+     * The arm reads farther than pollen at CS4 (pollen about 3.0 cm, an empty track about 7.7). 4.0 since 2026-11-05 (was 5.5): with the recolored transport the arm's CENTER reads 5.1 to 5.2 cm and only
+     * its shoulders read 5.8 cm or more, so 5.5 accepted only the shoulders: the pusher check saw a crossing 8 to 18 deg wide instead of about 46 and corrected the zero by 14 to 29 deg (and by 94 and 155 deg
+     * in two runs) from the wrong center. Checked on the Color Sensor Study of 2026-11-05: no pollen read at CS4 is accepted at 4.0 (0 of 130 still reads).
+     */
+    public static double ARM_MIN_DIST_CM = 4.0;
 
     public static final String[] NAMES = {"CS1", "CS2", "CS3", "CS4"};
     public static final int N = NAMES.length;
