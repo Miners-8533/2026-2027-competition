@@ -118,6 +118,12 @@ public class AutonSolo extends LinearOpMode {
     /** After the ram the robot jostles (back FLOWER jostle BACK_IN, push, repeat: see Jostle) until it is full, for at most FLOWER_PAUSE_MAX_SEC; then it backs off this far before turning. */
     public static double FLOWER_BACKOFF_IN = 9.0;   // 10 from the old turn at the flower; now the straight back-out before the turn (x 46.3), which ends within BACKOUT_TOL_IN of it
     public static double BACKOUT_TOL_IN = 1.5;
+    /**
+     * The final gather's wall flower legs (2026-11-05, from the 23:50 and 23:59 logs): the pre-position stalled 1.9 in short of its 1 in tolerance and ran to its 3.07 s timeout both times, and the back-out
+     * stalled 1.7 in short of 1.5 in (1.53 s timeout); the P term gives only about 0.1 power that close, which does not move the robot. The pre-position ends in a 12 in ram and the back-out only has to clear
+     * the flower, so near is enough.
+     */
+    public static double WALL_PRE_POS_TOL_IN = 2.5, WALL_PRE_HEADING_TOL_DEG = 4.0, WALL_BACKOUT_TOL_IN = 2.5;
     public static double PARK_X = 51.1, PARK_Y = 54.0, PARK_HEADING_DEG = 180.0;
     /**
      * The park run uses full power and is driven at a target PARK_OVERSHOOT_IN past the park pose (in the +Y direction of travel, blue frame; red is turned 180 deg), because the drive stalls about
@@ -265,7 +271,11 @@ public class AutonSolo extends LinearOpMode {
 
     /** A straight back-out: the leg ends within BACKOUT_TOL_IN of the target (a pass-through leg ended 3 in away, which is not far enough from the flower). */
     private Action backOutLeg(String label, MecanumDrive drive, Pose2d target) {
-        return timed("drive: " + label, legDrive(drive, target).withTolerance(BACKOUT_TOL_IN, COARSE_HEADING_DEG));
+        return backOutLeg(label, drive, target, BACKOUT_TOL_IN);
+    }
+
+    private Action backOutLeg(String label, MecanumDrive drive, Pose2d target, double tolIn) {
+        return timed("drive: " + label, legDrive(drive, target).withTolerance(tolIn, COARSE_HEADING_DEG));
     }
 
     /** Runs {@code inner} (a drive) and commands the ramp to stow as soon as the robot has turned STOW_TURN_DEG from flowerHeadingRad (once). */
@@ -567,7 +577,7 @@ public class AutonSolo extends LinearOpMode {
                                 note("Final gather: the alliance-wall flower, then the hive-side corner"),
                                 new InstantAction(mechanisms::requestDeploy),   // deploys on the way
                                 crossLeg("final helper (outside the support rails)", drive, finalHelper, CROSS_FIELD_MAX_POWER, true),
-                                leg("wall flower pre-position", drive, wallPre),
+                                timed("drive: wall flower pre-position", legDrive(drive, wallPre).withTolerance(WALL_PRE_POS_TOL_IN, WALL_PRE_HEADING_TOL_DEG)),
                                 timed("ramp deploy (wait)", rampTo(mechanisms, true)),
                                 note("Intake ON: wall flower (held IN until the park)"),
                                 mechanisms.setIntake(true),
@@ -575,7 +585,7 @@ public class AutonSolo extends LinearOpMode {
                                 ramLeg("ram the wall flower", drive, wallRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
                                 timed("wall flower jostle", new Jostle(drive, jostleDone(mechanisms, FINAL_JOSTLE_DEADLINE_SEC),
                                         () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
-                                backOutLeg("wall flower back-out (straight)", drive, wallBack),
+                                backOutLeg("wall flower back-out (straight)", drive, wallBack, WALL_BACKOUT_TOL_IN),
                                 new InstantAction(mechanisms::requestStowNow),   // clear of the flower: the ramp stows on the way to the corner
                                 parkLeg("park (hive-side corner, full power)", drive, finalPark),
                                 timed("ramp stow (wait)", rampTo(mechanisms, false)),

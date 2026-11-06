@@ -80,6 +80,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 
 ## 8h. Solo path speeds (T17)
 - [ ] `Auton - Solo`, blue and red: compare the `DRIVE` leg times with the 23:07 run (helper 3.01, garden pre-position 1.37, flower pre-position 1.03, back-out 0.95, launch spot 2 0.98 s); arrival errors at the launch spots under about 2.5 in, at the flower pre-positions under 1 in; no overshoot into a wall, support or flower stand
+- [ ] The final gather's wall flower pre-position and back-out no longer run to their timeouts (they stalled 1.9 in and 1.7 in short in the 23:50 and 23:59 runs): each ends within `WALL_PRE_POS_TOL_IN` 2.5 in / `WALL_BACKOUT_TOL_IN` 2.5 in in about 1 s, and the ram still reaches the flower
 - [ ] If a leg misbehaves: `AutonSolo.LEG_MAX_POWER` back to 0.6, `CROSS_FIELD_MAX_POWER` to 0.85, `PASS_SETTLE_SEC` to 0.2 (all on the Dashboard)
 
 ## 9. If time
