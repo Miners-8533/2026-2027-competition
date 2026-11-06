@@ -56,6 +56,17 @@ public final class HiveDash {
     public static double HEADING_KP = 1.5, HEADING_KD = 0.08, TURN_MAX = 0.5;   // kept at 0.5 at the user's request when the power went to 0.85 (translation 0.85 + turn 0.5 exceeds 1, so the wheel scaling slows the robot a little in hard turns)
     /** On an aligned leg the speed is scaled by cos(heading error), but never below this. */
     public static double ALIGN_FLOOR = 0.4;
+    /**
+     * Overshoot control (2026-11-06; the log had dashes arriving at 20 to 55 in/s and coasting 2 to 8 in past the spot, and two that swung 17 in wide off a helper corner into the audience flower).
+     * On the last leg the power is limited to APPROACH_POWER once the robot is within APPROACH_RADIUS_IN of the spot (where the aim turn starts); 0 turns it off. 0.5 is about 40 in/s, which
+     * stops in about 3 in (the measured deceleration is about 240 in/s^2).
+     */
+    public static double APPROACH_POWER = 0.5, APPROACH_RADIUS_IN = 32.0;
+    /**
+     * Before a via point the power ramps down to a corner power that depends on the turn there: no slowing up to CORNER_FREE_DEG of turn, CORNER_POWER from CORNER_FULL_DEG on, in between in proportion;
+     * the ramp starts CORNER_RAMP_PER_IN of power per inch out (0.03: about 12 in for 0.85 down to 0.5). CORNER_POWER 0 or CORNER_FULL_DEG below CORNER_FREE_DEG turns it off.
+     */
+    public static double CORNER_POWER = 0.5, CORNER_FREE_DEG = 20.0, CORNER_FULL_DEG = 90.0, CORNER_RAMP_PER_IN = 0.03;
 
     // ---- planning ----
     public static double ROBOT_HEIGHT_IN = 18.0;
@@ -361,13 +372,23 @@ public final class HiveDash {
         if (last) {
             // the last leg heads straight for the goal point: a robot that overshoots it or passes it to the side is driven back (power along the leg kept pushing it on past)
             double v = clamp(ALONG_KP * goalDist, MIN_FINAL_POWER, MAX_POWER);
+            if (APPROACH_POWER > 0.0 && goalDist <= APPROACH_RADIUS_IN) v = Math.min(v, Math.max(APPROACH_POWER, MIN_FINAL_POWER));
             double d = Math.max(goalDist, 1e-6);
             vfx = (goalX - x) / d * v;
             vfy = (goalY - y) / d * v;
         } else {
             double vC = clamp(-CROSS_KP * cross, -CROSS_MAX, CROSS_MAX);
-            vfx = ux * MAX_POWER + nx * vC;
-            vfy = uy * MAX_POWER + ny * vC;
+            double vMag = MAX_POWER;
+            if (CORNER_POWER > 0.0 && CORNER_FULL_DEG > CORNER_FREE_DEG) {
+                // slow down for the turn at the via point ahead: the next leg's direction against this one's
+                double[] via = plan.waypoints[legIndex + 1], next = plan.waypoints[legIndex + 2];
+                double turnDeg = Math.toDegrees(Math.abs(Rotation2d.normalize(Math.atan2(next[1] - via[1], next[0] - via[0]) - Math.atan2(uy, ux))));
+                double f = clamp((turnDeg - CORNER_FREE_DEG) / (CORNER_FULL_DEG - CORNER_FREE_DEG), 0.0, 1.0);
+                double cornerPower = MAX_POWER + (Math.min(CORNER_POWER, MAX_POWER) - MAX_POWER) * f;
+                vMag = Math.min(MAX_POWER, cornerPower + CORNER_RAMP_PER_IN * Math.max(0.0, remaining));
+            }
+            vfx = ux * vMag + nx * vC;
+            vfy = uy * vMag + ny * vC;
         }
         double fwd = vfx * Math.cos(h) + vfy * Math.sin(h);
         double left = -vfx * Math.sin(h) + vfy * Math.cos(h);
