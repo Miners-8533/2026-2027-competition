@@ -2,6 +2,24 @@
 
 Two matched autos for an alliance whose partner runs the other one: **Auton - Duo Flower Side** (starts at the audience wall) and **Auton - Duo Garden Side** (starts at the rear wall). Built 2026-11-04 on branch `duo-autos`, merged into `integration` 2026-11-05 to test with everything else; **not yet run on the robot**. Code: `AutonDuoBase` (INIT, log, run), `AutonDuoFlowerSide`, `AutonDuoGardenSide`, `DuoKit` (the drive legs, timed steps, launch, waits; copied from `AutonSolo`) and `DuoAutos` (every Dashboard value). Blue/red is picked at INIT (D-pad right / left); red is the blue path turned 180 degrees about the field center. The rules behind this are in [game-rules.md](game-rules.md).
 
+## Duo Primary (2026-11-06, the user's design; `AutonDuoPrimary`, Dashboard values `DuoAutos.P_*`)
+
+A third auto for the alliance whose partner does the lighter job: the rear-wall start of the Garden Side with a longer program, **not yet run on the robot**. Blue frame (red is turned 180 deg):
+
+1. Preload into the REAR cell from the start pose (tip 1).
+2. The Blue Wall flower (the audience flower's poses turned 90 deg): ram, one-cycle jostle (deadline `P_WALL_JOSTLE_DEADLINE_SEC` 12 s), back out, ramp stows.
+3. Around the outside via the east helper (36, 40) to the audience launch spot (50, 26.3), the solo auto's spot on the audience flower's line; launch into the AUDIENCE cell (the far cell: the far-cell aim extra applies).
+4. The audience flower from there (the solo auto's poses), back out. Skipped if later than `P_AUD_FLOWER_LATEST_START_SEC`.
+5. Back across the north side (east helper, west helper (-36, 40)) to the rear launch spot (-50, 26.3), the mirror of the audience one (31.6 in from the rear cell, 22 in from the garden pre-position); launch into the REAR cell (the user chose a mid-field spot for this salvo).
+6. The garden as in the solo auto, back to the rear launch spot, launch into the REAR cell. Skipped if later than `P_GARDEN_LATEST_START_SEC`.
+7. Park in the hive-side corner (26, 60) through the west helper, ramp stowed, flywheel off.
+
+Speeds: `DuoKit.fastLegs` gives this auto the solo auto's faster legs (`P_LEG_MAX_POWER` 0.85, `P_CROSS_MAX_POWER` 1.0, `P_PASS_SETTLE_SEC` 0) and the Blue Wall flower's near-enough tolerances (`WALL_PRE_POS_TOL_IN` 2.5, `WALL_BACKOUT_TOL_IN` 2.5); the other two duo autos keep their old speeds.
+
+**It will not fit 30 s.** A rough estimate from the 2026-11-05 solo legs: preload done 3.3 s, wall flower and its salvo 16, audience flower 21, rear salvo 26.7, then the garden (gather, return, salvo) about 34 and the park about 37.5 s. The two latest-start values are 99 s (nothing cut) so the first runs time the whole program, as the user asked (they will optimize the garden gather and the paths from the `AUTO TIMING` lines); to protect the park set the garden's to about 14 s and the audience flower's to about 17 s (without the garden the park still ends at about 30 s). Waits: none, the program has no partner wait; the first tip (the rear cell, 4 s) is over long before the first launch into the audience cell.
+
+Open points: the cell order is the user's (rear, audience, rear, rear) and is not checked against the tip logic here: the preload tips the rear cell, after which the audience cell faces up and needs 8, and the later rear-cell salvos go to a cell whose state depends on whether the hive has tipped again, so what each salvo scores is for the user to confirm; the rear and audience launch spots and the aim trims `P_*_TRIM_DEG` (0) are untuned; the Blue Wall flower poses are a rotation of the audience flower's numbers, not measured.
+
 ## Why two
 A hive cell tips when it is filled: the upward cell starts with 3 nectar, so 3 more pollen tip it; the cell that then faces up is empty and needs 8 pollen. A tip takes about 4 s (assumed, conservative), and a robot must not launch into a hive that is tipping. The two robots share the tips: each launches only into the cell on its own start side, so neither needs the far-cell aim correction (`AimAtCell` is given extra 0).
 
