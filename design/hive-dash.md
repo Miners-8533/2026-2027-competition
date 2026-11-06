@@ -71,7 +71,7 @@ On each leg the heading is the travel direction, with the front or the rear lead
 
 ## Tunables (Dashboard)
 
-Max power (0.5 at first), margin 1.5 in, `ROBOT_HEIGHT_IN` 18, lock radius 20 in, goal tolerance 2.5 in / 6 deg, pass-through tolerance 3 in / 10 deg, turn penalty, align threshold 40 in, `UNDER_HIVE_ROUTES` on (user, 2026-11-04), the helper and gate points.
+Max power (0.5 for the first runs, 0.85 from 2026-11-05; `TURN_MAX` stays 0.5), margin 1.5 in, `ROBOT_HEIGHT_IN` 18, lock radius 20 in, goal tolerance 2.5 in / 6 deg, pass-through tolerance 3 in / 10 deg, turn penalty, align threshold 40 in, `UNDER_HIVE_ROUTES` on (user, 2026-11-04), the helper and gate points.
 
 ## Test plan
 

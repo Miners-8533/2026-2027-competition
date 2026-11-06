@@ -32,11 +32,11 @@ public final class ParkDash {
     public static double LEFT_X = 40.0, RIGHT_X = 26.0, PARK_Y = 60.0;
 
     // ---- driving: the Hive Dash's values to start from ----
-    public static double MAX_POWER = 0.5;
+    public static double MAX_POWER = 0.85;   // 0.5 for the first runs (7 dashes on 2026-11-05, 0.7 to 2.0 in from the corner); 0.85 from 2026-11-05 (user), as the Hive Dash
     public static double GOAL_TOL_IN = 2.0, PASS_TOL_IN = 3.0;
     public static double ALONG_KP = 0.05, MIN_FINAL_POWER = 0.08;
     public static double CROSS_KP = 0.05, CROSS_MAX = 0.3;
-    public static double HEADING_KP = 1.5, HEADING_KD = 0.08, TURN_MAX = 0.5;
+    public static double HEADING_KP = 1.5, HEADING_KD = 0.08, TURN_MAX = 0.5;   // kept at 0.5 with the power at 0.85, see HiveDash.TURN_MAX
     public static double ALIGN_FLOOR = 0.4;
     public static double SAMPLE_PERIOD_SEC = 0.5;
     public static double REFUSED_SHOWN_SEC = 3.0;

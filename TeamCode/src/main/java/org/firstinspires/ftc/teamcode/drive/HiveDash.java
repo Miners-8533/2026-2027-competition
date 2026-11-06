@@ -33,8 +33,8 @@ import java.util.Locale;
 public final class HiveDash {
 
     // ---- driving ----
-    /** The most power along a leg. 0.5 at first; raise it once the dash has been run slowly. */
-    public static double MAX_POWER = 0.5;
+    /** The most power along a leg. 0.5 for the first runs (about 40 in/s on aligned legs, 13 dashes on 2026-11-05 with arrivals 1.5 to 2.5 in from the spot); 0.85 from 2026-11-05 (user), the power the Solo auto's cross-field legs use (58 in/s peak). At 0.85 the easing starts 17 in out (ALONG_KP 0.05). */
+    public static double MAX_POWER = 0.85;
     /** Within this many inches of the goal the target lock takes the heading and the speed eases. */
     public static double LOCK_RADIUS_IN = 20.0;
     public static double GOAL_TOL_IN = 2.5;
@@ -46,7 +46,7 @@ public final class HiveDash {
     /** Sideways correction: power per inch off the leg, and its limit. */
     public static double CROSS_KP = 0.05, CROSS_MAX = 0.3;
     /** Heading: turn power per radian of error, per rad/s of turn rate, and its limit. */
-    public static double HEADING_KP = 1.5, HEADING_KD = 0.08, TURN_MAX = 0.5;
+    public static double HEADING_KP = 1.5, HEADING_KD = 0.08, TURN_MAX = 0.5;   // kept at 0.5 at the user's request when the power went to 0.85 (translation 0.85 + turn 0.5 exceeds 1, so the wheel scaling slows the robot a little in hard turns)
     /** On an aligned leg the speed is scaled by cos(heading error), but never below this. */
     public static double ALIGN_FLOOR = 0.4;
 

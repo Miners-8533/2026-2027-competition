@@ -40,7 +40,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 
 ## 6. Hive Dash (T5)
 - [ ] `HiveDash.DRY_RUN` true: hold D-pad left / right, check the route on the field view, nothing drives
-- [ ] DRY_RUN false, `MAX_POWER` 0.5: both cells, both alliances, from the launch spots, a garden corner, under the hive
+- [ ] DRY_RUN false, `MAX_POWER` now 0.85 (was 0.5), `TURN_MAX` still 0.5: arrivals still within 2.5 in, no overshoot, no contact with a support; lower `MAX_POWER` in the Dashboard if it overshoots: both cells, both alliances, from the launch spots, a garden corner, under the hive
 - [ ] No contact with a support; release cancels; stops at the spot, ALIGNED, launches; no overshoot at the last leg
 
 ## 7. Hold position (T7)

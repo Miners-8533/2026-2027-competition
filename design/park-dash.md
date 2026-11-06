@@ -13,7 +13,7 @@ A TeleOp driver feature: **hold D-pad up or down** and the robot drives to one o
 `drive/ParkDash.java` plans with `HiveRoute` (the same supports, helper corners, lane gates and speed ratio as the Hive Dash, read from the `HiveDash` Dashboard values) and follows the legs the same way: long legs aligned with the wheels, front or rear leading (whichever is nearer the heading the robot has), short legs with the heading kept. There is no cell, so no lock and no launch; the robot ends with the leg's heading (any heading counts, the corner y 60 keeps either end of the robot inside the wall). Power is `MAX_POWER` 0.5 to start (raise it after the first runs), slowing on the last leg like the Hive Dash (which drives straight at the corner, so an overshoot is driven back). `DRY_RUN` plans and logs without driving.
 
 ## Logs
-`PARK DASH start (<corner>)` with the route, `PARK DASH leg <i> of <n>`, `via point ... reached`, `sample` every 0.5 s (pose, speed), `parked after <s> s`, `released` / `cancelled (<why>)`, `refused (<corner>): <why>`.
+`PARK DASH start (<corner>)` with the route, `PARK DASH leg <i> of <n>`, `via point ... reached`, `sample` every 0.5 s (pose, speed; power 0.85 from 2026-11-05, `TURN_MAX` stays 0.5), `parked after <s> s`, `released` / `cancelled (<why>)`, `refused (<corner>): <why>`.
 
 ## Checks
 `tools/hive/HiveRouteCheck.java` (run `tools/hive/run-check.cmd`) plans from a 6 in grid of free starts to all four corners: 1852 trips, none unsafe, 16 without a route (starts jammed against the supports, which are refused; 24 before the 2026-11-05 planner change below).
