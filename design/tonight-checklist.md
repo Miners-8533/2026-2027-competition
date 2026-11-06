@@ -101,6 +101,10 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] `Telemetry Font Test` pages 10 to 12 on the Driver Station: nothing wraps or is cut, the alliance banner and the colors read at a glance
 - [ ] `TeleOp - Competition`: the screen follows the robot (READY / SPIN UP, the count, LOCKING / LOCK ALIGNED, the dash states, the target and distance, the pose); an alert line appears for a real fault (cover a counter sensor, hold LB + X for the backup countdown) and goes away; `TELEMETRY_VERBOSE` true on the Dashboard brings back the old screen
 
+## 8m. Automatic pusher jam resolution (T22)
+- [ ] A whole practice TeleOp run with 20 or more salvos and locks and NO `PUSHER JAM` line (no false alarms); then block the arm by hand with soft foam during a salvo: `PUSHER JAM` within about 0.7 s, the arm backs off 45 deg from where a salvo is stuck (a jammed lock backs off to 45 deg BEHIND the HOLD, on purpose) and goes on; release the foam and check `PUSHER JAM RESOLVED` and `Pusher jam cleared` on the screen; keep it blocked and check the give-up after 2 retries and the red `PUSHER JAMMED`
+- [ ] In an auto only 1 retry (`Pusher.JAM_RETRIES_AUTO`); tune `Pusher.JAM_BEHIND_HOLD_DEG` (45) from how it frees the pollen
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`
