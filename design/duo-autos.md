@@ -68,3 +68,18 @@ Waits are absolute seconds from Start (a robot cannot see its partner): `F_FIRST
 - Aim trims `*_TRIM_DEG` are 0 for the launches into the near cell. The launches into the audience cell from (50, 26.3) (the far cell from the rear-wall start, the solo auto's launch spot) are -8.0 deg (`P_WALL_TRIM_DEG`, `D_GARDEN_TRIM_DEG`, `D_WALL_TRIM_DEG`, from 2026-11-07), the solo auto's total trim there: it went -3.0, -4.5, -6.0 and then -8.0 as its salvos into that cell kept landing left (the aim step stops about 1 deg short of the trimmed aim, so the real shift is about 1 deg less than the trim). Not yet seen on the robot in these autos.
 - If the partner misses pollen, the 8-pollen tip does not happen and the waits are wasted; the plan assumes every launch goes in.
 - The Blue Wall flower poses are a rotation of the audience flower's tuned numbers, not measured on the field.
+
+## Auton - Cybugs (built 2026-11-07, not yet run on the robot)
+The user's design, built from Daryl: the rear-wall start, garden first, no audience flower. Blue frame (red is turned 180 deg). The intake runs IN for the whole auto. Estimated times from the 2026-11-07 Q24 Daryl run and the Garden Side and Solo legs:
+
+| # | Action | Time (s, estimated) |
+|---|---|---|
+| 1 | Aim and launch the preload into the rear cell (pusher pre-positioned) | 0.0-2.4 |
+| 2 | Garden: pre-position, slow pickup, square approach, square on the wall | 2.4-5.7 |
+| 3 | East helper to the audience launch spot (50, 26.3), launch the garden pollen into the audience cell (trim -8.0) | 5.7-10.3 |
+| 4 | East helper back, Blue Wall flower: pre-position, ram, one-cycle jostle, back out | 10.3-16.6 |
+| 5 | To the rear launch spot at the start wall (-61.5, 15.25), launch the flower pollen into the REAR cell (`C_REAR_TRIM_DEG` 0) | 16.6-20.3 |
+| 6 | Second garden pass (pre-position, slow pickup, no squaring), skipped if later than `C_GARDEN2_LATEST_START_SEC` 22.0 s | 20.3-22.5 |
+| 7 | Park helper (-36, 40), then the park (26, 53.1), ramp stowed | 22.5-25.7 |
+
+No waits for the partner. The park goes through the helper point because a straight leg from the garden corner would run the robot's front into the Blue Wall flower stand (the PC path check caught it); the check (`tools/hive/DuoPathCheck.java`) passes for all the new legs. The salvo into the rear cell scores according to the tip state, which depends on the partner's launches (unchanged from the other duo autos). About 4 s of margin before the 30 s horn.

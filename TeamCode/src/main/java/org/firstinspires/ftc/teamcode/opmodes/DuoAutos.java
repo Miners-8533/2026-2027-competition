@@ -108,6 +108,11 @@ public final class DuoAutos {
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
     public static double COARSE_POS_IN = 3.0, COARSE_HEADING_DEG = 10.0;
     public static double LAUNCH_POS_TOL_IN = 2.5, LAUNCH_HEADING_TOL_DEG = 6.0;
+    // ---- Cybugs (2026-11-07, built from Daryl) ----
+    /** The salvo from the rear launch spot at the start wall into the rear cell (the cell near the start): the preload from beside it needs no trim. */
+    public static double C_REAR_TRIM_DEG = 0.0;
+    /** The second garden pass is skipped when it would start later than this (the pass, the park helper leg and the park need about 5.4 s). */
+    public static double C_GARDEN2_LATEST_START_SEC = 22.0;
     public static double CROSS_FIELD_MAX_POWER = 0.85;
     public static double SLOW_IN_PER_S_PER_POWER = 40.0;
 }

@@ -122,6 +122,9 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Hold the right bumper through the rest (about 3 minutes of driving); a `GEOFENCE` stop is fine; if time runs out, note the test number and pick it with D-pad up at INIT next time
 - [ ] Pull the logs (`drivetest.log`)
 
+## 8u. Auton - Cybugs (T30)
+- [ ] Blue and red from the rear-wall start (INIT pose OK): the preload, the garden, the garden salvo into the audience cell, the Blue Wall flower, then `AUTO TIMING drive: rear launch spot` and `launch ... flower pollen` into the REAR cell (check the `AIM` line: error near 0 and the trim 0; add a trim in `DuoAutos.C_REAR_TRIM_DEG` if it lands left or right), then `garden pre-position 2` and `garden pickup 2 (slow)` (or `AUTO SKIP second garden pass` when late), the park helper and the park; no support or flower stand touched; the whole auto about 25.7 s and the park done (front edge about 8 in from the wall); the pollen picked up in the second pass stay for the TeleOp
+
 ## 8t. Intake on for the whole auto
 - [ ] Any auto: the log's `INTAKE mode` lines show `null -> IN` at the very start and no `IN -> OFF` until the run ends (the S rows' `intake_mode` column is IN throughout); no `Intake OFF` auto note and no `Intake stopped` notice; the preload salvo and the garden salvo still fire normally with the intake running (no pollen pushed out, no pusher jam); `intake_amps` stays near 1.0 A in; if the intake gets in the way of a salvo, set `Mechanisms.setIntakeAlwaysOn` back to false in `AutonSolo` / `AutonDuoBase`
 
