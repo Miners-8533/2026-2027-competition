@@ -15,6 +15,7 @@ import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
 import org.firstinspires.ftc.teamcode.drive.TargetLock;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
+import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.Actions;
@@ -499,9 +500,10 @@ public class AutonSolo extends LinearOpMode {
         RunLog.event(String.format(Locale.US, "SETUP profile %s, alliance %s, start pose (%.1f, %.1f, %.1f deg), cells %s then %s, launch spot (%.1f, %.1f, %.1f deg), %s",
                 profile.name, isBlue ? "BLUE" : "RED", drive.getPose().position.x, drive.getPose().position.y, drive.getPose().heading.toDegrees(),
                 firstCell, secondCell, launchSpot.position.x, launchSpot.position.y, launchSpot.heading.toDegrees(), mechanisms.describe()));
-        RunLog.setSampler("x,y,hdg_deg," + Mechanisms.SAMPLE_COLUMNS, 100, () -> {
+        RunLog.setSampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn," + Mechanisms.SAMPLE_COLUMNS, 100, () -> {
             Pose2d p = drive.getPose();
-            return String.format(Locale.US, "%.2f,%.2f,%.1f,%s", p.position.x, p.position.y, p.heading.toDegrees(), mechanisms.sampleRow());
+            PoseVelocity2d dc = drive.getLastCommand();   // the drive command in the sample rows (from 2026-11-07), as in the TeleOp: what the legs and the jostle sent
+            return String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%s", p.position.x, p.position.y, p.heading.toDegrees(), dc.linearVel.x, dc.linearVel.y, dc.angVel, mechanisms.sampleRow());
         });
 
         mechanisms.setBlueAlliance(isBlue);
