@@ -4,6 +4,7 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Gamepad;
@@ -48,6 +49,7 @@ import java.util.Locale;
  * and the test, segment and phase; DRIVE TEST events mark each test, segment, geofence stop and pause.
  */
 @Config
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @TeleOp(name = "Drive Characterization", group = "Tuning")
 public class DriveCharacterization extends LinearOpMode {
 

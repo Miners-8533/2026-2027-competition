@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.opmodes.bringup;
 
 import org.firstinspires.ftc.teamcode.opmodes.CompetitionScreen;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
@@ -21,6 +22,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  * Reading the result: the tags that change the size of the text on the Driver Station are the ones to use in the real TeleOp's key lines (for example the
  * pusher lock state, backup mode, the Hive Dash result) so they can be read at a glance.
  */
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @TeleOp(name = "Telemetry Font Test", group = "Bring-up")
 public class TelemetryFontTest extends LinearOpMode {
 

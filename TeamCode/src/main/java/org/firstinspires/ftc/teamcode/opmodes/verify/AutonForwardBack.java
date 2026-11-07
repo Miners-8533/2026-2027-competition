@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes.verify;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
@@ -26,6 +27,7 @@ import org.firstinspires.ftc.teamcode.motion.SleepAction;
  * Needs about 4 ft of clear floor ahead. DriveToPose gives up on a leg after its TIMEOUT_SEC.
  */
 @Config
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @Autonomous(name = "Auton Verify - Forward 48 and back", group = "Auto verify")
 public class AutonForwardBack extends LinearOpMode {
 

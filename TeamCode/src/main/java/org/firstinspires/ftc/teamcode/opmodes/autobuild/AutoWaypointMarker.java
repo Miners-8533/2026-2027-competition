@@ -4,6 +4,7 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -52,6 +53,7 @@ import java.util.Locale;
  * No mechanism but the ramp is used. Not for matches.
  */
 @Config
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @TeleOp(name = "Auto Waypoint Marker", group = "Auto build")
 public class AutoWaypointMarker extends LinearOpMode {
 

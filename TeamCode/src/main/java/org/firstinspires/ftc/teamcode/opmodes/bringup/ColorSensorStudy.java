@@ -4,6 +4,7 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -40,6 +41,7 @@ import java.util.Locale;
  * the opmode and initialize again with the arm at HOLD before the next sweep. Steps 2 and 4 are the two steps in which the pusher moves.
  */
 @Config
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @TeleOp(name = "Color Sensor Study", group = "Bring-up")
 public class ColorSensorStudy extends LinearOpMode {
 

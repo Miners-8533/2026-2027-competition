@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
@@ -22,6 +23,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *      (the ramp stows during the turn) and launch the flower pollen: the 8th pollen, which tips that cell.
  *   4. Park in the loading zone (via a point clear of the flower), ramp stowed.
  */
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @Autonomous(name = "Auton - Duo Flower Side", group = "Auto")
 public class AutonDuoFlowerSide extends AutonDuoBase {
 

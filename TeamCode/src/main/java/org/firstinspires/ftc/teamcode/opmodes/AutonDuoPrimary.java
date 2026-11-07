@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
@@ -30,6 +31,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  * The garden (step 6) is skipped when it would start after P_GARDEN_LATEST_START_SEC (18 s) so the park keeps its time: the 2026-11-06 01:57 run, with the garden, reached it at 21.8 s and the park was cut
  * off at 30 s. The user will optimize the garden gather and the paths later (design/duo-autos.md). Faster legs than the other duo autos: DuoAutos.P_LEG_MAX_POWER and friends.
  */
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @Autonomous(name = "Auton - Duo Primary", group = "Auto")
 public class AutonDuoPrimary extends AutonDuoBase {
 
