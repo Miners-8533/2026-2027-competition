@@ -20,7 +20,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *
  *   1. Start at the rear wall (back flush, y 16, heading 0); the flywheel spins from Start and the pusher moves to the lock position meanwhile (Mechanisms.preparePusherForLaunch: the preload salvo turns
  *      310 deg instead of 400). Launch the preload into the REAR cell.
- *   2. The garden in ONE leg from the start straight to the wall squaring pose, the last D_GARDEN_SLOW_ZONE_IN (12.5 in: four pollen of about 2.8 in end to end plus margin) limited to D_GARDEN_SLOW_POWER
+ *   2. (2026-11-07: the solo auto's garden instead, angled pre-position, slow pickup, squaring approach, then the squaring; the one-leg version ended too far from the wall, D_GARDEN_SLOW_* and DuoKit.gardenLeg are unused for now.) Before: the garden in ONE leg from the start straight to the wall squaring pose, the last D_GARDEN_SLOW_ZONE_IN (12.5 in: four pollen of about 2.8 in end to end plus margin) limited to D_GARDEN_SLOW_POWER
  *      (0.5), then square on the wall (side wall, then front wall).
  *   3. Around the outside of the hive via the east helper to the audience launch spot (50, 26.3); launch into the AUDIENCE cell (the far cell: the aim takes the far-cell extra).
  *   4. The Blue Wall flower (the audience flower's poses turned 90 deg): ram, one-cycle jostle, back out.
@@ -66,7 +66,9 @@ public class AutonDuoDaryl extends AutonDuoBase {
         double audExtra = TargetLock.farCellExtraLeftIn(audCell, blue);
         Pose2d audSpot = new Pose2d(audXY.position.x, audXY.position.y, TargetLock.aimHeadingRad(audXY.position.x, audXY.position.y, audCell, audExtra));
 
-        // the garden: one leg to the wall squaring pose, then the squaring (as in the solo auto)
+        // the garden as in the solo auto (2026-11-07, user: the one-leg garden ended too far from the wall): the angled pre-position, the slow pickup, the squaring approach, then the squaring
+        Pose2d gardenPre = DuoKit.forAlliance(DuoKit.pose(DuoAutos.GARDEN_PRE_X, DuoAutos.GARDEN_PRE_Y, DuoAutos.GARDEN_HEADING_DEG), blue);
+        Pose2d gardenEnd = DuoKit.forAlliance(DuoKit.pose(DuoAutos.GARDEN_END_X, DuoAutos.GARDEN_END_Y, DuoAutos.GARDEN_HEADING_DEG), blue);
         double sideIn = profile.originFromSideIn();
         double squareX = -(FieldGeometry.HALF_IN - sideIn - DuoAutos.SQUARE_GAP_IN);
         Pose2d squarePre = DuoKit.forAlliance(DuoKit.pose(squareX, DuoAutos.GARDEN_END_Y, 90.0), blue);
@@ -92,11 +94,14 @@ public class AutonDuoDaryl extends AutonDuoBase {
                 new InstantAction(m::preparePusherForLaunch),
                 k.launch(drive, m, rearCell, blue, "preload", DuoAutos.D_PRELOAD_TRIM_DEG),
 
-                // 2. the garden in one leg, then the squaring
-                k.note("Intake ON: garden (one leg to the wall squaring pose, the last " + DuoAutos.D_GARDEN_SLOW_ZONE_IN + " in at limited power)"),
+                // 2. the garden as in the solo auto: pre-position, slow pickup, squaring approach, squaring
+                k.note("Garden pre-position"),
+                k.passLeg("garden pre-position", drive, gardenPre),
+                k.note("Intake ON: garden, slow"),
                 m.setIntake(true),
-                k.gardenLeg("garden (start to the squaring pose)", drive, squarePre),
+                k.slowLeg("garden pickup (slow)", drive, gardenEnd),
                 k.note("Square on the wall"),
+                k.passLeg("square approach", drive, squarePre),
                 k.timed("square on the wall", new SquareOnWall(drive, squareHeadingRad, squareFlushX, squareFlushY)),
 
                 // 3. around the hive to the audience launch spot, the audience cell

@@ -96,9 +96,12 @@ public class DuoPathCheck {
         leg("P rear launch spot -> west helper", pRear, pWestHelper, withFlowers);
         leg("P west helper -> park", pWestHelper, gPark, withFlowers);
 
-        // Duo Daryl (2026-11-06): the garden in one leg from the start, then around to the audience spot, the Blue Wall flower, back, the audience flower and the park
+        // Duo Daryl (2026-11-06): the garden (the solo auto's from 2026-11-07, the one-leg version before), then around to the audience spot, the Blue Wall flower, back, the audience flower and the park
         double[] dSquare = {-61.15, 58.5, 90.0}, dEastHelper = {36.0, 40.0, 180.0};
-        leg("D start -> squaring pose (the garden leg)", pStart, dSquare, withFlowers);
+        double[] dGardenPre = {-59.8, 46.0, 105.0}, dGardenEnd = {-59.8, 58.5, 105.0}, dSquarePre = {-62.0, 58.5, 90.0};   // the solo auto garden (from 2026-11-07)
+        leg("D start -> garden pre-position", pStart, dGardenPre, withFlowers);
+        leg("D garden pickup", dGardenPre, dGardenEnd, withFlowers);
+        leg("D garden end -> square approach", dGardenEnd, dSquarePre, withFlowers);
         leg("D squared on the wall -> east helper (turned 90 -> 180 in the first 25 in)", new double[]{-40.0, 56.0, 180.0}, dEastHelper, withFlowers);
         leg("D squared on the wall -> turned, first 25 in (supports only)", new double[]{-64.0, 60.5, 90.0}, new double[]{-40.0, 56.0, 180.0}, real);
         leg("D east helper -> audience launch spot", dEastHelper, pAud, withFlowers);
