@@ -114,6 +114,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 
 ## 8p. Tighter auto aim (T26)
 - [ ] Any auto: the `AIM aligned at ... error` lines show about 1 deg or less, the aim steps take 0.3 to 0.5 s, and there is no `AIM TIMED OUT`; if there is, raise `AimAtCell.ALIGNED_DEG` toward 1.5 or `TIMEOUT_SEC`
+- [ ] Aim breakaway (2026-11-07): the `AIM ... after ... s` lines now say `<n> breakaway loops`; every aim should end ALIGNED in about 0.2 to 0.4 s with the error under 1 deg (the 11-07 build timed out every aim at 0.6 s, 1 to 2 deg short, with a turn command of 0.07 to 0.11 and no motion); if an aim overshoots or hunts, lower `AimAtCell.BREAKAWAY_POWER` (0.14) or raise `STALL_RATE_DEG_PER_S` (6).
 
 ## 8q. Drive Characterization (T27), on one half with nobody on it
 - [ ] Robot still at the TeleOp start of your half; INIT Drive Characterization, D-pad right (blue) or left (red), INIT pose OK; Start
