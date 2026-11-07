@@ -119,6 +119,7 @@ abstract class AutonDuoBase extends LinearOpMode {
         });
 
         mechanisms.setBlueAlliance(isBlue);
+        mechanisms.setIntakeAlwaysOn(true);   // the intake runs IN for the whole auto (user, 2026-11-07), whatever the count says; only a reject or an outtake runs it OUT
         mechanisms.setJamRetries(Pusher.JAM_RETRIES_AUTO);   // one jam back-off per pusher move: the autos are tight on time
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel stays up between launches ...
         mechanisms.setSpinRequested(true);         // ... and spins from Start, so it is at speed on arrival at each launch spot

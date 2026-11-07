@@ -509,6 +509,7 @@ public class AutonSolo extends LinearOpMode {
         });
 
         mechanisms.setBlueAlliance(isBlue);
+        mechanisms.setIntakeAlwaysOn(true);   // the intake runs IN for the whole auto (user, 2026-11-07), whatever the count says; only a reject or an outtake runs it OUT
         mechanisms.setOpenCell(firstCell);
         mechanisms.setJamRetries(Pusher.JAM_RETRIES_AUTO);   // one jam back-off per pusher move: the autos are tight on time
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel stays up between launches ...
@@ -532,8 +533,6 @@ public class AutonSolo extends LinearOpMode {
                 crossLeg("helper (outside the support rails)", drive, helper, CROSS_FIELD_MAX_POWER, true),
                 note("To the launch spot"),
                 crossLeg("launch spot 1", drive, launchSpot, CROSS_FIELD_MAX_POWER, false),
-                note("Intake OFF"),
-                mechanisms.setIntake(false),
                 RAMP_DEPLOY_DURING_LAUNCH ? new InstantAction(mechanisms::requestDeploy) : new InstantAction(() -> { }),   // deploys while it launches
                 launch(drive, mechanisms, secondCell, isBlue, "garden pollen", GARDEN_AIM_TRIM_DEG),
 
@@ -551,9 +550,6 @@ public class AutonSolo extends LinearOpMode {
                 stowWhenTurned(launchLeg("launch spot 2", drive, launchSpotFlower), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
                 launch(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG),
-                note("Intake OFF (the flower salvo is done)"),
-                mechanisms.forceIntakeIn(false),
-                mechanisms.setIntake(false),
 
                 choose(() -> {
                             boolean go = FINAL_FLOWER_ENABLED;
@@ -576,9 +572,8 @@ public class AutonSolo extends LinearOpMode {
                                 backOutLeg("wall flower back-out (straight)", drive, wallBack, WALL_BACKOUT_TOL_IN),
                                 new InstantAction(mechanisms::requestStowNow),   // clear of the flower: the ramp stows on the way to the corner
                                 parkLeg("park (hive-side corner, full power)", drive, finalPark),
-                                timed("ramp stow (wait)", rampTo(mechanisms, false)),
-                                mechanisms.forceIntakeIn(false),
-                                mechanisms.setIntake(false)),
+                                timed("ramp stow (wait)", rampTo(mechanisms, false))
+                                ),
                         new SequentialAction(
                                 note("Park"),
                                 PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),

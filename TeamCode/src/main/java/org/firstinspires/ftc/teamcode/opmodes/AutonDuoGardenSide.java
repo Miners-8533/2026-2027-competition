@@ -99,9 +99,6 @@ public class AutonDuoGardenSide extends AutonDuoBase {
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.waitUntil("second launch (partner's tip)", DuoAutos.G_SECOND_LAUNCH_NOT_BEFORE_SEC),
                 k.launch(drive, m, cell, blue, "flower pollen", DuoAutos.G_FLOWER_TRIM_DEG),
-                k.note("Intake OFF (the flower salvo is done)"),
-                m.forceIntakeIn(false),
-                m.setIntake(false),
 
                 k.note("Garden pre-position"),
                 k.passLeg("garden pre-position", drive, gardenPre),
@@ -113,7 +110,6 @@ public class AutonDuoGardenSide extends AutonDuoBase {
                 k.timed("square on the wall", new SquareOnWall(drive, squareHeadingRad, squareFlushX, squareFlushY)),
                 k.note("Back to the launch spot (intake still ON so every element gets in)"),
                 k.launchLeg("launch spot 2", drive, launchSpot),
-                m.setIntake(false),
                 k.launch(drive, m, cell, blue, "garden pollen", DuoAutos.G_GARDEN_TRIM_DEG),
 
                 k.note("Park"),

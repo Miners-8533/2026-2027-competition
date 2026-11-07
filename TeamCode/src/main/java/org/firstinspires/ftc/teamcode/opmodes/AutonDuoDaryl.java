@@ -112,7 +112,6 @@ public class AutonDuoDaryl extends AutonDuoBase {
                 k.crossLeg("east helper (outside the support rails)", drive, eastHelper, true),
                 new InstantAction(() -> m.setOpenCell(audCell)),
                 k.launchLeg("audience launch spot", drive, audSpot),
-                m.setIntake(false),
                 k.launch(drive, m, audCell, blue, "garden pollen", DuoAutos.D_GARDEN_TRIM_DEG, Double.NaN),
 
                 // 4. the Blue Wall flower
@@ -140,9 +139,6 @@ public class AutonDuoDaryl extends AutonDuoBase {
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.waitUntil("second shot (partner parked)", DuoAutos.D_SECOND_SHOT_NOT_BEFORE_SEC),
                 k.launch(drive, m, audCell, blue, "wall flower pollen", DuoAutos.D_WALL_TRIM_DEG, Double.NaN),
-                k.note("Intake OFF (the wall flower salvo is done)"),
-                m.forceIntakeIn(false),
-                m.setIntake(false),
 
                 // 7. the audience flower, skipped when late; its pollen stay for the TeleOp
                 k.unlessLate("audience flower", DuoAutos.D_AUD_FLOWER_LATEST_START_SEC, new SequentialAction(
@@ -163,8 +159,6 @@ public class AutonDuoDaryl extends AutonDuoBase {
                 k.note("Park"),
                 k.parkLeg("park (full power)", drive, park),
                 k.timed("ramp stow (final)", k.rampTo(m, false)),
-                m.forceIntakeIn(false),
-                m.setIntake(false),
                 new InstantAction(m::stopFlywheel)
         );
     }

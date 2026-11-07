@@ -120,9 +120,6 @@ public class AutonDuoPrimary extends AutonDuoBase {
                 k.launchLeg("audience launch spot", drive, audSpot),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.launch(drive, m, audCell, blue, "wall flower pollen", DuoAutos.P_WALL_TRIM_DEG, Double.NaN),
-                k.note("Intake OFF (the wall flower salvo is done)"),
-                m.forceIntakeIn(false),
-                m.setIntake(false),
 
                 // 4. the audience flower
                 k.unlessLate("audience flower", DuoAutos.P_AUD_FLOWER_LATEST_START_SEC, new SequentialAction(
@@ -147,9 +144,6 @@ public class AutonDuoPrimary extends AutonDuoBase {
                 k.launchLeg("rear launch spot", drive, rearSpot),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.launch(drive, m, rearCell, blue, "audience flower pollen", DuoAutos.P_AUD_FLOWER_TRIM_DEG),
-                k.note("Intake OFF (the audience flower salvo is done)"),
-                m.forceIntakeIn(false),
-                m.setIntake(false),
 
                 // 6. the garden, back to the rear spot, the rear cell
                 k.unlessLate("garden", DuoAutos.P_GARDEN_LATEST_START_SEC, new SequentialAction(
@@ -163,7 +157,6 @@ public class AutonDuoPrimary extends AutonDuoBase {
                         k.timed("square on the wall", new SquareOnWall(drive, squareHeadingRad, squareFlushX, squareFlushY)),
                         k.note("Back to the rear launch spot (intake still ON so every element gets in)"),
                         k.launchLeg("rear launch spot 2", drive, rearSpot),
-                        m.setIntake(false),
                         k.launch(drive, m, rearCell, blue, "garden pollen", DuoAutos.P_GARDEN_TRIM_DEG))),
 
                 // 7. the park in the hive-side corner of the loading zone

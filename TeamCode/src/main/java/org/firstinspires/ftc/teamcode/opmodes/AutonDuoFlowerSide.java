@@ -81,9 +81,6 @@ public class AutonDuoFlowerSide extends AutonDuoBase {
                 k.stowWhenTurned(k.launchLeg("launch spot", drive, launchSpot), drive, m, flowerPre.heading.toDouble()),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.launch(drive, m, cell, blue, "flower pollen", DuoAutos.F_FLOWER_TRIM_DEG),
-                k.note("Intake OFF (the flower salvo is done)"),
-                m.forceIntakeIn(false),
-                m.setIntake(false),
 
                 k.note("Park"),
                 k.passLeg("park via point", drive, parkVia),

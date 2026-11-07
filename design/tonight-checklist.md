@@ -122,6 +122,9 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Hold the right bumper through the rest (about 3 minutes of driving); a `GEOFENCE` stop is fine; if time runs out, note the test number and pick it with D-pad up at INIT next time
 - [ ] Pull the logs (`drivetest.log`)
 
+## 8t. Intake on for the whole auto
+- [ ] Any auto: the log's `INTAKE mode` lines show `null -> IN` at the very start and no `IN -> OFF` until the run ends (the S rows' `intake_mode` column is IN throughout); no `Intake OFF` auto note and no `Intake stopped` notice; the preload salvo and the garden salvo still fire normally with the intake running (no pollen pushed out, no pusher jam); `intake_amps` stays near 1.0 A in; if the intake gets in the way of a salvo, set `Mechanisms.setIntakeAlwaysOn` back to false in `AutonSolo` / `AutonDuoBase`
+
 ## 8s. Drive wheel check (T29)
 - [ ] TeleOp and any auto: drive at full power for a while (straight and strafe); the log's sample rows have `a_lf,a_lb,a_rb,a_rf` (amps, about 1.6 A while a wheel is driven, the four within about 20 percent), there is no `DRIVE WHEEL ... LOW CURRENT` line and no red `DRIVE WHEEL` alert
 - [ ] The `LOOP PROFILE RUN` line: `drive_amps` under about 1 ms per loop and the loop average within about 1 ms of before (24 to 28 ms in TeleOp, 20 to 21 ms in the autos at Hartland); if it costs more, raise `MecanumDrive.PARAMS.currentCheckMs` (100) or set it to 0
