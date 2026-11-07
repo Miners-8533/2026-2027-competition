@@ -511,6 +511,7 @@ public class AutonSolo extends LinearOpMode {
         mechanisms.setSpinRequested(true);         // ... and spins from Start, so it is at speed on arrival at each launch spot
 
         Action auto = new SequentialAction(
+                new InstantAction(mechanisms::preparePusherForLaunch),   // the pusher moves to the lock position while the flywheel spins up: the preload salvo turns 310 deg instead of 400
                 launch(drive, mechanisms, firstCell, isBlue, "preload"),
 
                 note("Garden pre-position"),

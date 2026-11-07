@@ -663,6 +663,18 @@ public class Mechanisms {
         return !notice.isEmpty() && noticeTimer.seconds() < NOTICE_SEC ? notice : "";
     }
 
+    /**
+     * For the autos (the user, 2026-11-06): moves the arm from HOLD to the lock position (LOCK_DEG, 90) while the flywheel spins up for the PRELOAD, so that salvo turns about 310 deg instead of 400 (median 1.08 s
+     * against 1.37 s in the logs) with no time lost: the flywheel takes 1.1 s or more to reach the launch band and the arm needs about 0.6 s. Only for the preload: later salvos already start from the arm's rest
+     * about 45 deg past HOLD (1.22 s), and a locked arm would block the stragglers the autos keep the intake open for. The queued salvo waits for the arm to stop, then runs from the lock. Does nothing
+     * unless the arm is idle and calibrated.
+     */
+    public void preparePusherForLaunch() {
+        if (pusher == null || !pusher.isCalibrated() || pusher.getState() != Pusher.State.HOLD) return;
+        pusher.startLock();
+        RunLog.event("COMMAND pusher to the lock position for the preload salvo (310 deg instead of 400): " + pusher.getLastCommand());
+    }
+
     /** The most jam back-offs per pusher move (the autos use Pusher.JAM_RETRIES_AUTO). */
     public void setJamRetries(int n) {
         if (pusher != null) pusher.setMaxJamRetries(n);

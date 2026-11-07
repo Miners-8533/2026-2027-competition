@@ -58,6 +58,7 @@ public final class DriveToPose implements Action {
     private double timeoutSec = TIMEOUT_SEC;
     private double posTolIn = Double.NaN, headTolDeg = Double.NaN;   // NaN: the statics
     private double settleSecOverride = Double.NaN;                   // NaN: SETTLE_SEC
+    private double slowZoneIn = Double.NaN, slowZonePower = Double.NaN;   // NaN: no slow zone
     private boolean distanceTimeout = false;
     private double maxOutputOverride = Double.NaN;   // NaN: MAX_OUTPUT
     private double dtBaseSec, dtInPerSec, dtMinSec, dtTurnExtraSec, dtMaxSec;
@@ -82,6 +83,16 @@ public final class DriveToPose implements Action {
     }
 
     /** Use this position (inches) and heading (degrees) tolerance for this drive instead of the statics: a coarse one for a pass-through point. */
+    /**
+     * A slow zone (2026-11-06, for the garden pickup): within zoneIn inches of the target the translation power is limited to power (its magnitude, field frame), whatever the leg's own cap is; before it
+     * the leg runs at its normal power. The proportional term already eases the power below about power / AXIAL_kP inches, so the zone only matters beyond that.
+     */
+    public DriveToPose withSlowZone(double zoneIn, double power) {
+        slowZoneIn = zoneIn;
+        slowZonePower = power;
+        return this;
+    }
+
     /** The time inside the tolerance before the drive is done (the static SETTLE_SEC is 0.20 s); 0 ends the drive the moment it is near, for a pass-through leg that must not wait. */
     public DriveToPose withSettle(double settleSec) {
         settleSecOverride = settleSec;
@@ -151,6 +162,13 @@ public final class DriveToPose implements Action {
 
         double vxField = xCtrl.calculate(errX);
         double vyField = yCtrl.calculate(errY);
+        if (!Double.isNaN(slowZoneIn) && Math.hypot(errX, errY) <= slowZoneIn) {
+            double mag = Math.hypot(vxField, vyField);
+            if (mag > slowZonePower) {
+                vxField *= slowZonePower / mag;
+                vyField *= slowZonePower / mag;
+            }
+        }
         double omega = hCtrl.calculate(errH);
 
         // field-frame translation -> robot frame (rotate by -heading)

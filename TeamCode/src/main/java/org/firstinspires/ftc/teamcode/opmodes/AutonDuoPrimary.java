@@ -93,6 +93,7 @@ public class AutonDuoPrimary extends AutonDuoBase {
 
         return new SequentialAction(
                 // 1. the preload into the rear cell
+                new InstantAction(m::preparePusherForLaunch),   // the pusher moves to the lock position while the flywheel spins up: the preload salvo turns 310 deg instead of 400
                 k.launch(drive, m, rearCell, blue, "preload", DuoAutos.P_PRELOAD_TRIM_DEG),
 
                 // 2. the Blue Wall flower

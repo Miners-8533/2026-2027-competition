@@ -80,6 +80,7 @@ public class AutonDuoGardenSide extends AutonDuoBase {
         Pose2d park = DuoKit.forAlliance(DuoKit.pose(DuoAutos.G_PARK_X, DuoAutos.G_PARK_Y + DuoAutos.PARK_OVERSHOOT_IN, DuoAutos.PARK_HEADING_DEG), blue);
 
         return new SequentialAction(
+                new InstantAction(m::preparePusherForLaunch),   // the pusher moves to the lock position while the flywheel spins up: the preload salvo turns 310 deg instead of 400
                 k.launch(drive, m, cell, blue, "preload", DuoAutos.G_PRELOAD_TRIM_DEG),
 
                 new InstantAction(m::requestDeploy),   // deploys on the way

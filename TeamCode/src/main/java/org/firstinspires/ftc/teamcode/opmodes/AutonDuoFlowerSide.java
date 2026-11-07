@@ -60,6 +60,7 @@ public class AutonDuoFlowerSide extends AutonDuoBase {
         Pose2d park = DuoKit.forAlliance(DuoKit.pose(DuoAutos.F_PARK_X, DuoAutos.F_PARK_Y + DuoAutos.PARK_OVERSHOOT_IN, DuoAutos.PARK_HEADING_DEG), blue);
 
         return new SequentialAction(
+                new InstantAction(m::preparePusherForLaunch),   // the pusher moves to the lock position during the wait: the preload salvo turns 310 deg instead of 400
                 k.waitUntil("first launch (partner's tip)", DuoAutos.F_FIRST_LAUNCH_NOT_BEFORE_SEC),
                 k.launch(drive, m, cell, blue, "preload", DuoAutos.F_PRELOAD_TRIM_DEG),
 
