@@ -112,6 +112,9 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] `Auton - Duo Daryl` blue and red: the `AUTO TIMING` lines for every step, the garden leg (about 1.3 s) and its pickup of all 4 pollen at the 0.5 limit, the squaring still `stopped by the wall`, the arrival back at the audience spot (about 20 s; `AUTO WAIT` lines only if earlier than 18 s), `AUTO SKIP audience flower` or the audience flower, the park done before 30 s
 - [ ] Any auto: the arm goes to about 90 deg while the flywheel spins up and the preload salvo turns about 310 deg (`travelled` in the `SALVO done` line), about 0.3 s faster than before
 
+## 8p. Tighter auto aim (T26)
+- [ ] Any auto: the `AIM aligned at ... error` lines show about 1 deg or less, the aim steps take 0.3 to 0.5 s, and there is no `AIM TIMED OUT`; if there is, raise `AimAtCell.ALIGNED_DEG` toward 1.5 or `TIMEOUT_SEC`
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`
