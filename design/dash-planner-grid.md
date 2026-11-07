@@ -27,10 +27,28 @@ The user's idea (idea queue item 8), written up after the design questions of 20
 2. **Measure what a grid would add** over the current planner (time, clearance) on the replayed field.
 3. **Generate the tables** and a Hive Dash / Park Dash that uses them; test on the robot; compare the new logs with the simulation.
 
-## First measurements (2026-11-06, `134` dash segments from the 11-05 and 11-06 TeleOp logs, 3174 sample rows)
+## First measurements (2026-11-06, SUPERSEDED by the second pass below; `134` dash segments from the 11-05 and 11-06 TeleOp logs, 3174 sample rows)
 Fitted by least squares to the logged commands and poses (a first-order lag per axis with a dead zone, separate time constants for speeding up and slowing down):
 - **Forward:** steady speed about 38 in/s at 0.5 power and 64 in/s at 0.85; fitted gain 86 in/s per unit of power above a dead zone of 0.12; time constant 0.28 s speeding up and 0.15 s slowing down; rms error 8.8 in/s (about 14 percent of top speed).
 - **Strafe:** gain 33 in/s per unit (poorly determined: the logged dashes mostly drive along the heading); time constant 0.12 s; rms 6.2 in/s.
 - **Turn:** gain 5.3 rad/s per unit of power, time constant about 0.12 s; rms 0.57 rad/s.
 - Commands of 0.2 and 0.3 produce no motion at all (static friction): this is why a leg stalls 2 to 3 in short of its target near the end (the proportional power there is below the dead zone), as seen at the Solo's launch spot 1.
 These numbers are a first pass: the rows are 50 to 100 ms apart, the speeds come from pose differences, and the commanded powers are not corrected for the wheel-power scaling when translation and turn add past 1. The simulation needs a better identification (burst-logged launches have 10 ms rows) before it can be trusted for corners.
+
+## Phase 1a, second pass: the drive model (2026-11-06, `tools/dash/identify_drive.py`)
+A per-axis model fitted for MULTI-STEP prediction: windows of 8 log rows (0.7 s), the initial velocity taken from the first step, the error being the predicted pose against the logged pose at every later row. The command is first scaled the way `MecanumDrive.setDrivePowers` scales it (the wheel powers `x - y - w` and so on, divided by the largest when it passes 1), then each axis (forward, strafe, turn) is a first-order lag towards `gain * (battery / 12 V) * sign(c) * max(0, |c| - dead zone)`, with separate time constants for speeding up and slowing down.
+
+| Axis | Gain (all driving / dashes only) | Dead zone | tau up | tau down |
+|---|---|---|---|---|
+| Forward | 86 / 99 in/s per unit | 0.00 / 0.11 | 0.38 / 0.30 s | 0.17 / 0.22 s |
+| Strafe | 63 / 52 in/s per unit | 0.05 / 0.02 | 0.31 / 0.25 s | 0.12 / 0.22 s |
+| Turn | 6.3 / 6.7 rad/s per unit | 0.04 / 0.07 | 0.07 / 0.20 s | 0.10 / 0.11 s |
+
+Accuracy (17,369 windows of all TeleOp driving, 1,725 of dashes only): doing nothing leaves 8.5 to 12 in of pose error within a window, the model 2.1 to 2.6 in rms. After 0.46 s the position error is a median 1.5 to 1.8 in (90th percentile 4.2 to 4.7 in); after 0.81 s a median 2.8 to 3.7 in (90th 7.8 to 8.4 in). **The heading is the weak part**: median 2.6 to 3.1 deg after 0.46 s and 5 to 6 deg after 0.81 s, with a 90th percentile of 19 to 30 deg during the hard turns. The model of the single steps (a plain per-step fit) stopped at about 0.74 in per 100 ms step whatever the nonlinearity added (an exponent, a static threshold), so the floor is the data: the logged command is a snapshot every 100 ms of a command that changes every 30 ms loop, and the dash fits ignore that the follower and the lock add their own turn commands within the loop.
+
+**What this means for the simulation.** It is good enough to show a corner swing of about 17 in with an error of a few inches, so it can rank routes and corner speeds, but not yet to prove a clearance of 2 to 3 in: until the model is better the clearance margins must carry a tracking-error allowance of at least the 90th percentile figures above. Ways to improve it: log the commands every loop during dashes (a burst log, 30 ms), put the real follower in the loop (it corrects some of the model's error the way it corrects the robot's), and refit with the logs of the new code.
+
+## Next (Phase 1b to 1d, not started)
+- **1b.** A PC harness that runs the REAL `HiveDash` and `ParkDash` classes (compiled on a PC with small stubs for the FTC SDK pieces they use: `ElapsedTime`, `@Config`, `RunLog`) against this plant, with the TeleOp's glue (target lock turn when the dash asks for it).
+- **1c.** The collision model: the real footprint (17.48 x 13.70 in, origin 7.6 in from the back) against the support feet, the flower stands (the CAD rectangles) and the walls, for any pose along a simulated track.
+- **1d.** Replay: start each logged dash from its logged start pose and heading, run the real dash in the simulation, and compare the simulated track and the arrival with the logged one (the acceptance gate), including the two 11-06 dashes that hit the audience flower.
