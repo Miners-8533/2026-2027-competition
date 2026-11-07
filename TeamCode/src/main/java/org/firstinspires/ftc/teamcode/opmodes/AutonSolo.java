@@ -94,7 +94,7 @@ public class AutonSolo extends LinearOpMode {
      * the same for either alliance. If a salvo lands LEFT, make its trim negative. 2026-11-03: the garden salvo landed left (the aim step ended +2.2 to +2.3 deg, the robot already pointed to the
      * right of the aim) and the flower salvo went in (+0.9 deg). The AIM log line shows the trim.
      */
-    public static double GARDEN_AIM_TRIM_DEG = -4.5, FLOWER_AIM_TRIM_DEG = -4.5;   // 2 deg clockwise from 2026-11-03, 1 more on 2026-11-04 (the launch was still a little left), 1.5 more on 2026-11-07 (the 11-07 red run's rear-cell salvos landed left; user)
+    public static double GARDEN_AIM_TRIM_DEG = -6.0, FLOWER_AIM_TRIM_DEG = -6.0;   // 2 deg clockwise from 2026-11-03, 1 more on 2026-11-04 (the launch was still a little left), 1.5 more on 2026-11-07 (the red run's rear-cell salvos landed left), and 1.5 more later that day (the blue runs still landed left; the aim step stops about 1 deg short of the trimmed aim, so the real shift is about 1 deg less than the trim)
     /**
      * After the jostle the robot first backs STRAIGHT out (heading held 0) to FLOWER_AT_X - FLOWER_BACKOFF_IN (x 46.3, ending within BACKOUT_TOL_IN) and only then does the turn move to the launch spot (false, the default).
      * True goes straight to the launch spot turning as it backs: it caught the edge of the ramp on the flower on 2026-11-03 (the turn started at x 53.4, 4 in from the launch spot).
