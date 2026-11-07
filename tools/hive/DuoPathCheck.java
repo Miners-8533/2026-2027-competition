@@ -50,7 +50,7 @@ public class DuoPathCheck {
 
         // Garden side (G)
         double[] gStart = {-63.4, 16.0, 0.0}, gLaunch = {-61.5, 15.25, 0.0}, wallPre = {-26.3, 38.0, 90.0}, wallAt = {-26.3, 55.3, 90.0}, wallRam = {-26.3, 67.3, 90.0}, wallBack = {-26.3, 46.3, 90.0};
-        double[] gardenPre = {-59.8, 46.0, 105.0}, gardenEnd = {-59.8, 58.5, 105.0}, squarePre = {-62.0, 58.5, 90.0}, helper = {-36.0, 40.0, 90.0}, gPark = {26.0, 60.0, 90.0};
+        double[] gardenPre = {-59.8, 46.0, 105.0}, gardenEnd = {-59.8, 58.5, 105.0}, squarePre = {-62.0, 58.5, 90.0}, helper = {-36.0, 40.0, 90.0}, gPark = {26.0, 53.1, 90.0};
         leg("G launch spot 1 -> wall flower pre", gLaunch, wallPre, real);
         leg("G wall flower pre -> ram target", wallPre, wallRam, real);
         leg("G wall flower back-out", wallAt, wallBack, real);

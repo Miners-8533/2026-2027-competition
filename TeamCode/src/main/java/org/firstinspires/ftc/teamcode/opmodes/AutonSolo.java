@@ -147,7 +147,8 @@ public class AutonSolo extends LinearOpMode {
      */
     public static boolean FINAL_FLOWER_ENABLED = true;
     public static double FINAL_JOSTLE_DEADLINE_SEC = 26.5;
-    public static double FINAL_PARK_X = 26.0, FINAL_PARK_Y = 60.0, FINAL_PARK_HEADING_DEG = 90.0, FINAL_PARK_OVERSHOOT_IN = 0.0;
+    /** FINAL_PARK_Y 53.1 (2026-11-07, user): the front edge (9.88 in ahead of the origin) ends 8 in from the wall (it was 60, 1.1 in from it) and still 3.9 in inside the loading zone (it starts at y 59.1). */
+    public static double FINAL_PARK_X = 26.0, FINAL_PARK_Y = 53.1, FINAL_PARK_HEADING_DEG = 90.0, FINAL_PARK_OVERSHOOT_IN = 0.0;
     /** The helper point outside the support rails for the trip back across, and the heading it is taken at (along the leg, toward -X). Nudge of the wall flower poses (blue frame, before the alliance turn). */
     public static double FINAL_HELPER_HEADING_DEG = 180.0;
     public static double FINAL_FLOWER_DX_IN = 0.0, FINAL_FLOWER_DY_IN = 0.0;

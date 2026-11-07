@@ -57,7 +57,7 @@ public final class DuoAutos {
     public static double GARDEN_PICKUP_MAX_POWER = 0.35;
 
     // ---- the parks: both in the blue loading zone (x 23.9 to 46.6, y 59.1 to 70.1), facing the Blue Wall, F at the audience-side corner and G at the inner one ----
-    public static double F_PARK_X = 40.0, F_PARK_Y = 60.0, G_PARK_X = 26.0, G_PARK_Y = 60.0, PARK_HEADING_DEG = 90.0;
+    public static double F_PARK_X = 40.0, F_PARK_Y = 53.1, G_PARK_X = 26.0, G_PARK_Y = 53.1, PARK_HEADING_DEG = 90.0;
     /** The park run uses full power; a target PARK_OVERSHOOT_IN past the pose pushes through the stall (0 here: with the front toward the wall a target 1 in further would press the wall). */
     public static double PARK_MAX_POWER = 1.0, PARK_OVERSHOOT_IN = 0.0, PARK_POS_TOL_IN = 2.5, PARK_HEADING_TOL_DEG = 5.0, PARK_TIMEOUT_SEC = 3.0;
     /** G's way to its park goes around the hive supports through this point (blue frame; the solo auto's helper, mirrored: G leaves from the rear side). */

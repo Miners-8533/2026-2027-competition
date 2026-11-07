@@ -27,7 +27,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *   5. The partner's window (an ABSOLUTE time, not a pause): the robot does not leave the flower before D_SECOND_SHOT_NOT_BEFORE_SEC (18 s) minus the drive back, and does not shoot before it.
  *   6. Back to the audience launch spot, launch into the AUDIENCE cell again (the intake stays IN through this salvo for the stragglers).
  *   7. The audience flower (the solo auto's poses): ram, jostle, back out; skipped when it would start later than D_AUD_FLOWER_LATEST_START_SEC so the park keeps its time. Its pollen stay in the robot for the TeleOp.
- *   8. Park in the hive-side corner of the loading zone (26, 60), ramp stowed.
+ *   8. Park in the hive-side corner of the loading zone (26, 53.1), ramp stowed.
  * Faster legs than the other duo autos (the solo auto's, DuoAutos.P_*); always launches every salvo (the autos never skip on an empty count). The estimate (design/duo-autos.md): about 29.7 s with every step.
  */
 @Autonomous(name = "Auton - Duo Daryl", group = "Auto")
