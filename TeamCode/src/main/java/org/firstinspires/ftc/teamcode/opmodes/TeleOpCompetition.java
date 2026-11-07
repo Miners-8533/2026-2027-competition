@@ -349,9 +349,9 @@ public class TeleOpCompetition extends LinearOpMode {
                 mechanisms.describe()));
         RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad1.type() + "), gamepad 2 "
                 + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad2.type() + ")");
-        RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
+        RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS + ",a_lf,a_lb,a_rb,a_rf", SAMPLE_PERIOD_MS,
                 () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%s,%.1f,%s", logX, logY, logHeadingDeg, logUp, logRight, cmdForward, cmdLeft,
-                        cmdTurn, backupMode ? "backup" : fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow()));
+                        cmdTurn, backupMode ? "backup" : fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow() + "," + drive.wheelAmpsRow()));
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
         boolean reseedDown = false, reseeded = false, backupHeld = false, manualLockOn = false, autoLockSuppressed = false, prevDriverLock = false;
@@ -718,6 +718,8 @@ public class TeleOpCompetition extends LinearOpMode {
                 screen.headingDeg = pose.heading.toDegrees();
                 if (backupMode) screen.alert(CompetitionScreen.RED, "BACKUP MODE");
                 else if (pinpointBad) screen.alert(CompetitionScreen.RED, "PINPOINT FAULT");
+                String driveWarning = drive.getHealthWarning();   // a wheel drawing far less current than the others (DriveHealth)
+                if (!driveWarning.isEmpty()) screen.alert(CompetitionScreen.RED, driveWarning);
                 if (backupHeld && !backupMode) screen.alert(CompetitionScreen.YELLOW, String.format(Locale.US, "BACKUP IN %.1f s", Math.max(0.0, BACKUP_HOLD_SEC - backupHold.seconds())));
                 if (reseedDown && !reseeded) screen.alert(CompetitionScreen.YELLOW, String.format(Locale.US, "RESEED IN %.1f s", Math.max(0.0, RESEED_HOLD_SEC - reseedHold.seconds())));
                 if (hiveDash.status().startsWith("REFUSED")) screen.alert(CompetitionScreen.YELLOW, "DASH REFUSED");   // replaces the old rumble: the dash did not start (the reason is in the log and the verbose screen)

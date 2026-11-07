@@ -122,6 +122,11 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Hold the right bumper through the rest (about 3 minutes of driving); a `GEOFENCE` stop is fine; if time runs out, note the test number and pick it with D-pad up at INIT next time
 - [ ] Pull the logs (`drivetest.log`)
 
+## 8s. Drive wheel check (T29)
+- [ ] TeleOp and any auto: drive at full power for a while (straight and strafe); the log's sample rows have `a_lf,a_lb,a_rb,a_rf` (amps, about 1.6 A while a wheel is driven, the four within about 20 percent), there is no `DRIVE WHEEL ... LOW CURRENT` line and no red `DRIVE WHEEL` alert
+- [ ] The `LOOP PROFILE RUN` line: `drive_amps` under about 1 ms per loop and the loop average within about 1 ms of before (24 to 28 ms in TeleOp, 20 to 21 ms in the autos at Hartland); if it costs more, raise `MecanumDrive.PARAMS.currentCheckMs` (100) or set it to 0
+- [ ] Robot on blocks, belt off one wheel (or the wheel's belt slack so it spins free): drive at 0.5 or more; within about 5 to 10 s the log says `DRIVE WHEEL <name> LOW CURRENT` and the screen shows the red `DRIVE WHEEL <name>?`; put the belt back and it says `back to normal`
+
 ## 8r. Grid routes (T28), after the drive refit and a regeneration of the tables (not before)
 - [ ] TeleOp init: no `grid routes` problem in the log; Dashboard: `HiveDash.GRID_ROUTES` on, `HiveDash.DRY_RUN` on: hold D-pad left / right from a few starts, the overlay shows a `GRID route` clear of the supports and flowers
 - [ ] `DRY_RUN` off: Hive Dash to each cell from 4 or 5 starts, blue and red; then `ParkDash.GRID_ROUTES` on and Park Dash to both corners
