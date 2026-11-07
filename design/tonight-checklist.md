@@ -121,6 +121,12 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Hold the right bumper through the rest (about 3 minutes of driving); a `GEOFENCE` stop is fine; if time runs out, note the test number and pick it with D-pad up at INIT next time
 - [ ] Pull the logs (`drivetest.log`)
 
+## 8r. Grid routes (T28), after the drive refit and a regeneration of the tables (not before)
+- [ ] TeleOp init: no `grid routes` problem in the log; Dashboard: `HiveDash.GRID_ROUTES` on, `HiveDash.DRY_RUN` on: hold D-pad left / right from a few starts, the overlay shows a `GRID route` clear of the supports and flowers
+- [ ] `DRY_RUN` off: Hive Dash to each cell from 4 or 5 starts, blue and red; then `ParkDash.GRID_ROUTES` on and Park Dash to both corners
+- [ ] Push the robot off its route once: it brakes (`OFF ROUTE`) and goes on from where it is (`new route`)
+- [ ] Switches off again unless the runs were clean; pull the logs
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`

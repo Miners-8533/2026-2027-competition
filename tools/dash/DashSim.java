@@ -2,6 +2,9 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.AutoLaunch;
 import org.firstinspires.ftc.teamcode.drive.DriveTestRoutine;
+import org.firstinspires.ftc.teamcode.drive.GridDash;
+import org.firstinspires.ftc.teamcode.drive.GridFollower;
+import org.firstinspires.ftc.teamcode.drive.GridRoutes;
 import org.firstinspires.ftc.teamcode.drive.HiveDash;
 import org.firstinspires.ftc.teamcode.drive.HiveRoute;
 import org.firstinspires.ftc.teamcode.drive.HoldPosition;
@@ -699,7 +702,7 @@ public final class DashSim {
 
     // ================================================================ the Dashboard values of a run
 
-    static final Class<?>[] CONFIG_CLASSES = {HiveDash.class, ParkDash.class, AutoLaunch.class, TargetLock.class, HoldPosition.class};
+    static final Class<?>[] CONFIG_CLASSES = {HiveDash.class, ParkDash.class, AutoLaunch.class, TargetLock.class, HoldPosition.class, GridDash.class, GridFollower.class};
     static final Map<Field, Object> DEFAULTS = new HashMap<>();
 
     static {
@@ -796,6 +799,10 @@ public final class DashSim {
         /** Only the logs whose name starts with this (for example 2026-11-05), or null for all. */
         String days = null;
         Path tracksDir = null;
+        /** True: the real HiveDash and ParkDash run with GRID_ROUTES on (after the defaults or a log's CONFIG values). */
+        boolean grid = false;
+        /** survey: the red alliance (the same starts turned 180 deg, the red cells and corners). */
+        boolean red = false;
     }
 
     static final class Result {
@@ -803,6 +810,7 @@ public final class DashSim {
         double tArrive = Double.NaN, ax, ay;
         boolean forced, routeMatched;
         String plannedDesc = "";
+        GridRoutes.Route route;
         String refused = null;
         final List<RunLog.Event> events = new ArrayList<>();
     }
@@ -858,6 +866,10 @@ public final class DashSim {
     /** Runs one dash from the case's start (or a free run when c.log is null) to the end of its window; the dash classes use the static values already set. */
     static Result simulate(Case c, Options o, boolean trace) throws ReflectiveOperationException {
         Result res = new Result();
+        if (o.grid) {
+            HiveDash.GRID_ROUTES = true;
+            ParkDash.GRID_ROUTES = true;
+        }
         RunLog.clear();
         ElapsedTime.now = -1.0;
         HiveDash hd = new HiveDash(DEPTH, WIDTH, FROM_BACK);
@@ -930,7 +942,9 @@ public final class DashSim {
                 double[][] logged = c.route();
                 res.routeMatched = planned != null && sameRoute(planned, logged);
                 res.plannedDesc = describeRoute(planned);
-                if (!res.routeMatched && o.force && c.log != null) {
+                boolean gridRoute = field(d.getClass(), "grid").get(d) != null;
+                if (gridRoute) res.plannedDesc = "grid " + res.plannedDesc;
+                if (!res.routeMatched && o.force && c.log != null && !gridRoute) {
                     forceRoute(d, c.hive ? dashIn : parkIn, c.hive ? dash : park, logged, pose.heading.toDouble());
                     res.forced = true;
                 }
@@ -1332,6 +1346,264 @@ public final class DashSim {
         }
     }
 
+    /** A dash from a pose at rest with today's values (no log): a cell such as BLUE_AUDIENCE, or LEFT / RIGHT for a park corner. */
+    static Case freeCase(double x, double y, double deg, String target, boolean red) {
+        Case c = new Case();
+        c.hive = !target.equals("LEFT") && !target.equals("RIGHT");
+        c.target = target;
+        c.sx = x;
+        c.sy = y;
+        c.sh = Math.toRadians(deg);
+        if (c.hive) {
+            HiveTarget cell = HiveTarget.valueOf(target);
+            c.gx = AutoLaunch.centerX(cell);
+            c.gy = AutoLaunch.centerY(cell);
+        } else {
+            double[] g = ParkDash.cornerXY(ParkDash.Corner.valueOf(target), !red, Math.toRadians(red ? 90.0 : -90.0));
+            c.gx = g[0];
+            c.gy = g[1];
+        }
+        c.windowEnd = 0.0;
+        c.loopMs = 31.0;
+        return c;
+    }
+
+    /**
+     * Phase 2's baseline: today's planner and follower (HiveRoute, HiveDash, ParkDash with today's values) from a grid of start poses at rest, every pitch inches and
+     * four headings, to the two blue cells and the two blue park corners (red is the same turned 180 deg). A start whose footprint touches a support, a flower or a
+     * wall is skipped (decision 2 of the design). Prints per target the time to arrive, the refusals and the contacts, the worst starts, and writes a CSV.
+     */
+    /**
+     * One dash on the GRID planner (GridRoutes + GridFollower, the classes the robot would run) from a free start (blue frame), with the TeleOp's lock turn when the
+     * follower wants it; the same plant and Pinpoint as {@link #simulate}.
+     */
+    static Result simulateGrid(Case c, Options o, GridRoutes.Table table) {
+        Result res = new Result();
+        RunLog.clear();
+        ElapsedTime.now = 0.0;
+        double dt = (Double.isNaN(o.loopMs) ? c.loopMs : o.loopMs) / 1000.0;
+        Plant plant = newPlant(o, c.sx, c.sy, c.sh, 0.0, 0.0, 0.0);
+        plant.setWalls();
+        Pinpoint pin = new Pinpoint(o.delayMs / 1000.0, o.noiseIn, o.seed);
+        pin.record(-1.0, plant);
+        pin.record(0.0, plant);
+        GridRoutes.Route route = GridRoutes.pick(table, c.sx, c.sy, c.sh);
+        if (route == null) {
+            res.refused = "no grid node near the robot reaches the goal";
+            return res;
+        }
+        res.plannedDesc = String.format(Locale.US, "grid %d legs, %.2f s predicted", route.legs(), route.predictedSec);
+        res.route = route;
+        GridFollower f = new GridFollower(route.xs, route.ys, route.speeds, table.aimHeading, c.hive ? HiveDash.GOAL_TOL_IN : ParkDash.GOAL_TOL_IN, c.sh);
+        TargetLock lock = new TargetLock();
+        HiveTarget cell = c.hive ? HiveTarget.valueOf(c.target) : null;
+        boolean lockOn = false;
+        double t = 0.0;
+        while (t <= 10.0) {
+            if (!Double.isNaN(res.tArrive) && t >= res.tArrive + COAST_WINDOW_SEC) break;
+            double[] m = pin.read(t);
+            GridFollower.Output out = f.update(m[0], m[1], m[2], m[3], m[4], m[5]);
+            double turn;
+            if (out.lockWanted && cell != null) {
+                lockOn = true;
+                turn = lock.turn(new Pose2d(m[0], m[1], m[2]), m[5], cell, TargetLock.farCellExtraLeftIn(cell, true), 0.0, 0.0, dt);
+            } else {
+                if (lockOn) {
+                    lockOn = false;
+                    lock.release();
+                }
+                turn = out.turnActive ? out.turn : 0.0;
+            }
+            if (out.arrived && Double.isNaN(res.tArrive)) {
+                res.tArrive = t;
+                res.ax = plant.x;
+                res.ay = plant.y;
+            }
+            res.track.add(new double[]{t, plant.x, plant.y, plant.h, out.forward, out.left, turn});
+            int n = Math.max(1, (int) Math.ceil(dt / o.subStepSec));
+            for (int s = 0; s < n; s++) {
+                plant.step(out.forward, out.left, turn, Double.isNaN(o.fixedVolts) ? 12.5 : o.fixedVolts, dt / n);
+                pin.record(t + dt * (s + 1) / n, plant);
+            }
+            t += dt;
+            ElapsedTime.now = t;
+        }
+        return res;
+    }
+
+    /** The largest distance (in) of a track from a polyline, over the rows up to tEnd. */
+    static double maxDev(List<double[]> tr, double[][] w, double tEnd) {
+        double m = 0.0;
+        for (double[] r : tr) if (r[0] <= tEnd) m = Math.max(m, offRoute(r[1], r[2], w));
+        return m;
+    }
+
+    /**
+     * The corner speed calibration (GridRoutes.CORNER_SPEED): for each angle of the table, GridFollower drives an 80 in leg from rest, a corner limited to v, and
+     * 60 in on; the largest v (bisection) whose swing off the route stays within GridRoutes.E_MAX is the table's speed. No walls, no obstacles; the plant is the
+     * simulation's. Sets the table in memory and prints the line for GridRoutes.
+     */
+    static void calibrate(Options o, boolean print) {
+        double[] deg = GridRoutes.CORNER_DEG;
+        double[] out = new double[deg.length];
+        // measured with no corner limit in force (the speed tried is the only limit; with the old table in force a corner asked for 66 in/s was driven at the old limit)
+        GridRoutes.CORNER_SPEED = new double[deg.length];
+        Arrays.fill(GridRoutes.CORNER_SPEED, GridRoutes.V_MAX);
+        for (int k = 0; k < deg.length; k++) {
+            if (deg[k] < 1e-6) {
+                out[k] = GridRoutes.V_MAX;
+                continue;
+            }
+            double th = Math.toRadians(deg[k]);
+            double lo = 5.0, hi = GridRoutes.V_MAX;
+            if (cornerDev(o, th, hi) <= GridRoutes.E_MAX * GridRoutes.CORNER_SAFETY) {
+                out[k] = hi;
+                continue;
+            }
+            for (int it = 0; it < 14; it++) {
+                double mid = 0.5 * (lo + hi);
+                if (cornerDev(o, th, mid) <= GridRoutes.E_MAX * GridRoutes.CORNER_SAFETY) lo = mid;
+                else hi = mid;
+            }
+            out[k] = Math.floor(lo);
+        }
+        // a sharper turn never gets more speed than a gentler one
+        for (int k = 1; k < out.length; k++) out[k] = Math.min(out[k], out[k - 1]);
+        GridRoutes.CORNER_SPEED = out;
+        if (print) {
+            StringBuilder b = new StringBuilder("    public static double[] CORNER_SPEED = {");
+            for (int k = 0; k < out.length; k++) b.append(k == 0 ? "" : ", ").append((int) out[k]);
+            System.out.println("corner speed calibration (swing within " + GridRoutes.E_MAX * GridRoutes.CORNER_SAFETY + " in), degrees " + Arrays.toString(deg) + ":");
+            System.out.println(b.append("};"));
+        }
+    }
+
+    static boolean debugCorner = false;
+
+    /** The swing (in) of GridFollower through one corner of theta entered at no more than v. */
+    static double cornerDev(Options o, double theta, double v) {
+        double c = Math.cos(theta), s = Math.sin(theta);
+        double[] xs = {0, 80, 80 + 60 * c, 80 + 120 * c}, ys = {0, 0, 60 * s, 120 * s};
+        double[] sp = {Double.MAX_VALUE, v, Double.MAX_VALUE, 0.0};
+        GridRoutes.limitSpeeds(xs, ys, sp, xs[3], ys[3]);
+        sp[1] = Math.min(sp[1], v);
+        Plant plant = newPlant(o, 0, 0, 0, 0, 0, 0);
+        Pinpoint pin = new Pinpoint(0.0, o.noiseIn, o.seed);
+        pin.record(0.0, plant);
+        GridFollower f = new GridFollower(xs, ys, sp, Double.NaN, 2.0, 0.0);
+        List<double[]> tr = new ArrayList<>();
+        double dt = 0.031, t = 0.0;
+        double[][] w = {{xs[0], ys[0]}, {xs[1], ys[1]}, {xs[2], ys[2]}, {xs[3], ys[3]}};
+        while (t < 6.0) {
+            double[] m = pin.read(t);
+            GridFollower.Output out = f.update(m[0], m[1], m[2], m[3], m[4], m[5]);
+            tr.add(new double[]{t, plant.x, plant.y, plant.h});
+            if (debugCorner) System.out.printf(Locale.US, "  t %.2f leg %d (%.1f, %.1f, %.0f deg) %.0f in/s dev %.1f cmd (%+.2f, %+.2f, %+.2f)%n", t, out.leg, plant.x, plant.y,
+                    Math.toDegrees(plant.h), Math.hypot(plant.v[0], plant.v[1]), offRoute(plant.x, plant.y, w), out.forward, out.left, out.turn);
+            if (out.leg >= 3) break;   // past the corner leg: the swing is over
+            int n = Math.max(1, (int) Math.ceil(dt / o.subStepSec));
+            for (int k = 0; k < n; k++) {
+                plant.step(out.forward, out.left, out.turnActive ? out.turn : 0.0, Double.isNaN(o.fixedVolts) ? 12.5 : o.fixedVolts, dt / n);
+                pin.record(t + dt * (k + 1) / n, plant);
+            }
+            t += dt;
+        }
+        return maxDev(tr, w, t);
+    }
+
+    static void survey(Options o, double pitch, Path csv) throws Exception {
+        survey(o, pitch, csv, false);
+    }
+
+    static void survey(Options o, double pitch, Path csv, boolean grid) throws Exception {
+        o.force = false;
+        Map<String, GridRoutes.Table> tables = new HashMap<>();
+        if (grid) {
+            // the tables come from the GENERATION model (always the tuned plant, as RouteGen would have it); the dashes are driven on o's plant (another plant tests robustness)
+            calibrate(tuned(o), true);
+            for (RouteGen.Result g : RouteGen.buildAll()) tables.put(g.table.name, RouteGen.quantize(g.table));
+            System.out.println("GRID planner (GridRoutes + GridFollower), trees from RouteGen: E " + GridRoutes.E_MAX + " in tapering to " + GridRoutes.E_GOAL
+                    + ", grip " + GridRoutes.A_GRIP + " in/s^2, V_MAX " + GridRoutes.V_MAX + " in/s");
+        } else if (o.grid) {
+            System.out.println("the REAL HiveDash / ParkDash with GRID_ROUTES on and the generated tables (GridTables)" + (o.red ? ", RED alliance (the blue starts turned 180 deg)" : ""));
+        } else {
+            System.out.println("TODAY'S planner (HiveRoute + HiveDash / ParkDash)" + (o.red ? ", RED alliance (the blue starts turned 180 deg)" : ""));
+        }
+        String[] targets = {"BLUE_REAR", "BLUE_AUDIENCE", "LEFT", "RIGHT"};
+        double[] headings = {0, 90, 180, 270};
+        HiveRoute.Params p = robotParams();
+        Files.createDirectories(csv.toAbsolutePath().getParent());
+        System.out.println(o.model.describe() + (o.fieldFrame ? "; field frame" : "") + (o.accelMax > 0 ? "; grip " + o.accelMax : "") + "; starts every " + pitch + " in, 4 headings");
+        try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(csv))) {
+            w.println("target,x,y,heading_deg,result,route,time_s,support_clear_in,flower_clear_in,touched");
+            for (String target : targets) {
+                List<Double> times = new ArrayList<>();
+                int starts = 0, refused = 0, noArrival = 0, hitSupport = 0, hitFlower = 0, offRoute = 0, newRoute = 0, fellBack = 0, notGrid = 0;
+                List<String> worst = new ArrayList<>();
+                List<double[]> worstKey = new ArrayList<>();
+                for (double x = -66; x <= 66.01; x += pitch) {
+                    for (double y = -66; y <= 66.01; y += pitch) {
+                        for (double hd : headings) {
+                            HiveRoute.Rect me = HiveRoute.poseRect(x, y, Math.toRadians(hd), p, 1.0);
+                            boolean blocked = false;
+                            for (Obstacle ob : OBSTACLES) if (rectDistance(me, ob.r) <= 0) blocked = true;
+                            for (double k : me.corners()) if (Math.abs(k) > WALL) blocked = true;
+                            if (blocked) continue;
+                            starts++;
+                            restoreDefaults();
+                            String tg = !o.red ? target : target.equals("BLUE_REAR") ? "RED_AUDIENCE" : target.equals("BLUE_AUDIENCE") ? "RED_REAR" : target;
+                            Case c = o.red ? freeCase(-x, -y, hd + 180.0, tg, true) : freeCase(x, y, hd, target, false);
+                            Result r = grid ? simulateGrid(c, o, tables.get(target)) : simulate(c, o, false);
+                            boolean off = false, again = false;
+                            for (RunLog.Event e : r.events) {
+                                if (e.text.contains("OFF ROUTE")) off = true;
+                                if (e.text.contains("new route")) again = true;
+                                if (e.text.contains("grid routes not used")) fellBack++;
+                            }
+                            if (off) offRoute++;
+                            if (again) newRoute++;
+                            if (o.grid && r.refused == null && !r.plannedDesc.startsWith("grid")) notGrid++;
+                            String result;
+                            Contacts con = null;
+                            if (r.refused != null) {
+                                refused++;
+                                result = "refused";
+                            } else {
+                                con = contacts(r.track, 0.0, r.track.get(r.track.size() - 1)[0]);
+                                if (Double.isNaN(r.tArrive)) {
+                                    noArrival++;
+                                    result = "no arrival";
+                                } else {
+                                    times.add(r.tArrive);
+                                    result = "arrived";
+                                }
+                                boolean sup = con.supportClear() < 0, fl = con.flowerClear() < 0;
+                                if (sup) hitSupport++;
+                                if (fl) hitFlower++;
+                                if (sup || fl) {
+                                    double depth = -Math.min(con.supportClear(), con.flowerClear());
+                                    worstKey.add(new double[]{depth, worst.size()});
+                                    worst.add(String.format(Locale.US, "from (%.0f, %.0f, %.0f deg) %s: %s by %.1f in", x, y, hd, r.plannedDesc, con.touched(), depth));
+                                }
+                            }
+                            w.printf(Locale.US, "%s,%.0f,%.0f,%.0f,%s,%s,%s,%s,%s,%s%n", target, x, y, hd, result, r.plannedDesc.replace(',', ' '),
+                                    Double.isNaN(r.tArrive) ? "" : String.format(Locale.US, "%.2f", r.tArrive),
+                                    con == null ? "" : String.format(Locale.US, "%.1f", con.supportClear()), con == null ? "" : String.format(Locale.US, "%.1f", con.flowerClear()),
+                                    con == null ? "" : String.join(" ", con.touched()));
+                        }
+                    }
+                }
+                System.out.printf(Locale.US, "%-14s %4d starts: %3d refused, %3d no arrival; time median %.2f s, 90th %.2f s, max %.2f s; touched a support %3d (%.0f%%), a flower %3d (%.0f%%)%n",
+                        target, starts, refused, noArrival, median(times), percentile(times, 90), times.isEmpty() ? Double.NaN : java.util.Collections.max(times),
+                        hitSupport, 100.0 * hitSupport / Math.max(1, starts - refused), hitFlower, 100.0 * hitFlower / Math.max(1, starts - refused));
+                if (o.grid) System.out.printf(Locale.US, "               off-route guard tripped in %d, a new route in %d; not on a grid route %d (fell back %d)%n", offRoute, newRoute, notGrid, fellBack);
+                worstKey.sort((a, b) -> Double.compare(b[0], a[0]));
+                for (int i = 0; i < Math.min(5, worstKey.size()); i++) System.out.println("      " + worst.get((int) worstKey.get(i)[1]));
+            }
+        }
+        System.out.println("CSV: " + csv);
+    }
+
     /** One dash from a pose at rest with today's values (Phase 2 and later). */
     static void freeRun(Options o, double x, double y, double deg, String target, boolean red) throws Exception {
         restoreDefaults();
@@ -1442,6 +1714,19 @@ public final class DashSim {
         return a[lo] + (pos - lo) * (a[hi] - a[lo]);
     }
 
+    /** The tuned plant with o's loop, noise and seed: the plant the routes are generated and calibrated with. */
+    static Options tuned(Options o) throws IOException {
+        Options g = new Options();
+        g.model = Model.of("dash");
+        g.fieldFrame = true;
+        g.accelMax = TUNED_ACCEL;
+        g.turnBoost = TUNED_TURN_BOOST;
+        g.fixedVolts = TUNED_VOLTS;
+        g.noiseIn = o.noiseIn;
+        g.seed = o.seed;
+        return g;
+    }
+
     /** The "tuned" plant (2026-11-06): grip limit in/s^2, turn boost, fixed battery volts; with the dash fit and the lag in the field frame. */
     static final double TUNED_ACCEL = 150.0, TUNED_TURN_BOOST = 1.5, TUNED_VOLTS = 12.5;
 
@@ -1490,7 +1775,8 @@ public final class DashSim {
                 case "--days": o.days = args[++i]; break;
                 case "--tracks": o.tracksDir = Paths.get(args[++i]); break;
                 case "--seed": o.seed = Long.parseLong(args[++i]); break;
-                case "--red": red = true; break;
+                case "--red": red = true; o.red = true; break;
+                case "--grid": o.grid = true; break;
                 default: rest.add(args[i]);
             }
         }
@@ -1505,6 +1791,59 @@ public final class DashSim {
                 break;
             case "drivetest":
                 driveTest(o);
+                break;
+            case "survey":
+                survey(o, rest.size() > 1 ? Double.parseDouble(rest.get(1)) : 12.0, Paths.get("build", "dashsim", "survey_current.csv"));
+                break;
+            case "gridrun": {
+                // one grid dash with its route and a trace: gridrun x y deg TARGET
+                restoreDefaults();
+                Case c = freeCase(Double.parseDouble(rest.get(1)), Double.parseDouble(rest.get(2)), Double.parseDouble(rest.get(3)), rest.get(4), false);
+                GridRoutes.Table tb = null;
+                calibrate(tuned(o), false);
+                for (RouteGen.Result g : RouteGen.buildAll()) if (g.table.name.equals(c.target)) tb = RouteGen.quantize(g.table);
+                Result r = simulateGrid(c, o, tb);
+                if (r.route != null) for (int i = 0; i < r.route.xs.length; i++) System.out.printf(Locale.US, "  waypoint %d (%.1f, %.1f) speed limit %s%n", i, r.route.xs[i], r.route.ys[i],
+                        r.route.speeds[i] > 1e6 ? "-" : String.format(Locale.US, "%.0f in/s", r.route.speeds[i]));
+                HiveRoute.Params rp = robotParams();
+                double[][] wps = new double[r.route == null ? 0 : r.route.xs.length][];
+                for (int i = 0; i < wps.length; i++) wps[i] = new double[]{r.route.xs[i], r.route.ys[i]};
+                for (int i = 0; i < r.track.size(); i += 3) {
+                    double[] s = r.track.get(i);
+                    HiveRoute.Rect me = HiveRoute.poseRect(s[1], s[2], s[3], rp, 0.0);
+                    double sup = Double.MAX_VALUE;
+                    for (Obstacle ob : OBSTACLES) sup = Math.min(sup, rectDistance(me, ob.r));
+                    double sp = i + 1 < r.track.size() ? Math.hypot(r.track.get(i + 1)[1] - s[1], r.track.get(i + 1)[2] - s[2]) / (r.track.get(i + 1)[0] - s[0]) : 0;
+                    System.out.printf(Locale.US, "  t %4.2f (%6.1f, %6.1f, %6.1f deg) %4.0f in/s off-route %4.1f in, clearance %5.1f in, cmd (%+.2f, %+.2f, %+.2f)%n", s[0], s[1], s[2],
+                            Math.toDegrees(s[3]), sp, wps.length < 2 ? 0 : offRoute(s[1], s[2], wps), sup, s[4], s[5], s[6]);
+                }
+                System.out.println("arrival " + r.tArrive + ", " + r.plannedDesc);
+                break;
+            }
+            case "cornerdebug": {
+                debugCorner = true;
+                System.out.println("swing " + cornerDev(o, Math.toRadians(Double.parseDouble(rest.get(1))), Double.parseDouble(rest.get(2))));
+                break;
+            }
+            case "gentables": {
+                // the one command of design decision 4: calibrate the corner speeds on the tuned plant, build the four trees, write GridTables.java
+                calibrate(tuned(o), true);
+                List<RouteGen.Result> rs = RouteGen.buildAll();
+                for (RouteGen.Result g : rs) {
+                    System.out.printf(Locale.US, "%-14s goal (%.1f, %.1f): %d states reach the goal from %d nodes; %.0f ms%n", g.table.name, g.table.goalX, g.table.goalY,
+                            g.reachableStates, g.nodesReachable, g.ms);
+                }
+                Path out = Paths.get("TeamCode/src/main/java/org/firstinspires/ftc/teamcode/drive/GridTables.java");
+                RouteGen.writeSource(rs, out, "tools/dash/run-sim.cmd gentables on " + java.time.LocalDate.now() + " (corner speeds calibrated on the tuned plant: field frame, grip "
+                        + TUNED_ACCEL + " in/s^2, turn boost " + TUNED_TURN_BOOST + ", " + TUNED_VOLTS + " V)");
+                System.out.println("wrote " + out + " (" + Files.size(out) + " bytes); run the simulation again (it recompiles) to use it, e.g. survey 12 --grid");
+                break;
+            }
+            case "calibrate":
+                calibrate(o, true);
+                break;
+            case "gridsurvey":
+                survey(o, rest.size() > 1 ? Double.parseDouble(rest.get(1)) : 12.0, Paths.get("build", "dashsim", "survey_grid.csv"), true);
                 break;
             case "run":
                 freeRun(o, Double.parseDouble(rest.get(1)), Double.parseDouble(rest.get(2)), Double.parseDouble(rest.get(3)), rest.get(4), red);

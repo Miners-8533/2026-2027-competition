@@ -147,6 +147,17 @@ public final class HiveRoute {
         static Plan refused(String why) {
             return new Plan(false, why, new double[0][], new boolean[0], 0.0, "refused: " + why);
         }
+
+        /** A route that was not planned here (the grid planner's, GridDash): every leg counted as aligned. For the overlay, the log and the simulation. */
+        static Plan of(double[][] waypoints, String description) {
+            double len = 0.0;
+            boolean[] al = new boolean[waypoints.length - 1];
+            for (int i = 0; i + 1 < waypoints.length; i++) {
+                len += Math.hypot(waypoints[i + 1][0] - waypoints[i][0], waypoints[i + 1][1] - waypoints[i][1]);
+                al[i] = true;
+            }
+            return new Plan(true, null, waypoints, al, len, description);
+        }
     }
 
     // ---- keep-outs ----
