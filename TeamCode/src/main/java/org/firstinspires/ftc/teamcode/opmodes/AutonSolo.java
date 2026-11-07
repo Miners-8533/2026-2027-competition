@@ -48,7 +48,7 @@ import java.util.Locale;
  *   4. Deploy the ramp (after the salvo, or during it with RAMP_DEPLOY_DURING_LAUNCH) while backing to the flower pre-position and turning to heading 0, wait for it to settle;
  *      drive onto the flower with the intake running; jostle it (back and push, repeated: see Jostle) until the robot holds 4 elements (at most FLOWER_PAUSE_MAX_SEC).
  *   5. Stow the ramp, back off along the flower's line to the launch spot while turning onto the cell (FLOWER_TURN_WHILE_BACKING), aim, launch.
- *   6. FINAL GATHER (2026-11-05, FINAL_FLOWER_ENABLED, only if step 5's salvo was done by FINAL_FLOWER_LATEST_START_SEC): around the outside of the hive via the helper point to the flower on the robot's own
+ *   6. FINAL GATHER (2026-11-05, FINAL_FLOWER_ENABLED, always runs when enabled): around the outside of the hive via the helper point to the flower on the robot's own
  *      alliance wall (the Blue Wall flower for blue), ram, a one-cycle jostle (ends by FINAL_JOSTLE_DEADLINE_SEC), back out, the ramp stows, and park in the hive-side corner of the loading zone
  *      (FINAL_PARK_X / Y); the intake is held IN from the ram to the park and the pollen stay for the TeleOp. Otherwise: the old park (straight from the launch spot; PARK_VIA_POINT can add a point level with it).
  *
@@ -142,11 +142,10 @@ public class AutonSolo extends LinearOpMode {
     /**
      * FINAL GATHER (2026-11-05, user): after the flower salvo the robot gathers the flower on its OWN alliance wall (the Blue Wall flower for blue, the audience-wall flower's poses turned 90 deg
      * counterclockwise, as the Duo Garden Side does; red is turned 180 deg), keeps what it gets for the TeleOp, and parks in the OTHER (hive-side) corner of the loading zone at (FINAL_PARK_X, FINAL_PARK_Y)
-     * instead of the old park beside the audience flower. It runs only if the flower salvo ended by FINAL_FLOWER_LATEST_START_SEC into the auto (otherwise the old park runs), the jostle there ends at
-     * FINAL_JOSTLE_DEADLINE_SEC so the park always has its time (about 1.0 s back-out plus 1.5 s park), and the intake is held IN from the ram to the park. Nominal: about 29.8 s with a full one-cycle jostle.
+     * instead of the old park beside the audience flower. It always runs when enabled (the start-time guard was removed 2026-11-06, user: only the jostle deadline is needed), the jostle there ends at
+     * FINAL_JOSTLE_DEADLINE_SEC so the park has its time (about 1.0 s back-out plus 1.5 s park), and the intake is held IN from the ram to the park. Nominal: about 29 s with a full one-cycle jostle.
      */
     public static boolean FINAL_FLOWER_ENABLED = true;
-    public static double FINAL_FLOWER_LATEST_START_SEC = 23.0;
     public static double FINAL_JOSTLE_DEADLINE_SEC = 26.5;
     public static double FINAL_PARK_X = 26.0, FINAL_PARK_Y = 60.0, FINAL_PARK_HEADING_DEG = 90.0, FINAL_PARK_OVERSHOOT_IN = 0.0;
     /** The helper point outside the support rails for the trip back across, and the heading it is taken at (along the leg, toward -X). Nudge of the wall flower poses (blue frame, before the alliance turn). */
@@ -552,9 +551,9 @@ public class AutonSolo extends LinearOpMode {
                 mechanisms.setIntake(false),
 
                 choose(() -> {
-                            boolean go = FINAL_FLOWER_ENABLED && autoClock.seconds() <= FINAL_FLOWER_LATEST_START_SEC;
-                            RunLog.event(String.format(Locale.US, "AUTO %s at %.2f s into the auto (the final gather needs the flower salvo done by %.1f s)",
-                                    go ? "FINAL GATHER starts" : "FINAL GATHER skipped: the old park runs", autoClock.seconds(), FINAL_FLOWER_LATEST_START_SEC));
+                            boolean go = FINAL_FLOWER_ENABLED;
+                            RunLog.event(String.format(Locale.US, "AUTO %s at %.2f s into the auto",
+                                    go ? "FINAL GATHER starts" : "FINAL GATHER disabled: the old park runs", autoClock.seconds()));
                             return go;
                         },
                         new SequentialAction(
