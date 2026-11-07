@@ -13,6 +13,7 @@ They are in `/sdcard/FIRST/runlogs/` on the Control Hub:
 | `teleop.log` | the latest TeleOp run |
 | `teleop_prev.log` | the TeleOp run before it |
 | `waypoints.log` (and `_prev` ...) | the Auto Waypoint Marker's run: its `MARK` lines are the points marked |
+| `drivetest.log` (and `_prev` ...) | the Drive Characterization run (since 2026-11-06): a row on EVERY loop, `x,y,hdg_deg` (field), `vx,vy,w_dps` (the Pinpoint's field velocity), `cmd_fwd,cmd_left,cmd_turn` (the robot-frame command), `p_lf,p_lb,p_rb,p_rf` (the wheel powers after the scaling), `vbat` (read every loop), `a_lf,a_lb,a_rb,a_rf` (one motor's current per loop, in turn), `test,seg,phase`; `DRIVE TEST` events for each test, its segments (with the powers), `GEOFENCE` stops, pauses and skips |
 | `teleop_prev2.log` ... `teleop_prev9.log` | the runs before that, each one further back (the same for `auto`, `bringup` and `pitcheck`) |
 
 Starting an opmode shifts its logs back one place (`*.log` to `*_prev.log`, `*_prev.log` to `*_prev2.log`, and so on, dropping the oldest) and starts a new one, so **the auto and the TeleOp never overwrite each other**. If an opmode crashes and is started again, the crash is in `*_prev.log` and the rest of the run is in `*.log`. The first line of the new log says how the previous run of that kind ended (`ended normally`, `CRASHED`, or `NO END MARKER`, meaning the app stopped hard or power was lost).

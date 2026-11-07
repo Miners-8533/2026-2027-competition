@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 public final class RunLog {
 
     public enum Kind {
-        AUTO("auto"), TELEOP("teleop"), PITCHECK("pitcheck"), BRINGUP("bringup"), WAYPOINTS("waypoints");
+        AUTO("auto"), TELEOP("teleop"), PITCHECK("pitcheck"), BRINGUP("bringup"), WAYPOINTS("waypoints"), DRIVETEST("drivetest");
 
         final String baseName;
 

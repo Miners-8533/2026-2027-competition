@@ -115,6 +115,12 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 ## 8p. Tighter auto aim (T26)
 - [ ] Any auto: the `AIM aligned at ... error` lines show about 1 deg or less, the aim steps take 0.3 to 0.5 s, and there is no `AIM TIMED OUT`; if there is, raise `AimAtCell.ALIGNED_DEG` toward 1.5 or `TIMEOUT_SEC`
 
+## 8q. Drive Characterization (T27), on one half with nobody on it
+- [ ] Robot still at the TeleOp start of your half; INIT Drive Characterization, D-pad right (blue) or left (red), INIT pose OK; Start
+- [ ] Hold the right bumper for test 1 only, then let go: it stops at once, and it braked before the end of the lane
+- [ ] Hold the right bumper through the rest (about 3 minutes of driving); a `GEOFENCE` stop is fine; if time runs out, note the test number and pick it with D-pad up at INIT next time
+- [ ] Pull the logs (`drivetest.log`)
+
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
 - [ ] Pull the logs from the real hub: `python tools/logs/pull_logs.py`

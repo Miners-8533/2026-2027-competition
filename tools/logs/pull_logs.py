@@ -43,8 +43,8 @@ import tempfile
 
 HUB_RUNLOGS = "/sdcard/FIRST/runlogs"
 HUB_MATCHLOGS = "/sdcard/FIRST/matchlogs"
-KINDS = ("auto", "teleop", "pitcheck", "bringup", "waypoints")
-LOG_NAME_RE = re.compile(r"^(?P<kind>auto|teleop|pitcheck|bringup|waypoints)(?:_prev\d*)?\.log$")
+KINDS = ("auto", "teleop", "pitcheck", "bringup", "waypoints", "drivetest")
+LOG_NAME_RE = re.compile(r"^(?P<kind>auto|teleop|pitcheck|bringup|waypoints|drivetest)(?:_prev\d*)?\.log$")
 IDLE_SECONDS = 300   # a log with no end marker that has not been written to for this long is treated as finished (power loss)
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DEFAULT_DEST = os.path.join(REPO, "robot-logs")
