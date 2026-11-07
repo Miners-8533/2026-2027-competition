@@ -96,6 +96,17 @@ public class DuoPathCheck {
         leg("P rear launch spot -> west helper", pRear, pWestHelper, withFlowers);
         leg("P west helper -> park", pWestHelper, gPark, withFlowers);
 
+        // Duo Daryl (2026-11-06): the garden in one leg from the start, then around to the audience spot, the Blue Wall flower, back, the audience flower and the park
+        double[] dSquare = {-61.15, 58.5, 90.0}, dEastHelper = {36.0, 40.0, 180.0};
+        leg("D start -> squaring pose (the garden leg)", pStart, dSquare, withFlowers);
+        leg("D squared on the wall -> east helper (turned 90 -> 180 in the first 25 in)", new double[]{-40.0, 56.0, 180.0}, dEastHelper, withFlowers);
+        leg("D squared on the wall -> turned, first 25 in (supports only)", new double[]{-64.0, 60.5, 90.0}, new double[]{-40.0, 56.0, 180.0}, real);
+        leg("D east helper -> audience launch spot", dEastHelper, pAud, withFlowers);
+        leg("D audience launch spot -> east helper", pAud, dEastHelper, withFlowers);
+        leg("D east helper -> wall flower pre", dEastHelper, wallPre, withFlowers);
+        leg("D audience flower back-out -> park", flowerBack, gPark, withFlowers);
+        leg("D audience launch spot -> park (audience flower skipped)", pAud, gPark, withFlowers);
+
         System.out.println(fails == 0 ? "All duo and Solo legs clear of the supports." : fails + " leg(s) touch a support.");
         System.exit(fails == 0 ? 0 : 1);
     }

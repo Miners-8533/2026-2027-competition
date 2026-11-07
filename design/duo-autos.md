@@ -2,6 +2,25 @@
 
 Two matched autos for an alliance whose partner runs the other one: **Auton - Duo Flower Side** (starts at the audience wall) and **Auton - Duo Garden Side** (starts at the rear wall). Built 2026-11-04 on branch `duo-autos`, merged into `integration` 2026-11-05 to test with everything else; **not yet run on the robot**. Code: `AutonDuoBase` (INIT, log, run), `AutonDuoFlowerSide`, `AutonDuoGardenSide`, `DuoKit` (the drive legs, timed steps, launch, waits; copied from `AutonSolo`) and `DuoAutos` (every Dashboard value). Blue/red is picked at INIT (D-pad right / left); red is the blue path turned 180 degrees about the field center. The rules behind this are in [game-rules.md](game-rules.md).
 
+## Duo Daryl (2026-11-06, the user's design; `AutonDuoDaryl`, Dashboard values `DuoAutos.D_*` and the shared `P_*` speeds and spots; not yet run on the robot)
+
+The rear-wall start with the garden first. Blue frame (red is turned 180 deg):
+
+1. The pusher moves to the lock position while the flywheel spins up (`Mechanisms.preparePusherForLaunch`, see below); preload into the REAR cell.
+2. The garden in ONE leg from the start straight to the wall squaring pose (-61.15, 58.5, 90 deg), the last `D_GARDEN_SLOW_ZONE_IN` 12.5 in limited to `D_GARDEN_SLOW_POWER` 0.5 (`DriveToPose.withSlowZone`; four pollen of about 2.8 in end to end are 11.2 in; the solo auto's 0.35 was relaxed by the user), then the squaring (side wall, front wall).
+3. Around the outside via the east helper (36, 40) to the audience launch spot (50, 26.3); launch into the AUDIENCE cell (far-cell aim extra).
+4. The Blue Wall flower (the audience flower's poses turned 90 deg), jostle by `D_WALL_JOSTLE_DEADLINE_SEC` 19 s at the latest, back out; the ramp stows.
+5. The partner's window, an ABSOLUTE time (the user, 2026-11-06: our preload ends at about 3 s, the tip takes 4 s, plus 2 s of buffer, so the partner shoots at about 9 s and parks by about 18 s): the robot does not leave the flower before `D_SECOND_SHOT_NOT_BEFORE_SEC` 18 s minus `D_RETURN_TRAVEL_SEC` 2.4 s, and waits at the spot until 18 s if it still arrives early (`AUTO WAIT ...` lines). The nominal arrival is about 20 s, so it normally does not wait at all; no pause, no extra jostle.
+6. Back to the audience launch spot, launch into the AUDIENCE cell again (the intake stays IN through it).
+7. The audience flower (the solo auto's poses), jostle by `D_AUD_JOSTLE_DEADLINE_SEC` 26 s at the latest; skipped (`AUTO SKIP audience flower`) when it would start after `D_AUD_FLOWER_LATEST_START_SEC` 22.5 s so the park keeps its time. Its pollen stay in the robot for the TeleOp.
+8. Park in the hive-side corner (26, 60), ramp stowed, flywheel off.
+
+Estimate (2026-11-06, from the logs; about +-1.5 s): preload done 2.7, garden leg 1.3 and squaring 1.3 (5.3), around to the audience spot 3.9 and salvo 1.8 (11.0), to the Blue Wall flower 3.0 and its gather 3.7 (17.7), back at the spot at about 20.1 (the second salvo starts about 20.4) and done at 22.0, audience flower 4.9 (26.9), park 1.5 = **about 28.4 s**; the audience flower starts at about 22 s against the 22.5 s guard, so it is skipped when anything runs late. Ideas to win time if it is skipped too often: cap the audience flower's jostle (about 0.9 s), skip its pre-position settle. Path check (`tools/hive/run-check.cmd`): the Daryl legs clear the supports and the flower stands grown 2 in.
+
+## Preload pusher pre-position (2026-11-06, all autos)
+
+`Mechanisms.preparePusherForLaunch()` moves the arm from HOLD to the lock position (90 deg) at the very start of every auto (Solo, Flower Side, Garden Side, Primary, Daryl) while the flywheel spins up (1.1 s or more to reach the launch band; the arm needs about 0.6 s), so the preload salvo turns 310 deg instead of 400: median 1.08 s against 1.37 s in the logs (n = 135 and 77), about 0.3 s per auto. Only the preload: later salvos already start from the arm's rest about 45 deg past HOLD (median 1.22 s, so only about 0.14 s to gain), and a locked arm would block the stragglers the autos keep the intake open for. The queued salvo waits for the arm to stop (`pusher.isStopped()`), then runs from the lock; it works with `PUSHER_LOCK_ENABLED` false because it calls the pusher's lock move directly.
+
 ## Duo Primary (2026-11-06, the user's design; `AutonDuoPrimary`, Dashboard values `DuoAutos.P_*`)
 
 A third auto for the alliance whose partner does the lighter job: the rear-wall start of the Garden Side with a longer program, **not yet run on the robot**. Blue frame (red is turned 180 deg):
