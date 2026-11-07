@@ -49,6 +49,7 @@ IDLE_SECONDS = 300   # a log with no end marker that has not been written to for
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DEFAULT_DEST = os.path.join(REPO, "robot-logs")
 
+BUILD_RE = re.compile(r"^#\s*Build:\s*commit\s+(?P<commit>\S+).*?(?:fingerprint\s+(?P<fp>[0-9a-f]+))?\s*$")
 HEADER_RE = re.compile(r"^#\s*(?P<name>.*?),\s*opened\s+(?P<date>\d{4}-\d\d-\d\d)\s+(?P<time>\d\d:\d\d:\d\d)")
 
 
@@ -122,12 +123,17 @@ def summarize(lines):
     """Everything the index shows about one run, read from its lines."""
     s = {"name": "", "opened": "", "duration_s": 0.0, "end": "NO END MARKER", "alliance": "", "start": "",
          "salvos": 0, "pusher_checks": 0, "warnings": 0, "slow_loops": 0, "backup_mode": False,
-         "flywheel_encoder_lost": False, "pinpoint_faults": 0, "marks": 0, "min_volts": None, "max_loop_ms": 0.0, "events": 0}
+         "flywheel_encoder_lost": False, "pinpoint_faults": 0, "marks": 0, "min_volts": None, "max_loop_ms": 0.0, "events": 0, "build": ""}
     if lines:
         m = HEADER_RE.match(lines[0])
         if m:
             s["name"] = m.group("name")
             s["opened"] = "%s %s" % (m.group("date"), m.group("time"))
+    for line in lines[:4]:
+        b = BUILD_RE.match(line)   # "# Build: commit 28935fd (integration), built ... , clean | UNCOMMITTED changes: ..., fingerprint 0a12ac51" (from 2026-11-07)
+        if b:
+            s["build"] = b.group("commit") + ("+" + b.group("fp") if b.group("fp") else "")
+            break
     cols = None
     for line in lines:
         kind = line.split(",", 1)[0]
@@ -325,11 +331,11 @@ def write_index(dest, runs):
         json.dump(runs, f, indent=1)
     lines = ["# Robot run logs", "",
              "%d run(s), newest first. Times are the hub's clock (it may be wrong). Run `python tools/logs/pull_logs.py` to add new ones." % len(runs),
-             "", "| Opened | Kind | Opmode | Length | Ended | Alliance | Salvos | Marks | Min volts | Max loop ms | Slow loops | Flags | File |",
-             "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+             "", "| Opened | Kind | Opmode | Build | Length | Ended | Alliance | Salvos | Marks | Min volts | Max loop ms | Slow loops | Flags | File |",
+             "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for r in runs:
-        lines.append("| %s | %s | %s | %.0f s | %s | %s | %d | %d | %s | %.0f | %d | %s | [%s](%s) |" % (
-            r["opened"], r["kind"], r["name"], r["duration_s"], r["end"], r["alliance"] or "-", r["salvos"], r.get("marks", 0),
+        lines.append("| %s | %s | %s | %s | %.0f s | %s | %s | %d | %d | %s | %.0f | %d | %s | [%s](%s) |" % (
+            r["opened"], r["kind"], r["name"], r.get("build") or "-", r["duration_s"], r["end"], r["alliance"] or "-", r["salvos"], r.get("marks", 0),
             "-" if r["min_volts"] is None else "%.1f" % r["min_volts"], r["max_loop_ms"], r["slow_loops"], flags(r) or "-",
             r["file"], r["file"]))
     with open(os.path.join(dest, "index.md"), "w", encoding="utf-8") as f:
@@ -340,9 +346,9 @@ def print_index(runs, limit=12):
     if not runs:
         print("No runs stored yet.")
         return
-    print("%-19s %-9s %-26s %7s  %-15s %-5s %s" % ("opened", "kind", "opmode", "length", "ended", "salv.", "flags"))
+    print("%-19s %-9s %-26s %-17s %7s  %-15s %-5s %s" % ("opened", "kind", "opmode", "build", "length", "ended", "salv.", "flags"))
     for r in runs[:limit]:
-        print("%-19s %-9s %-26s %6.0fs  %-15s %5d %s" % (r["opened"], r["kind"], r["name"][:26], r["duration_s"], r["end"], r["salvos"], flags(r)))
+        print("%-19s %-9s %-26s %-17s %6.0fs  %-15s %5d %s" % (r["opened"], r["kind"], r["name"][:26], (r.get("build") or "-")[:17], r["duration_s"], r["end"], r["salvos"], flags(r)))
     if len(runs) > limit:
         print("... and %d older (see index.md)" % (len(runs) - limit))
 

@@ -121,6 +121,7 @@ public final class RunLog {
             RunLog log = new RunLog(current, battery);
             log.write("# " + opModeName + ", opened " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date())
                     + " (hub clock). Previous " + kind.baseName + " run: " + previousRun);
+            log.write("# Build: " + BuildInfo.summary());
             active = log;
         } catch (IOException | RuntimeException e) {
             RobotLog.ee(TAG, e, "could not open the run log; continuing without it");
