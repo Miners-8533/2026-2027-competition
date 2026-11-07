@@ -81,8 +81,8 @@ import java.util.Locale;
  *   left bumper + right trigger  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident; it was left + right bumper until 2026-11-05, when the right bumper became the target lock)
  *
  * Gamepad 2 (operator):
- *   (the intake has no toggle: it runs IN until the robot holds 4 elements, then stops; Mechanisms.FULL_RUNS_OUT makes it run OUT instead)
- *   right trigger (hold) force the intake IN, even when full
+ *   (the intake has no toggle: since 2026-11-06 it is ALWAYS IN, whatever the count and the pusher lock say, except while the left trigger or a reject runs it OUT)
+ *   right trigger (hold) unlock a locked pusher (the intake is IN anyway)
  *   left trigger (hold)  force the intake OUT
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued launch
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
@@ -339,7 +339,7 @@ public class TeleOpCompetition extends LinearOpMode {
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
         mechanisms.setAutoTarget(true);            // the target is the closer of the alliance's own two cells: nothing to pick
-        mechanisms.setIntakeAlwaysOn(true);        // the intake runs IN until the robot holds 4, then stops; the operator's triggers override
+        mechanisms.setIntakeAlwaysOn(true);        // the intake is always IN, whatever the count and the pusher lock say; only the operator's left trigger and a reject run it OUT
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
         mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
 

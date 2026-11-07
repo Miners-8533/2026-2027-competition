@@ -59,7 +59,8 @@ public class Mechanisms {
      * is frozen and the intake is OFF while locked (it used to run OUT). A launch goes from the lock (310 deg), a reject unlocks first, and the operator forcing the intake IN (right trigger) unlocks it.
      * When the request has ended for LOCK_RELEASE_DELAY_SEC the arm goes back to HOLD. The autos never request it. False turns the whole lock off.
      */
-    public static boolean PUSHER_LOCK_ENABLED = true;
+    /** FALSE since 2026-11-06 (user): the intake is always IN now, so the arm must not lock across the entrance; the lock stays off until the element sensors are more reliable. True brings it back. */
+    public static boolean PUSHER_LOCK_ENABLED = false;
     /**
      * AUTOS (2026-11-05, user): the flower gather keeps the intake running IN, whatever the count says, from the ram until the flower salvo is done ({@link #forceIntakeIn}), so pollen still
      * coming off the ramp keep coming in while the robot backs off, turns and aims. False: the old behavior (the intake is requested at the ram and the automatic stop at 4 can end it).
@@ -72,11 +73,6 @@ public class Mechanisms {
     public static double NOTICE_SEC = 4.0;
     /** Rule 6: stop the intake when the element counter reports a full robot. */
     public static boolean AUTO_STOP_INTAKE_AT_FULL = true;
-    /**
-     * The always-on intake (TeleOp - Competition) when the robot is full: false (for now, there is no mechanical detent to keep elements from
-     * moving back toward the intake) stops the intake; true runs it OUT so a fifth is never taken in. The operator's triggers override either way.
-     */
-    public static boolean FULL_RUNS_OUT = false;
     /** After a salvo, when the robot is empty and idle, check the pusher's zero against CS4 and correct a belt slip (see PusherCheck). */
     public static boolean AUTO_PUSHER_CHECK = true;
     /** Also check right after Start when the zero has not been verified since the app started (a power cycle, an install, or a zero set by hand). */
@@ -219,9 +215,9 @@ public class Mechanisms {
     }
 
     /**
-     * True (TeleOp - Competition): the intake runs on its own. It runs IN while the robot holds fewer than CAPACITY elements and, once it
-     * holds CAPACITY, stops (or runs OUT if {@link #FULL_RUNS_OUT}); the toggle and AUTO_STOP_INTAKE_AT_FULL are not used. The operator overrides it by
-     * holding {@link #setManualIntake} (IN even when full) or {@link #setManualOuttake} (OUT). False (the default, as in the autos):
+     * True (TeleOp - Competition): the intake is ALWAYS IN (user, 2026-11-06), whatever the element count and the pusher lock say; only a reject and the operator's
+     * {@link #setManualOuttake} (OUT) run it OUT (a pusher calibration sweep still holds it off); the toggle and AUTO_STOP_INTAKE_AT_FULL are not used. {@link #setManualIntake} (the right
+     * trigger) no longer changes the intake: it unlocks a locked pusher. False (the default, as in the autos):
      * the toggle and the ramp decide, and a full robot stops the intake.
      */
     public void setIntakeAlwaysOn(boolean on) {
@@ -918,15 +914,16 @@ public class Mechanisms {
             if (rejectActive || manualOuttake) mode = Intake.Mode.OUT;
             else if (wantIn && !stopForFull) mode = Intake.Mode.IN;
             if (intakeAlwaysOn) {
-                if (rejectActive || manualOuttake) mode = Intake.Mode.OUT;
-                else if (manualIntake) mode = Intake.Mode.IN;
-                else mode = full ? (FULL_RUNS_OUT ? Intake.Mode.OUT : Intake.Mode.OFF) : Intake.Mode.IN;
+                // the TeleOp (user, 2026-11-06): the intake is ALWAYS IN, whatever the element count says (a phantom or a real full no longer stops it) and whatever the pusher's lock is doing;
+                // only the operator's forced OUT (left trigger) and a reject run it OUT. A fifth pollen is the operator's to push out with the left trigger.
+                mode = (rejectActive || manualOuttake) ? Intake.Mode.OUT : Intake.Mode.IN;
             }
             // an auto's flower gather holds the intake IN through the flower salvo, whatever the count says (a reject or the operator's outtake still wins)
             if (forcedIntakeIn && !rejectActive && !manualOuttake) mode = Intake.Mode.IN;
             // locked or locking: the arm is across the entrance, so the intake is OFF (a pollen must not be pushed against it), whatever it would have been doing; it used to run OUT when locked.
+            // (Only outside the always-IN TeleOp, which since 2026-11-06 keeps the intake IN against the locked arm.)
             // The operator's forced outtake and a reject still run it OUT, and forcing it IN unlocks the arm first.
-            if ((lockState == LockState.LOCKED || lockState == LockState.LOCKING) && !manualIntake && !manualOuttake && !rejectActive) mode = Intake.Mode.OFF;
+            if (!intakeAlwaysOn && (lockState == LockState.LOCKED || lockState == LockState.LOCKING) && !manualIntake && !manualOuttake && !rejectActive) mode = Intake.Mode.OFF;   // not in the always-IN TeleOp: the user wants it IN even against the locked arm
             if (manualCalibration && (pusherCheck == null || !pusherCheck.isActive())) {
                 manualCalibration = false;
                 RunLog.event("COMMAND pusher calibration sweep over: the intake runs again");

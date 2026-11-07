@@ -22,7 +22,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 
 ## 2. TeleOp basics (T1 to T3, F4)
 - [ ] Controls: driver A launches, LB chords, precision on LT, target lock on RB (new 2026-11-05), reseed LB + RT (was LB + RB); operator A target lock, LB+B reject, LB+Y sweep
-- [ ] Intake always on: IN under 4, OUT at 4; the count stops flickering 3 / 4
+- [ ] Intake ALWAYS IN (since 2026-11-06): it keeps running IN at 4 held and against the locked arm; only the left trigger and a reject run it OUT; check what a fifth pollen does and that the left trigger clears it; the count stops flickering 3 / 4
 - [ ] Target lock on by itself when full, off after the salvo; launch at all four cells (marks: far-cell extra -3.0, offset -2.2)
 - [ ] Backup mode: LB + X held 1 s (banner, three taps)
 - [ ] Pusher: no faults, a launch and a reject cancel each other, count reads 0 after a salvo (P10)
@@ -104,6 +104,9 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 ## 8m. Automatic pusher jam resolution (T22)
 - [ ] A whole practice TeleOp run with 20 or more salvos and locks and NO `PUSHER JAM` line (no false alarms); then block the arm by hand with soft foam during a salvo: `PUSHER JAM` within about 0.7 s, the arm backs off 45 deg from where a salvo is stuck (a jammed lock backs off to 45 deg BEHIND the HOLD, on purpose) and goes on; release the foam and check `PUSHER JAM RESOLVED` and `Pusher jam cleared` on the screen; keep it blocked and check the give-up after 2 retries and the red `PUSHER JAMMED`
 - [ ] In an auto only 1 retry (`Pusher.JAM_RETRIES_AUTO`); tune `Pusher.JAM_BEHIND_HOLD_DEG` (45) from how it frees the pollen
+
+## 8n. Pusher lock off (since 2026-11-06)
+- [ ] With `Mechanisms.PUSHER_LOCK_ENABLED` false: a target lock and a Hive Dash never move the pusher arm (no `PUSHER LOCK` lines, `pusher_lock` stays `-`), salvos start from HOLD (the 400 deg salvo, no 310 deg one), the intake stays IN throughout
 
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)
