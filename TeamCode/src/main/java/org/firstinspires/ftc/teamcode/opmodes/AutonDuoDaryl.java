@@ -64,7 +64,10 @@ public class AutonDuoDaryl extends AutonDuoBase {
         // the audience launch spot: the heading is the computed aim at the audience cell with the far-cell extra (the solo auto's spot, on the audience flower's line)
         Pose2d audXY = DuoKit.forAlliance(DuoKit.pose(DuoAutos.P_AUD_LAUNCH_X, DuoAutos.P_AUD_LAUNCH_Y, 0.0), blue);
         double audExtra = TargetLock.farCellExtraLeftIn(audCell, blue);
-        Pose2d audSpot = new Pose2d(audXY.position.x, audXY.position.y, TargetLock.aimHeadingRad(audXY.position.x, audXY.position.y, audCell, audExtra));
+        // the spot headings include the salvo's aim trim (2026-11-07): the leg arrives pointed at the trimmed aim and the aim step only fine-tunes
+        double audAim = TargetLock.aimHeadingRad(audXY.position.x, audXY.position.y, audCell, audExtra);
+        Pose2d audSpot = new Pose2d(audXY.position.x, audXY.position.y, audAim + Math.toRadians(DuoAutos.D_GARDEN_TRIM_DEG));
+        Pose2d audSpotWall = new Pose2d(audXY.position.x, audXY.position.y, audAim + Math.toRadians(DuoAutos.D_WALL_TRIM_DEG));
 
         // the garden as in the solo auto (2026-11-07, user: the one-leg garden ended too far from the wall): the angled pre-position, the slow pickup, the squaring approach, then the squaring
         Pose2d gardenPre = DuoKit.forAlliance(DuoKit.pose(DuoAutos.GARDEN_PRE_X, DuoAutos.GARDEN_PRE_Y, DuoAutos.GARDEN_HEADING_DEG), blue);
@@ -133,7 +136,7 @@ public class AutonDuoDaryl extends AutonDuoBase {
                 // 6. back to the audience launch spot, the audience cell again
                 k.note("Around the outside of the hive to the audience launch spot (intake still ON)"),
                 k.crossLeg("east helper (outside the support rails)", drive, eastHelper, true),
-                k.launchLeg("audience launch spot", drive, audSpot),
+                k.launchLeg("audience launch spot", drive, audSpotWall),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.waitUntil("second shot (partner parked)", DuoAutos.D_SECOND_SHOT_NOT_BEFORE_SEC),
                 k.launch(drive, m, audCell, blue, "wall flower pollen", DuoAutos.D_WALL_TRIM_DEG, Double.NaN),

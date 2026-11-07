@@ -71,7 +71,7 @@ public class DuoPathCheck {
         leg("F park via -> park", parkVia, fPark, real);
 
         // Solo final gather (2026-11-05): launch spot 2, around the outside via the helper, the Blue Wall flower, back out, the hive-side corner (the AutonSolo defaults)
-        double[] sLaunch2 = {50.0, 26.3, -145.0}, sHelper = {36.0, 40.0, 180.0}, sWallPre = {-26.3, 38.0, 90.0}, sWallRam = {-26.3, 67.3, 90.0}, sWallAt = {-26.3, 55.3, 90.0}, sWallBack = {-26.3, 46.3, 90.0}, sPark = {26.0, 60.0, 90.0};
+        double[] sLaunch2 = {50.0, 26.3, -152.5}, sHelper = {36.0, 40.0, 180.0}, sWallPre = {-26.3, 38.0, 90.0}, sWallRam = {-26.3, 67.3, 90.0}, sWallAt = {-26.3, 55.3, 90.0}, sWallBack = {-26.3, 46.3, 90.0}, sPark = {26.0, 60.0, 90.0};
         leg("S launch spot 2 -> final helper", sLaunch2, sHelper, real);
         leg("S final helper -> wall flower pre", sHelper, sWallPre, real);
         leg("S wall flower pre -> ram target", sWallPre, sWallRam, real);

@@ -66,7 +66,8 @@ public class AutonDuoPrimary extends AutonDuoBase {
 
         // the two launch spots: the headings are the computed aims at the cell of each (the audience one with the far-cell extra), AimAtCell takes out what is left
         Pose2d audXY = DuoKit.forAlliance(DuoKit.pose(DuoAutos.P_AUD_LAUNCH_X, DuoAutos.P_AUD_LAUNCH_Y, 0.0), blue);
-        Pose2d audSpot = new Pose2d(audXY.position.x, audXY.position.y, TargetLock.aimHeadingRad(audXY.position.x, audXY.position.y, audCell, audExtra));
+        // the spot heading includes the salvo's aim trim (2026-11-07): the leg arrives pointed at the trimmed aim and the aim step only fine-tunes
+        Pose2d audSpot = new Pose2d(audXY.position.x, audXY.position.y, TargetLock.aimHeadingRad(audXY.position.x, audXY.position.y, audCell, audExtra) + Math.toRadians(DuoAutos.P_WALL_TRIM_DEG));
         Pose2d rearXY = DuoKit.forAlliance(DuoKit.pose(DuoAutos.P_REAR_LAUNCH_X, DuoAutos.P_REAR_LAUNCH_Y, 0.0), blue);
         Pose2d rearSpot = new Pose2d(rearXY.position.x, rearXY.position.y, TargetLock.aimHeadingRad(rearXY.position.x, rearXY.position.y, rearCell, 0.0));
 
