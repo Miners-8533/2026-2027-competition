@@ -111,8 +111,8 @@ public final class DuoAutos {
     // ---- Cybugs (2026-11-07, built from Daryl) ----
     /** The salvo from the rear launch spot at the start wall into the rear cell (the cell near the start): the preload from beside it needs no trim. */
     public static double C_REAR_TRIM_DEG = 0.0;
-    /** A pause at the rear launch spot before the last salvo, the flywheel spinning (user, 2026-11-07). */
-    public static double C_LAST_SALVO_WAIT_SEC = 2.0;
+    /** A pause at the rear launch spot before the last salvo, the flywheel spinning (user, 2026-11-07: 2 s, then 1 s). */
+    public static double C_LAST_SALVO_WAIT_SEC = 1.0;
     public static double CROSS_FIELD_MAX_POWER = 0.85;
     public static double SLOW_IN_PER_S_PER_POWER = 40.0;
 }

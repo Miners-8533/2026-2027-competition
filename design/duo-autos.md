@@ -78,8 +78,8 @@ The user's design, built from Daryl: the rear-wall start, garden first, no audie
 | 2 | Garden: pre-position, slow pickup, square approach, square on the wall | 2.4-5.7 |
 | 3 | East helper to the audience launch spot (50, 26.3), launch the garden pollen into the audience cell (trim -8.0) | 5.7-10.3 |
 | 4 | East helper back, Blue Wall flower: pre-position, ram, one-cycle jostle, back out | 10.3-16.6 |
-| 5 | To the rear launch spot at the start wall (-61.5, 15.25), wait `C_LAST_SALVO_WAIT_SEC` 2.0 s with the flywheel spinning, launch the flower pollen into the REAR cell (`C_REAR_TRIM_DEG` 0) | 16.6-22.3 |
-| 6 | Intake OUT for the rest of the auto | 22.3 |
-| 7 | Park helper (-36, 40), then the park (26, 53.1), ramp stowed | 22.3-25.7 |
+| 5 | To the rear launch spot at the start wall (-61.5, 15.25), wait `C_LAST_SALVO_WAIT_SEC` 1.0 s with the flywheel spinning, launch the flower pollen into the REAR cell (`C_REAR_TRIM_DEG` 0) | 16.6-21.3 |
+| 6 | Intake OUT for the rest of the auto | 21.3 |
+| 7 | Park helper (-36, 40), then the park (26, 53.1), ramp stowed | 21.3-24.7 |
 
-No waits for the partner and no second garden pass (dropped by the user, 2026-11-07, because the intake is OUT after the last salvo). The park goes through the helper point as the Garden Side does; the PC path check (`tools/hive/DuoPathCheck.java`) passes for the legs. The salvo into the rear cell scores according to the tip state, which depends on the partner's launches (unchanged from the other duo autos). About 4 s of margin before the 30 s horn. The outtake makes the robot report busy, so the automatic pusher check after the last salvo is skipped; the TeleOp's start-up check covers it.
+No waits for the partner and no second garden pass (dropped by the user, 2026-11-07, because the intake is OUT after the last salvo). The park goes through the helper point as the Garden Side does; the PC path check (`tools/hive/DuoPathCheck.java`) passes for the legs. The salvo into the rear cell scores according to the tip state, which depends on the partner's launches (unchanged from the other duo autos). About 5 s of margin before the 30 s horn. The four Cybugs runs of 2026-11-07 (16:20 to 16:39) finished at 24.9 to 25.9 s with the 2 s wait and the park settled within 1 in. The outtake makes the robot report busy, so the automatic pusher check after the last salvo is skipped; the TeleOp's start-up check covers it.
