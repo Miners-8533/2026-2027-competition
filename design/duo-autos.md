@@ -70,7 +70,7 @@ Waits are absolute seconds from Start (a robot cannot see its partner): `F_FIRST
 - The Blue Wall flower poses are a rotation of the audience flower's tuned numbers, not measured on the field.
 
 ## Auton - Cybugs (built 2026-11-07, not yet run on the robot)
-The user's design, built from Daryl: the rear-wall start, garden first, no audience flower. Blue frame (red is turned 180 deg). The intake runs IN for the whole auto. Estimated times from the 2026-11-07 Q24 Daryl run and the Garden Side and Solo legs:
+The user's design, built from Daryl: the rear-wall start, garden first, no audience flower. Blue frame (red is turned 180 deg). The intake runs IN from the start until the last salvo, then OUT to the end (the TeleOp's left-trigger outtake, `Mechanisms.setManualOuttake`), because the robot kept picking up nectar unintentionally on the way to the park. Estimated times from the 2026-11-07 Q24 Daryl run and the Garden Side and Solo legs:
 
 | # | Action | Time (s, estimated) |
 |---|---|---|
@@ -78,8 +78,8 @@ The user's design, built from Daryl: the rear-wall start, garden first, no audie
 | 2 | Garden: pre-position, slow pickup, square approach, square on the wall | 2.4-5.7 |
 | 3 | East helper to the audience launch spot (50, 26.3), launch the garden pollen into the audience cell (trim -8.0) | 5.7-10.3 |
 | 4 | East helper back, Blue Wall flower: pre-position, ram, one-cycle jostle, back out | 10.3-16.6 |
-| 5 | To the rear launch spot at the start wall (-61.5, 15.25), launch the flower pollen into the REAR cell (`C_REAR_TRIM_DEG` 0) | 16.6-20.3 |
-| 6 | Second garden pass (pre-position, slow pickup, no squaring), skipped if later than `C_GARDEN2_LATEST_START_SEC` 22.0 s | 20.3-22.5 |
-| 7 | Park helper (-36, 40), then the park (26, 53.1), ramp stowed | 22.5-25.7 |
+| 5 | To the rear launch spot at the start wall (-61.5, 15.25), wait `C_LAST_SALVO_WAIT_SEC` 2.0 s with the flywheel spinning, launch the flower pollen into the REAR cell (`C_REAR_TRIM_DEG` 0) | 16.6-22.3 |
+| 6 | Intake OUT for the rest of the auto | 22.3 |
+| 7 | Park helper (-36, 40), then the park (26, 53.1), ramp stowed | 22.3-25.7 |
 
-No waits for the partner. The park goes through the helper point because a straight leg from the garden corner would run the robot's front into the Blue Wall flower stand (the PC path check caught it); the check (`tools/hive/DuoPathCheck.java`) passes for all the new legs. The salvo into the rear cell scores according to the tip state, which depends on the partner's launches (unchanged from the other duo autos). About 4 s of margin before the 30 s horn.
+No waits for the partner and no second garden pass (dropped by the user, 2026-11-07, because the intake is OUT after the last salvo). The park goes through the helper point as the Garden Side does; the PC path check (`tools/hive/DuoPathCheck.java`) passes for the legs. The salvo into the rear cell scores according to the tip state, which depends on the partner's launches (unchanged from the other duo autos). About 4 s of margin before the 30 s horn. The outtake makes the robot report busy, so the automatic pusher check after the last salvo is skipped; the TeleOp's start-up check covers it.

@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.InstantAction;
 import org.firstinspires.ftc.teamcode.motion.Jostle;
 import org.firstinspires.ftc.teamcode.motion.SequentialAction;
+import org.firstinspires.ftc.teamcode.motion.SleepAction;
 import org.firstinspires.ftc.teamcode.motion.SquareOnWall;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
@@ -22,10 +23,10 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *   2. The garden as in the solo auto: angled pre-position, slow pickup, squaring approach, then the squaring on the side and front walls.
  *   3. Around the outside of the hive via the east helper to the audience launch spot (50, 26.3); launch the garden pollen into the AUDIENCE cell (the far cell, trim DuoAutos.D_GARDEN_TRIM_DEG).
  *   4. Back across to the Blue Wall flower (the audience flower's poses turned 90 deg): ram, one-cycle jostle, back out. No waits for the partner.
- *   5. To the REAR launch spot at the start wall (-61.5, 15.25, the Garden Side's spot) and launch the flower pollen into the REAR cell (the cell near the start; trim DuoAutos.C_REAR_TRIM_DEG).
- *   6. A second garden pass (angled pre-position, slow pickup, no squaring) to pick up loose pollen, skipped when it would start later than DuoAutos.C_GARDEN2_LATEST_START_SEC (22 s: the pass and the park need about 5.4 s).
- *   7. Park in the hive-side corner of the loading zone (26, 53.1) through the helper point (-36, 40), clear of the Blue Wall flower stand and the hive supports, ramp stowed (the pollen stay for the TeleOp).
- * The intake runs IN for the whole auto (AutonDuoBase). Estimated at about 25.7 s (design/duo-autos.md).
+ *   5. To the REAR launch spot at the start wall (-61.5, 15.25, the Garden Side's spot), wait DuoAutos.C_LAST_SALVO_WAIT_SEC (2 s, the flywheel keeps spinning), then launch the flower pollen into the REAR cell (the cell near the start; trim DuoAutos.C_REAR_TRIM_DEG).
+ *   6. The intake runs OUT from here to the end (Mechanisms.setManualOuttake, the TeleOp's left-trigger outtake), so it does not pick up game elements on the way to the park (user, 2026-11-07: nectar kept getting picked up). The second garden pass was dropped.
+ *   7. Park in the hive-side corner of the loading zone (26, 53.1) through the helper point (-36, 40), ramp stowed.
+ * The intake runs IN from the start (AutonDuoBase) until the last salvo. Estimated at about 25.7 s (design/duo-autos.md).
  */
 @Autonomous(name = "Auton - Cybugs", group = "Auto")
 public class AutonCybugs extends AutonDuoBase {
@@ -131,15 +132,15 @@ public class AutonCybugs extends AutonDuoBase {
                 k.note("To the rear launch spot at the start wall (intake still ON)"),
                 k.launchLeg("rear launch spot", drive, rearSpot),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
+                k.timed("wait before the last salvo", new SleepAction(DuoAutos.C_LAST_SALVO_WAIT_SEC)),   // the flywheel keeps spinning (user, 2026-11-07)
                 k.launch(drive, m, rearCell, blue, "flower pollen", DuoAutos.C_REAR_TRIM_DEG),
 
-                // 6. a second garden pass for loose pollen (no squaring), skipped when late so the park keeps its time
-                k.unlessLate("second garden pass", DuoAutos.C_GARDEN2_LATEST_START_SEC, new SequentialAction(
-                        k.note("Second garden pass: pre-position, slow pickup"),
-                        k.passLeg("garden pre-position 2", drive, gardenPre),
-                        k.slowLeg("garden pickup 2 (slow)", drive, gardenEnd))),
+                // 6. the last salvo is done: the intake runs OUT for the rest of the auto so it does not pick up game elements on the way to the park (user, 2026-11-07: nectar kept getting picked up)
+                k.note("Intake OUT: the last salvo is done, nothing more is picked up"),
+                m.forceIntakeIn(false),
+                new InstantAction(() -> m.setManualOuttake(true)),
 
-                // 7. the park in the hive-side corner of the loading zone through the helper point (a straight leg from the garden corner would run the front into the Blue Wall flower stand)
+                // 7. the park in the hive-side corner of the loading zone through the helper point (the Garden Side's park route)
                 k.note("Park"),
                 k.passLeg("park helper (clear of the Blue Wall flower and the hive supports)", drive, helper),
                 k.parkLeg("park (full power)", drive, park),

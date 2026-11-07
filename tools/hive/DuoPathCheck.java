@@ -109,11 +109,10 @@ public class DuoPathCheck {
         leg("D east helper -> wall flower pre", dEastHelper, wallPre, withFlowers);
         leg("D audience flower back-out -> park", flowerBack, gPark, withFlowers);
         leg("D audience launch spot -> park (audience flower skipped)", pAud, gPark, withFlowers);
-        // Cybugs (2026-11-07): the Blue Wall flower, the rear launch spot at the start wall, a second garden pass, then one park leg along the Blue Wall side
+        // Cybugs (2026-11-07): the Blue Wall flower, the rear launch spot at the start wall, then the park through the helper
         double[] cRear = {-61.5, 15.25, -4.0};
         leg("C wall flower back-out -> rear launch spot", new double[]{-26.3, 46.3, 90.0}, cRear, withFlowers);
-        leg("C rear launch spot -> garden pre-position", cRear, dGardenPre, withFlowers);
-        leg("C garden pickup 2 end -> park helper", dGardenEnd, helper, withFlowers);
+        leg("C rear launch spot -> park helper", cRear, helper, withFlowers);
         leg("C park helper -> park", helper, gPark, withFlowers);
 
         System.out.println(fails == 0 ? "All duo and Solo legs clear of the supports." : fails + " leg(s) touch a support.");
