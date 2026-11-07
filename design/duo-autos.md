@@ -64,6 +64,6 @@ Waits are absolute seconds from Start (a robot cannot see its partner): `F_FIRST
 
 ## Open points (tune from the first logged runs)
 - **G probably overruns 30 s.** The flower gather, the wait to 25 s, then the garden gather, the return and a second salvo do not fit if the wait is really 25 s. The first thing to look at in the `AUTO TIMING` lines: move the garden gather in front of the wait (it then happens while the partner tips), or cut it. Not done yet on purpose (nothing was optimized before it was timed).
-- Aim trims `*_TRIM_DEG` are 0 for all five launches (new launch spots).
+- Aim trims `*_TRIM_DEG` are 0 for the launches into the near cell. The launches into the audience cell from (50, 26.3) (the far cell from the rear-wall start, the solo auto's launch spot) are -4.5 deg (`P_WALL_TRIM_DEG`, `D_GARDEN_TRIM_DEG`, `D_WALL_TRIM_DEG`, from 2026-11-07), the solo auto's total trim there: its rear-cell salvos landed left by 1.5 deg more than its old -3.0 trim. Not yet seen on the robot in these autos.
 - If the partner misses pollen, the 8-pollen tip does not happen and the waits are wasted; the plan assumes every launch goes in.
 - The Blue Wall flower poses are a rotation of the audience flower's tuned numbers, not measured on the field.
