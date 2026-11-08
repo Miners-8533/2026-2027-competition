@@ -278,16 +278,18 @@ public final class GridRoutes {
                 for (int d = 0; d < STATES_PER_NODE; d++) {
                     int s = state(n, d);
                     if (!t.reachable(s)) continue;
-                    double dirAng = d == FINAL ? Math.atan2(t.goalY - nodeY(n), t.goalX - nodeX(n)) : dirAngle(d);
-                    double turn = axisTurn(heading, dirAng);
-                    cand.add(new double[]{hop / HOP_SPEED_IN_PER_S + turn * TURN_SEC_PER_RAD + t.cost[s], s, dirAng});
+                    // a cell's final leg is driven turned to the aim itself (GridFollower), so a start on it turns to the aim exactly
+                    boolean exact = d == FINAL && !Double.isNaN(t.aimHeading);
+                    double dirAng = exact ? t.aimHeading : d == FINAL ? Math.atan2(t.goalY - nodeY(n), t.goalX - nodeX(n)) : dirAngle(d);
+                    double turn = exact ? Math.abs(Rotation2d.normalize(dirAng - heading)) : axisTurn(heading, dirAng);
+                    cand.add(new double[]{hop / HOP_SPEED_IN_PER_S + turn * TURN_SEC_PER_RAD + t.cost[s], s, dirAng, exact ? 1 : 0});
                 }
             }
         }
         cand.sort((a, b) -> Double.compare(a[0], b[0]));
         for (double[] c : cand) {
             int s = (int) c[1], n = s / STATES_PER_NODE;
-            if (!startTurnClear(nodeX(n), nodeY(n), heading, c[2])) continue;
+            if (!startTurnClear(nodeX(n), nodeY(n), heading, c[2], c[3] > 0)) continue;
             return walk(t, s, x, y, c[0]);
         }
         return null;
@@ -297,11 +299,11 @@ public final class GridRoutes {
      * The turn at the start node from the robot's present heading onto the first leg (front or rear first, the nearer) touches no support and no flower (the robot's
      * footprint, no margin, every 7.5 deg): the tree checks the turns between its own legs, not this one (two Park Dash starts beside a bar grazed it in the simulation).
      */
-    static boolean startTurnClear(double nx, double ny, double heading, double dirAng) {
+    static boolean startTurnClear(double nx, double ny, double heading, double dirAng, boolean exact) {
         hopClear(nx, ny, heading, nx, ny);   // loads the obstacles
         double d = Rotation2d.normalize(dirAng - heading);
-        if (d > Math.PI / 2) d -= Math.PI;
-        if (d < -Math.PI / 2) d += Math.PI;
+        if (!exact && d > Math.PI / 2) d -= Math.PI;
+        if (!exact && d < -Math.PI / 2) d += Math.PI;
         int steps = (int) Math.ceil(Math.abs(d) / Math.toRadians(7.5));
         for (int k = 0; k <= steps; k++) {
             HiveRoute.Rect me = HiveRoute.poseRect(nx, ny, heading + d * k / Math.max(1, steps), footprintParams, START_TURN_MARGIN_IN);
@@ -331,6 +333,11 @@ public final class GridRoutes {
             }
         }
         return true;
+    }
+
+    /** The turn (rad) from either end of the axis along ang (the nearer to the aim) to the aim: the body turn onto a cell's final leg, which is driven turned to the aim. */
+    public static double aimTurn(double ang, double aim) {
+        return Math.min(Math.abs(Rotation2d.normalize(aim - ang)), Math.abs(Rotation2d.normalize(aim - ang - Math.PI)));
     }
 
     /** The smallest turn (rad, 0 to pi/2) from the heading to either end of the axis along direction ang (a leg may be driven front or rear first). */

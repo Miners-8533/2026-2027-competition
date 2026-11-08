@@ -37,6 +37,8 @@ public final class RouteGen {
     // the motion model the costs and speeds come from (the tuned simulation plant of 2026-11-06; regenerate after a refit)
     // (GridRoutes.V_MAX, GridRoutes.A_DEC, A_GRIP and the allowance are in GridRoutes, shared with the robot); a direction change also costs CORNER_SEC, so routes keep to few, long legs
     static double A_ACC = 160.0, TURN_SEC_PER_RAD = 0.15, AIM_SEC_PER_RAD = 0.25, CORNER_SEC = 0.06;
+    /** A cell's final leg is driven turned to the aim, partly sideways: its time is costed at this share of the aligned speed (strafe 0.74 of forward, 2026-11-07). */
+    static double UNALIGNED_RATIO = 0.8;
     static final double WALL = 71.0;
 
     static final class Box {
@@ -158,7 +160,9 @@ public final class RouteGen {
                 }
             }
         }
-        // final legs: the sweep to the goal (no box past it), the real footprint at the goal, and the turn onto the aim
+        // final legs: the sweep to the goal (no box past it) and the real footprint at the goal; for a cell the robot drives the leg ALREADY TURNED TO THE AIM
+        // (GridFollower: it turns at the leg's start, so the lock does not spin it near a flower at speed), so its real footprint at the aim is checked all along
+        // the leg (every 2 in, the allowance there; found 2026-11-07: the early lock turned a robot 180 deg over the last 35 in into the audience flower)
         double finalCostBase = GridRoutes.V_MAX / (2.0 * GridRoutes.A_DEC);
         PriorityQueue<double[]> pq = new PriorityQueue<>((a, b) -> Double.compare(a[0], b[0]));
         for (int n = 0; n < NN; n++) {
@@ -174,13 +178,14 @@ public final class RouteGen {
             if (Double.isNaN(aim)) {
                 ok = clear(footprint(gx, gy, dir, gg)) || clear(footprint(gx, gy, dir + Math.PI, gg));
             } else {
-                // the end of the leg that leads is the one nearer the aim (GridFollower); the robot then turns onto the aim at the goal
-                double h0 = Math.abs(Rotation2d.normalize(dir - aim)) <= Math.abs(Rotation2d.normalize(dir + Math.PI - aim)) ? dir : dir + Math.PI;
-                double turn = Rotation2d.normalize(aim - h0);
                 ok = true;
-                int steps = (int) Math.ceil(Math.abs(turn) / Math.toRadians(7.5));
-                for (int k = 0; k <= steps && ok; k++) ok = clear(footprint(gx, gy, h0 + turn * k / Math.max(1, steps), gg));
-                turnCost = Math.abs(turn) * AIM_SEC_PER_RAD;
+                int steps = Math.max(1, (int) Math.ceil(len / 2.0));
+                for (int k = 0; k <= steps && ok; k++) {
+                    double px = x + (gx - x) * k / steps, py = y + (gy - y) * k / steps;
+                    ok = clear(footprint(px, py, aim, k == steps ? gg : MARGIN_IN + allowance(px, py, gx, gy)));
+                }
+                // the leg is driven sideways to its direction as much as the aim says: slower than aligned (UNALIGNED_RATIO)
+                turnCost = len / GridRoutes.V_MAX * (1.0 / UNALIGNED_RATIO - 1.0);
             }
             if (!ok) continue;
             int s = n * S + GridRoutes.FINAL;
@@ -198,6 +203,8 @@ public final class RouteGen {
             done[s2] = true;
             int m = s2 / S, d2 = s2 % S;
             double ang2 = d2 == GridRoutes.FINAL ? Math.atan2(gy - GridRoutes.nodeY(m), gx - GridRoutes.nodeX(m)) : GridRoutes.dirAngle(d2);
+            // the body's heading on the next leg: its axis, or the aim on a cell's final leg
+            boolean toAim = d2 == GridRoutes.FINAL && !Double.isNaN(aim);
             for (int d = 0; d < ND; d++) {
                 int[] st = GridRoutes.DIRS[d];
                 int i = m / N - st[0], j = m % N - st[1];
@@ -206,10 +213,11 @@ public final class RouteGen {
                 if (done[s] || !edge[s]) continue;
                 double ang1 = GridRoutes.dirAngle(d);
                 int key = (m * S + d) * S + d2;
-                if (turnOk[key] == 0) turnOk[key] = (byte) (turnClear(m, ang1, ang2, MARGIN_IN + e[m]) ? 1 : 2);
+                if (turnOk[key] == 0) turnOk[key] = (byte) ((toAim ? aimTurnClear(m, ang1, aim, MARGIN_IN + e[m]) : turnClear(m, ang1, ang2, MARGIN_IN + e[m])) ? 1 : 2);
                 if (turnOk[key] != 1) continue;
                 double theta = Rotation2d.normalize(ang2 - ang1);
-                double c = edgeLen[s] / GridRoutes.V_MAX + cornerCost(theta, e[m]) + GridRoutes.axisTurn(ang1, ang2) * TURN_SEC_PER_RAD + cost[s2];
+                double bodyTurn = toAim ? GridRoutes.aimTurn(ang1, aim) : GridRoutes.axisTurn(ang1, ang2);
+                double c = edgeLen[s] / GridRoutes.V_MAX + cornerCost(theta, e[m]) + bodyTurn * TURN_SEC_PER_RAD + cost[s2];
                 if (c < cost[s]) {
                     cost[s] = (float) c;
                     next[s] = s2;
@@ -257,6 +265,16 @@ public final class RouteGen {
         }
         r.ms = (System.nanoTime() - t0) / 1e6;
         return r;
+    }
+
+    /** The leg's heading is either end of its axis: the heading-symmetric box at node m turning from the axis end nearer the aim to the aim (steps of at most 7.5 deg). */
+    static boolean aimTurnClear(int m, double ang1, double aim, double g) {
+        double x = GridRoutes.nodeX(m), y = GridRoutes.nodeY(m), l2 = L2();
+        double h0 = Math.abs(Rotation2d.normalize(ang1 - aim)) <= Math.abs(Rotation2d.normalize(ang1 + Math.PI - aim)) ? ang1 : ang1 + Math.PI;
+        double d = Rotation2d.normalize(aim - h0);
+        int steps = (int) Math.ceil(Math.abs(d) / Math.toRadians(7.5));
+        for (int k = 1; k <= steps; k++) if (!clear(new Box(x, y, l2 + g, WIDTH / 2.0 + g, h0 + d * k / steps))) return false;
+        return true;
     }
 
     /** The heading-symmetric box at node m is clear at every body heading on the short way between the two legs' axes (steps of at most 7.5 deg). */

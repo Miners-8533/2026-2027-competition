@@ -99,6 +99,43 @@ public final class DashSim {
         }
     }
 
+    /**
+     * The WHEEL model (tools/dash/fit_drivetest.py, fitted 2026-11-07 on the Drive Characterization run 100246): per wheel a target speed G (V / 12) sign(p) max(0, |p| - d)
+     * from its power p and the battery's terminal voltage V; a wheel at zero power BRAKES (du/dt = -u / tau_b - a_b sign u, a_b per side), one driven slower than it runs
+     * COASTS (du/dt = -a_c sign u - (u - target) / tau_c), otherwise it DRIVES (du/dt = (target - u) / tau_u); the wheel speeds and accelerations map to the body through the
+     * mecanum kinematics (strafe ratio s, kw in of wheel travel per radian); the translation accel is at most A_up while it speeds the robot up and A_down while it slows
+     * it; the momentum keeps its direction in the field. The terminal voltage SAGS: V = V_rest - SAG_K * sum |p V - 12 u / G| (fitted on the same run, 0.34 V rms).
+     */
+    static final class Wheel {
+        /** fit_drivetest.py on 100246_drivetest.log with the coast held at test 10's measurement (FIT_FIX="a_c=37,tau_c=5") and YAW_GRIP 0.3; replay gate 94 of 137 at 11 to 11.5 V rest. */
+        static final double[] FIT_1107 = {95.8803833887064, 94.08262361894747, 96.40245053060241, 93.99703434148485, 0.09501618404734499, 0.16656227682109215, 0.11907179764025849, 133.136080605615, 99.80753268847162, 37.000000999999, 4.999999000000049, 0.7402486835724763, 10.493716970793791, 148.18811415926464, 184.3361018137486};
+        static final double SAG_K = 0.0551;
+        final String name;
+        final double[] g = new double[4];
+        final double d, tauU, tauB, aBL, aBR, aC, tauC, s, kw, aUp, aDown;
+
+        Wheel(String name, double[] th) {
+            this.name = name;
+            System.arraycopy(th, 0, g, 0, 4);
+            d = th[4];
+            tauU = th[5];
+            tauB = th[6];
+            aBL = th[7];
+            aBR = th[8];
+            aC = th[9];
+            tauC = th[10];
+            s = th[11];
+            kw = th[12];
+            aUp = th[13];
+            aDown = th[14];
+        }
+
+        String describe() {
+            return String.format(Locale.US, "wheel model %s: gains %.1f %.1f %.1f %.1f (lf lb rb rf) above %.3f, rise %.3f s, brake %.3f s + %.0f / %.0f, coast %.0f + 1/%.2f s, strafe %.3f, kw %.2f, accel %.0f up / %.0f down",
+                    name, g[0], g[1], g[2], g[3], d, tauU, tauB, aBL, aBR, aC, tauC, s, kw, aUp, aDown);
+        }
+    }
+
     /** A float64 vector from a .npy file (the format numpy.save writes). */
     static double[] readNpy(Path p) throws IOException {
         byte[] b = Files.readAllBytes(p);
@@ -140,6 +177,11 @@ public final class DashSim {
         double wallX = 0.0, wallY = 0.0;
         /** Body-frame velocity: forward, left (in/s), turn (rad/s). */
         final double[] v = new double[3];
+        /** Not null: the wheel model instead of the per-axis one; the volts given to step() are then the REST volts when sag is on (the terminal volts otherwise). */
+        Wheel wheel;
+        boolean sag = true;
+        /** The wheel model's terminal voltage in the last step (for a trace). */
+        double lastVolts = Double.NaN;
 
         Plant(Model m, boolean fieldFrame, double accelMax, double x, double y, double h, double vf, double vl, double w) {
             this.m = m;
@@ -158,8 +200,12 @@ public final class DashSim {
             walls();
         }
 
-        /** One step without the walls (identify_drive.py's model). */
+        /** One step without the walls (identify_drive.py's model, or the wheel model). */
         void stepFree(double cf, double cl, double ct, double volts, double d) {
+            if (wheel != null) {
+                stepWheel(cf, cl, ct, volts, d);
+                return;
+            }
             double lf = cf - cl - ct, lb = cf + cl - ct, rb = cf - cl + ct, rf = cf + cl + ct;
             double mx = Math.max(1.0, Math.max(Math.max(Math.abs(lf), Math.abs(lb)), Math.max(Math.abs(rb), Math.abs(rf))));
             double[] c = {cf / mx, cl / mx, ct / mx};
@@ -202,6 +248,58 @@ public final class DashSim {
             y += (vm0 * Math.sin(hmid) + vm1 * Math.cos(hmid)) * d;
             h += vm2 * d;
             System.arraycopy(vn, 0, v, 0, 3);
+        }
+
+        /** One step of the wheel model (fit_drivetest.py's sim_wheel, explicit Euler, the caller's step of at most 5 ms). */
+        void stepWheel(double cf, double cl, double ct, double volts, double d) {
+            Wheel m = wheel;
+            double[] p = {cf - cl - ct, cf + cl - ct, cf - cl + ct, cf + cl + ct};
+            double mx = Math.max(1.0, Math.max(Math.max(Math.abs(p[0]), Math.abs(p[1])), Math.max(Math.abs(p[2]), Math.abs(p[3]))));
+            for (int i = 0; i < 4; i++) p[i] /= mx;
+            double vf = v[0], vl = v[1], w = v[2];
+            double[] u = {vf - vl / m.s - m.kw * w, vf + vl / m.s - m.kw * w, vf - vl / m.s + m.kw * w, vf + vl / m.s + m.kw * w};
+            double vt = volts;
+            if (sag) {
+                for (int it = 0; it < 3; it++) {
+                    double sum = 0.0;
+                    for (int i = 0; i < 4; i++) sum += Math.abs(p[i] * vt - 12.0 * u[i] / m.g[i]);
+                    vt = Math.max(6.0, volts - Wheel.SAG_K * sum);
+                }
+            }
+            lastVolts = vt;
+            double[] du = new double[4];
+            for (int i = 0; i < 4; i++) {
+                double tgt = m.g[i] * (vt / 12.0) * Math.signum(p[i]) * Math.max(0.0, Math.abs(p[i]) - m.d);
+                if (Math.abs(p[i]) < 0.005) {
+                    double ab = i < 2 ? m.aBL : m.aBR;
+                    du[i] = -u[i] / m.tauB - ab * Math.signum(u[i]);
+                    if (Math.abs(du[i] * d) > Math.abs(u[i])) du[i] = -u[i] / d;   // stops at zero
+                } else if (p[i] * u[i] > 0 && Math.abs(tgt) < Math.abs(u[i])) {
+                    du[i] = -m.aC * Math.signum(u[i]) - (u[i] - tgt) / m.tauC;
+                    if (Math.abs(du[i] * d) > Math.abs(u[i] - tgt)) du[i] = -(u[i] - tgt) / d;   // does not drop below the target
+                } else {
+                    du[i] = (tgt - u[i]) / m.tauU;
+                }
+            }
+            double af = (du[0] + du[1] + du[2] + du[3]) / 4.0;
+            double al = m.s * (-du[0] + du[1] - du[2] + du[3]) / 4.0;
+            double aw = (-du[0] - du[1] + du[2] + du[3]) / (4.0 * m.kw);
+            double mag = Math.hypot(af, al), lim = af * vf + al * vl >= 0.0 ? m.aUp : m.aDown;
+            // YAW_GRIP > 0: the turn uses the same tires, so the translation gets what is left of the limit after |aw| kw YAW_GRIP (a trial, 2026-11-07)
+            if (YAW_GRIP > 0.0) lim = Math.max(0.3 * lim, lim - YAW_GRIP * Math.abs(aw) * m.kw);
+            if (mag > lim) {
+                af *= lim / mag;
+                al *= lim / mag;
+            }
+            double nf = vf + (af + w * vl) * d, nl = vl + (al - w * vf) * d, nw = w + aw * d;
+            double hm = h + 0.5 * (w + nw) * d * 0.5;
+            double mf = 0.5 * (vf + nf), ml = 0.5 * (vl + nl);
+            x += (mf * Math.cos(hm) - ml * Math.sin(hm)) * d;
+            y += (mf * Math.sin(hm) + ml * Math.cos(hm)) * d;
+            h += 0.5 * (w + nw) * d;
+            v[0] = nf;
+            v[1] = nl;
+            v[2] = nw;
         }
 
         /** ROBOT_1's corners at the current pose, x0, y0, x1, y1, ... */
@@ -260,6 +358,10 @@ public final class DashSim {
         Plant p = new Plant(o.model, o.fieldFrame, o.accelMax, x, y, h, vf, vl, w);
         p.turnBoost = o.turnBoost;
         p.gainScale = o.gainScale.clone();
+        if (o.wheel != null) {
+            p.wheel = o.wheel;
+            p.sag = o.sag;
+        }
         return p;
     }
 
@@ -801,6 +903,15 @@ public final class DashSim {
         Path tracksDir = null;
         /** True: the real HiveDash and ParkDash run with GRID_ROUTES on (after the defaults or a log's CONFIG values). */
         boolean grid = false;
+        /** Not null: the wheel model (--plant wheel); the volts are then rest volts when sag is on. */
+        Wheel wheel = null;
+        boolean sag = true;
+
+        String describe() {
+            return wheel != null ? wheel.describe() + (sag ? "; battery sag on, rest " : "; no sag, terminal ") + (Double.isNaN(fixedVolts) ? "volts from the log" : fixedVolts + " V")
+                    : model.describe() + (fieldFrame ? "; field frame" : "") + (accelMax > 0 ? "; grip " + accelMax : "") + (turnBoost != 0 ? "; turn boost " + turnBoost : "")
+                    + (Double.isNaN(fixedVolts) ? "" : "; " + fixedVolts + " V");
+        }
         /** survey: the red alliance (the same starts turned 180 deg, the red cells and corners). */
         boolean red = false;
     }
@@ -1136,7 +1247,7 @@ public final class DashSim {
 
     static void replay(Options o) throws Exception {
         List<LogData> logs = loadLogs();
-        System.out.println(o.model.describe());
+        System.out.println(o.describe());
         System.out.printf(Locale.US, "loop %s, Pinpoint delay %.0f ms, noise %.2f in, velocity lag in the %s frame, grip limit %s, logged route forced in when today's planner differs: %s%n",
                 Double.isNaN(o.loopMs) ? "as logged" : o.loopMs + " ms", o.delayMs, o.noiseIn, o.fieldFrame ? "field" : "body", o.accelMax > 0 ? o.accelMax + " in/s^2" : "none", o.force ? "yes" : "no");
         System.out.printf(Locale.US, "plant extras: turn boost %.2f, gain scales %s, battery %s%n", o.turnBoost, Arrays.toString(o.gainScale), Double.isNaN(o.fixedVolts) ? "as logged" : o.fixedVolts + " V");
@@ -1307,7 +1418,7 @@ public final class DashSim {
                 wins.add(w);
             }
         }
-        System.out.println(o.model.describe() + (o.fieldFrame ? "; lag in the field frame" : "") + (o.accelMax > 0 ? "; grip limit " + o.accelMax + " in/s^2" : ""));
+        System.out.println(o.describe());
         System.out.printf(Locale.US, "windows: %d (%s)%n", wins.size(), dashOnly ? "dash rows only" : "all TeleOp driving rows");
         double se = 0.0, base = 0.0;
         long cnt = 0;
@@ -1520,7 +1631,7 @@ public final class DashSim {
         Map<String, GridRoutes.Table> tables = new HashMap<>();
         if (grid) {
             // the tables come from the GENERATION model (always the tuned plant, as RouteGen would have it); the dashes are driven on o's plant (another plant tests robustness)
-            calibrate(tuned(o), true);
+            calibrateAll(o);
             for (RouteGen.Result g : RouteGen.buildAll()) tables.put(g.table.name, RouteGen.quantize(g.table));
             System.out.println("GRID planner (GridRoutes + GridFollower), trees from RouteGen: E " + GridRoutes.E_MAX + " in tapering to " + GridRoutes.E_GOAL
                     + ", grip " + GridRoutes.A_GRIP + " in/s^2, V_MAX " + GridRoutes.V_MAX + " in/s");
@@ -1533,7 +1644,7 @@ public final class DashSim {
         double[] headings = {0, 90, 180, 270};
         HiveRoute.Params p = robotParams();
         Files.createDirectories(csv.toAbsolutePath().getParent());
-        System.out.println(o.model.describe() + (o.fieldFrame ? "; field frame" : "") + (o.accelMax > 0 ? "; grip " + o.accelMax : "") + "; starts every " + pitch + " in, 4 headings");
+        System.out.println(o.describe() + "; starts every " + pitch + " in, 4 headings");
         try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(csv))) {
             w.println("target,x,y,heading_deg,result,route,time_s,support_clear_in,flower_clear_in,touched");
             for (String target : targets) {
@@ -1671,7 +1782,7 @@ public final class DashSim {
             }
             t += dt;
         }
-        System.out.println(o.model.describe() + (o.fieldFrame ? "; field frame" : "") + (o.accelMax > 0 ? "; grip " + o.accelMax : "") + "; loop " + Math.round(dt * 1000) + " ms");
+        System.out.println(o.describe() + "; loop " + Math.round(dt * 1000) + " ms");
         System.out.printf(Locale.US, "%-4s %-62s %7s %7s%n", "test", "name", "starts", "driving");
         for (int i = 1; i <= tests.size(); i++) System.out.printf(Locale.US, "%-4d %-62s %6.1fs %6.2fs%n", i, tests.get(i - 1).name, testStart[i], runTime[i]);
         for (RunLog.Event e : RunLog.EVENTS) if (e.text.contains("GEOFENCE") || e.text.contains("not reached") || e.text.contains("all done")) System.out.printf(Locale.US, "  %.1f s: %s%n", e.t, e.text);
@@ -1714,6 +1825,39 @@ public final class DashSim {
         return a[lo] + (pos - lo) * (a[hi] - a[lo]);
     }
 
+    /** The wheel plant's rest volts the corner speeds are calibrated at (a used battery, the default, a fresh one). */
+    static final double[] GEN_WHEEL_VOLTS = {11.5, 12.8, 13.4};
+
+    /**
+     * The corner speed table for the generation: calibrated on the tuned plant (the 11-05 and 11-06 robot, as replayed) and on the wheel plant (the 11-07 drive test) at
+     * GEN_WHEEL_VOLTS, the slowest of them at each angle; sets GridRoutes.CORNER_SPEED and prints each.
+     */
+    static void calibrateAll(Options o) throws IOException {
+        List<Options> plants = new ArrayList<>();
+        plants.add(tuned(o));
+        for (double v : GEN_WHEEL_VOLTS) {
+            Options w = new Options();
+            w.model = Model.of("dash");
+            w.wheel = new Wheel("fit 2026-11-07", Wheel.FIT_1107);
+            w.fixedVolts = v;
+            w.noiseIn = o.noiseIn;
+            w.seed = o.seed;
+            plants.add(w);
+        }
+        double[] min = null;
+        for (Options p : plants) {
+            System.out.println("calibrating on " + p.describe());
+            calibrate(p, true);
+            double[] c = GridRoutes.CORNER_SPEED.clone();
+            if (min == null) min = c;
+            else for (int k = 0; k < c.length; k++) min[k] = Math.min(min[k], c[k]);
+        }
+        GridRoutes.CORNER_SPEED = min;
+        StringBuilder b = new StringBuilder("the slowest per angle: {");
+        for (int k = 0; k < min.length; k++) b.append(k == 0 ? "" : ", ").append((int) min[k]);
+        System.out.println(b.append("}"));
+    }
+
     /** The tuned plant with o's loop, noise and seed: the plant the routes are generated and calibrated with. */
     static Options tuned(Options o) throws IOException {
         Options g = new Options();
@@ -1729,6 +1873,10 @@ public final class DashSim {
 
     /** The "tuned" plant (2026-11-06): grip limit in/s^2, turn boost, fixed battery volts; with the dash fit and the lag in the field frame. */
     static final double TUNED_ACCEL = 150.0, TUNED_TURN_BOOST = 1.5, TUNED_VOLTS = 12.5;
+    /** The wheel plant's default rest volts (a battery partly used; the drive test's fresh battery rested at 13.4 V, the TeleOp logs of 11-05 and 11-06 read 11.8 to 12.6). */
+    static final double WHEEL_REST_VOLTS = 12.8;
+    /** The wheel plant: the turn uses YAW_GRIP |aw| kw of the translation limit (0.3: the dash replay and the drive test fit both prefer it to 0). */
+    static double YAW_GRIP = 0.3;
 
     public static void main(String[] args) throws Exception {
         Options o = new Options();
@@ -1750,6 +1898,12 @@ public final class DashSim {
                 case "--accel": o.accelMax = Double.parseDouble(args[++i]); o.fieldFrame = true; break;
                 case "--plant":
                     // fitted: identify_drive.py's model as it is; tuned: the dash fit plus the three extras chosen on the 11-05 logs and checked on the 11-06 logs (design/dash-planner-grid.md)
+                    if (args[i + 1].equals("wheel")) {
+                        i++;
+                        o.wheel = new Wheel("fit 2026-11-07", Wheel.FIT_1107);
+                        o.fixedVolts = WHEEL_REST_VOLTS;
+                        break;
+                    }
                     if (args[++i].equals("tuned")) {
                         modelArg = "dash";
                         o.accelMax = TUNED_ACCEL;
@@ -1764,6 +1918,19 @@ public final class DashSim {
                     }
                     break;
                 case "--turn-boost": o.turnBoost = Double.parseDouble(args[++i]); break;
+                case "--wheel-model": o.wheel = new Wheel(args[i + 1], readNpy(Paths.get(args[++i]))); break;
+                case "--no-sag": o.sag = false; break;
+                case "--yaw-grip": YAW_GRIP = Double.parseDouble(args[++i]); break;
+                case "--wheel-accel": {
+                    // scales the wheel model's two translation limits (A_up, A_down), for the replay's corner swings
+                    double f = Double.parseDouble(args[++i]);
+                    double[] th = Wheel.FIT_1107.clone();
+                    th[13] *= f;
+                    th[14] *= f;
+                    o.wheel = new Wheel("fit 2026-11-07, accel x " + f, th);
+                    break;
+                }
+                case "--log-volts": o.fixedVolts = Double.NaN; break;
                 case "--volts": o.fixedVolts = Double.parseDouble(args[++i]); break;
                 case "--gains": {
                     String[] g = args[++i].split(",");
@@ -1800,7 +1967,7 @@ public final class DashSim {
                 restoreDefaults();
                 Case c = freeCase(Double.parseDouble(rest.get(1)), Double.parseDouble(rest.get(2)), Double.parseDouble(rest.get(3)), rest.get(4), false);
                 GridRoutes.Table tb = null;
-                calibrate(tuned(o), false);
+                calibrateAll(o);
                 for (RouteGen.Result g : RouteGen.buildAll()) if (g.table.name.equals(c.target)) tb = RouteGen.quantize(g.table);
                 Result r = simulateGrid(c, o, tb);
                 if (r.route != null) for (int i = 0; i < r.route.xs.length; i++) System.out.printf(Locale.US, "  waypoint %d (%.1f, %.1f) speed limit %s%n", i, r.route.xs[i], r.route.ys[i],
@@ -1826,16 +1993,16 @@ public final class DashSim {
                 break;
             }
             case "gentables": {
-                // the one command of design decision 4: calibrate the corner speeds on the tuned plant, build the four trees, write GridTables.java
-                calibrate(tuned(o), true);
+                // the one command of design decision 4: calibrate the corner speeds on every generation plant (the slowest per angle), build the four trees, write GridTables.java
+                calibrateAll(o);
                 List<RouteGen.Result> rs = RouteGen.buildAll();
                 for (RouteGen.Result g : rs) {
                     System.out.printf(Locale.US, "%-14s goal (%.1f, %.1f): %d states reach the goal from %d nodes; %.0f ms%n", g.table.name, g.table.goalX, g.table.goalY,
                             g.reachableStates, g.nodesReachable, g.ms);
                 }
                 Path out = Paths.get("TeamCode/src/main/java/org/firstinspires/ftc/teamcode/drive/GridTables.java");
-                RouteGen.writeSource(rs, out, "tools/dash/run-sim.cmd gentables on " + java.time.LocalDate.now() + " (corner speeds calibrated on the tuned plant: field frame, grip "
-                        + TUNED_ACCEL + " in/s^2, turn boost " + TUNED_TURN_BOOST + ", " + TUNED_VOLTS + " V)");
+                RouteGen.writeSource(rs, out, "tools/dash/run-sim.cmd gentables on " + java.time.LocalDate.now() + " (corner speeds: the slowest per angle of the tuned plant and the wheel plant at "
+                        + Arrays.toString(GEN_WHEEL_VOLTS) + " V rest)");
                 System.out.println("wrote " + out + " (" + Files.size(out) + " bytes); run the simulation again (it recompiles) to use it, e.g. survey 12 --grid");
                 break;
             }

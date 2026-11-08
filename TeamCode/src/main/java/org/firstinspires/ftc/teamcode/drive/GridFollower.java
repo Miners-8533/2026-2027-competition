@@ -9,8 +9,9 @@ import org.firstinspires.ftc.teamcode.math.Rotation2d;
  * whichever needs less turning; on the last leg the one nearer the aim), at the speed the route allows: on a leg the target speed is
  * min(V_MAX, sqrt(v_end^2 + 2 A_DEC d)), d the distance to the leg's end and v_end the most speed allowed there (the table's corner and stop limits), turned into
  * a power by the drive model's feedforward (FF_DEAD + v / FF_GAIN) plus a little feedback on the measured speed along the leg. The last leg is the Hive Dash's:
- * straight at the goal with ALONG_KP, capped at APPROACH_POWER near it, and the target lock takes the heading within LOCK_RADIUS_IN (EARLY_LOCK_RADIUS_IN outside
- * the hive). The first leg is the hop from the robot to the route's start node; when it is short the robot holds the heading it had on it.
+ * straight at the goal with ALONG_KP, capped at APPROACH_POWER near it; for a cell the robot drives it TURNED TO THE AIM (it turns at the leg's start, slowed by the
+ * heading error; the routes were checked that way), and the target lock takes the heading within LOCK_RADIUS_IN. (The Hive Dash's early lock is not used: it spun
+ * the robot up to 180 deg at speed over the last 35 in, into the audience flower in the simulation, 2026-11-07.) The first leg is the hop from the robot to the route's start node; when it is short the robot holds the heading it had on it.
  *
  * Pure logic, field frame (the route must already be in the field frame: {@link #toField}); the caller applies the output like HiveDash's.
  */
@@ -29,7 +30,7 @@ public final class GridFollower {
     public static double PASS_TOL_IN = 3.0, HOP_KEEP_HEADING_IN = 12.0;
     /** The last leg (the Hive Dash's values). */
     public static double ALONG_KP = 0.05, MIN_FINAL_POWER = 0.08, APPROACH_POWER = 0.5, APPROACH_RADIUS_IN = 32.0;
-    public static double LOCK_RADIUS_IN = 20.0, EARLY_LOCK_RADIUS_IN = 32.0, EARLY_LOCK_MIN_ABS_X = 36.0;
+    public static double LOCK_RADIUS_IN = 20.0;
 
     public static final class Output {
         public boolean translation, turnActive, lockWanted, arrived;
@@ -95,7 +96,11 @@ public final class GridFollower {
             legHeading = heading;   // a short hop: hold the heading the robot has
             return;
         }
-        double ref = last && aim ? aimHeading : heading;
+        if (last && aim) {
+            legHeading = aimHeading;   // a cell's last leg: turned to the aim, the leg driven partly sideways
+            return;
+        }
+        double ref = heading;
         double front = dir, rear = dir + Math.PI;
         legHeading = Math.abs(Rotation2d.normalize(front - ref)) <= Math.abs(Rotation2d.normalize(rear - ref)) ? front : rear;
     }
@@ -156,7 +161,9 @@ public final class GridFollower {
             vfy = (gy - y) / d * v;
         } else {
             double vEnd = Math.min(GridRoutes.V_MAX, speeds[leg + 1]);
-            double vTarget = Math.min(GridRoutes.V_MAX, Math.sqrt(vEnd * vEnd + 2.0 * GridRoutes.A_DEC * Math.max(0.0, remaining)));
+            // the speed must be down to vEnd where the next leg starts, PASS_TOL_IN before the corner (braking for the corner point itself entered corners
+            // at the speed allowed 3 in out: 28 in/s into a corner limited to 10, found on the wheel plant 2026-11-07)
+            double vTarget = Math.min(GridRoutes.V_MAX, Math.sqrt(vEnd * vEnd + 2.0 * GridRoutes.A_DEC * Math.max(0.0, remaining - PASS_TOL_IN)));
             double vAlong = vx * ux + vy * uy;
             double p = vTarget <= 0.5 || vAlong > vTarget + BRAKE_OVER_IN_PER_S ? 0.0 : FF_DEAD + vTarget / FF_GAIN + SPEED_KP * (vTarget - vAlong);
             p = clamp(p, 0.0, MAX_POWER);
@@ -167,7 +174,7 @@ public final class GridFollower {
         }
         double fwd = vfx * Math.cos(h) + vfy * Math.sin(h);
         double left = -vfx * Math.sin(h) + vfy * Math.cos(h);
-        boolean inLock = aim && (goalDist <= LOCK_RADIUS_IN || (last && EARLY_LOCK_RADIUS_IN > 0.0 && goalDist <= EARLY_LOCK_RADIUS_IN && Math.abs(x) >= EARLY_LOCK_MIN_ABS_X));
+        boolean inLock = aim && last && goalDist <= LOCK_RADIUS_IN;
         if (inLock) {
             out.lockWanted = true;
         } else {
