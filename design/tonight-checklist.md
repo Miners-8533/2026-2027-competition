@@ -135,6 +135,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 
 ## 8r. Grid routes (T28); the tables were regenerated with the drive test's model on 2026-11-07
 - [ ] Note: on a cell the robot turns to face the cell at the start of the LAST leg and drives it sideways; that is intended
+- [ ] Watch for a buzz or twitch at the end of a grid dash or while it holds a line: that is the new static friction push (`GridFollower.KS_FORWARD` / `KS_STRAFE` / `KS_TURN`); lower them on the Dashboard if it shows
 - [ ] TeleOp init: no `grid routes` problem in the log; Dashboard: `HiveDash.GRID_ROUTES` on, `HiveDash.DRY_RUN` on: hold D-pad left / right from a few starts, the overlay shows a `GRID route` clear of the supports and flowers
 - [ ] `DRY_RUN` off: Hive Dash to each cell from 4 or 5 starts, blue and red; then `ParkDash.GRID_ROUTES` on and Park Dash to both corners
 - [ ] Push the robot off its route once: it brakes (`OFF ROUTE`) and goes on from where it is (`new route`)

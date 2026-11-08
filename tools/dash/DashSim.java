@@ -100,39 +100,71 @@ public final class DashSim {
     }
 
     /**
-     * The WHEEL model (tools/dash/fit_drivetest.py, fitted 2026-11-07 on the Drive Characterization run 100246): per wheel a target speed G (V / 12) sign(p) max(0, |p| - d)
-     * from its power p and the battery's terminal voltage V; a wheel at zero power BRAKES (du/dt = -u / tau_b - a_b sign u, a_b per side), one driven slower than it runs
-     * COASTS (du/dt = -a_c sign u - (u - target) / tau_c), otherwise it DRIVES (du/dt = (target - u) / tau_u); the wheel speeds and accelerations map to the body through the
-     * mecanum kinematics (strafe ratio s, kw in of wheel travel per radian); the translation accel is at most A_up while it speeds the robot up and A_down while it slows
-     * it; the momentum keeps its direction in the field. The terminal voltage SAGS: V = V_rest - SAG_K * sum |p V - 12 u / G| (fitted on the same run, 0.34 V rms).
+     * The WHEEL model (tools/dash/fit_drivetest.py, fitted 2026-11-07 on the Drive Characterization run 100246). The wheel powers p are split into the body command
+     * (forward, strafe, turn); each axis loses its DEAD ZONE (d_f, d_t; the strafe's d_l fading out by vFade in/s of body speed, by default never); the wheel powers
+     * q of the translation set each wheel's target speed g_i (V / 12) (sign(q) F(|q|) +- kw K_t turn), F a speed curve through KNOTS (the forward steps' steady speeds,
+     * measured), the turn linear (K_t rad/s per unit, the spins' steady rates); a wheel
+     * at zero power BRAKES (du/dt = -u / tau_b - a_b sign u, a_b per side), one driven slower than it runs COASTS (du/dt = -a_c sign u - (u - target) / tau_c, held at
+     * test 10's measurement), otherwise it DRIVES (du/dt = (target - u) / tau_u); the wheel speeds and accelerations map to the body through the mecanum kinematics
+     * (strafe ratio s, kw in of wheel travel per radian; the sideways response is sa times slower); the translation accel is at most A_up while it speeds the robot up
+     * and A_down while it slows it, less YAW_GRIP |aw| kw; the momentum keeps its direction in the field. The terminal voltage SAGS: V = V_rest - SAG_K sum |p V - 12 u / 95 g|.
      */
     static final class Wheel {
-        /** fit_drivetest.py on 100246_drivetest.log with the coast held at test 10's measurement (FIT_FIX="a_c=37,tau_c=5") and YAW_GRIP 0.3; replay gate 94 of 137 at 11 to 11.5 V rest. */
-        static final double[] FIT_1107 = {95.8803833887064, 94.08262361894747, 96.40245053060241, 93.99703434148485, 0.09501618404734499, 0.16656227682109215, 0.11907179764025849, 133.136080605615, 99.80753268847162, 37.000000999999, 4.999999000000049, 0.7402486835724763, 10.493716970793791, 148.18811415926464, 184.3361018137486};
+        /**
+         * fit_drivetest.py (2026-11-07, second fit) on 100246_drivetest.log: the forward dead zone and speed curve, the turn line and the coast held at their
+         * measurements, the strafe dead zone always on, YAW_GRIP 0.3. Order: g_lf g_lb g_rb F15 F3 F6 F85 F10 d_f d_l d_t tau_u tau_b a_bL a_bR a_c tau_c s kw
+         * A_up A_down sa K_t.
+         */
+        static final double[] FIT_1107 = {1.008013374428489, 0.9845810994269959, 1.017590772636981, 15.300000999999998, 30.599999000000004, 59.79999900000001, 78.09999900000001, 89.49999900000002, 0.07200099999999536, 0.12537721125266632, 0.09799900000000002, 0.16925386279773574, 0.1043207507885011, 70.66926985210422, 43.14545003195509, 37.00000099999999, 4.999999000000001, 0.8027209798466017, 8.672628920339566, 146.52146254035307, 185.4975331216584, 0.9037763564867982, 9.000000999999997};
+        static final double[] KNOTS = {0.0, 0.15, 0.3, 0.6, 0.85, 1.0};
         static final double SAG_K = 0.0551;
+        /** The strafe dead zone fades out by this body speed (in/s); 1e9: always on (the fit's choice: the strafe steps are 0.15 short while rolling). */
+        static double vFade = 1e9;
         final String name;
-        final double[] g = new double[4];
-        final double d, tauU, tauB, aBL, aBR, aC, tauC, s, kw, aUp, aDown;
+        final double[] g = new double[4], f = new double[6];
+        final double dF, dL, dT, tauU, tauB, aBL, aBR, aC, tauC, s, kw, aUp, aDown, sa, kT;
 
         Wheel(String name, double[] th) {
+            if (th.length != 23) throw new IllegalArgumentException("a wheel model has 23 values, this one " + th.length + " (an old fit?)");
             this.name = name;
-            System.arraycopy(th, 0, g, 0, 4);
-            d = th[4];
-            tauU = th[5];
-            tauB = th[6];
-            aBL = th[7];
-            aBR = th[8];
-            aC = th[9];
-            tauC = th[10];
-            s = th[11];
-            kw = th[12];
-            aUp = th[13];
-            aDown = th[14];
+            g[0] = th[0];
+            g[1] = th[1];
+            g[2] = th[2];
+            g[3] = 4.0 - th[0] - th[1] - th[2];
+            for (int k = 0; k < 5; k++) f[k + 1] = th[3 + k];
+            dF = th[8];
+            dL = th[9];
+            dT = th[10];
+            tauU = th[11];
+            tauB = th[12];
+            aBL = th[13];
+            aBR = th[14];
+            aC = th[15];
+            tauC = th[16];
+            s = th[17];
+            kw = th[18];
+            aUp = th[19];
+            aDown = th[20];
+            sa = th[21];
+            kT = th[22];
+        }
+
+        /** The speed curve F at |q| (in/s at 12 V for the average wheel). */
+        double curve(double q) {
+            q = Math.abs(q);
+            for (int k = 0; k + 1 < KNOTS.length; k++) {
+                if (q <= KNOTS[k + 1]) return f[k] + (f[k + 1] - f[k]) * (q - KNOTS[k]) / (KNOTS[k + 1] - KNOTS[k]);
+            }
+            return f[f.length - 1];
+        }
+
+        static double dead(double c, double dz) {
+            return Math.signum(c) * Math.max(0.0, Math.abs(c) - dz);
         }
 
         String describe() {
-            return String.format(Locale.US, "wheel model %s: gains %.1f %.1f %.1f %.1f (lf lb rb rf) above %.3f, rise %.3f s, brake %.3f s + %.0f / %.0f, coast %.0f + 1/%.2f s, strafe %.3f, kw %.2f, accel %.0f up / %.0f down",
-                    name, g[0], g[1], g[2], g[3], d, tauU, tauB, aBL, aBR, aC, tauC, s, kw, aUp, aDown);
+            return String.format(Locale.US, "wheel model %s: speed curve %.1f %.1f %.1f %.1f %.1f at %s, wheel shares %.3f %.3f %.3f %.3f, dead zones %.3f / %.3f / %.3f, rise %.3f s, brake %.3f s + %.0f / %.0f, coast %.0f + 1/%.2f s, strafe %.3f (response %.2f), kw %.2f, turn %.2f rad/s per unit, accel %.0f up / %.0f down, yaw grip %.2f",
+                    name, f[1], f[2], f[3], f[4], f[5], Arrays.toString(KNOTS), g[0], g[1], g[2], g[3], dF, dL, dT, tauU, tauB, aBL, aBR, aC, tauC, s, sa, kw, kT, aUp, aDown, YAW_GRIP);
         }
     }
 
@@ -257,19 +289,25 @@ public final class DashSim {
             double mx = Math.max(1.0, Math.max(Math.max(Math.abs(p[0]), Math.abs(p[1])), Math.max(Math.abs(p[2]), Math.abs(p[3]))));
             for (int i = 0; i < 4; i++) p[i] /= mx;
             double vf = v[0], vl = v[1], w = v[2];
+            // the body command from the wheel powers, each axis less its dead zone
+            double bf = Wheel.dead((p[0] + p[1] + p[2] + p[3]) / 4.0, m.dF);
+            double bt = Wheel.dead((-p[0] - p[1] + p[2] + p[3]) / 4.0, m.dT);
+            double bl = Wheel.dead((-p[0] + p[1] - p[2] + p[3]) / 4.0, m.dL * Math.max(0.0, 1.0 - Math.hypot(vf, vl) / Wheel.vFade));
+            double[] q = {bf - bl, bf + bl, bf - bl, bf + bl};
+            double[] rot = {-bt, -bt, bt, bt};
             double[] u = {vf - vl / m.s - m.kw * w, vf + vl / m.s - m.kw * w, vf - vl / m.s + m.kw * w, vf + vl / m.s + m.kw * w};
             double vt = volts;
             if (sag) {
                 for (int it = 0; it < 3; it++) {
                     double sum = 0.0;
-                    for (int i = 0; i < 4; i++) sum += Math.abs(p[i] * vt - 12.0 * u[i] / m.g[i]);
+                    for (int i = 0; i < 4; i++) sum += Math.abs(p[i] * vt - 12.0 * u[i] / (95.0 * m.g[i]));
                     vt = Math.max(6.0, volts - Wheel.SAG_K * sum);
                 }
             }
             lastVolts = vt;
             double[] du = new double[4];
             for (int i = 0; i < 4; i++) {
-                double tgt = m.g[i] * (vt / 12.0) * Math.signum(p[i]) * Math.max(0.0, Math.abs(p[i]) - m.d);
+                double tgt = m.g[i] * (vt / 12.0) * (Math.signum(q[i]) * m.curve(q[i]) + rot[i] * m.kT * m.kw);
                 if (Math.abs(p[i]) < 0.005) {
                     double ab = i < 2 ? m.aBL : m.aBR;
                     du[i] = -u[i] / m.tauB - ab * Math.signum(u[i]);
@@ -282,10 +320,10 @@ public final class DashSim {
                 }
             }
             double af = (du[0] + du[1] + du[2] + du[3]) / 4.0;
-            double al = m.s * (-du[0] + du[1] - du[2] + du[3]) / 4.0;
+            double al = m.sa * m.s * (-du[0] + du[1] - du[2] + du[3]) / 4.0;
             double aw = (-du[0] - du[1] + du[2] + du[3]) / (4.0 * m.kw);
             double mag = Math.hypot(af, al), lim = af * vf + al * vl >= 0.0 ? m.aUp : m.aDown;
-            // YAW_GRIP > 0: the turn uses the same tires, so the translation gets what is left of the limit after |aw| kw YAW_GRIP (a trial, 2026-11-07)
+            // the turn uses the same tires: the translation gets what is left of the limit after |aw| kw YAW_GRIP
             if (YAW_GRIP > 0.0) lim = Math.max(0.3 * lim, lim - YAW_GRIP * Math.abs(aw) * m.kw);
             if (mag > lim) {
                 af *= lim / mag;
@@ -821,10 +859,22 @@ public final class DashSim {
         }
     }
 
+    /** --set Class.FIELD=value: Dashboard values put in after every restore of the defaults (a trial without editing the source). */
+    static final List<String[]> OVERRIDES = new ArrayList<>();
+
     static void restoreDefaults() {
         try {
             for (Map.Entry<Field, Object> e : DEFAULTS.entrySet()) e.getKey().set(null, e.getValue());
-        } catch (IllegalAccessException e) {
+            for (String[] ov : OVERRIDES) {
+                for (Class<?> k : CONFIG_CLASSES) {
+                    if (!k.getSimpleName().equals(ov[0])) continue;
+                    Field f = k.getField(ov[1]);
+                    if (f.getType() == double.class) f.setDouble(null, Double.parseDouble(ov[2]));
+                    else if (f.getType() == int.class) f.setInt(null, Integer.parseInt(ov[2]));
+                    else if (f.getType() == boolean.class) f.setBoolean(null, Boolean.parseBoolean(ov[2]));
+                }
+            }
+        } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
         HiveDash.OVERLAY_ENABLED = false;
@@ -1542,6 +1592,74 @@ public final class DashSim {
         return res;
     }
 
+    /**
+     * Each test of a drivetest.log run open-loop: from the test's first RUN row with the logged pose and velocity, the plant gets each row's command and battery
+     * volts (as terminal volts: no sag) until the test's last RUN / STOP / SETTLE row; prints the end and largest position errors and the end heading error, the
+     * same quantities as the Python check (tools/dash: the fit's sim_wheel integrated row by row).
+     */
+    static void testReplay(Options o, Path log) throws IOException {
+        List<String> lines = Files.readAllLines(log, StandardCharsets.UTF_8);
+        String[] head = null;
+        List<String[]> rows = new ArrayList<>();
+        for (String l : lines) {
+            if (l.startsWith("H,")) head = l.substring(2).split(",");
+            else if (l.startsWith("S,") && head != null) {
+                String[] p = l.substring(2).split(",");
+                if (p.length == head.length) rows.add(p);
+            }
+        }
+        Map<String, Integer> col = new HashMap<>();
+        for (int i = 0; i < head.length; i++) col.put(head[i], i);
+        int cT = col.get("t"), cX = col.get("x"), cY = col.get("y"), cH = col.get("hdg_deg"), cVx = col.get("vx"), cVy = col.get("vy"), cW = col.get("w_dps");
+        int cF = col.get("cmd_fwd"), cL = col.get("cmd_left"), cTu = col.get("cmd_turn"), cB = col.get("vbat"), cTest = col.get("test"), cPh = col.get("phase");
+        Options q = new Options();
+        q.model = o.model;
+        q.wheel = o.wheel;
+        q.sag = false;
+        q.fieldFrame = o.fieldFrame;
+        q.accelMax = o.accelMax;
+        q.turnBoost = o.turnBoost;
+        q.gainScale = o.gainScale;
+        System.out.println(q.describe());
+        List<Double> ends = new ArrayList<>();
+        TreeSet<Integer> tests = new TreeSet<>();
+        for (String[] r : rows) if (r[cPh].equals("RUN")) tests.add(Integer.parseInt(r[cTest]));
+        for (int test : tests) {
+            int first = -1, last = -1;
+            for (int i = 0; i < rows.size(); i++) {
+                String[] r = rows.get(i);
+                if (Integer.parseInt(r[cTest]) != test) continue;
+                String ph = r[cPh];
+                if (ph.equals("RUN") || ph.equals("STOP") || ph.equals("SETTLE")) {
+                    if (first < 0) first = i;
+                    last = i;
+                }
+            }
+            List<Integer> idx = new ArrayList<>();
+            for (int i = first; i <= last; i++) if (Integer.parseInt(rows.get(i)[cTest]) == test) idx.add(i);
+            boolean gap = idx.size() < 10;
+            for (int k = 1; k < idx.size() && !gap; k++) if (num(rows.get(idx.get(k))[cT]) - num(rows.get(idx.get(k - 1))[cT]) > 0.05) gap = true;
+            if (gap) continue;
+            String[] r0 = rows.get(idx.get(0));
+            double h0 = Math.toRadians(num(r0[cH])), vx0 = num(r0[cVx]), vy0 = num(r0[cVy]);
+            Plant pl = newPlant(q, num(r0[cX]), num(r0[cY]), h0, vx0 * Math.cos(h0) + vy0 * Math.sin(h0), -vx0 * Math.sin(h0) + vy0 * Math.cos(h0), Math.toRadians(num(r0[cW])));
+            double maxErr = 0.0, hUnwrap = h0;
+            for (int k = 1; k < idx.size(); k++) {
+                String[] a = rows.get(idx.get(k - 1)), b = rows.get(idx.get(k));
+                double dt = num(b[cT]) - num(a[cT]);
+                int n = Math.max(1, (int) Math.ceil(dt / 0.005));
+                for (int st = 0; st < n; st++) pl.stepFree(num(a[cF]), num(a[cL]), num(a[cTu]), num(a[cB]), dt / n);
+                maxErr = Math.max(maxErr, Math.hypot(pl.x - num(b[cX]), pl.y - num(b[cY])));
+                hUnwrap += normalize(Math.toRadians(num(b[cH])) - Math.toRadians(num(a[cH])));
+            }
+            String[] rl = rows.get(idx.get(idx.size() - 1));
+            double end = Math.hypot(pl.x - num(rl[cX]), pl.y - num(rl[cY]));
+            ends.add(end);
+            System.out.printf(Locale.US, "  test %2d: end %5.1f in, largest %5.1f in, heading %5.1f deg%n", test, end, maxErr, Math.toDegrees(Math.abs(pl.h - hUnwrap)));
+        }
+        System.out.printf(Locale.US, "end-of-test position error: median %.1f in, 90th %.1f in%n", median(ends), percentile(ends, 90));
+    }
+
     /** The largest distance (in) of a track from a polyline, over the rows up to tEnd. */
     static double maxDev(List<double[]> tr, double[][] w, double tEnd) {
         double m = 0.0;
@@ -1920,13 +2038,14 @@ public final class DashSim {
                 case "--turn-boost": o.turnBoost = Double.parseDouble(args[++i]); break;
                 case "--wheel-model": o.wheel = new Wheel(args[i + 1], readNpy(Paths.get(args[++i]))); break;
                 case "--no-sag": o.sag = false; break;
+                case "--v-fade": Wheel.vFade = Double.parseDouble(args[++i]); break;
                 case "--yaw-grip": YAW_GRIP = Double.parseDouble(args[++i]); break;
                 case "--wheel-accel": {
                     // scales the wheel model's two translation limits (A_up, A_down), for the replay's corner swings
                     double f = Double.parseDouble(args[++i]);
                     double[] th = Wheel.FIT_1107.clone();
-                    th[13] *= f;
-                    th[14] *= f;
+                    th[19] *= f;
+                    th[20] *= f;
                     o.wheel = new Wheel("fit 2026-11-07, accel x " + f, th);
                     break;
                 }
@@ -1944,6 +2063,12 @@ public final class DashSim {
                 case "--seed": o.seed = Long.parseLong(args[++i]); break;
                 case "--red": red = true; o.red = true; break;
                 case "--grid": o.grid = true; break;
+                case "--set": {
+                    String[] kv = args[++i].split("=");
+                    String[] cf = kv[0].split("[.]");
+                    OVERRIDES.add(new String[]{cf[0], cf[1], kv[1]});
+                    break;
+                }
                 default: rest.add(args[i]);
             }
         }
@@ -1975,16 +2100,24 @@ public final class DashSim {
                 HiveRoute.Params rp = robotParams();
                 double[][] wps = new double[r.route == null ? 0 : r.route.xs.length][];
                 for (int i = 0; i < wps.length; i++) wps[i] = new double[]{r.route.xs[i], r.route.ys[i]};
-                for (int i = 0; i < r.track.size(); i += 3) {
+                for (int i = 0; i < r.track.size(); i += 2) {
                     double[] s = r.track.get(i);
                     HiveRoute.Rect me = HiveRoute.poseRect(s[1], s[2], s[3], rp, 0.0);
-                    double sup = Double.MAX_VALUE;
-                    for (Obstacle ob : OBSTACLES) sup = Math.min(sup, rectDistance(me, ob.r));
+                    double sup = Double.MAX_VALUE, flo = Double.MAX_VALUE;
+                    for (Obstacle ob : OBSTACLES) {
+                        if (ob.name.contains("flower")) flo = Math.min(flo, rectDistance(me, ob.r));
+                        else sup = Math.min(sup, rectDistance(me, ob.r));
+                    }
                     double sp = i + 1 < r.track.size() ? Math.hypot(r.track.get(i + 1)[1] - s[1], r.track.get(i + 1)[2] - s[2]) / (r.track.get(i + 1)[0] - s[0]) : 0;
-                    System.out.printf(Locale.US, "  t %4.2f (%6.1f, %6.1f, %6.1f deg) %4.0f in/s off-route %4.1f in, clearance %5.1f in, cmd (%+.2f, %+.2f, %+.2f)%n", s[0], s[1], s[2],
-                            Math.toDegrees(s[3]), sp, wps.length < 2 ? 0 : offRoute(s[1], s[2], wps), sup, s[4], s[5], s[6]);
+                    System.out.printf(Locale.US, "  t %4.2f (%6.1f, %6.1f, %6.1f deg) %4.0f in/s off-route %4.1f in, clearance support %5.1f flower %5.1f in, cmd (%+.2f, %+.2f, %+.2f)%n", s[0], s[1], s[2],
+                            Math.toDegrees(s[3]), sp, wps.length < 2 ? 0 : offRoute(s[1], s[2], wps), sup, flo, s[4], s[5], s[6]);
                 }
                 System.out.println("arrival " + r.tArrive + ", " + r.plannedDesc);
+                break;
+            }
+            case "testreplay": {
+                // the plant open-loop through each Drive Characterization test (the cross-check of fit_drivetest.py's model): testreplay <drivetest.log>
+                testReplay(o, Paths.get(rest.get(1)));
                 break;
             }
             case "cornerdebug": {

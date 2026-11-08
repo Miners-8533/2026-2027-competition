@@ -9,7 +9,8 @@ import org.firstinspires.ftc.teamcode.math.Rotation2d;
  * whichever needs less turning; on the last leg the one nearer the aim), at the speed the route allows: on a leg the target speed is
  * min(V_MAX, sqrt(v_end^2 + 2 A_DEC d)), d the distance to the leg's end and v_end the most speed allowed there (the table's corner and stop limits), turned into
  * a power by the drive model's feedforward (FF_DEAD + v / FF_GAIN) plus a little feedback on the measured speed along the leg. The last leg is the Hive Dash's:
- * straight at the goal with ALONG_KP, capped at APPROACH_POWER near it; for a cell the robot drives it TURNED TO THE AIM (it turns at the leg's start, slowed by the
+ * straight at the goal on a speed profile that stops there (FINAL_DECEL, at most FINAL_MAX_SPEED), and the arrival counts only below ARRIVE_MAX_SPEED (a flat
+ * half power right up to the goal arrived at 35 in/s and slid 6.8 in on into the audience flower in the simulation, 2026-11-07); for a cell the robot drives it TURNED TO THE AIM (it turns at the leg's start, slowed by the
  * heading error; the routes were checked that way), and the target lock takes the heading within LOCK_RADIUS_IN. (The Hive Dash's early lock is not used: it spun
  * the robot up to 180 deg at speed over the last 35 in, into the audience flower in the simulation, 2026-11-07.) The first leg is the hop from the robot to the route's start node; when it is short the robot holds the heading it had on it.
  *
@@ -29,8 +30,22 @@ public final class GridFollower {
     /** A waypoint counts as passed this close (the next leg starts). A hop shorter than HOP_KEEP_HEADING_IN keeps the robot's heading. */
     public static double PASS_TOL_IN = 3.0, HOP_KEEP_HEADING_IN = 12.0;
     /** The last leg (the Hive Dash's values). */
-    public static double ALONG_KP = 0.05, MIN_FINAL_POWER = 0.08, APPROACH_POWER = 0.5, APPROACH_RADIUS_IN = 32.0;
+    /** The last leg: the most speed on it (in/s), the braking its profile plans to stop at the goal with (in/s^2; the robot brakes at about 185), and the most speed at which the arrival counts. */
+    public static double FINAL_MAX_SPEED = 40.0, FINAL_DECEL = 100.0, ARRIVE_MAX_SPEED = 10.0;
     public static double LOCK_RADIUS_IN = 20.0;
+    /**
+     * Static friction feedforward (kS): each axis of the command gets KS added in its direction, ramped in over the first KS_RAMP of command so it does not
+     * chatter at zero. The 2026-11-07 drive test measured dead zones of 0.072 forward, about 0.12 sideways (also while moving) and 0.098 turning: without this a
+     * sideways correction under about 2 in did nothing and a strafing approach stalled short (as the Solo auto's legs did). Set slightly under the dead zones;
+     * 0 turns it off.
+     */
+    public static double KS_FORWARD = 0.06, KS_STRAFE = 0.10, KS_TURN = 0.08, KS_RAMP = 0.03;
+
+    /** c with the static friction feedforward ks (ramped in over KS_RAMP). */
+    static double withKs(double c, double ks) {
+        if (ks <= 0.0 || c == 0.0) return c;
+        return c + Math.signum(c) * ks * Math.min(1.0, Math.abs(c) / Math.max(1e-6, KS_RAMP));
+    }
 
     public static final class Output {
         public boolean translation, turnActive, lockWanted, arrived;
@@ -132,7 +147,7 @@ public final class GridFollower {
             cross = (x - ax) * nx + (y - ay) * ny;
             remaining = len - along;
             if (leg == legs - 1) {
-                if (goalDist <= goalTolIn) {
+                if (goalDist <= goalTolIn && Math.hypot(vx, vy) <= ARRIVE_MAX_SPEED) {
                     arrived = true;
                     out.arrived = true;
                     out.lockWanted = aim;
@@ -154,11 +169,15 @@ public final class GridFollower {
         }
         double vfx, vfy;
         if (last) {
-            double v = clamp(ALONG_KP * goalDist, MIN_FINAL_POWER, MAX_POWER);
-            if (APPROACH_POWER > 0.0 && goalDist <= APPROACH_RADIUS_IN) v = Math.min(v, Math.max(APPROACH_POWER, MIN_FINAL_POWER));
+            // straight at the goal on a profile that stops there: the same feedforward and braking as a leg; the kS below moves the last inches
             double d = Math.max(goalDist, 1e-6);
-            vfx = (gx - x) / d * v;
-            vfy = (gy - y) / d * v;
+            double gux = (gx - x) / d, guy = (gy - y) / d;
+            double vTarget = Math.min(FINAL_MAX_SPEED, Math.sqrt(2.0 * FINAL_DECEL * goalDist));
+            double vToward = vx * gux + vy * guy;
+            double p = vToward > vTarget + BRAKE_OVER_IN_PER_S ? 0.0 : vTarget / FF_GAIN + SPEED_KP * (vTarget - vToward);
+            p = clamp(p, 0.0, MAX_POWER);
+            vfx = gux * p;
+            vfy = guy * p;
         } else {
             double vEnd = Math.min(GridRoutes.V_MAX, speeds[leg + 1]);
             // the speed must be down to vEnd where the next leg starts, PASS_TOL_IN before the corner (braking for the corner point itself entered corners
@@ -179,13 +198,17 @@ public final class GridFollower {
             out.lockWanted = true;
         } else {
             double err = Rotation2d.normalize(legHeading - h);
-            out.turn = clamp(HEADING_KP * err - HEADING_KD * w, -TURN_MAX, TURN_MAX);
+            out.turn = clamp(withKs(HEADING_KP * err - HEADING_KD * w, KS_TURN), -TURN_MAX, TURN_MAX);
             out.turnActive = true;
             if (legAligned) {
                 double scale = Math.max(ALIGN_FLOOR, Math.cos(err));
                 fwd *= scale;
                 left *= scale;
             }
+        }
+        if (fwd != 0.0 || left != 0.0) {
+            fwd = withKs(fwd, KS_FORWARD);
+            left = withKs(left, KS_STRAFE);
         }
         out.forward = fwd;
         out.left = left;

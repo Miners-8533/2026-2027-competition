@@ -174,3 +174,28 @@ The remaining grazes are all the turn onto the aimed last leg after a diagonal a
 **Today's planner on the wheel plant** (the robot as it now drives, faster than the plant its corner values were set on): the rear cell touches a flower from 12 % of the starts and the audience cell a support from 7 %; the Park Dash touches a flower from 25 % (left) and 26 % (right). The grid on the same plant touches nothing.
 
 **Next:** the robot run (T28, checklist 8r: dry run, then low risk starts); a second drive test with the geofence-lost phases (coast and drop from 0.85, closed-loop heading on the lane) would pin the coast down.
+
+## The second wheel fit, static friction and the stopping last leg (2026-11-07, latest)
+**Why:** replayed open-loop through each drive test, the first wheel model ran 17 % slow at 0.3 power and let the robot creep sideways at 0.16, where the real one did not move.
+
+**The model now (`fit_drivetest.py`, `DashSim.Wheel.FIT_1107`, 23 values):** the wheel powers are split into the body command and each axis loses its own dead zone, measured or fitted: forward 0.072, sideways 0.125 (always on: the steady strafes are 0.12 to 0.15 short of the forward curve while moving; fading it with speed fitted worse), turn 0.098. The translation goes through a SPEED CURVE measured from the steady ends of the forward steps (x 12 / battery: 15.3 / 30.6 / 59.8 / 78.1 / 89.5 in/s at 0.15 / 0.3 / 0.6 / 0.85 / 1.0 past the dead zone: flat 102 in/s per unit to 0.6, flatter above); the turn is linear (9.0 rad/s per unit, the spins' steady rates, which stay linear to full power); strafe ratio 0.80 with a slower sideways response (x 0.90). The windows' fit put the forward dead zone at 0.006 and the low-power speeds too high (it is ruled by speeding up and slowing down), so the steady curves are held at their measurements, like the coast. Speeds at 12.9 V: forward 5.3 / 25 / 78 in/s at 0.12 / 0.3 / 0.85, strafe 24 / 50 / 60 at 0.4 / 0.7 / 0.85, spin 112 / 223 / 334 / 500 deg/s at 0.3 / 0.5 / 0.7 / 1.0, as measured.
+
+**Against the drive test (open loop, each test from rest, the logged powers and battery):** end position error median 4.2 in, 90th 7.9 in over a median 51 in of driving (first wheel model 5.4 / 7.6, tuned plant 6.2 / 15.2); creep forward 0.8 in (was 5.2), creep strafe 1.5 (4.3), step 0.3 6.1 (11.3), spins 0 to 15 deg off (12 to 27). Still weak: test 14 (rolling at 0.85, then zero translation and turn 0.5) ends 14 in and 12 deg off: one side drives backward while the other coasts, and the coast is measured once. **The Java plant matches the Python model to 0.1 in and 0.2 deg on every test** (`DashSim testreplay <drivetest.log> --plant wheel`). Replay gate 92 to 95 of 137 (unchanged: the plateau).
+
+**What the sideways dead zone did to the grid, and the fix (`GridFollower`, robot code):** with it the follower's small sideways corrections did nothing below about 2 in off its line, the corner calibration collapsed to 5 in/s and the Park Dash's final creep stalled short in 19 to 38 of 328 starts (as the Solo auto's legs have stalled 2 to 3 in short on the robot). `GridFollower` now adds a STATIC FRICTION FEEDFORWARD to each command axis (kS, set a little under the measured dead zones: `KS_FORWARD` 0.06, `KS_STRAFE` 0.10, `KS_TURN` 0.08, ramped in over the first `KS_RAMP` 0.03 so it does not chatter at zero).
+
+**The last leg now stops on a profile (`GridFollower`, robot code):** the arrival counted at 2.5 in from the spot whatever the speed, and the last leg ran at a flat half power, so on the faster robot it arrived at 35 in/s and slid 6.8 in on into the audience flower (today's Hive Dash has the same arrival; its logs showed 2 to 8 in past the spot). The last leg now has the legs' speed profile to a stop at the goal (`FINAL_DECEL` 100 in/s^2, at most `FINAL_MAX_SPEED` 40 in/s; 150 and 185 were slower, the robot overshoots and comes back) and the arrival counts only below `ARRIVE_MAX_SPEED` 10 in/s. `ALONG_KP`, `MIN_FINAL_POWER`, `APPROACH_POWER` and `APPROACH_RADIUS_IN` are gone from `GridFollower` (they stay in today's dashes).
+
+**Corner speeds (four plants, the slowest per angle):** 66 in/s to 0 deg, 60 at 10, 44 at 20, 36 at 30, 24 at 45, 20 from 60 deg.
+
+**Results (the real dashes with the switches on, 1,312 starts per plant), median to the cells / to the parks:**
+| plant | cells | parks | touched |
+|---|---|---|---|
+| wheel 12.8 V (the robot as tested), 11.5 V, 13.4 V, red, no grip share | 2.2 to 2.3 s | 2.3 to 2.6 s | nothing |
+| tuned (11-05/11-06 robot), with a 40 ms loop, with a 30 ms Pinpoint delay | 2.3 to 2.5 s | 2.4 to 2.6 s | nothing |
+| wheel with 0.7 of the grip | 2.5 to 2.6 s | 2.5 to 2.6 s | audience flower from 1 start |
+| wheel with a 40 ms loop and a 30 ms delay | 2.7 s | 2.6 to 2.8 s | a support from 2 starts, 0.3 in |
+| the plain fits of 11-06 | 2.6 to 2.7 s | 2.5 s | audience flower from 3 and 7 starts |
+The stopping last leg costs about 0.3 s against the sliding arrivals. The off-route guard does not trip on any wheel or tuned plant at 31 ms. Today's planner on the same wheel plant: flowers from 12 % (rear cell) and 24 to 25 % (parks) of the starts, supports from 8 % (audience cell).
+
+**New `DashSim` options:** `testreplay <drivetest.log>`, `--set Class.FIELD=value` (a Dashboard value for a trial), `--v-fade`, `--wheel-model` (23 values now; the first fit's 15 are refused).
