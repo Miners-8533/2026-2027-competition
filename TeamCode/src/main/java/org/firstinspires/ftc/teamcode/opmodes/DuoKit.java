@@ -142,6 +142,14 @@ final class DuoKit {
         return timed("drive: " + label, baseDrive(drive, target).withTolerance(DuoAutos.WALL_PRE_POS_TOL_IN, DuoAutos.WALL_PRE_HEADING_TOL_DEG));
     }
 
+    /** The garden leg of the Daryl auto: from where the robot is straight to the wall squaring pose, the last D_GARDEN_SLOW_ZONE_IN inches limited to D_GARDEN_SLOW_POWER (the pollen are in a line of 4). */
+    Action gardenLeg(String label, MecanumDrive drive, Pose2d target) {
+        DriveToPose d = baseDrive(drive, target).withTolerance(DuoAutos.COARSE_POS_IN, DuoAutos.COARSE_HEADING_DEG)
+                .withSlowZone(DuoAutos.D_GARDEN_SLOW_ZONE_IN, DuoAutos.D_GARDEN_SLOW_POWER);
+        if (!Double.isNaN(passSettleSec)) d.withSettle(passSettleSec);
+        return timed("drive: " + label, d);
+    }
+
     Action passLeg(String label, MecanumDrive drive, Pose2d target) {
         DriveToPose d = baseDrive(drive, target).withTolerance(DuoAutos.COARSE_POS_IN, DuoAutos.COARSE_HEADING_DEG);
         if (!Double.isNaN(passSettleSec)) d.withSettle(passSettleSec);

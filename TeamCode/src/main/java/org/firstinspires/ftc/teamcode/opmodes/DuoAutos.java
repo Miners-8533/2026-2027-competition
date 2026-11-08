@@ -57,7 +57,7 @@ public final class DuoAutos {
     public static double GARDEN_PICKUP_MAX_POWER = 0.35;
 
     // ---- the parks: both in the blue loading zone (x 23.9 to 46.6, y 59.1 to 70.1), facing the Blue Wall, F at the audience-side corner and G at the inner one ----
-    public static double F_PARK_X = 40.0, F_PARK_Y = 60.0, G_PARK_X = 26.0, G_PARK_Y = 60.0, PARK_HEADING_DEG = 90.0;
+    public static double F_PARK_X = 40.0, F_PARK_Y = 53.1, G_PARK_X = 26.0, G_PARK_Y = 53.1, PARK_HEADING_DEG = 90.0;
     /** The park run uses full power; a target PARK_OVERSHOOT_IN past the pose pushes through the stall (0 here: with the front toward the wall a target 1 in further would press the wall). */
     public static double PARK_MAX_POWER = 1.0, PARK_OVERSHOOT_IN = 0.0, PARK_POS_TOL_IN = 2.5, PARK_HEADING_TOL_DEG = 5.0, PARK_TIMEOUT_SEC = 3.0;
     /** G's way to its park goes around the hive supports through this point (blue frame; the solo auto's helper, mirrored: G leaves from the rear side). */
@@ -75,7 +75,7 @@ public final class DuoAutos {
     public static double P_REAR_LAUNCH_X = -50.0, P_REAR_LAUNCH_Y = 26.3;
     /** The helper point outside the hive's support rails on the audience side, for the trips between the Blue Wall side and the audience side (the west one is HELPER_X / HELPER_Y). */
     public static double P_EAST_HELPER_X = 36.0, P_EAST_HELPER_Y = 40.0, P_HELPER_HEADING_DEG = 180.0;
-    public static double P_PRELOAD_TRIM_DEG = 0.0, P_WALL_TRIM_DEG = 0.0, P_AUD_FLOWER_TRIM_DEG = 0.0, P_GARDEN_TRIM_DEG = 0.0;
+    public static double P_PRELOAD_TRIM_DEG = 0.0, P_WALL_TRIM_DEG = -8.0, P_AUD_FLOWER_TRIM_DEG = 0.0, P_GARDEN_TRIM_DEG = 0.0; // the salvos into the audience cell from (50, 26.3) (blue; the far cell from the rear-wall start) use -8.0, the solo auto's total trim there (user, 2026-11-07: the solo's landed left; -4.5 still landed left)
     /** Each flower jostle ends by this many seconds into the auto at the latest (it also ends after its one back-and-forth or when the robot is full). */
     public static double P_WALL_JOSTLE_DEADLINE_SEC = 12.0, P_AUD_JOSTLE_DEADLINE_SEC = 21.0;
     /**
@@ -91,10 +91,28 @@ public final class DuoAutos {
     /** The Blue Wall flower's pre-position and back-out stalled 1.7 to 1.9 in short of the solo auto's tolerances (2026-11-05 logs): the same near-enough tolerances here. */
     public static double WALL_PRE_POS_TOL_IN = 2.5, WALL_PRE_HEADING_TOL_DEG = 4.0, WALL_BACKOUT_TOL_IN = 2.5;
 
+    // ---- Auton - Duo Daryl (2026-11-06, design/duo-autos.md): the rear-wall start, garden first ----
+    /**
+     * The partner's window (the user, 2026-11-06): our preload ends at about 3 s, the hive tip takes 4 s, plus a 2 s buffer: the partner shoots at about 9 s and must be parked by about 18 s. The second audience
+     * shot (the Blue Wall flower's pollen) is therefore not before D_SECOND_SHOT_NOT_BEFORE_SEC (an ABSOLUTE time from Start, not a relative pause): the robot does not leave the flower before that time minus
+     * D_RETURN_TRAVEL_SEC (the drive back, about 2.4 s) so it does not arrive early, and waits at the spot if it still did. The nominal arrival is about 20 s, so this normally does not wait at all.
+     */
+    public static double D_SECOND_SHOT_NOT_BEFORE_SEC = 18.0, D_RETURN_TRAVEL_SEC = 2.4;
+    /** The garden leg runs from the start straight to the wall squaring pose; the last D_GARDEN_SLOW_ZONE_IN inches (4 pollen of about 2.8 in end to end is 11.2 in, plus margin) are limited to D_GARDEN_SLOW_POWER (0.35 in the solo auto, relaxed to 0.5 by the user). */
+    public static double D_GARDEN_SLOW_ZONE_IN = 12.5, D_GARDEN_SLOW_POWER = 0.5;
+    public static double D_PRELOAD_TRIM_DEG = 0.0, D_GARDEN_TRIM_DEG = -8.0, D_WALL_TRIM_DEG = -8.0; // the salvos into the audience cell from (50, 26.3) (blue; the far cell from the rear-wall start) use -8.0, the solo auto's total trim there (user, 2026-11-07: the solo's landed left; -4.5 still landed left)
+    /** The Blue Wall flower's jostle ends by this many seconds into the auto at the latest; the audience flower's likewise, and the audience flower is skipped when it would start later than the latest start (so the park keeps its time). */
+    public static double D_WALL_JOSTLE_DEADLINE_SEC = 19.0, D_AUD_JOSTLE_DEADLINE_SEC = 26.0, D_AUD_FLOWER_LATEST_START_SEC = 22.5;
+
     // ---- legs, as in the solo auto ----
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
     public static double COARSE_POS_IN = 3.0, COARSE_HEADING_DEG = 10.0;
     public static double LAUNCH_POS_TOL_IN = 2.5, LAUNCH_HEADING_TOL_DEG = 6.0;
+    // ---- Cybugs (2026-11-07, built from Daryl) ----
+    /** The salvo from the rear launch spot at the start wall into the rear cell (the cell near the start): the preload from beside it needs no trim. */
+    public static double C_REAR_TRIM_DEG = 0.0;
+    /** A pause at the rear launch spot before the last salvo, the flywheel spinning (user, 2026-11-07: 2 s, then 1 s). */
+    public static double C_LAST_SALVO_WAIT_SEC = 1.0;
     public static double CROSS_FIELD_MAX_POWER = 0.85;
     public static double SLOW_IN_PER_S_PER_POWER = 40.0;
 }

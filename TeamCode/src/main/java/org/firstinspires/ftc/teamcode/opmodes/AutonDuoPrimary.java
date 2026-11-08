@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
@@ -26,10 +27,11 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *   4. The audience flower from there (the solo auto's flower poses), back out. [skipped when later than P_AUD_FLOWER_LATEST_START_SEC]
  *   5. Back across the north side (east helper, west helper) to the mid-field spot on the rear side (P_REAR_LAUNCH, the mirror of the audience one) and launch into the REAR cell.
  *   6. The garden as in the solo auto (angled approach, slow pickup, square on the wall), back to the same spot, launch into the REAR cell. [skipped when later than P_GARDEN_LATEST_START_SEC]
- *   7. Park in the hive-side corner of the loading zone (the garden side's park, (26, 60)) through the west helper, ramp stowed.
+ *   7. Park in the hive-side corner of the loading zone (the garden side's park, (26, 53.1)) through the west helper, ramp stowed.
  * The garden (step 6) is skipped when it would start after P_GARDEN_LATEST_START_SEC (18 s) so the park keeps its time: the 2026-11-06 01:57 run, with the garden, reached it at 21.8 s and the park was cut
  * off at 30 s. The user will optimize the garden gather and the paths later (design/duo-autos.md). Faster legs than the other duo autos: DuoAutos.P_LEG_MAX_POWER and friends.
  */
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @Autonomous(name = "Auton - Duo Primary", group = "Auto")
 public class AutonDuoPrimary extends AutonDuoBase {
 
@@ -64,7 +66,8 @@ public class AutonDuoPrimary extends AutonDuoBase {
 
         // the two launch spots: the headings are the computed aims at the cell of each (the audience one with the far-cell extra), AimAtCell takes out what is left
         Pose2d audXY = DuoKit.forAlliance(DuoKit.pose(DuoAutos.P_AUD_LAUNCH_X, DuoAutos.P_AUD_LAUNCH_Y, 0.0), blue);
-        Pose2d audSpot = new Pose2d(audXY.position.x, audXY.position.y, TargetLock.aimHeadingRad(audXY.position.x, audXY.position.y, audCell, audExtra));
+        // the spot heading includes the salvo's aim trim (2026-11-07): the leg arrives pointed at the trimmed aim and the aim step only fine-tunes
+        Pose2d audSpot = new Pose2d(audXY.position.x, audXY.position.y, TargetLock.aimHeadingRad(audXY.position.x, audXY.position.y, audCell, audExtra) + Math.toRadians(DuoAutos.P_WALL_TRIM_DEG));
         Pose2d rearXY = DuoKit.forAlliance(DuoKit.pose(DuoAutos.P_REAR_LAUNCH_X, DuoAutos.P_REAR_LAUNCH_Y, 0.0), blue);
         Pose2d rearSpot = new Pose2d(rearXY.position.x, rearXY.position.y, TargetLock.aimHeadingRad(rearXY.position.x, rearXY.position.y, rearCell, 0.0));
 
@@ -93,6 +96,7 @@ public class AutonDuoPrimary extends AutonDuoBase {
 
         return new SequentialAction(
                 // 1. the preload into the rear cell
+                new InstantAction(m::preparePusherForLaunch),   // the pusher moves to the lock position while the flywheel spins up: the preload salvo turns 310 deg instead of 400
                 k.launch(drive, m, rearCell, blue, "preload", DuoAutos.P_PRELOAD_TRIM_DEG),
 
                 // 2. the Blue Wall flower
@@ -116,9 +120,6 @@ public class AutonDuoPrimary extends AutonDuoBase {
                 k.launchLeg("audience launch spot", drive, audSpot),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.launch(drive, m, audCell, blue, "wall flower pollen", DuoAutos.P_WALL_TRIM_DEG, Double.NaN),
-                k.note("Intake OFF (the wall flower salvo is done)"),
-                m.forceIntakeIn(false),
-                m.setIntake(false),
 
                 // 4. the audience flower
                 k.unlessLate("audience flower", DuoAutos.P_AUD_FLOWER_LATEST_START_SEC, new SequentialAction(
@@ -143,9 +144,6 @@ public class AutonDuoPrimary extends AutonDuoBase {
                 k.launchLeg("rear launch spot", drive, rearSpot),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.launch(drive, m, rearCell, blue, "audience flower pollen", DuoAutos.P_AUD_FLOWER_TRIM_DEG),
-                k.note("Intake OFF (the audience flower salvo is done)"),
-                m.forceIntakeIn(false),
-                m.setIntake(false),
 
                 // 6. the garden, back to the rear spot, the rear cell
                 k.unlessLate("garden", DuoAutos.P_GARDEN_LATEST_START_SEC, new SequentialAction(
@@ -159,7 +157,6 @@ public class AutonDuoPrimary extends AutonDuoBase {
                         k.timed("square on the wall", new SquareOnWall(drive, squareHeadingRad, squareFlushX, squareFlushY)),
                         k.note("Back to the rear launch spot (intake still ON so every element gets in)"),
                         k.launchLeg("rear launch spot 2", drive, rearSpot),
-                        m.setIntake(false),
                         k.launch(drive, m, rearCell, blue, "garden pollen", DuoAutos.P_GARDEN_TRIM_DEG))),
 
                 // 7. the park in the hive-side corner of the loading zone

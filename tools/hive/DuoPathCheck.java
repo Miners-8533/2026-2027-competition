@@ -50,7 +50,7 @@ public class DuoPathCheck {
 
         // Garden side (G)
         double[] gStart = {-63.4, 16.0, 0.0}, gLaunch = {-61.5, 15.25, 0.0}, wallPre = {-26.3, 38.0, 90.0}, wallAt = {-26.3, 55.3, 90.0}, wallRam = {-26.3, 67.3, 90.0}, wallBack = {-26.3, 46.3, 90.0};
-        double[] gardenPre = {-59.8, 46.0, 105.0}, gardenEnd = {-59.8, 58.5, 105.0}, squarePre = {-62.0, 58.5, 90.0}, helper = {-36.0, 40.0, 90.0}, gPark = {26.0, 60.0, 90.0};
+        double[] gardenPre = {-59.8, 46.0, 105.0}, gardenEnd = {-59.8, 58.5, 105.0}, squarePre = {-62.0, 58.5, 90.0}, helper = {-36.0, 40.0, 90.0}, gPark = {26.0, 53.1, 90.0};
         leg("G launch spot 1 -> wall flower pre", gLaunch, wallPre, real);
         leg("G wall flower pre -> ram target", wallPre, wallRam, real);
         leg("G wall flower back-out", wallAt, wallBack, real);
@@ -71,7 +71,7 @@ public class DuoPathCheck {
         leg("F park via -> park", parkVia, fPark, real);
 
         // Solo final gather (2026-11-05): launch spot 2, around the outside via the helper, the Blue Wall flower, back out, the hive-side corner (the AutonSolo defaults)
-        double[] sLaunch2 = {50.0, 26.3, -145.0}, sHelper = {36.0, 40.0, 180.0}, sWallPre = {-26.3, 38.0, 90.0}, sWallRam = {-26.3, 67.3, 90.0}, sWallAt = {-26.3, 55.3, 90.0}, sWallBack = {-26.3, 46.3, 90.0}, sPark = {26.0, 60.0, 90.0};
+        double[] sLaunch2 = {50.0, 26.3, -152.5}, sHelper = {36.0, 40.0, 180.0}, sWallPre = {-26.3, 38.0, 90.0}, sWallRam = {-26.3, 67.3, 90.0}, sWallAt = {-26.3, 55.3, 90.0}, sWallBack = {-26.3, 46.3, 90.0}, sPark = {26.0, 60.0, 90.0};
         leg("S launch spot 2 -> final helper", sLaunch2, sHelper, real);
         leg("S final helper -> wall flower pre", sHelper, sWallPre, real);
         leg("S wall flower pre -> ram target", sWallPre, sWallRam, real);
@@ -95,6 +95,25 @@ public class DuoPathCheck {
         leg("P garden square -> rear launch spot", squarePre, pRear, withFlowers);
         leg("P rear launch spot -> west helper", pRear, pWestHelper, withFlowers);
         leg("P west helper -> park", pWestHelper, gPark, withFlowers);
+
+        // Duo Daryl (2026-11-06): the garden (the solo auto's from 2026-11-07, the one-leg version before), then around to the audience spot, the Blue Wall flower, back, the audience flower and the park
+        double[] dSquare = {-61.15, 58.5, 90.0}, dEastHelper = {36.0, 40.0, 180.0};
+        double[] dGardenPre = {-59.8, 46.0, 105.0}, dGardenEnd = {-59.8, 58.5, 105.0}, dSquarePre = {-62.0, 58.5, 90.0};   // the solo auto garden (from 2026-11-07)
+        leg("D start -> garden pre-position", pStart, dGardenPre, withFlowers);
+        leg("D garden pickup", dGardenPre, dGardenEnd, withFlowers);
+        leg("D garden end -> square approach", dGardenEnd, dSquarePre, withFlowers);
+        leg("D squared on the wall -> east helper (turned 90 -> 180 in the first 25 in)", new double[]{-40.0, 56.0, 180.0}, dEastHelper, withFlowers);
+        leg("D squared on the wall -> turned, first 25 in (supports only)", new double[]{-64.0, 60.5, 90.0}, new double[]{-40.0, 56.0, 180.0}, real);
+        leg("D east helper -> audience launch spot", dEastHelper, pAud, withFlowers);
+        leg("D audience launch spot -> east helper", pAud, dEastHelper, withFlowers);
+        leg("D east helper -> wall flower pre", dEastHelper, wallPre, withFlowers);
+        leg("D audience flower back-out -> park", flowerBack, gPark, withFlowers);
+        leg("D audience launch spot -> park (audience flower skipped)", pAud, gPark, withFlowers);
+        // Cybugs (2026-11-07): the Blue Wall flower, the rear launch spot at the start wall, then the park through the helper
+        double[] cRear = {-61.5, 15.25, -4.0};
+        leg("C wall flower back-out -> rear launch spot", new double[]{-26.3, 46.3, 90.0}, cRear, withFlowers);
+        leg("C rear launch spot -> park helper", cRear, helper, withFlowers);
+        leg("C park helper -> park", helper, gPark, withFlowers);
 
         System.out.println(fails == 0 ? "All duo and Solo legs clear of the supports." : fails + " leg(s) touch a support.");
         System.exit(fails == 0 ? 0 : 1);

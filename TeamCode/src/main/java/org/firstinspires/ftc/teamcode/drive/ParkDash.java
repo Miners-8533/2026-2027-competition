@@ -42,6 +42,8 @@ public final class ParkDash {
     public static double REFUSED_SHOWN_SEC = 3.0;
     /** True: plan and log but do not drive. */
     public static boolean DRY_RUN = false;
+    /** True: the GRID PLANNER (see HiveDash.GRID_ROUTES; its own switch so the two can be tried apart). Off until the robot has run it (2026-11-07). */
+    public static boolean GRID_ROUTES = false;
 
     public enum Corner { NONE, LEFT, RIGHT }
 
@@ -70,8 +72,6 @@ public final class ParkDash {
         public double turn;
         /** Stow the ramp now (once, at the start). */
         public boolean stowRamp;
-        /** The D-pad was just refused (give the driver a short rumble). */
-        public boolean refused;
 
         void reset() {
             translation = false;
@@ -79,7 +79,6 @@ public final class ParkDash {
             turnActive = false;
             turn = 0.0;
             stowRamp = false;
-            refused = false;
         }
     }
 
@@ -110,6 +109,7 @@ public final class ParkDash {
     private Corner corner = Corner.NONE;
     private double goalX, goalY;
     private HiveRoute.Plan plan;
+    private GridDash grid;   // the grid planner's dash, or null (today's planner)
     private int legIndex = 0;
     private double legHeading = 0.0, prevLegHeading = 0.0;
     private boolean legAligned = false;
@@ -125,6 +125,7 @@ public final class ParkDash {
         this.widthIn = widthIn;
         this.fromBackIn = fromBackIn;
         HiveRoute.plan(-55.4, 15.25, 0.0, 40.0, 60.0, params());   // a throwaway plan to warm the planner (as the Hive Dash does)
+        GridDash.warm();   // and the grid tables (the Hive Dash logs any problem with them)
     }
 
     public State state() {
@@ -200,7 +201,6 @@ public final class ParkDash {
     }
 
     private void refuse(Corner requested, String why) {
-        out.refused = true;
         refusedWhy = why;
         everRefused = true;
         refusedClock.reset();
@@ -219,7 +219,27 @@ public final class ParkDash {
         }
         double[] g = cornerXY(requested, in.blue, in.driverForwardRad);
         Pose2d pose = in.pose;
-        HiveRoute.Plan pl = HiveRoute.plan(pose.position.x, pose.position.y, pose.heading.toDouble(), g[0], g[1], params());
+        grid = null;
+        HiveRoute.Plan pl = null;
+        if (GRID_ROUTES) {
+            HiveRoute.Params p = params();
+            GridRoutes.Table table = GridDash.tableFor(g[0], g[1], in.blue);
+            if (table == null) {
+                RunLog.event("PARK DASH grid routes not used (" + GridDash.whyNoTable(g[0], g[1], in.blue) + "): today's planner instead");
+            } else if (HiveRoute.touchingSupport(pose.position.x, pose.position.y, pose.heading.toDouble(), p)) {
+                pl = HiveRoute.Plan.refused("the robot is touching a hive support: drive clear of it by hand");
+            } else {
+                GridDash gd = new GridDash("PARK DASH", table, in.blue, GOAL_TOL_IN);
+                String why = gd.start(pose.position.x, pose.position.y, pose.heading.toDouble());
+                if (why != null) {
+                    pl = HiveRoute.Plan.refused(why);
+                } else {
+                    grid = gd;
+                    pl = HiveRoute.Plan.of(gd.waypoints(), gd.describe());
+                }
+            }
+        }
+        if (pl == null) pl = HiveRoute.plan(pose.position.x, pose.position.y, pose.heading.toDouble(), g[0], g[1], params());
         plan = pl;
         if (!pl.ok) {
             refuse(requested, pl.refusal);
@@ -227,13 +247,16 @@ public final class ParkDash {
         }
         RunLog.event(String.format(Locale.US, "PARK DASH %s (%s corner): from (%.1f, %.1f, %.1f deg) to (%.1f, %.1f), %s; power %.2f", DRY_RUN ? "dry run" : "start", requested,
                 pose.position.x, pose.position.y, pose.heading.toDegrees(), g[0], g[1], pl.description, MAX_POWER));
-        if (DRY_RUN) return;
+        if (DRY_RUN) {
+            grid = null;
+            return;
+        }
         corner = requested;
         goalX = g[0];
         goalY = g[1];
         legIndex = 0;
         prevLegHeading = pose.heading.toDouble();
-        startLeg();
+        if (grid == null) startLeg();
         dashClock.reset();
         sampleClock.reset();
         state = State.DRIVING;
@@ -260,7 +283,37 @@ public final class ParkDash {
                 Math.hypot(b[0] - a[0], b[1] - a[1]), legAligned ? "aligned, " + (legHeading == front ? "front" : "rear") + " leading" : "short, heading kept"));
     }
 
+    /** One loop of a grid dash (GridDash): its output, the parking as on today's route, a give-up cancels. */
+    private void driveGrid(Input in) {
+        Pose2d pose = in.pose;
+        double x = pose.position.x, y = pose.position.y, h = pose.heading.toDouble();
+        PoseVelocity2d m = in.measured;
+        GridDash.Output g = grid.update(x, y, h, m == null ? 0.0 : m.linearVel.x, m == null ? 0.0 : m.linearVel.y, m == null ? 0.0 : m.angVel);
+        if (grid.waypoints() != plan.waypoints) plan = HiveRoute.Plan.of(grid.waypoints(), grid.describe());   // a new route after the off-route guard
+        legIndex = Math.max(0, g.leg - 1);
+        if (g.failed != null) {
+            finish(in, g.failed);
+            return;
+        }
+        if (g.arrived) {
+            state = State.PARKED;
+            RunLog.event(String.format(Locale.US, "PARK DASH parked after %.2f s at (%.1f, %.1f, %.1f deg), %.1f in from the corner", dashClock.seconds(), x, y,
+                    pose.heading.toDegrees(), Math.hypot(x - goalX, y - goalY)));
+            out.translation = true;
+            return;
+        }
+        out.translation = g.translation;
+        out.forward = g.forward;
+        out.left = g.left;
+        out.turnActive = g.turnActive;
+        out.turn = g.turn;
+    }
+
     private void drive(Input in) {
+        if (grid != null) {
+            driveGrid(in);
+            return;
+        }
         Pose2d pose = in.pose;
         double x = pose.position.x, y = pose.position.y, h = pose.heading.toDouble();
         int legs = plan.waypoints.length - 1;
@@ -331,7 +384,7 @@ public final class ParkDash {
                 return "PARKED in the " + corner + " corner (holding while the D-pad is held)";
             default:
                 if (everRefused && refusedClock.seconds() < REFUSED_SHOWN_SEC) return "REFUSED: " + refusedWhy;
-                return DRY_RUN ? "ready (DRY RUN: plans, does not drive)" : "ready (hold D-pad up = left corner, down = right corner)";
+                return (DRY_RUN ? "ready (DRY RUN: plans, does not drive)" : "ready (hold D-pad up = left corner, down = right corner)") + (GRID_ROUTES ? ", GRID routes" : "");
         }
     }
 

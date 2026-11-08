@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
@@ -22,6 +23,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *      (the ramp stows during the turn) and launch the flower pollen: the 8th pollen, which tips that cell.
  *   4. Park in the loading zone (via a point clear of the flower), ramp stowed.
  */
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @Autonomous(name = "Auton - Duo Flower Side", group = "Auto")
 public class AutonDuoFlowerSide extends AutonDuoBase {
 
@@ -60,6 +62,7 @@ public class AutonDuoFlowerSide extends AutonDuoBase {
         Pose2d park = DuoKit.forAlliance(DuoKit.pose(DuoAutos.F_PARK_X, DuoAutos.F_PARK_Y + DuoAutos.PARK_OVERSHOOT_IN, DuoAutos.PARK_HEADING_DEG), blue);
 
         return new SequentialAction(
+                new InstantAction(m::preparePusherForLaunch),   // the pusher moves to the lock position during the wait: the preload salvo turns 310 deg instead of 400
                 k.waitUntil("first launch (partner's tip)", DuoAutos.F_FIRST_LAUNCH_NOT_BEFORE_SEC),
                 k.launch(drive, m, cell, blue, "preload", DuoAutos.F_PRELOAD_TRIM_DEG),
 
@@ -78,9 +81,6 @@ public class AutonDuoFlowerSide extends AutonDuoBase {
                 k.stowWhenTurned(k.launchLeg("launch spot", drive, launchSpot), drive, m, flowerPre.heading.toDouble()),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.launch(drive, m, cell, blue, "flower pollen", DuoAutos.F_FLOWER_TRIM_DEG),
-                k.note("Intake OFF (the flower salvo is done)"),
-                m.forceIntakeIn(false),
-                m.setIntake(false),
 
                 k.note("Park"),
                 k.passLeg("park via point", drive, parkVia),

@@ -7,9 +7,13 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.util.LoopProfiler;
+import org.firstinspires.ftc.teamcode.util.RunLog;
+
+import java.util.Locale;
 
 /**
  * Minimal mecanum drivetrain: four motors, open-loop power mixing, plus a {@link Localizer}
@@ -34,6 +38,12 @@ public final class MecanumDrive {
          */
         public double writeDeadband = 0.01;
         public double refreshMs = 200.0;
+        /**
+         * Drive wheel check (2026-11-07, {@link DriveHealth}): every this many ms ONE wheel's motor current is read (round robin over the wheels that are being driven at
+         * DriveHealth.MIN_POWER or more; a robot standing still reads nothing). A read is a separate hub command of about 2 to 3 ms (the LoopProfiler section drive_amps shows it), so at 100 ms it adds
+         * under 1 ms to the average loop. 0 turns the check off.
+         */
+        public double currentCheckMs = 100.0;
     }
 
     public static Params PARAMS = new Params();
@@ -44,6 +54,11 @@ public final class MecanumDrive {
     public final ChassisProfile profile;
 
     private PoseVelocity2d lastCommand = PoseVelocity2d.zero();
+
+    private final DriveHealth health = new DriveHealth();
+    private final double[] wheelAmps = new double[4];   // the last current read of each wheel (LF, LB, RB, RF), 0 until one has been read
+    private int nextAmpWheel = 0;
+    private long lastAmpNs = 0L;
 
     /** The autos and test opmodes: the Pinpoint is reset (position zeroed, IMU recalibrated: the robot must be still) and seeded with initialPose. */
     public MecanumDrive(HardwareMap hardwareMap, Pose2d initialPose) {
@@ -108,6 +123,46 @@ public final class MecanumDrive {
         writePower(2, rightBack, rb * s, now);
         writePower(3, rightFront, rf * s, now);
         LoopProfiler.stop("drive_write", t0);
+        checkCurrents(now);
+    }
+
+    /** Reads one driven wheel's current when one is due and feeds the wheel check (see PARAMS.currentCheckMs). */
+    private void checkCurrents(long nowNs) {
+        double everyMs = PARAMS.currentCheckMs;
+        if (everyMs <= 0.0 || nowNs - lastAmpNs < everyMs * 1e6) return;
+        int w = -1;
+        for (int k = 0; k < 4; k++) {
+            int i = (nextAmpWheel + k) % 4;
+            if (Math.abs(sentPower[i]) >= DriveHealth.MIN_POWER) {
+                w = i;
+                break;
+            }
+        }
+        if (w < 0) return;   // nothing is driven hard enough to say anything: no read
+        DcMotorEx m = w == 0 ? leftFront : w == 1 ? leftBack : w == 2 ? rightBack : rightFront;
+        long t0 = LoopProfiler.start();
+        double amps;
+        try {
+            amps = m.getCurrent(CurrentUnit.AMPS);
+        } catch (RuntimeException e) {
+            amps = Double.NaN;
+        }
+        LoopProfiler.stop("drive_amps", t0);
+        lastAmpNs = nowNs;
+        nextAmpWheel = (w + 1) % 4;
+        if (!Double.isNaN(amps)) wheelAmps[w] = amps;
+        String msg = health.add(w, amps, sentPower[w]);
+        if (msg != null) RunLog.event(msg);
+    }
+
+    /** "" when every wheel's current looks normal, else a short screen text such as "DRIVE WHEEL LB?" (see {@link DriveHealth}). */
+    public String getHealthWarning() {
+        return health.warning();
+    }
+
+    /** The last current read of each wheel for the run log: LF, LB, RB, RF in amps (a wheel is read a few times a second while it is driven, so a value can be a few hundred ms old). */
+    public String wheelAmpsRow() {
+        return String.format(Locale.US, "%.2f,%.2f,%.2f,%.2f", wheelAmps[0], wheelAmps[1], wheelAmps[2], wheelAmps[3]);
     }
 
     private final double[] sentPower = new double[4];   // the last power actually sent to each motor

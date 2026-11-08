@@ -13,6 +13,7 @@ Figures:
   salvo_phase.png     the error by phase of the salvo (0 = start, 1 = the pusher is back at HOLD), pooled: where in the salvo is the speed high or low
   salvo_detail.png    the newest salvos one by one, with the actual sample points, the pusher angle and when the controller was at full power
   salvo_summary.png   per salvo: the speed at the start, the lowest and highest during, the highest in the 0.5 s after
+  salvo_pollen.png    per pollen (added 2026-11-07): the speed as each of the four pollen leaves its slot sensor, the speed around that moment, and when each leaves
 """
 import argparse
 import glob
@@ -237,7 +238,100 @@ def main():
     fig.tight_layout()
     fig.savefig(os.path.join(out_dir, "salvo_summary.png"), dpi=130)
     plt.close(fig)
-    print("wrote 4 figures to", out_dir)
+    # ---- figure 5: per pollen ----
+    per = pollen_exits(stats)
+    if per:
+        names = ["pollen %d (CS%d)" % (k + 1, k + 1) for k in range(4)]
+        fig, (axa, axb, axc) = plt.subplots(1, 3, figsize=(17, 5.6))
+        data = [[e["err"] for e in per[k]] or [float("nan")] for k in range(4)]
+        axa.boxplot(data, positions=range(1, 5), widths=0.5, showfliers=True, flierprops={"markersize": 3})
+        for k in range(4):
+            axa.plot([k + 1 + 0.08 * ((i * 7) % 5 - 2) for i in range(len(per[k]))], [e["err"] for e in per[k]], ".", color="C0", alpha=0.35, ms=4)
+        axa.axhline(0, color="gray", lw=0.8)
+        axa.set_ylim(-12, 12)
+        axa.set_xticks(range(1, 5))
+        axa.set_xticklabels(["%d\n(n=%d)" % (k + 1, len(per[k])) for k in range(4)])
+        axa.set_xlabel("pollen number (the slot it was in; 1 leaves first)")
+        axa.set_ylabel("flywheel speed against target (%) at the moment the pollen leaves its sensor")
+        axa.set_title("Speed as each pollen leaves")
+        # speed against time around each pollen's exit
+        lo, hi, w = -0.30, 0.30, 0.06
+        nb = int(round((hi - lo) / w))
+        for k in range(4):
+            bins = [[] for _ in range(nb)]
+            for e in per[k]:
+                for t, v in e["trace"]:
+                    j = int((t - lo) / w)
+                    if 0 <= j < nb:
+                        bins[j].append(v)
+            xs_ = [lo + (j + 0.5) * w for j in range(nb) if len(bins[j]) >= 5]
+            med = [statistics.fmean(bins[j]) for j in range(nb) if len(bins[j]) >= 5]
+            axb.plot(xs_, med, "o-", ms=3, lw=1.3, label=names[k], color="C%d" % k)
+        axb.axvline(0, color="k", lw=0.8)
+        axb.axhline(0, color="gray", lw=0.8)
+        axb.set_xlabel("seconds from the moment the pollen leaves its sensor")
+        axb.set_ylabel("mean speed against target (%)")
+        axb.set_title("Speed around each pollen's exit (mean)")
+        axb.legend(fontsize=8)
+        # when each pollen leaves
+        data2 = [[e["t_since_start"] for e in per[k]] or [float("nan")] for k in range(4)]
+        axc.boxplot(data2, positions=range(1, 5), widths=0.5, showfliers=True, flierprops={"markersize": 3})
+        axc.set_xticks(range(1, 5))
+        axc.set_xlabel("pollen number")
+        axc.set_ylabel("seconds after the salvo started")
+        axc.set_title("When each pollen leaves its sensor")
+        fig.suptitle("Per pollen, from the salvos that started with all four slots filled and the count at 4 (%d salvos); the slot sensors show a pollen as P, in motion as O, gone as '.'" % len(per[0]))
+        fig.tight_layout()
+        fig.savefig(os.path.join(out_dir, "salvo_pollen.png"), dpi=130)
+        plt.close(fig)
+        print("PER POLLEN (full four-pollen salvos): speed against target when the pollen leaves its sensor, and the lowest speed within 0.1 s after")
+        for k in range(4):
+            if not per[k]:
+                continue
+            ee = [e["err"] for e in per[k]]
+            mm = [e["low_after"] for e in per[k]]
+            tt = [e["t_since_start"] for e in per[k]]
+            print("  pollen %d: n=%d  at exit %+.1f %% median (range %+.1f to %+.1f); lowest within 0.1 s after %+.1f %% median (worst %+.1f); leaves %.2f s after the salvo starts (median)"
+                  % (k + 1, len(ee), statistics.median(ee), min(ee), max(ee), statistics.median(mm), min(mm), statistics.median(tt)))
+    print("wrote 5 figures to", out_dir)
+
+
+def pollen_exits(stats):
+    """For every salvo that started with the count at 4 and all four slot sensors reading something, the time each pollen leaves its sensor:
+    the row after the last 'P' the slot shows during the salvo (a slot that never showed a P: its first '.'), pollen number = slot number.
+    Returns four lists of dicts: err (speed against target at that moment), low_after (lowest error in the next 0.1 s), t_since_start, trace [(seconds from exit, error)]."""
+    per = [[] for _ in range(4)]
+    for x in stats:
+        s = x["s"]
+        if x["min"] < -20.0 or x["start"] < -20.0:
+            continue   # the flywheel was dying (a low battery or a lost hub): not a stability sample
+        rows = s["rows"]
+        pre = [r for r in rows if f(r, "t") < s["t0"]]
+        if not pre or pre[-1].get("count") != "4" or "." in pre[-1].get("slots", ".") or len(pre[-1]["slots"]) != 4:
+            continue
+        sel = [r for r in rows if s["t0"] <= f(r, "t") <= s["t1"] + 0.3]
+        if len(sel) < 10:
+            continue
+        found = []
+        for k in range(4):
+            last_p = max([i for i, r in enumerate(sel) if r["slots"][k] == "P"] or [-1])
+            if last_p >= 0:
+                idx = last_p + 1
+            else:
+                idx = next((i for i, r in enumerate(sel) if r["slots"][k] == "."), None)
+            if idx is None or idx >= len(sel):
+                found = None
+                break
+            found.append(idx)
+        if found is None:
+            continue
+        for k, idx in enumerate(found):
+            te = f(sel[idx], "t")
+            trace = [(f(r, "t") - te, err(r, s["target"])) for r in rows if abs(f(r, "t") - te) <= 0.35]
+            after = [err(r, s["target"]) for r in rows if te <= f(r, "t") <= te + 0.1]
+            per[k].append({"err": err(sel[idx], s["target"]), "low_after": min(after) if after else float("nan"),
+                           "t_since_start": te - s["t0"], "trace": trace})
+    return per
 
 
 if __name__ == "__main__":

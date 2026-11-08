@@ -85,3 +85,7 @@ robot-logs/
 # Python bytecode (it carries the absolute path of the computer that ran the script)
 __pycache__/
 *.pyc
+tools/dash/*.npy
+
+# Build history written by TeamCode/build.gradle (the diff of every build with uncommitted changes, and one line per build)
+build-history/

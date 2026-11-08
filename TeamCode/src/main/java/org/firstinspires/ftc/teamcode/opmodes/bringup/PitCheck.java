@@ -6,6 +6,7 @@ import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -63,6 +64,7 @@ import java.util.TreeSet;
  * It uses the raw hardware, not the Pusher or Flywheel classes, so it never changes the pusher's saved zero.
  */
 @Config
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @TeleOp(name = "Pit Check (robot on blocks)", group = "Bring-up")
 public class PitCheck extends LinearOpMode {
 

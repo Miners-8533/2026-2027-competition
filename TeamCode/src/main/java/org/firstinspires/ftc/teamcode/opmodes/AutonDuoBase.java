@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
+import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.Actions;
@@ -111,12 +112,15 @@ abstract class AutonDuoBase extends LinearOpMode {
 
         RunLog.event(String.format(Locale.US, "SETUP %s, profile %s, alliance %s, start pose (%.1f, %.1f, %.1f deg), %s", autoName(), profile.name, isBlue ? "BLUE" : "RED",
                 drive.getPose().position.x, drive.getPose().position.y, drive.getPose().heading.toDegrees(), mechanisms.describe()));
-        RunLog.setSampler("x,y,hdg_deg," + Mechanisms.SAMPLE_COLUMNS, 100, () -> {
+        RunLog.setSampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn," + Mechanisms.SAMPLE_COLUMNS + ",a_lf,a_lb,a_rb,a_rf", 100, () -> {
             Pose2d p = drive.getPose();
-            return String.format(Locale.US, "%.2f,%.2f,%.1f,%s", p.position.x, p.position.y, p.heading.toDegrees(), mechanisms.sampleRow());
+            PoseVelocity2d dc = drive.getLastCommand();   // the drive command in the sample rows (from 2026-11-07), as in the TeleOp: what the legs and the jostle sent
+            return String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%s", p.position.x, p.position.y, p.heading.toDegrees(), dc.linearVel.x, dc.linearVel.y, dc.angVel, mechanisms.sampleRow() + "," + drive.wheelAmpsRow());
         });
 
         mechanisms.setBlueAlliance(isBlue);
+        mechanisms.setIntakeAlwaysOn(true);   // the intake runs IN for the whole auto (user, 2026-11-07), whatever the count says; only a reject or an outtake runs it OUT
+        mechanisms.setJamRetries(Pusher.JAM_RETRIES_AUTO);   // one jam back-off per pusher move: the autos are tight on time
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel stays up between launches ...
         mechanisms.setSpinRequested(true);         // ... and spins from Start, so it is at speed on arrival at each launch spot
 

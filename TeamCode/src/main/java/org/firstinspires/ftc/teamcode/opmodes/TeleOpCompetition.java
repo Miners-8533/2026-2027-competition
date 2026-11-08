@@ -9,6 +9,7 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.drive.AutoLaunch;
 import org.firstinspires.ftc.teamcode.drive.HiveDash;
 import org.firstinspires.ftc.teamcode.drive.ParkDash;
@@ -69,19 +70,19 @@ import java.util.Locale;
  *                        pack of 3 pollen lit all four sensors and kept engaging it). Release the trigger to drive normally.
  *   D-pad left / right   (HOLD) HIVE DASH: the robot drives to the launch spot of a cell, target locks and launches when ALIGNED. Left = the cell on the driver's LEFT, right = the
  *                        cell on the driver's RIGHT as seen from behind the alliance wall (blue: left = audience cell, right = rear cell; red the other way round). Releasing
- *                        the D-pad cancels at once (the sticks drive again); a salvo already launched always finishes. Refused, with a short rumble and no movement, in backup mode, with a
+ *                        the D-pad cancels at once (the sticks drive again); a salvo already launched always finishes. Refused, with no movement (the screen says DASH REFUSED), in backup mode, with a
  *                        Pinpoint fault, when the counter reads and holds nothing, or when the robot is touching a hive support. See {@link HiveDash} and design/hive-dash.md.
  *   D-pad up / down      (HOLD) PARK DASH: the robot drives to a park corner of its own loading zone and stays there while the D-pad is held. Up = the corner on the driver's LEFT
  *                        (the audience-side corner for blue), down = the corner on the driver's RIGHT (the hive-side corner). The ramp is stowed when it starts. Releasing the D-pad
- *                        cancels at once. Refused, with a short rumble and no movement, in backup mode, with a Pinpoint fault, with an unseeded pose, while the Hive Dash runs, or when the
+ *                        cancels at once. Refused, with no movement (the screen says PARK DASH REFUSED), in backup mode, with a Pinpoint fault, with an unseeded pose, while the Hive Dash runs, or when the
  *                        robot is touching a hive support. See {@link ParkDash} and design/park-dash.md.
  *   (HOLD POSITION has no control: from a launch request to the end of the salvo, once the robot has settled, it holds that pose with a PID, resisting a push, and the heading too when the
  *                        target lock is not turning it; moving either stick cancels it at once. See {@link HoldPosition} and HoldPosition.ENABLED.)
  *   left bumper + right trigger  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident; it was left + right bumper until 2026-11-05, when the right bumper became the target lock)
  *
  * Gamepad 2 (operator):
- *   (the intake has no toggle: it runs IN until the robot holds 4 elements, then stops; Mechanisms.FULL_RUNS_OUT makes it run OUT instead)
- *   right trigger (hold) force the intake IN, even when full
+ *   (the intake has no toggle: since 2026-11-06 it is ALWAYS IN, whatever the count and the pusher lock say, except while the left trigger or a reject runs it OUT)
+ *   right trigger (hold) unlock a locked pusher (the intake is IN anyway)
  *   left trigger (hold)  force the intake OUT
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued launch
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
@@ -104,7 +105,7 @@ import java.util.Locale;
  *   (neither controller uses Back or Start)
  *
  * BACKUP MODE (no trusted pose or heading), one way: it is entered by the driver holding the left bumper and X for BACKUP_HOLD_SEC (1 s), or automatically
- * when the Pinpoint stays faulted or silent for BACKUP_PINPOINT_FAULT_SEC (a blip does not count). Both controllers give three rumble taps.
+ * when the Pinpoint stays faulted or silent for BACKUP_PINPOINT_FAULT_SEC (a blip does not count). The screen shows BACKUP MODE in red (the F310 controllers have no rumble, so there are no rumble signals anywhere).
  * From then on, until the opmode ends: robot-oriented drive (stick up = robot forward), no target lock (auto or manual), no
  * reseed, and the flywheel speed comes from the fixed distance BACKUP_LAUNCH_DISTANCE_IN (the start position, about 42 in) with the speed trim
  * still working; the driver drives to that spot to launch. There is no way out: service the robot.
@@ -133,12 +134,15 @@ public class TeleOpCompetition extends LinearOpMode {
     public static double AUTO_POSE_MAX_AGE_SEC = 300.0;
     public static double RESEED_HOLD_SEC = 1.0;
     /** True: target lock also engages by itself when the robot holds a full load (until the salvo is done). OFF since 2026-11-03: the lock is held by the driver (the right trigger, the right bumper since 2026-11-05). */
+    /**
+     * False (the match screen, 2026-11-06): the short, large, colored HTML screen of CompetitionScreen. True: the old detailed screen (every value, the controls cheat sheet) in the plain display
+     * format, for the pit and practice. Changed on the Dashboard; read every loop.
+     */
+    public static boolean TELEMETRY_VERBOSE = false;
     public static boolean AUTO_LOCK_WHEN_FULL = false;
     /** With the lock held and not ALIGNED, the driver's launch waits for ALIGNED (at most this long, then it is dropped) instead of firing at once. */
     public static boolean LAUNCH_WAITS_FOR_ALIGN = true;
     public static double LAUNCH_ALIGN_WAIT_SEC = 1.5;
-    /** One rumble pulse on both controllers each time the robot becomes full (4 elements, confirmed). Needs a gamepad with rumble. */
-    public static int FULL_RUMBLE_MS = 250;
     /** BACKUP MODE: the fixed launch distance (the start position's distance to the cell), and how long the Pinpoint must stay faulted before it is not just a blip. */
     public static double BACKUP_LAUNCH_DISTANCE_IN = 42.0;
     public static double BACKUP_PINPOINT_FAULT_SEC = 0.5;
@@ -166,27 +170,12 @@ public class TeleOpCompetition extends LinearOpMode {
     /** BACKUP MODE: no trusted pose or heading. Entered by the driver (left bumper + X) or a Pinpoint fault; never left within a run. */
     private boolean backupMode = false;
 
-    /**
-     * One rumble pulse. The Logitech F310 has no rumble motors, so it is skipped; any other gamepad type (Xbox 360, PS4, or one the SDK
-     * calls UNKNOWN) is asked to rumble, and the SDK ignores the request if it cannot. The SDK has no way to ask a gamepad whether it can.
-     */
-    private static void buzz(Gamepad gamepad, int ms) {
-        if (gamepad.type() != Gamepad.Type.LOGITECH_F310) gamepad.rumble(ms);
-    }
-
-    /** Short rumble taps (three for the backup mode, two for a lost flywheel encoder); skipped on the F310 like {@link #buzz}. */
-    private static void buzzBlips(Gamepad gamepad, int n) {
-        if (gamepad.type() != Gamepad.Type.LOGITECH_F310) gamepad.rumbleBlips(n);
-    }
-
-    /** Switch to the backup mode for the rest of the run: robot-oriented drive, no lock, a fixed launch speed, three taps on both gamepads. */
+    /** Switch to the backup mode for the rest of the run: robot-oriented drive, no lock, a fixed launch speed. */
     private void enterBackupMode(String why, Mechanisms mechanisms) {
         if (backupMode) return;
         backupMode = true;
         fieldOriented = false;
         mechanisms.enterBackupMode(BACKUP_LAUNCH_DISTANCE_IN);
-        buzzBlips(gamepad1, 3);
-        buzzBlips(gamepad2, 3);
         RunLog.event("BACKUP MODE ENTERED (" + why + "): robot-oriented drive, fixed launch speed, no target lock, no way back this run");
     }
 
@@ -350,7 +339,7 @@ public class TeleOpCompetition extends LinearOpMode {
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
         mechanisms.setAutoTarget(true);            // the target is the closer of the alliance's own two cells: nothing to pick
-        mechanisms.setIntakeAlwaysOn(true);        // the intake runs IN until the robot holds 4, then stops; the operator's triggers override
+        mechanisms.setIntakeAlwaysOn(true);        // the intake is always IN, whatever the count and the pusher lock say; only the operator's left trigger and a reject run it OUT
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
         mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
 
@@ -360,16 +349,17 @@ public class TeleOpCompetition extends LinearOpMode {
                 mechanisms.describe()));
         RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad1.type() + "), gamepad 2 "
                 + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad2.type() + ")");
-        RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS, SAMPLE_PERIOD_MS,
+        RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS + ",a_lf,a_lb,a_rb,a_rf", SAMPLE_PERIOD_MS,
                 () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%s,%.1f,%s", logX, logY, logHeadingDeg, logUp, logRight, cmdForward, cmdLeft,
-                        cmdTurn, backupMode ? "backup" : fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow()));
+                        cmdTurn, backupMode ? "backup" : fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow() + "," + drive.wheelAmpsRow()));
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
         boolean reseedDown = false, reseeded = false, backupHeld = false, manualLockOn = false, autoLockSuppressed = false, prevDriverLock = false;
         int salvosSeen = 0;
         ElapsedTime backupHold = new ElapsedTime();
         ElapsedTime reseedHold = new ElapsedTime();
-        boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, wasFull = false, pinpointBad = false;
+        boolean lockOn = false, lockWasAligned = false, autoLockLatched = false, pinpointBad = false;
+        Telemetry.DisplayFormat shownFormat = null;   // the display format last set (the match screen is HTML, the verbose one CLASSIC)
         boolean launchWaiting = false;   // a driver launch queued until the lock is ALIGNED
         ElapsedTime launchAlignClock = new ElapsedTime();
         boolean autoLaunchOn = false, autoLaunchDone = false, autoLaunchInZone = false;   // auto-launch: the operator's toggle, taken or given up for this lock, inside a zone now
@@ -453,7 +443,6 @@ public class TeleOpCompetition extends LinearOpMode {
             long profiledPark = LoopProfiler.start();
             ParkDash.Output park = parkDash.update(parkIn);
             LoopProfiler.stop("park_dash", profiledPark);
-            if (park.refused) buzz(gamepad1, 150);
             if (park.stowRamp) mechanisms.requestStowNow();   // the ramp must not be dragged into the zone; the dash does not wait for it
             dashIn.requestedCell = parkDash.state() != ParkDash.State.IDLE ? null : HiveDash.cellForDpad(gamepad1.dpad_left, gamepad1.dpad_right, blue, driverForwardRad);
             dashIn.blue = blue;
@@ -465,7 +454,6 @@ public class TeleOpCompetition extends LinearOpMode {
             long profiledHive = LoopProfiler.start();
             HiveDash.Output dash = hiveDash.update(dashIn);
             LoopProfiler.stop("hive_dash", profiledHive);   // route planning on the first loop of a dash shows as the maximum
-            if (dash.refused) buzz(gamepad1, 150);
             mechanisms.setDashLaunchDistance(dash.overrideCell != null ? dash.overrideDistanceIn : 0.0);
             if (dash.overrideCell != null) {
                 if (!dashOverride) {
@@ -504,11 +492,6 @@ public class TeleOpCompetition extends LinearOpMode {
             }
             boolean manualLock = manualLockOn;
             boolean fullNow = mechanisms.isFull();
-            if (fullNow && !wasFull && FULL_RUMBLE_MS > 0) {
-                buzz(gamepad1, FULL_RUMBLE_MS);
-                buzz(gamepad2, FULL_RUMBLE_MS);
-            }
-            wasFull = fullNow;
             if (fullNow) {
                 if (!autoLockSuppressed) autoLockLatched = true;
             } else {
@@ -720,12 +703,49 @@ public class TeleOpCompetition extends LinearOpMode {
 
             mechanisms.setPusherLockWanted(!backupMode && (lockOn || hiveDash.state() != HiveDash.State.IDLE));   // lock the pusher during a target lock or a Hive Dash
             mechanisms.update(pose);
-            if (mechanisms.takeFlywheelLostNotice()) {   // the flywheel's speed sensor died: open loop from now on; two taps on both pads
-                buzzBlips(gamepad1, 2);
-                buzzBlips(gamepad2, 2);
-            }
             RunLog.tick();
 
+            Telemetry.DisplayFormat wanted = TELEMETRY_VERBOSE ? Telemetry.DisplayFormat.CLASSIC : Telemetry.DisplayFormat.HTML;
+            if (wanted != shownFormat) {
+                shownFormat = wanted;
+                telemetry.setDisplayFormat(wanted);
+            }
+            if (!TELEMETRY_VERBOSE) {
+                CompetitionScreen.State screen = new CompetitionScreen.State();
+                screen.blue = blue;
+                screen.x = pose.position.x;
+                screen.y = pose.position.y;
+                screen.headingDeg = pose.heading.toDegrees();
+                if (backupMode) screen.alert(CompetitionScreen.RED, "BACKUP MODE");
+                else if (pinpointBad) screen.alert(CompetitionScreen.RED, "PINPOINT FAULT");
+                String driveWarning = drive.getHealthWarning();   // a wheel drawing far less current than the others (DriveHealth)
+                if (!driveWarning.isEmpty()) screen.alert(CompetitionScreen.RED, driveWarning);
+                if (backupHeld && !backupMode) screen.alert(CompetitionScreen.YELLOW, String.format(Locale.US, "BACKUP IN %.1f s", Math.max(0.0, BACKUP_HOLD_SEC - backupHold.seconds())));
+                if (reseedDown && !reseeded) screen.alert(CompetitionScreen.YELLOW, String.format(Locale.US, "RESEED IN %.1f s", Math.max(0.0, RESEED_HOLD_SEC - reseedHold.seconds())));
+                if (hiveDash.status().startsWith("REFUSED")) screen.alert(CompetitionScreen.YELLOW, "DASH REFUSED");   // replaces the old rumble: the dash did not start (the reason is in the log and the verbose screen)
+                if (parkDash.status().startsWith("REFUSED")) screen.alert(CompetitionScreen.YELLOW, "PARK DASH REFUSED");
+                CompetitionScreen.fromMechanisms(screen, mechanisms, backupMode, BACKUP_LAUNCH_DISTANCE_IN);
+                HiveTarget dashCell = hiveDash.cell();
+                if (dashCell != null) {
+                    String dashName = dashCell.name().endsWith("REAR") ? "REAR" : "AUDIENCE";
+                    HiveDash.State ds = hiveDash.state();
+                    screen.activity = ds == HiveDash.State.DRIVING ? "DASH: " + dashName : ds == HiveDash.State.ARRIVED ? "DASH: AIMING" : "DASH: LAUNCHING";
+                } else if (parkDash.state() != ParkDash.State.IDLE) {
+                    screen.activity = parkDash.state() == ParkDash.State.PARKED ? "PARKED" : "PARK DASH";
+                } else if (mechanisms.isLaunchBusy()) {
+                    screen.activity = "LAUNCHING";
+                } else if (launchWaiting) {
+                    screen.activity = "WAITING FOR AIM";
+                    screen.activityColor = CompetitionScreen.YELLOW;
+                } else if (mechanisms.isRejectActive()) {
+                    screen.activity = "REJECTING";
+                    screen.activityColor = CompetitionScreen.YELLOW;
+                } else if (lockOn) {
+                    screen.activity = targetLock.isAligned() ? "LOCK ALIGNED" : "LOCKING";
+                    screen.activityColor = targetLock.isAligned() ? CompetitionScreen.GREEN : CompetitionScreen.CYAN;
+                }
+                CompetitionScreen.render(telemetry, screen);
+            } else {
             if (backupHeld && !backupMode) telemetry.addData("Backup mode", "keep holding LB + X... %.1f s", BACKUP_HOLD_SEC - backupHold.seconds());
             if (backupMode) telemetry.addLine(String.format(Locale.US, "*** BACKUP MODE: no pose or heading. Robot-oriented drive, launch speed fixed for %.0f in (drive to that spot), no target lock. Service the robot. ***", BACKUP_LAUNCH_DISTANCE_IN));
             else if (pinpointBad) telemetry.addLine("*** PINPOINT FAULT (backup mode in a moment if it stays) ***");
@@ -752,6 +772,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addLine("GP1: stick drive, hold LT precision, hold RB target lock, A launch, hold D-pad left / right = HIVE DASH (drive to a cell's launch spot and launch), hold D-pad up / down = PARK DASH (drive to the left / right park corner), hold LB + RT = reseed pose, hold LB + X 1 s = BACKUP MODE (no way back)");
             telemetry.addLine("GP2: intake automatic (IN, stops when full), hold RT = force in, hold LT = force out, RB auto-launch on/off, hold LB + B reject, X deploy, Y stow, D-pad = report the last salvo (left / right = aim, down = low, up = high = speed trim; hold LB to clear), hold LB + Y pusher calibration sweep");
             telemetry.addLine("BACKUP MODE (no way back): GP1 hold LB + X for 1 s, or a Pinpoint fault");
+            }
             long profiledTelemetry = LoopProfiler.start();
             telemetry.update();
             LoopProfiler.stop("telemetry", profiledTelemetry);   // the Driver Station and the Dashboard

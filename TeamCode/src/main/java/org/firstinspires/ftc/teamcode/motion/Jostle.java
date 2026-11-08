@@ -29,10 +29,10 @@ public final class Jostle implements Action {
 
     /** The pause at the start, pressing against the flower, before the first back stroke (2026-11-05, user). */
     public static double START_HOLD_SEC = 1.0;
-    public static double BACK_IN = 0.25;   // 2.0 moved a little too far on 2026-11-03: halved to 1.0; 0.25 from 2026-11-05 (user): a small shake
+    public static double BACK_IN = 0.5;   // 2.0 moved a little too far on 2026-11-03: halved to 1.0; 0.25 from 2026-11-05 (user): a small shake; 0.5 from 2026-11-07 (user: the 0.25 in shake was hardly visible)
     public static double POWER = 0.5;
     /** The back stroke is gentle so that it does not overshoot the small BACK_IN (at 0.5 power the robot moves about an inch before the next loop sees it). Raise it if the robot does not move back. */
-    public static double BACK_POWER = 0.3;
+    public static double BACK_POWER = 0.4;   // 0.3 until 2026-11-07: the robot did not move back at the audience flower in some runs (user); 0.45 for a moment, then 0.4 (user: less overshoot)
     public static double PUSH_SEC = 0.2;   // the least a push lasts (halved from 0.35)
     public static double PUSH_MAX_SEC = 0.6;
     /** Once back at the contact point the robot keeps pressing this long before it backs off again (0.4 s before 2026-11-05). */
@@ -62,6 +62,7 @@ public final class Jostle implements Action {
     private double holdHeading;
     private Pose2d contact;   // the anchor: where the jostle started
     private int cycles = 0;
+    private double minAlong = 0.0;   // the deepest back-off reached in this stroke (for the log)
 
     public Jostle(MecanumDrive drive, BooleanSupplier done, IntSupplier count, double maxSec) {
         this.drive = drive;
@@ -110,14 +111,21 @@ public final class Jostle implements Action {
                 break;
             case BACK:
                 drive.setDrivePowers(new PoseVelocity2d(new Vector2d(-BACK_POWER, 0.0), turn));
+                minAlong = Math.min(minAlong, along);
                 if (along <= -BACK_IN || phase.seconds() >= BACK_MAX_SEC) {
+                    RunLog.event(String.format(Locale.US, "AUTO JOSTLE back stroke %d: commanded %.2f for %.2f s, %.2f in behind the contact point (wanted %.2f), ended by %s",
+                            cycles + 1, -BACK_POWER, phase.seconds(), -along, BACK_IN, along <= -BACK_IN ? "the distance" : "the time limit: it did not move back far enough"));
                     mode = Mode.PUSH;
                     phase.reset();
                 }
                 break;
             case PUSH:
                 drive.setDrivePowers(new PoseVelocity2d(new Vector2d(POWER, 0.0), turn));
+                minAlong = Math.min(minAlong, along);
                 if ((phase.seconds() >= PUSH_SEC && along >= -CONTACT_TOL_IN) || phase.seconds() >= PUSH_MAX_SEC) {
+                    RunLog.event(String.format(Locale.US, "AUTO JOSTLE push %d: commanded %.2f for %.2f s, back at %.2f in from the contact point; the deepest back-off was %.2f in",
+                            cycles + 1, POWER, phase.seconds(), -along, -minAlong));
+                    minAlong = 0.0;
                     mode = Mode.PRESS;
                     phase.reset();
                 }

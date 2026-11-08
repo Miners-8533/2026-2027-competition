@@ -15,6 +15,7 @@ import org.firstinspires.ftc.teamcode.drive.PinpointLocalizer;
 import org.firstinspires.ftc.teamcode.drive.PoseStorage;
 import org.firstinspires.ftc.teamcode.drive.TargetLock;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
+import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.motion.Action;
 import org.firstinspires.ftc.teamcode.motion.Actions;
@@ -48,7 +49,7 @@ import java.util.Locale;
  *   4. Deploy the ramp (after the salvo, or during it with RAMP_DEPLOY_DURING_LAUNCH) while backing to the flower pre-position and turning to heading 0, wait for it to settle;
  *      drive onto the flower with the intake running; jostle it (back and push, repeated: see Jostle) until the robot holds 4 elements (at most FLOWER_PAUSE_MAX_SEC).
  *   5. Stow the ramp, back off along the flower's line to the launch spot while turning onto the cell (FLOWER_TURN_WHILE_BACKING), aim, launch.
- *   6. FINAL GATHER (2026-11-05, FINAL_FLOWER_ENABLED, only if step 5's salvo was done by FINAL_FLOWER_LATEST_START_SEC): around the outside of the hive via the helper point to the flower on the robot's own
+ *   6. FINAL GATHER (2026-11-05, FINAL_FLOWER_ENABLED, always runs when enabled): around the outside of the hive via the helper point to the flower on the robot's own
  *      alliance wall (the Blue Wall flower for blue), ram, a one-cycle jostle (ends by FINAL_JOSTLE_DEADLINE_SEC), back out, the ramp stows, and park in the hive-side corner of the loading zone
  *      (FINAL_PARK_X / Y); the intake is held IN from the ram to the park and the pollen stay for the TeleOp. Otherwise: the old park (straight from the launch spot; PARK_VIA_POINT can add a point level with it).
  *
@@ -94,7 +95,7 @@ public class AutonSolo extends LinearOpMode {
      * the same for either alliance. If a salvo lands LEFT, make its trim negative. 2026-11-03: the garden salvo landed left (the aim step ended +2.2 to +2.3 deg, the robot already pointed to the
      * right of the aim) and the flower salvo went in (+0.9 deg). The AIM log line shows the trim.
      */
-    public static double GARDEN_AIM_TRIM_DEG = -3.0, FLOWER_AIM_TRIM_DEG = -3.0;   // 2 deg clockwise from 2026-11-03, 1 more on 2026-11-04 (the launch was still a little left)
+    public static double GARDEN_AIM_TRIM_DEG = -8.0, FLOWER_AIM_TRIM_DEG = -8.0;   // 2 deg clockwise from 2026-11-03, 1 more on 2026-11-04 (the launch was still a little left), 1.5 more on 2026-11-07 (the red run's rear-cell salvos landed left), and 1.5 more later that day, then 2 more (-8.0) together with the aim breakaway, which removes the stall that left the robot about 1 deg short of the trimmed aim (the blue runs still landed left; the aim step stops about 1 deg short of the trimmed aim, so the real shift is about 1 deg less than the trim)
     /**
      * After the jostle the robot first backs STRAIGHT out (heading held 0) to FLOWER_AT_X - FLOWER_BACKOFF_IN (x 46.3, ending within BACKOUT_TOL_IN) and only then does the turn move to the launch spot (false, the default).
      * True goes straight to the launch spot turning as it backs: it caught the edge of the ramp on the flower on 2026-11-03 (the turn started at x 53.4, 4 in from the launch spot).
@@ -142,13 +143,13 @@ public class AutonSolo extends LinearOpMode {
     /**
      * FINAL GATHER (2026-11-05, user): after the flower salvo the robot gathers the flower on its OWN alliance wall (the Blue Wall flower for blue, the audience-wall flower's poses turned 90 deg
      * counterclockwise, as the Duo Garden Side does; red is turned 180 deg), keeps what it gets for the TeleOp, and parks in the OTHER (hive-side) corner of the loading zone at (FINAL_PARK_X, FINAL_PARK_Y)
-     * instead of the old park beside the audience flower. It runs only if the flower salvo ended by FINAL_FLOWER_LATEST_START_SEC into the auto (otherwise the old park runs), the jostle there ends at
-     * FINAL_JOSTLE_DEADLINE_SEC so the park always has its time (about 1.0 s back-out plus 1.5 s park), and the intake is held IN from the ram to the park. Nominal: about 29.8 s with a full one-cycle jostle.
+     * instead of the old park beside the audience flower. It always runs when enabled (the start-time guard was removed 2026-11-06, user: only the jostle deadline is needed), the jostle there ends at
+     * FINAL_JOSTLE_DEADLINE_SEC so the park has its time (about 1.0 s back-out plus 1.5 s park), and the intake is held IN from the ram to the park. Nominal: about 29 s with a full one-cycle jostle.
      */
     public static boolean FINAL_FLOWER_ENABLED = true;
-    public static double FINAL_FLOWER_LATEST_START_SEC = 23.0;
     public static double FINAL_JOSTLE_DEADLINE_SEC = 26.5;
-    public static double FINAL_PARK_X = 26.0, FINAL_PARK_Y = 60.0, FINAL_PARK_HEADING_DEG = 90.0, FINAL_PARK_OVERSHOOT_IN = 0.0;
+    /** FINAL_PARK_Y 53.1 (2026-11-07, user): the front edge (9.88 in ahead of the origin) ends 8 in from the wall (it was 60, 1.1 in from it) and still 3.9 in inside the loading zone (it starts at y 59.1). */
+    public static double FINAL_PARK_X = 26.0, FINAL_PARK_Y = 53.1, FINAL_PARK_HEADING_DEG = 90.0, FINAL_PARK_OVERSHOOT_IN = 0.0;
     /** The helper point outside the support rails for the trip back across, and the heading it is taken at (along the leg, toward -X). Nudge of the wall flower poses (blue frame, before the alliance turn). */
     public static double FINAL_HELPER_HEADING_DEG = 180.0;
     public static double FINAL_FLOWER_DX_IN = 0.0, FINAL_FLOWER_DY_IN = 0.0;
@@ -480,9 +481,11 @@ public class AutonSolo extends LinearOpMode {
         double squareHeadingRad = Math.toRadians(isBlue ? 90.0 : 270.0);
         Pose2d launchSpotBlueFrame = pose(LAUNCH_X, LAUNCH_Y, 0.0);
         Pose2d launchXY = forAlliance(launchSpotBlueFrame, isBlue);
+        // the launch spots' headings include the salvo's standing aim trim (2026-11-07), so the leg arrives pointed at the trimmed aim and the aim step only fine-tunes (the trim is the same clockwise degrees for either alliance)
         double launchHeading = TargetLock.aimHeadingRad(launchXY.position.x, launchXY.position.y, secondCell, TargetLock.farCellExtraLeftIn(secondCell, isBlue));
-        Pose2d launchSpot = new Pose2d(launchXY.position.x, launchXY.position.y, launchHeading);
-        double blueLaunchHeadingDeg = Math.toDegrees(TargetLock.aimHeadingRad(LAUNCH_X, LAUNCH_Y, HiveTarget.BLUE_AUDIENCE, TargetLock.farCellExtraLeftIn(HiveTarget.BLUE_AUDIENCE, true)));
+        Pose2d launchSpot = new Pose2d(launchXY.position.x, launchXY.position.y, launchHeading + Math.toRadians(GARDEN_AIM_TRIM_DEG));
+        Pose2d launchSpotFlower = new Pose2d(launchXY.position.x, launchXY.position.y, launchHeading + Math.toRadians(FLOWER_AIM_TRIM_DEG));
+        double blueLaunchHeadingDeg = Math.toDegrees(TargetLock.aimHeadingRad(LAUNCH_X, LAUNCH_Y, HiveTarget.BLUE_AUDIENCE, TargetLock.farCellExtraLeftIn(HiveTarget.BLUE_AUDIENCE, true))) + GARDEN_AIM_TRIM_DEG;
         Pose2d helper = forAlliance(pose(HELPER_X, HELPER_Y, blueLaunchHeadingDeg), isBlue);   // outside the support rails, at the launch spot's heading
         Pose2d flowerPre = forAlliance(pose(FLOWER_PRE_X, FLOWER_PRE_Y, FLOWER_HEADING_DEG), isBlue);
         Pose2d flowerBack = forAlliance(pose(FLOWER_AT_X - FLOWER_BACKOFF_IN, FLOWER_AT_Y, FLOWER_HEADING_DEG), isBlue);   // clear of the flower before the 180 deg turn
@@ -499,17 +502,21 @@ public class AutonSolo extends LinearOpMode {
         RunLog.event(String.format(Locale.US, "SETUP profile %s, alliance %s, start pose (%.1f, %.1f, %.1f deg), cells %s then %s, launch spot (%.1f, %.1f, %.1f deg), %s",
                 profile.name, isBlue ? "BLUE" : "RED", drive.getPose().position.x, drive.getPose().position.y, drive.getPose().heading.toDegrees(),
                 firstCell, secondCell, launchSpot.position.x, launchSpot.position.y, launchSpot.heading.toDegrees(), mechanisms.describe()));
-        RunLog.setSampler("x,y,hdg_deg," + Mechanisms.SAMPLE_COLUMNS, 100, () -> {
+        RunLog.setSampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn," + Mechanisms.SAMPLE_COLUMNS + ",a_lf,a_lb,a_rb,a_rf", 100, () -> {
             Pose2d p = drive.getPose();
-            return String.format(Locale.US, "%.2f,%.2f,%.1f,%s", p.position.x, p.position.y, p.heading.toDegrees(), mechanisms.sampleRow());
+            PoseVelocity2d dc = drive.getLastCommand();   // the drive command in the sample rows (from 2026-11-07), as in the TeleOp: what the legs and the jostle sent
+            return String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%s", p.position.x, p.position.y, p.heading.toDegrees(), dc.linearVel.x, dc.linearVel.y, dc.angVel, mechanisms.sampleRow() + "," + drive.wheelAmpsRow());
         });
 
         mechanisms.setBlueAlliance(isBlue);
+        mechanisms.setIntakeAlwaysOn(true);   // the intake runs IN for the whole auto (user, 2026-11-07), whatever the count says; only a reject or an outtake runs it OUT
         mechanisms.setOpenCell(firstCell);
+        mechanisms.setJamRetries(Pusher.JAM_RETRIES_AUTO);   // one jam back-off per pusher move: the autos are tight on time
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel stays up between launches ...
         mechanisms.setSpinRequested(true);         // ... and spins from Start, so it is at speed on arrival at each launch spot
 
         Action auto = new SequentialAction(
+                new InstantAction(mechanisms::preparePusherForLaunch),   // the pusher moves to the lock position while the flywheel spins up: the preload salvo turns 310 deg instead of 400
                 launch(drive, mechanisms, firstCell, isBlue, "preload"),
 
                 note("Garden pre-position"),
@@ -526,8 +533,6 @@ public class AutonSolo extends LinearOpMode {
                 crossLeg("helper (outside the support rails)", drive, helper, CROSS_FIELD_MAX_POWER, true),
                 note("To the launch spot"),
                 crossLeg("launch spot 1", drive, launchSpot, CROSS_FIELD_MAX_POWER, false),
-                note("Intake OFF"),
-                mechanisms.setIntake(false),
                 RAMP_DEPLOY_DURING_LAUNCH ? new InstantAction(mechanisms::requestDeploy) : new InstantAction(() -> { }),   // deploys while it launches
                 launch(drive, mechanisms, secondCell, isBlue, "garden pollen", GARDEN_AIM_TRIM_DEG),
 
@@ -542,17 +547,14 @@ public class AutonSolo extends LinearOpMode {
                 timed("flower jostle", new Jostle(drive, jostleDone(mechanisms), () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
                 note("Back off the flower to the launch spot (intake still ON)"),
                 FLOWER_TURN_WHILE_BACKING ? new InstantAction(() -> { }) : backOutLeg("flower back-out (straight)", drive, flowerBack),
-                stowWhenTurned(launchLeg("launch spot 2", drive, launchSpot), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
+                stowWhenTurned(launchLeg("launch spot 2", drive, launchSpotFlower), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
                 launch(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG),
-                note("Intake OFF (the flower salvo is done)"),
-                mechanisms.forceIntakeIn(false),
-                mechanisms.setIntake(false),
 
                 choose(() -> {
-                            boolean go = FINAL_FLOWER_ENABLED && autoClock.seconds() <= FINAL_FLOWER_LATEST_START_SEC;
-                            RunLog.event(String.format(Locale.US, "AUTO %s at %.2f s into the auto (the final gather needs the flower salvo done by %.1f s)",
-                                    go ? "FINAL GATHER starts" : "FINAL GATHER skipped: the old park runs", autoClock.seconds(), FINAL_FLOWER_LATEST_START_SEC));
+                            boolean go = FINAL_FLOWER_ENABLED;
+                            RunLog.event(String.format(Locale.US, "AUTO %s at %.2f s into the auto",
+                                    go ? "FINAL GATHER starts" : "FINAL GATHER disabled: the old park runs", autoClock.seconds()));
                             return go;
                         },
                         new SequentialAction(
@@ -570,9 +572,8 @@ public class AutonSolo extends LinearOpMode {
                                 backOutLeg("wall flower back-out (straight)", drive, wallBack, WALL_BACKOUT_TOL_IN),
                                 new InstantAction(mechanisms::requestStowNow),   // clear of the flower: the ramp stows on the way to the corner
                                 parkLeg("park (hive-side corner, full power)", drive, finalPark),
-                                timed("ramp stow (wait)", rampTo(mechanisms, false)),
-                                mechanisms.forceIntakeIn(false),
-                                mechanisms.setIntake(false)),
+                                timed("ramp stow (wait)", rampTo(mechanisms, false))
+                                ),
                         new SequentialAction(
                                 note("Park"),
                                 PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),

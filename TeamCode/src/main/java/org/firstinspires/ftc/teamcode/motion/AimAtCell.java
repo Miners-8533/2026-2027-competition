@@ -24,13 +24,25 @@ public final class AimAtCell implements Action {
     public static double HOLD_SEC = 0.15;
     /** Gives up and lets the launch go ahead after this long (1.5 s before 2026-11-03, when the error sat at +2.0 to +2.2 deg and ran it out twice). */
     public static double TIMEOUT_SEC = 0.6;
-    /** Aligned means within this many degrees (the lock's own ALIGNED_DEG is 2.0) and turning slower than TargetLock.ALIGNED_MAX_RATE_DEG_PER_S. */
-    public static double ALIGNED_DEG = 2.5;
+    /**
+     * Aligned means within this many degrees (the TeleOp lock's own ALIGNED_DEG is 2.0) and turning slower than TargetLock.ALIGNED_MAX_RATE_DEG_PER_S. 1.0 since 2026-11-06 (the user; it was 2.5): the Solo
+     * auto's logs of 11-05 and 11-06 had every aim end at +1.5 to +2.1 deg or -1.9 to -2.1 deg, cut short as soon as it was inside 2.5 deg and nearly stopped (about 1.1 in of lateral error at the cell). The turn law's
+     * own dead band (TargetLock.DEADBAND_DEG, 1.0) stops the turn at 1 deg, so this ends the aim when it gets there; if the turn stalls short (a TIMED OUT aim line) raise this or TIMEOUT_SEC.
+     */
+    public static double ALIGNED_DEG = 1.0;
+    /**
+     * BREAKAWAY (2026-11-07): the turn law's output near the end of an aim (about 1.2 x error + 0.05, so 0.07 to 0.11 for 1 to 2 deg) is under the drive's dead zone, and the robot sat still at 1 to 2 deg
+     * short of the aim for the whole 0.6 s (the 11-07 logs: turn command -0.09, rate 0 deg/s, every aim TIMED OUT). While the robot is outside the turn dead band and turning slower than
+     * STALL_RATE_DEG_PER_S, the turn command is raised to at least BREAKAWAY_POWER; once it moves, the normal law (smaller) takes over and it coasts in. 0 = off.
+     */
+    public static double BREAKAWAY_POWER = 0.14;
+    public static double STALL_RATE_DEG_PER_S = 6.0;
 
     private final MecanumDrive drive;
     private final HiveTarget cell;
     private final boolean blue;
     private final double trimDeg;
+    private int kicks = 0;   // loops in which the breakaway raised the turn command (for the AIM log line)
     /** NaN: the lock's own far-cell rule ({@link TargetLock#farCellExtraLeftIn}); a number: this extra sideways offset in inches instead (the duo autos launch only at the cell on their own start side, which needs none). */
     private final double extraLeftIn;
     private final TargetLock lock = new TargetLock();
@@ -69,8 +81,12 @@ public final class AimAtCell implements Action {
         PoseVelocity2d measured = drive.updatePoseEstimate();
         Pose2d pose = drive.getPose();
         double turn = lock.turn(pose, measured == null ? 0.0 : measured.angVel, cell, Double.isNaN(extraLeftIn) ? TargetLock.farCellExtraLeftIn(cell, blue) : extraLeftIn, trimDeg, 0.0, dt);
-        drive.setDrivePowers(new PoseVelocity2d(Vector2d.zero(), turn));
         double rateDegPerS = measured == null ? 0.0 : Math.toDegrees(measured.angVel);
+        if (BREAKAWAY_POWER > 0.0 && turn != 0.0 && Math.abs(turn) < BREAKAWAY_POWER && Math.abs(rateDegPerS) < STALL_RATE_DEG_PER_S) {
+            turn = Math.copySign(BREAKAWAY_POWER, turn);
+            kicks++;
+        }
+        drive.setDrivePowers(new PoseVelocity2d(Vector2d.zero(), turn));
         boolean near = Math.abs(lock.errorDeg()) <= ALIGNED_DEG && Math.abs(rateDegPerS) <= TargetLock.ALIGNED_MAX_RATE_DEG_PER_S;
         if (!near) held.reset();
         packet.put("aim/err_deg", lock.errorDeg());
@@ -78,8 +94,8 @@ public final class AimAtCell implements Action {
         boolean done = aligned || timeout.seconds() >= TIMEOUT_SEC;
         if (done) {
             drive.stop();
-            RunLog.event(String.format(java.util.Locale.US, "AIM %s at %s after %.2f s: error %+.1f deg (trim %+.1f deg), pose (%.1f, %.1f, %.1f deg)",
-                    aligned ? "aligned" : "TIMED OUT", cell, timeout.seconds(), lock.errorDeg(), trimDeg,
+            RunLog.event(String.format(java.util.Locale.US, "AIM %s at %s after %.2f s: error %+.1f deg (trim %+.1f deg, %d breakaway loops), pose (%.1f, %.1f, %.1f deg)",
+                    aligned ? "aligned" : "TIMED OUT", cell, timeout.seconds(), lock.errorDeg(), trimDeg, kicks,
                     pose.position.x, pose.position.y, pose.heading.toDegrees()));
             lock.release();
         }

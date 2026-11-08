@@ -2,6 +2,25 @@
 
 Two matched autos for an alliance whose partner runs the other one: **Auton - Duo Flower Side** (starts at the audience wall) and **Auton - Duo Garden Side** (starts at the rear wall). Built 2026-11-04 on branch `duo-autos`, merged into `integration` 2026-11-05 to test with everything else; **not yet run on the robot**. Code: `AutonDuoBase` (INIT, log, run), `AutonDuoFlowerSide`, `AutonDuoGardenSide`, `DuoKit` (the drive legs, timed steps, launch, waits; copied from `AutonSolo`) and `DuoAutos` (every Dashboard value). Blue/red is picked at INIT (D-pad right / left); red is the blue path turned 180 degrees about the field center. The rules behind this are in [game-rules.md](game-rules.md).
 
+## Duo Daryl (2026-11-06, the user's design; `AutonDuoDaryl`, Dashboard values `DuoAutos.D_*` and the shared `P_*` speeds and spots; not yet run on the robot)
+
+The rear-wall start with the garden first. Blue frame (red is turned 180 deg):
+
+1. The pusher moves to the lock position while the flywheel spins up (`Mechanisms.preparePusherForLaunch`, see below); preload into the REAR cell.
+2. **The garden as in the solo auto** (from 2026-11-07: the angled pre-position, the slow pickup, the squaring approach, then the squaring on the side and front walls). The first version, one leg from the start straight to the wall squaring pose (-61.15, 58.5, 90 deg) with the last `D_GARDEN_SLOW_ZONE_IN` 12.5 in limited to `D_GARDEN_SLOW_POWER` 0.5, ended too far from the wall in the 2026-11-07 run (the squaring started 2.9 to 3.5 in off the flush x), so it is not used for now (`DuoKit.gardenLeg` and the `D_GARDEN_SLOW_*` values stay in the code).
+3. Around the outside via the east helper (36, 40) to the audience launch spot (50, 26.3); launch into the AUDIENCE cell (far-cell aim extra).
+4. The Blue Wall flower (the audience flower's poses turned 90 deg), jostle by `D_WALL_JOSTLE_DEADLINE_SEC` 19 s at the latest, back out; the ramp stows.
+5. The partner's window, an ABSOLUTE time (the user, 2026-11-06: our preload ends at about 3 s, the tip takes 4 s, plus 2 s of buffer, so the partner shoots at about 9 s and parks by about 18 s): the robot does not leave the flower before `D_SECOND_SHOT_NOT_BEFORE_SEC` 18 s minus `D_RETURN_TRAVEL_SEC` 2.4 s, and waits at the spot until 18 s if it still arrives early (`AUTO WAIT ...` lines). The nominal arrival is about 20 s, so it normally does not wait at all; no pause, no extra jostle.
+6. Back to the audience launch spot, launch into the AUDIENCE cell again (the intake stays IN through it).
+7. The audience flower (the solo auto's poses), jostle by `D_AUD_JOSTLE_DEADLINE_SEC` 26 s at the latest; skipped (`AUTO SKIP audience flower`) when it would start after `D_AUD_FLOWER_LATEST_START_SEC` 22.5 s so the park keeps its time. Its pollen stay in the robot for the TeleOp.
+8. Park in the hive-side corner (26, 53.1), ramp stowed, flywheel off.
+
+Estimate (2026-11-06, from the logs; about +-1.5 s): preload done 2.7, garden leg 1.3 and squaring 1.3 (5.3), around to the audience spot 3.9 and salvo 1.8 (11.0), to the Blue Wall flower 3.0 and its gather 3.7 (17.7), back at the spot at about 20.1 (the second salvo starts about 20.4) and done at 22.0, audience flower 4.9 (26.9), park 1.5 = **about 28.4 s**; the audience flower starts at about 22 s against the 22.5 s guard, so it is skipped when anything runs late. Ideas to win time if it is skipped too often: cap the audience flower's jostle (about 0.9 s), skip its pre-position settle. Path check (`tools/hive/run-check.cmd`): the Daryl legs clear the supports and the flower stands grown 2 in.
+
+## Preload pusher pre-position (2026-11-06, all autos)
+
+`Mechanisms.preparePusherForLaunch()` moves the arm from HOLD to the lock position (90 deg) at the very start of every auto (Solo, Flower Side, Garden Side, Primary, Daryl) while the flywheel spins up (1.1 s or more to reach the launch band; the arm needs about 0.6 s), so the preload salvo turns 310 deg instead of 400: median 1.08 s against 1.37 s in the logs (n = 135 and 77), about 0.3 s per auto. Only the preload: later salvos already start from the arm's rest about 45 deg past HOLD (median 1.22 s, so only about 0.14 s to gain), and a locked arm would block the stragglers the autos keep the intake open for. The queued salvo waits for the arm to stop (`pusher.isStopped()`), then runs from the lock; it works with `PUSHER_LOCK_ENABLED` false because it calls the pusher's lock move directly.
+
 ## Duo Primary (2026-11-06, the user's design; `AutonDuoPrimary`, Dashboard values `DuoAutos.P_*`)
 
 A third auto for the alliance whose partner does the lighter job: the rear-wall start of the Garden Side with a longer program, **not yet run on the robot**. Blue frame (red is turned 180 deg):
@@ -12,7 +31,7 @@ A third auto for the alliance whose partner does the lighter job: the rear-wall 
 4. The audience flower from there (the solo auto's poses), back out. Skipped if later than `P_AUD_FLOWER_LATEST_START_SEC`.
 5. Back across the north side (east helper, west helper (-36, 40)) to the rear launch spot (-50, 26.3), the mirror of the audience one (31.6 in from the rear cell, 22 in from the garden pre-position); launch into the REAR cell (the user chose a mid-field spot for this salvo).
 6. The garden as in the solo auto, back to the rear launch spot, launch into the REAR cell. Skipped if later than `P_GARDEN_LATEST_START_SEC`.
-7. Park in the hive-side corner (26, 60) through the west helper, ramp stowed, flywheel off.
+7. Park in the hive-side corner (26, 53.1) through the west helper, ramp stowed, flywheel off.
 
 Speeds: `DuoKit.fastLegs` gives this auto the solo auto's faster legs (`P_LEG_MAX_POWER` 0.85, `P_CROSS_MAX_POWER` 1.0, `P_PASS_SETTLE_SEC` 0) and the Blue Wall flower's near-enough tolerances (`WALL_PRE_POS_TOL_IN` 2.5, `WALL_BACKOUT_TOL_IN` 2.5); the other two duo autos keep their old speeds.
 
@@ -37,7 +56,7 @@ Waits are absolute seconds from Start (a robot cannot see its partner): `F_FIRST
 - Launch spots: F (61.5, 7.5), G (-61.5, 15.25); the heading is the computed aim at the own-side cell with no far-cell extra, and `AimAtCell` takes out what is left.
 - Flowers: F uses the solo auto's audience-wall flower numbers; G uses the same poses turned 90 degrees about the center (pre (-26.3, 38, 90), ram target (-26.3, 67.3), back-out to y 46.3) plus `WALL_FLOWER_DX_IN/DY_IN` to refine on the field.
 - Garden (G): the solo auto's angled approach, slow pickup and square on the wall.
-- Parks: F (40, 60, 90) through (46, 32); G (26, 60, 90) through the helper (-36, 40); both facing the Blue Wall in the loading zone (x 23.9 to 46.6, y 59.1 to 70.1; the line only has to be broken). Overshoot is 0 (the front edge is already at y 69.9).
+- Parks: F (40, 53.1, 90) through (46, 32); G (26, 53.1, 90) through the helper (-36, 40); both facing the Blue Wall in the loading zone (x 23.9 to 46.6, y 59.1 to 70.1; the line only has to be broken). Since 2026-11-07 (user) the front edge is 8 in from the wall (y 53.1 + 9.88 = 62.98 of 71; was 60, 1.1 in from it), so it is 3.9 in inside the zone: with the 2.5 in park tolerance the worst stop still has 1.4 in in. Overshoot is 0.
 - Every auto ends with the ramp stowed (a final `ramp stow` step).
 
 ## Checks
@@ -45,6 +64,22 @@ Waits are absolute seconds from Start (a robot cannot see its partner): `F_FIRST
 
 ## Open points (tune from the first logged runs)
 - **G probably overruns 30 s.** The flower gather, the wait to 25 s, then the garden gather, the return and a second salvo do not fit if the wait is really 25 s. The first thing to look at in the `AUTO TIMING` lines: move the garden gather in front of the wait (it then happens while the partner tips), or cut it. Not done yet on purpose (nothing was optimized before it was timed).
-- Aim trims `*_TRIM_DEG` are 0 for all five launches (new launch spots).
+- The audience launch spots' headings include the salvo's trim (from 2026-11-07), so the leg arrives pointed at the trimmed aim and the aim step only fine-tunes (Daryl has one spot per salvo, `audSpot` with `D_GARDEN_TRIM_DEG` and `audSpotWall` with `D_WALL_TRIM_DEG`).
+- Aim trims `*_TRIM_DEG` are 0 for the launches into the near cell. The launches into the audience cell from (50, 26.3) (the far cell from the rear-wall start, the solo auto's launch spot) are -8.0 deg (`P_WALL_TRIM_DEG`, `D_GARDEN_TRIM_DEG`, `D_WALL_TRIM_DEG`, from 2026-11-07), the solo auto's total trim there: it went -3.0, -4.5, -6.0 and then -8.0 as its salvos into that cell kept landing left (the aim step stops about 1 deg short of the trimmed aim, so the real shift is about 1 deg less than the trim). Not yet seen on the robot in these autos.
 - If the partner misses pollen, the 8-pollen tip does not happen and the waits are wasted; the plan assumes every launch goes in.
 - The Blue Wall flower poses are a rotation of the audience flower's tuned numbers, not measured on the field.
+
+## Auton - Cybugs (built 2026-11-07, not yet run on the robot)
+The user's design, built from Daryl: the rear-wall start, garden first, no audience flower. Blue frame (red is turned 180 deg). The intake runs IN from the start until the last salvo, then OUT to the end (the TeleOp's left-trigger outtake, `Mechanisms.setManualOuttake`), because the robot kept picking up nectar unintentionally on the way to the park. Estimated times from the 2026-11-07 Q24 Daryl run and the Garden Side and Solo legs:
+
+| # | Action | Time (s, estimated) |
+|---|---|---|
+| 1 | Aim and launch the preload into the rear cell (pusher pre-positioned) | 0.0-2.4 |
+| 2 | Garden: pre-position, slow pickup, square approach, square on the wall | 2.4-5.7 |
+| 3 | East helper to the audience launch spot (50, 26.3), launch the garden pollen into the audience cell (trim -8.0) | 5.7-10.3 |
+| 4 | East helper back, Blue Wall flower: pre-position, ram, one-cycle jostle, back out | 10.3-16.6 |
+| 5 | To the rear launch spot at the start wall (-61.5, 15.25), wait `C_LAST_SALVO_WAIT_SEC` 1.0 s with the flywheel spinning, launch the flower pollen into the REAR cell (`C_REAR_TRIM_DEG` 0) | 16.6-21.3 |
+| 6 | Intake OUT for the rest of the auto | 21.3 |
+| 7 | Park helper (-36, 40), then the park (26, 53.1), ramp stowed | 21.3-24.7 |
+
+No waits for the partner and no second garden pass (dropped by the user, 2026-11-07, because the intake is OUT after the last salvo). The park goes through the helper point as the Garden Side does; the PC path check (`tools/hive/DuoPathCheck.java`) passes for the legs. The salvo into the rear cell scores according to the tip state, which depends on the partner's launches (unchanged from the other duo autos). About 5 s of margin before the 30 s horn. The four Cybugs runs of 2026-11-07 (16:20 to 16:39) finished at 24.9 to 25.9 s with the 2 s wait and the park settled within 1 in. The outtake makes the robot report busy, so the automatic pusher check after the last salvo is skipped; the TeleOp's start-up check covers it.

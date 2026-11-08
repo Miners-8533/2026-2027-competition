@@ -22,7 +22,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 
 ## 2. TeleOp basics (T1 to T3, F4)
 - [ ] Controls: driver A launches, LB chords, precision on LT, target lock on RB (new 2026-11-05), reseed LB + RT (was LB + RB); operator A target lock, LB+B reject, LB+Y sweep
-- [ ] Intake always on: IN under 4, OUT at 4; one rumble when full; the count stops flickering 3 / 4
+- [ ] Intake ALWAYS IN (since 2026-11-06): it keeps running IN at 4 held and against the locked arm; only the left trigger and a reject run it OUT; check what a fifth pollen does and that the left trigger clears it; the count stops flickering 3 / 4
 - [ ] Target lock on by itself when full, off after the salvo; launch at all four cells (marks: far-cell extra -3.0, offset -2.2)
 - [ ] Backup mode: LB + X held 1 s (banner, three taps)
 - [ ] Pusher: no faults, a launch and a reject cancel each other, count reads 0 after a salvo (P10)
@@ -50,7 +50,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 ## 8. Park Dash (T11)
 - [ ] `ParkDash.DRY_RUN` true: D-pad up / down, read `PARK DASH start`
 - [ ] DRY_RUN false: ramp stows at the start; ends in the loading zone corner (up = driver's left); holds while held and resists a push; release cancels
-- [ ] Refused with a rumble when touching a support or in backup mode; left / right still Hive Dash; the two never run together
+- [ ] Refused (the screen says DASH REFUSED / PARK DASH REFUSED for 3 s, no rumble) when touching a support or in backup mode; left / right still Hive Dash; the two never run together
 
 ## 8b. Loop profile (new, every run)
 - [ ] After the TeleOp and auto runs: pull the logs and run `python tools/logs/loop_profile.py` (and `--busiest` for the worst windows). Note pose, drive_write, telemetry, mechanisms (and mech.counter), other; compare the TeleOp with the 28 to 30 ms of 2026-11-03, and look at hive_dash / park_dash / hold maximums during a dash
@@ -61,7 +61,7 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 - [ ] Driver right BUMPER (hold) is the target lock; the right trigger does nothing; LB + RB does nothing; the nudge (LB + right stick while RB is held) works and does not reseed
 - [ ] Reseed is LB + right TRIGGER, hold 1 s (the screen counts it); the pose goes to the default start
 - [ ] Operator D-pad left / right: the remembered aim moves 3 deg per report (max 10; log `REPORT landed ...`)
-- [ ] Autos' flower gather: the log's `AUTO JOSTLE start` line says press 1.0 s first, back 0.25 in at power 0.3, press 1.0 s per cycle, at most 1 cycle (`Jostle.MAX_CYCLES`; the jostle now ends after one back-and-forth, `AUTO JOSTLE ended ... the 1 back-and-forth cycle(s) are done`); check the robot actually moves back (about 0.25 to 0.75 in) and does not stay jammed; raise `Jostle.BACK_POWER` if it does not move; check that the duo and Solo timing still fits 30 s
+- [ ] Autos' flower gather: the log's `AUTO JOSTLE start` line says press 1.0 s first, back 0.5 in at power 0.4 (from 2026-11-07; the `AUTO JOSTLE back stroke` and `push` lines then say what moved), press 1.0 s per cycle, at most 1 cycle (`Jostle.MAX_CYCLES`; the jostle now ends after one back-and-forth, `AUTO JOSTLE ended ... the 1 back-and-forth cycle(s) are done`); check the robot actually moves back (about 0.25 to 0.75 in) and does not stay jammed; raise `Jostle.BACK_POWER` if it does not move; check that the duo and Solo timing still fits 30 s
 - [ ] Autos: the intake stays IN from the flower ram until the flower salvo is done, even at 4 held (log: `COMMAND intake forced IN (auto, through the flower salvo) -> ON`, then `off` after the salvo; `INTAKE mode` lines): pollen still coming off the ramp keep coming in while the robot backs off and aims; watch the held count (it can exceed 4: the extra stays for the TeleOp, there is no second salvo) and that the salvo still feeds cleanly with the intake running
 
 ## 8d. Pusher active hold (T15)
@@ -96,6 +96,48 @@ Everything below has never run on the robot. Rows (T1..) are in integration-plan
 ## 8k. Duo Primary (T20)
 - [ ] `Auton - Duo Primary` (rear wall start, blue and red): INIT pose OK; read the `AUTO TIMING` lines for every step and where the 30 s ended; the order is preload (rear cell), Blue Wall flower (audience cell), audience flower (rear cell), garden (rear cell), park; no `TIMED OUT` on the pre-positions; every salvo is launched whatever the counter says, so a dry run with no pollen fires all four (the autos no longer skip on an empty count)
 - [ ] The two spots: the audience one (50, 26.3) and the rear one (-50, 26.3) launch from about 32 in with the aim at each cell; check the landings and set `DuoAutos.P_*_TRIM_DEG`; `P_GARDEN_LATEST_START_SEC` is 18 s, so the garden is skipped and the park should end near 25 s (`AUTO SKIP garden` in the log); `P_AUD_FLOWER_LATEST_START_SEC` stays 99
+
+## 8l. The competition screen (T21)
+- [ ] `Telemetry Font Test` pages 10 to 12 on the Driver Station: nothing wraps or is cut, the alliance banner and the colors read at a glance
+- [ ] `TeleOp - Competition`: the screen follows the robot (READY / SPIN UP, the count, LOCKING / LOCK ALIGNED, the dash states, the target and distance, the pose); an alert line appears for a real fault (cover a counter sensor, hold LB + X for the backup countdown) and goes away; `TELEMETRY_VERBOSE` true on the Dashboard brings back the old screen
+
+## 8m. Automatic pusher jam resolution (T22)
+- [ ] A whole practice TeleOp run with 20 or more salvos and locks and NO `PUSHER JAM` line (no false alarms); then block the arm by hand with soft foam during a salvo: `PUSHER JAM` within about 0.7 s, the arm backs off 45 deg from where a salvo is stuck (a jammed lock backs off to 45 deg BEHIND the HOLD, on purpose) and goes on; release the foam and check `PUSHER JAM RESOLVED` and `Pusher jam cleared` on the screen; keep it blocked and check the give-up after 2 retries and the red `PUSHER JAMMED`
+- [ ] In an auto only 1 retry (`Pusher.JAM_RETRIES_AUTO`); tune `Pusher.JAM_BEHIND_HOLD_DEG` (45) from how it frees the pollen
+
+## 8n. Pusher lock off (since 2026-11-06)
+- [ ] With `Mechanisms.PUSHER_LOCK_ENABLED` false: a target lock and a Hive Dash never move the pusher arm (no `PUSHER LOCK` lines, `pusher_lock` stays `-`), salvos start from HOLD (the 400 deg salvo, no 310 deg one), the intake stays IN throughout
+
+## 8o. Duo Daryl and the preload pre-position (T24, T25)
+- [ ] `Auton - Duo Daryl` blue and red: the `AUTO TIMING` lines for every step, the garden leg (about 1.3 s) and its pickup of all 4 pollen at the 0.5 limit, the squaring still `stopped by the wall`, the arrival back at the audience spot (about 20 s; `AUTO WAIT` lines only if earlier than 18 s), `AUTO SKIP audience flower` or the audience flower, the park done before 30 s
+- [ ] Any auto: the arm goes to about 90 deg while the flywheel spins up and the preload salvo turns about 310 deg (`travelled` in the `SALVO done` line), about 0.3 s faster than before
+
+## 8p. Tighter auto aim (T26)
+- [ ] Any auto: the `AIM aligned at ... error` lines show about 1 deg or less, the aim steps take 0.3 to 0.5 s, and there is no `AIM TIMED OUT`; if there is, raise `AimAtCell.ALIGNED_DEG` toward 1.5 or `TIMEOUT_SEC`
+- [ ] Aim breakaway (2026-11-07): the `AIM ... after ... s` lines now say `<n> breakaway loops`; every aim should end ALIGNED in about 0.2 to 0.4 s with the error under 1 deg (the 11-07 build timed out every aim at 0.6 s, 1 to 2 deg short, with a turn command of 0.07 to 0.11 and no motion); if an aim overshoots or hunts, lower `AimAtCell.BREAKAWAY_POWER` (0.14) or raise `STALL_RATE_DEG_PER_S` (6); the far-cell trims are -8.0 (they were -6.0 with the stall). The launch spots' headings now include the trim too (Solo spots 1 and 2 and its helper, Daryl's two audience spots, Primary's audience spot), so the leg arrives pointed at the trimmed aim: the first `DRIVE ... heading` line of the leg should end within the 6 deg tolerance of the trimmed aim and the aim step should then need only a small turn.
+
+## 8q. Drive Characterization (T27), on one half with nobody on it
+- [ ] Robot still at the TeleOp start of your half; INIT Drive Characterization, D-pad right (blue) or left (red), INIT pose OK; Start
+- [ ] Hold the right bumper for test 1 only, then let go: it stops at once, and it braked before the end of the lane
+- [ ] Hold the right bumper through the rest (about 3 minutes of driving); a `GEOFENCE` stop is fine; if time runs out, note the test number and pick it with D-pad up at INIT next time
+- [ ] Pull the logs (`drivetest.log`)
+
+## 8u. Auton - Cybugs (T30)
+- [ ] Blue and red from the rear-wall start (INIT pose OK): the preload, the garden, the garden salvo into the audience cell, the Blue Wall flower, then `AUTO TIMING drive: rear launch spot` and `launch ... flower pollen` into the REAR cell (check the `AIM` line: error near 0 and the trim 0; add a trim in `DuoAutos.C_REAR_TRIM_DEG` if it lands left or right), then `INTAKE mode IN -> OUT` right after that salvo, no rise in the `ELEMENTS` count afterwards (no nectar picked up), the park helper and the park; no support or flower stand touched; a 1 s `wait before the last salvo` step before that salvo, the whole auto about 24.7 s and the park done (front edge about 8 in from the wall)
+
+## 8t. Intake on for the whole auto
+- [ ] Any auto: the log's `INTAKE mode` lines show `null -> IN` at the very start and no `IN -> OFF` until the run ends (the S rows' `intake_mode` column is IN throughout); no `Intake OFF` auto note and no `Intake stopped` notice; the preload salvo and the garden salvo still fire normally with the intake running (no pollen pushed out, no pusher jam); `intake_amps` stays near 1.0 A in; if the intake gets in the way of a salvo, set `Mechanisms.setIntakeAlwaysOn` back to false in `AutonSolo` / `AutonDuoBase`
+
+## 8s. Drive wheel check (T29)
+- [ ] TeleOp and any auto: drive at full power for a while (straight and strafe); the log's sample rows have `a_lf,a_lb,a_rb,a_rf` (amps, about 1.6 A while a wheel is driven, the four within about 20 percent), there is no `DRIVE WHEEL ... LOW CURRENT` line and no red `DRIVE WHEEL` alert
+- [ ] The `LOOP PROFILE RUN` line: `drive_amps` under about 1 ms per loop and the loop average within about 1 ms of before (24 to 28 ms in TeleOp, 20 to 21 ms in the autos at Hartland); if it costs more, raise `MecanumDrive.PARAMS.currentCheckMs` (100) or set it to 0
+- [ ] Robot on blocks, belt off one wheel (or the wheel's belt slack so it spins free): drive at 0.5 or more; within about 5 to 10 s the log says `DRIVE WHEEL <name> LOW CURRENT` and the screen shows the red `DRIVE WHEEL <name>?`; put the belt back and it says `back to normal`
+
+## 8r. Grid routes (T28), after the drive refit and a regeneration of the tables (not before)
+- [ ] TeleOp init: no `grid routes` problem in the log; Dashboard: `HiveDash.GRID_ROUTES` on, `HiveDash.DRY_RUN` on: hold D-pad left / right from a few starts, the overlay shows a `GRID route` clear of the supports and flowers
+- [ ] `DRY_RUN` off: Hive Dash to each cell from 4 or 5 starts, blue and red; then `ParkDash.GRID_ROUTES` on and Park Dash to both corners
+- [ ] Push the robot off its route once: it brakes (`OFF ROUTE`) and goes on from where it is (`new route`)
+- [ ] Switches off again unless the runs were clean; pull the logs
 
 ## 9. If time
 - [ ] F5 Pinpoint unplug (robot on blocks); F6 flywheel encoder unplug (on blocks)

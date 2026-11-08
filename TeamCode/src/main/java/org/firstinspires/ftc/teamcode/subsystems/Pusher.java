@@ -123,6 +123,21 @@ public class Pusher {
     /** A move that gains less than PROGRESS_MIN_GAIN_DEG in PROGRESS_TIMEOUT_S faults (wrong sign or direction, or a jam). */
     public static double PROGRESS_TIMEOUT_S = 1.5;
     public static double PROGRESS_MIN_GAIN_DEG = 2.0;
+    /**
+     * AUTOMATIC JAM RESOLUTION (2026-11-06, the user's design). The logs of 11-05 and 11-06 had 10 stuck moves (8 salvos, a reject, a lock seek): the arm stopped within 1 to 11 deg of where it started (the
+     * lock seek at 67 deg) and sat there at 1.4 to 2.5 A until the 3 s MOVE_TIMEOUT_S, while a moving arm draws a median 0.22 A (99th percentile 0.9 A). A FORWARD move (salvo, return, a forward seek such as
+     * the lock) that has run JAM_GRACE_S and then sits at under JAM_MAX_TICKS_PER_SEC with more than JAM_AMPS for JAM_TIME_S is a jam: the arm backs off half a pollen (the user: 90 deg is
+     * one pollen on the rotary transport) and goes on with the move it was doing. The user's rule, 2026-11-06: a jammed LOCK backs off to JAM_BEHIND_HOLD_DEG BEHIND the HOLD position, ON PURPOSE (the nearest 'half
+     * a pollen before a HOLD' point behind the stuck arm: stuck 67 deg past a HOLD it goes back to 45 deg before it, a run-up); a jammed SALVO (or return) backs off JAM_SALVO_BACKOFF_DEG from where it is stuck
+     * (a jam mid-sweep must not retreat far; 8 of the 10 logged jams were salvos stuck at 66 to 69 deg after starting from the lock). At most JAM_RETRIES times per move (JAM_RETRIES_AUTO in the autos, where the time is
+     * tight); the move's own MOVE_TIMEOUT_S keeps running, so a jam never costs more than the 3 s of today. When the retries are used up the move gives up at once (it used to wait out the 3 s) and the
+     * jam is reported. Reverse moves (reject, unlock) are left alone: backing off from one would sweep pollen forward.
+     */
+    public static boolean JAM_RESOLVE_ENABLED = true;
+    public static double JAM_AMPS = 1.2, JAM_TIME_S = 0.3, JAM_GRACE_S = 0.4, JAM_RESUME_GRACE_S = 0.3, JAM_MAX_TICKS_PER_SEC = 20.0;
+    /** A jammed LOCK (a forward seek) backs off to this far BEHIND a HOLD (a run-up through HOLD); a jammed SALVO or return backs off this far from where it is stuck (then finishes). */
+    public static double JAM_BEHIND_HOLD_DEG = 45.0, JAM_SALVO_BACKOFF_DEG = 45.0, JAM_MIN_BACKOFF_DEG = 10.0, JAM_BACKOFF_POWER = 0.25;
+    public static int JAM_RETRIES = 2, JAM_RETRIES_AUTO = 1;
 
     /** HOLD = idle and braked; SALVO and RETURN are forward moves; REJECT reverses; SEEK goes to a given position either way (the pusher check); JOG is open loop for bring-up. */
     public enum State { HOLD, SALVO, RETURN, REJECT, SEEK, JOG, STALLED }
@@ -160,6 +175,14 @@ public class Pusher {
     private boolean holdActive = false;
     private final ElapsedTime holdActiveClock = new ElapsedTime();
     private String holdReport = null;
+    // automatic jam resolution
+    private int maxJamRetries = JAM_RETRIES, jamRetriesUsed = 0;
+    private boolean jamBackoffActive = false, jamStalling = false, jamUnresolved = false, jamResolvedNotice = false;
+    private State jamResumeState = State.HOLD;
+    private double jamResumeTarget = 0.0, jamResumeSeekDir = 1.0, jamResumeSeekPower = 0.2;
+    private final ElapsedTime jamClock = new ElapsedTime();
+    private final ElapsedTime jamResumeClock = new ElapsedTime();
+    private String jamReport = null;
     private boolean gaveUp = false;   // the last move timed out (MOVE_TIMEOUT_S): the arm stays where it is until the next move is commanded
     private String faultReason = "";
     private double progressBest = Double.NEGATIVE_INFINITY;
@@ -378,6 +401,7 @@ public class Pusher {
         moveStartTicks = getUnwrappedTicks();
         moveTimer.reset();
         resetProgress();
+        resetJam();
     }
 
     /**
@@ -403,6 +427,7 @@ public class Pusher {
         moveStartTicks = getUnwrappedTicks();
         moveTimer.reset();
         resetProgress();
+        resetJam();
     }
 
     /** Moves the arm from HOLD to the LOCK position (LOCK_DEG forward of the nearest HOLD). Ignored until calibrated, or while faulted. */
@@ -493,10 +518,15 @@ public class Pusher {
         moveStartTicks = getUnwrappedTicks();
         moveTimer.reset();
         resetProgress();
+        resetJam();
     }
 
     /** Remember how the move that is ending ended (shown on screen so a move that does nothing can be explained). */
     private void recordFinish(double remainingDeg, double speedDegPerSec, double direction) {
+        if (jamRetriesUsed > 0 && !jamBackoffActive) {
+            jamResolvedNotice = true;
+            jamReport = String.format(java.util.Locale.US, "PUSHER JAM RESOLVED: the %s finished after %d back-off(s), %.2f s in all", state, jamRetriesUsed, moveTimer.seconds());
+        }
         lastResult = String.format("%s cut off by threshold after %.2f s: travelled %.0f deg, %.1f deg left to target at the cut, speed %.0f deg/s",
                 state, moveTimer.seconds(), Math.abs(getUnwrappedTicks() - moveStartTicks) * 360.0 / TICKS_PER_REV, remainingDeg, speedDegPerSec);
         cutUnwrapped = getUnwrappedTicks();
@@ -518,6 +548,8 @@ public class Pusher {
     }
 
     private void stopHere() {
+        jamBackoffActive = false;
+        jamStalling = false;
         state = State.HOLD;
         setMotorPower(0.0);
         restTimer.reset();
@@ -702,8 +734,12 @@ public class Pusher {
                 double remainingDeg = seekDir * (targetTicks - unwrapped) / ticksPerDeg;
                 double speedDegPerSec = Math.max(0.0, seekDir * getVelocityTicksPerSec()) / ticksPerDeg;
                 if (remainingDeg <= STOP_EARLY_DEG + speedDegPerSec * COAST_LOOKAHEAD_S) {
-                    recordFinish(remainingDeg, speedDegPerSec, seekDir);
-                    stopHere();
+                    if (jamBackoffActive) {
+                        resumeAfterJam();
+                    } else {
+                        recordFinish(remainingDeg, speedDegPerSec, seekDir);
+                        stopHere();
+                    }
                 } else {
                     setMotorPower(seekDir * seekPower);
                     monitorProgress(seekDir * unwrapped / ticksPerDeg);
@@ -719,6 +755,118 @@ public class Pusher {
         }
 
         detectStall();
+        detectJam();
+    }
+
+    private void resetJam() {
+        jamRetriesUsed = 0;
+        jamBackoffActive = false;
+        jamStalling = false;
+        jamUnresolved = false;
+        jamResumeClock.reset();
+    }
+
+    /** True when the arm is on a forward move that the jam resolution handles (not a reverse one). */
+    private boolean forwardMove() {
+        return state == State.SALVO || state == State.RETURN || (state == State.SEEK && seekDir > 0.0);
+    }
+
+    private void detectJam() {
+        if (!JAM_RESOLVE_ENABLED || FAULTS_ENABLED || jamBackoffActive || !forwardMove() || !isCalibrated()) {
+            jamStalling = false;
+            return;
+        }
+        boolean blocked = moveTimer.seconds() > JAM_GRACE_S && jamResumeClock.seconds() > JAM_RESUME_GRACE_S
+                && currentA > JAM_AMPS && Math.abs(velocityRaw) < JAM_MAX_TICKS_PER_SEC;
+        if (!blocked) {
+            jamStalling = false;
+            return;
+        }
+        if (!jamStalling) {
+            jamStalling = true;
+            jamClock.reset();
+            return;
+        }
+        if (jamClock.seconds() < JAM_TIME_S) return;
+        jamStalling = false;
+        double ticksPerDeg = TICKS_PER_REV / 360.0;
+        double unwrapped = getUnwrappedTicks();
+        double pastDeg = (unwrapped - nearestHoldTicks()) / ticksPerDeg;   // past the nearest HOLD (negative: before it), for the log
+        double backTarget;
+        if (state == State.SEEK) {
+            // a jammed LOCK: the greatest point 'JAM_BEHIND_HOLD_DEG before a HOLD' that is behind the arm (HOLDs are every revolution), on purpose past HOLD: a run-up
+            double behindTicks = JAM_BEHIND_HOLD_DEG * ticksPerDeg;
+            backTarget = Math.floor((unwrapped + behindTicks) / TICKS_PER_REV) * TICKS_PER_REV - behindTicks;
+        } else {
+            // a jammed SALVO (or return): a fixed distance back from where it is stuck, so a jam mid-sweep does not retreat far
+            backTarget = unwrapped - JAM_SALVO_BACKOFF_DEG * ticksPerDeg;
+        }
+        backTarget = Math.min(backTarget, unwrapped - JAM_MIN_BACKOFF_DEG * ticksPerDeg);
+        double backoffDeg = (unwrapped - backTarget) / ticksPerDeg;
+        if (jamRetriesUsed >= maxJamRetries) {
+            String why = String.format(java.util.Locale.US, "%d back-off(s) did not free it", jamRetriesUsed);
+            jamReport = String.format(java.util.Locale.US, "PUSHER JAM NOT RESOLVED: the %s is stuck %.0f deg past HOLD (%.2f A, %.0f ticks/s): %s, giving up", state, pastDeg, currentA, velocityRaw, why);
+            lastResult = String.format(java.util.Locale.US, "%s gave up after %.2f s: jam, %s (travelled %.0f deg)", state, moveTimer.seconds(), why,
+                    Math.abs(unwrapped - moveStartTicks) / ticksPerDeg);
+            jamUnresolved = true;
+            pendingSettle = false;
+            gaveUp = true;
+            stopHere();
+            return;
+        }
+        jamRetriesUsed++;
+        jamResumeState = state;
+        jamResumeTarget = targetTicks;
+        jamResumeSeekDir = seekDir;
+        jamResumeSeekPower = seekPower;
+        jamReport = String.format(java.util.Locale.US, "PUSHER JAM: the %s is stuck %.0f deg past HOLD (%.2f A, %.0f ticks/s, %.2f s into the move): backing off %.0f deg to %+.0f deg from HOLD, then going on (%d of %d)",
+                state, pastDeg, currentA, velocityRaw, moveTimer.seconds(), backoffDeg, (backTarget - nearestHoldTicks()) / ticksPerDeg, jamRetriesUsed, maxJamRetries);
+        seekDir = -1.0;
+        seekPower = JAM_BACKOFF_POWER;
+        targetTicks = backTarget;
+        state = State.SEEK;
+        jamBackoffActive = true;
+        pendingSettle = false;
+    }
+
+    /** The back-off is done: go on with the move that jammed (its timer kept running, so it still gives up at MOVE_TIMEOUT_S). */
+    private void resumeAfterJam() {
+        jamBackoffActive = false;
+        state = jamResumeState;
+        targetTicks = jamResumeTarget;
+        seekDir = jamResumeSeekDir;
+        seekPower = jamResumeSeekPower;
+        jamResumeClock.reset();
+        jamStalling = false;
+        pendingSettle = false;
+    }
+
+    /** The most jam back-offs per move: JAM_RETRIES in the TeleOp, JAM_RETRIES_AUTO in the autos. */
+    public void setMaxJamRetries(int n) {
+        maxJamRetries = Math.max(0, n);
+    }
+
+    /** One line about a jam (found, resolved or given up) since the last call, else null; returns it once. For the run log. */
+    public String takeJamReport() {
+        String r = jamReport;
+        jamReport = null;
+        return r;
+    }
+
+    /** True once, right after a jammed move finished normally (the drivers get a short notice). */
+    public boolean takeJamResolvedNotice() {
+        boolean n = jamResolvedNotice;
+        jamResolvedNotice = false;
+        return n;
+    }
+
+    /** True after a jam the back-offs could not free, until the next move starts. */
+    public boolean isJamUnresolved() {
+        return jamUnresolved;
+    }
+
+    public boolean isJamBackingOff() {
+        return jamBackoffActive;
     }
 
     private void detectStall() {

@@ -86,6 +86,12 @@ public final class HiveDash {
     public static double HELPER_X = 36.0, HELPER_Y = 40.0, GATE_X = 34.0;
     /** True: plan, log and draw the route but do not drive. */
     public static boolean DRY_RUN = false;
+    /**
+     * True: the GRID PLANNER (design/dash-planner-grid.md: the precomputed route trees of GridRoutes, driven by GridFollower with its own speeds and corner limits, and the
+     * off-route guard of GridDash) instead of HiveRoute and the follower above. The arrival, the aim and the launch are the same. Off until the robot has run it (2026-11-07);
+     * when the tables cannot be used (see the log) the dash falls back to today's planner.
+     */
+    public static boolean GRID_ROUTES = false;
 
     // ---- launch and logging ----
     /** The launch is requested when the lock is ALIGNED and the chassis has stopped (AutoLaunch.MAX_SPEED_IN_PER_S) for LAUNCH_HOLD_SEC. */
@@ -129,8 +135,6 @@ public final class HiveDash {
         public HiveTarget overrideCell;
         /** While overrideCell is set: the distance the launch speed must be worked out for (the launch spot to the cell), so the flywheel goes to that speed at the start of the dash; 0 otherwise. */
         public double overrideDistanceIn;
-        /** The D-pad was just refused (give the driver a short rumble). */
-        public boolean refused;
 
         void reset() {
             translation = false;
@@ -141,7 +145,6 @@ public final class HiveDash {
             launchNow = false;
             overrideCell = null;
             overrideDistanceIn = 0.0;
-            refused = false;
         }
     }
 
@@ -167,6 +170,7 @@ public final class HiveDash {
     private double goalX, goalY;
     private HiveRoute.Plan plan;
     private HiveRoute.Params planParams;
+    private GridDash grid;   // the grid planner's dash, or null (today's planner)
     private int legIndex = 0;
     private double legHeading = 0.0, prevLegHeading = 0.0;
     private boolean legAligned = false;
@@ -188,10 +192,18 @@ public final class HiveDash {
         this.fromBackIn = fromBackIn;
         // one throwaway plan now, so the first real press does not pay for loading and warming the planner (about 25 ms cold against 0.05 ms warm, measured on a PC)
         HiveRoute.plan(-55.4, 15.25, 0.0, 55.4, 7.5, params());
+        // the grid tables are decoded and the grid pick warmed here too, switch on or off (it can be turned on from the Dashboard at any time)
+        String gridProblem = GridDash.warm();
+        if (gridProblem != null) RunLog.event("HIVE DASH grid routes: " + gridProblem);
     }
 
     public State state() {
         return state;
+    }
+
+    /** The cell of the dash in progress, or null when no dash is running (for the competition screen). */
+    public HiveTarget cell() {
+        return state == State.IDLE ? null : cell;
     }
 
     /** One line for the telemetry. */
@@ -265,7 +277,6 @@ public final class HiveDash {
     // ---- start / refuse / cancel ----
 
     private void refuse(HiveTarget requested, String why) {
-        out.refused = true;
         refusedWhy = why;
         everRefused = true;
         refusedClock.reset();
@@ -285,7 +296,26 @@ public final class HiveDash {
         HiveRoute.Params p = params();
         double gx = AutoLaunch.centerX(requested), gy = AutoLaunch.centerY(requested);
         Pose2d pose = in.pose;
-        HiveRoute.Plan pl = HiveRoute.plan(pose.position.x, pose.position.y, pose.heading.toDouble(), gx, gy, p);
+        grid = null;
+        HiveRoute.Plan pl = null;
+        if (GRID_ROUTES) {
+            GridRoutes.Table table = GridDash.tableFor(gx, gy, in.blue);
+            if (table == null) {
+                RunLog.event("HIVE DASH grid routes not used (" + GridDash.whyNoTable(gx, gy, in.blue) + "): today's planner instead");
+            } else if (HiveRoute.touchingSupport(pose.position.x, pose.position.y, pose.heading.toDouble(), p)) {
+                pl = HiveRoute.Plan.refused("the robot is touching a hive support: drive clear of it by hand");
+            } else {
+                GridDash g = new GridDash("HIVE DASH", table, in.blue, GOAL_TOL_IN);
+                String why = g.start(pose.position.x, pose.position.y, pose.heading.toDouble());
+                if (why != null) {
+                    pl = HiveRoute.Plan.refused(why);
+                } else {
+                    grid = g;
+                    pl = HiveRoute.Plan.of(g.waypoints(), g.describe());
+                }
+            }
+        }
+        if (pl == null) pl = HiveRoute.plan(pose.position.x, pose.position.y, pose.heading.toDouble(), gx, gy, p);
         planParams = p;
         plan = pl;
         planShown = true;
@@ -297,13 +327,16 @@ public final class HiveDash {
         RunLog.event(String.format(Locale.US, "HIVE DASH %s (%s): from (%.1f, %.1f, %.1f deg) to the launch spot (%.1f, %.1f), %s; under-hive routes %s, power %.2f",
                 DRY_RUN ? "dry run" : "start", requested, pose.position.x, pose.position.y, pose.heading.toDegrees(), gx, gy, pl.description,
                 p.underHive ? "on" : "off", MAX_POWER));
-        if (DRY_RUN) return;
+        if (DRY_RUN) {
+            grid = null;
+            return;
+        }
         cell = requested;
         goalX = gx;
         goalY = gy;
         legIndex = 0;
         prevLegHeading = pose.heading.toDouble();
-        startLeg(in);
+        if (grid == null) startLeg(in);
         dashClock.reset();
         sampleClock.reset();
         lastSamplePose = pose;
@@ -336,7 +369,40 @@ public final class HiveDash {
                 Math.hypot(b[0] - a[0], b[1] - a[1]), legAligned ? "aligned, " + (legHeading == front ? "front" : "rear") + " leading" : "short, not aligned", last ? ", last leg" : ""));
     }
 
+    /** One loop of a grid dash (GridDash): its output, the arrival as on today's route, a give-up cancels. */
+    private void driveGrid(Input in) {
+        Pose2d pose = in.pose;
+        double x = pose.position.x, y = pose.position.y, h = pose.heading.toDouble();
+        PoseVelocity2d m = in.measured;
+        GridDash.Output g = grid.update(x, y, h, m == null ? 0.0 : m.linearVel.x, m == null ? 0.0 : m.linearVel.y, m == null ? 0.0 : m.angVel);
+        if (grid.waypoints() != plan.waypoints) plan = HiveRoute.Plan.of(grid.waypoints(), grid.describe());   // a new route after the off-route guard
+        legIndex = Math.max(0, g.leg - 1);
+        out.overrideCell = cell;
+        if (g.failed != null) {
+            cancel(in, g.failed);
+            return;
+        }
+        if (g.arrived) {
+            state = State.ARRIVED;
+            stillClock.reset();
+            RunLog.event(String.format(Locale.US, "HIVE DASH arrived after %.2f s at (%.1f, %.1f, %.1f deg), %.1f in from the launch spot", dashClock.seconds(), x, y,
+                    pose.heading.toDegrees(), Math.hypot(x - goalX, y - goalY)));
+            arrived(in);
+            return;
+        }
+        out.translation = g.translation;
+        out.forward = g.forward;
+        out.left = g.left;
+        out.turnActive = g.turnActive;
+        out.turn = g.turn;
+        out.lockWanted = g.lockWanted;
+    }
+
     private void drive(Input in) {
+        if (grid != null) {
+            driveGrid(in);
+            return;
+        }
         Pose2d pose = in.pose;
         double x = pose.position.x, y = pose.position.y, h = pose.heading.toDouble();
         int legs = plan.waypoints.length - 1;
@@ -467,7 +533,7 @@ public final class HiveDash {
                 return "LAUNCHING at " + cell;
             default:
                 if (everRefused && refusedClock.seconds() < REFUSED_SHOWN_SEC) return "REFUSED: " + refusedWhy;
-                return DRY_RUN ? "ready (DRY RUN: plans and draws, does not drive)" : "ready (hold D-pad left / right)";
+                return (DRY_RUN ? "ready (DRY RUN: plans and draws, does not drive)" : "ready (hold D-pad left / right)") + (GRID_ROUTES ? ", GRID routes" : "");
         }
     }
 
@@ -482,7 +548,7 @@ public final class HiveDash {
             double speed = Math.hypot(dx, dy) / dt;
             double travel = Math.hypot(dx, dy) < 0.2 ? Double.NaN : Math.toDegrees(Rotation2d.normalize(Math.atan2(dy, dx) - p.heading.toDouble()));
             RunLog.event(String.format(Locale.US, "HIVE DASH sample: t %.2f s, pose (%.1f, %.1f, %.1f deg), speed %.1f in/s, travel %.0f deg off the front, leg %d of %d (%s)",
-                    dashClock.seconds(), p.position.x, p.position.y, p.heading.toDegrees(), speed, travel, legIndex + 1, plan.waypoints.length - 1, legAligned ? "aligned" : "short"));
+                    dashClock.seconds(), p.position.x, p.position.y, p.heading.toDegrees(), speed, travel, legIndex + 1, plan.waypoints.length - 1, grid != null ? "grid" : legAligned ? "aligned" : "short"));
         }
         lastSamplePose = p;
     }

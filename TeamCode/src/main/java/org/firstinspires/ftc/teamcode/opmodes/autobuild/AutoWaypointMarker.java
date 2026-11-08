@@ -4,6 +4,7 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -38,7 +39,7 @@ import java.util.Locale;
  *   left stick           drive, field-oriented: up = away from the driver (red faces +Y, blue faces -Y, like the TeleOp)
  *   right stick X        turn
  *   right trigger (hold) precision mode (30%)
- *   A                    MARK the current pose as the next numbered point (a short rumble confirms it on a rumble pad)
+ *   A                    MARK the current pose as the next numbered point (the screen and the log list it)
  *   X / Y                deploy / stow the ramp (each mark records whether the ramp was deployed)
  *   B                    CHECK mark, numbered separately from the waypoints: drive the robot to a spot whose real position you know (for example
  *                        squared against a wall or into a corner) and press B, then compare the logged pose with the real one afterwards
@@ -52,13 +53,13 @@ import java.util.Locale;
  * No mechanism but the ramp is used. Not for matches.
  */
 @Config
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @TeleOp(name = "Auto Waypoint Marker", group = "Auto build")
 public class AutoWaypointMarker extends LinearOpMode {
 
     public static double START_Y_IN = 16.0;
     public static double RESEED_HOLD_SEC = 1.0;
     public static long SAMPLE_PERIOD_MS = 100;
-    public static int MARK_RUMBLE_MS = 120;
     /** How many of the latest marks the screen lists. */
     public static int SHOWN_MARKS = 8;
 
@@ -69,10 +70,6 @@ public class AutoWaypointMarker extends LinearOpMode {
 
     private static Pose2d startFor(boolean blue, double startX) {
         return blue ? new Pose2d(startX, START_Y_IN, 0.0) : new Pose2d(-startX, -START_Y_IN, Math.PI);
-    }
-
-    private static void buzz(Gamepad gamepad, int ms) {
-        if (ms > 0 && gamepad.type() != Gamepad.Type.LOGITECH_F310) gamepad.rumble(ms);
     }
 
     @Override
@@ -189,14 +186,12 @@ public class AutoWaypointMarker extends LinearOpMode {
                         pose.position.x, pose.position.y, pose.heading.toDegrees());
                 marks.add(text);
                 RunLog.event(text);
-                buzz(gamepad1, MARK_RUMBLE_MS);
             }
 
             if (gamepad1.bWasPressed() && chosen) {
                 checks++;
                 RunLog.event(String.format(Locale.US, "CHECK %d: x %.1f, y %.1f, heading %.1f deg, start %s", checks, pose.position.x, pose.position.y,
                         pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
-                buzz(gamepad1, MARK_RUMBLE_MS);
             }
 
             if (chosen && gamepad1.left_bumper && gamepad1.right_bumper) {
