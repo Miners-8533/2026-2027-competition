@@ -972,6 +972,8 @@ public final class DashSim {
         boolean forced, routeMatched;
         String plannedDesc = "";
         GridRoutes.Route route;
+        /** The route the dash planned (field frame), for a picture. */
+        double[][] planned;
         String refused = null;
         final List<RunLog.Event> events = new ArrayList<>();
     }
@@ -1103,6 +1105,7 @@ public final class DashSim {
                 double[][] logged = c.route();
                 res.routeMatched = planned != null && sameRoute(planned, logged);
                 res.plannedDesc = describeRoute(planned);
+                res.planned = planned;
                 boolean gridRoute = field(d.getClass(), "grid").get(d) != null;
                 if (gridRoute) res.plannedDesc = "grid " + res.plannedDesc;
                 if (!res.routeMatched && o.force && c.log != null && !gridRoute) {
@@ -1660,6 +1663,59 @@ public final class DashSim {
         System.out.printf(Locale.US, "end-of-test position error: median %.1f in, 90th %.1f in%n", median(ends), percentile(ends, 90));
     }
 
+    /** Runs each case (TARGET x y deg grid|today, blue frame) with the real dashes on o's plant and writes the field, the planned routes and the tracks as JSON. */
+    static void exportPaths(Options o, Path out, List<String> specs) throws Exception {
+        StringBuilder b = new StringBuilder("{\"plant\":\"").append(o.describe().replace("\"", "'")).append("\",\"obstacles\":[");
+        for (int i = 0; i < OBSTACLES.size(); i++) {
+            Obstacle ob = OBSTACLES.get(i);
+            double[] k = ob.r.corners();
+            b.append(i == 0 ? "" : ",").append(String.format(Locale.US, "{\"name\":\"%s\",\"pts\":[%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f]}", ob.name, k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]));
+        }
+        b.append("],\"cases\":[");
+        HiveRoute.Params rp = robotParams();
+        for (int n = 0; n < specs.size(); n++) {
+            String[] f = specs.get(n).trim().split("[ ]+");
+            boolean grid = f[4].equals("grid");
+            restoreDefaults();
+            o.grid = grid;
+            HiveDash.GRID_ROUTES = grid;
+            ParkDash.GRID_ROUTES = grid;
+            Case c = freeCase(Double.parseDouble(f[1]), Double.parseDouble(f[2]), Double.parseDouble(f[3]), f[0], false);
+            Result r = simulate(c, o, false);
+            Contacts con = r.track.isEmpty() ? null : contacts(r.track, 0.0, r.track.get(r.track.size() - 1)[0]);
+            b.append(n == 0 ? "" : ",").append(String.format(Locale.US, "{\"target\":\"%s\",\"planner\":\"%s\",\"start\":[%.1f,%.1f,%.1f],\"goal\":[%.2f,%.2f],\"arrive\":%s,\"route\":\"%s\",",
+                    f[0], grid ? "grid" : "today", c.sx, c.sy, Math.toDegrees(c.sh), c.gx, c.gy, Double.isNaN(r.tArrive) ? "null" : String.format(Locale.US, "%.2f", r.tArrive),
+                    r.plannedDesc.replace("\"", "'")));
+            b.append(String.format(Locale.US, "\"supportClear\":%.2f,\"flowerClear\":%.2f,\"touched\":\"%s\",", con == null ? 99.0 : con.supportClear(), con == null ? 99.0 : con.flowerClear(),
+                    con == null ? "" : String.join(", ", con.touched()).replace("\"", "'")));
+            b.append("\"plan\":[");
+            if (r.planned != null) for (int i = 0; i < r.planned.length; i++) b.append(i == 0 ? "" : ",").append(String.format(Locale.US, "[%.2f,%.2f]", r.planned[i][0], r.planned[i][1]));
+            b.append("],\"track\":[");
+            for (int i = 0; i < r.track.size(); i++) {
+                double[] t = r.track.get(i);
+                double sp = i + 1 < r.track.size() ? Math.hypot(r.track.get(i + 1)[1] - t[1], r.track.get(i + 1)[2] - t[2]) / Math.max(1e-6, r.track.get(i + 1)[0] - t[0]) : 0.0;
+                b.append(i == 0 ? "" : ",").append(String.format(Locale.US, "[%.3f,%.2f,%.2f,%.4f,%.1f]", t[0], t[1], t[2], t[3], sp));
+            }
+            b.append("],\"footprints\":[");
+            double next = 0.0;
+            boolean firstFp = true;
+            for (double[] t : r.track) {
+                if (t[0] + 1e-9 < next) continue;
+                next = t[0] + 0.25;
+                double[] k = HiveRoute.poseRect(t[1], t[2], t[3], rp, 0.0).corners();
+                b.append(firstFp ? "" : ",").append(String.format(Locale.US, "[%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f]", k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]));
+                firstFp = false;
+            }
+            b.append("]}");
+            System.out.printf(Locale.US, "%-14s %-5s from (%.0f, %.0f, %.0f deg): %s, arrival %s, support %.1f in, flower %.1f in %s%n", f[0], grid ? "grid" : "today", c.sx, c.sy, Math.toDegrees(c.sh),
+                    r.plannedDesc, Double.isNaN(r.tArrive) ? "none" : String.format(Locale.US, "%.2f s", r.tArrive), con == null ? 99 : con.supportClear(), con == null ? 99 : con.flowerClear(),
+                    con == null ? "" : String.join(", ", con.touched()));
+        }
+        b.append("]}");
+        Files.write(out, b.toString().getBytes(StandardCharsets.UTF_8));
+        System.out.println("wrote " + out);
+    }
+
     /** The largest distance (in) of a track from a polyline, over the rows up to tEnd. */
     static double maxDev(List<double[]> tr, double[][] w, double tEnd) {
         double m = 0.0;
@@ -2113,6 +2169,11 @@ public final class DashSim {
                             Math.toDegrees(s[3]), sp, wps.length < 2 ? 0 : offRoute(s[1], s[2], wps), sup, flo, s[4], s[5], s[6]);
                 }
                 System.out.println("arrival " + r.tArrive + ", " + r.plannedDesc);
+                break;
+            }
+            case "export": {
+                // paths for a picture: export <out.json> then cases "TARGET x y deg grid|today", each run with the real dashes; writes the field, the routes and the tracks
+                exportPaths(o, Paths.get(rest.get(1)), rest.subList(2, rest.size()));
                 break;
             }
             case "testreplay": {
