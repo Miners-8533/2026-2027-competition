@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.opmodes.bringup;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -52,7 +51,6 @@ import java.util.Locale;
  * the track is empty.
  */
 @Config
-@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @TeleOp(name = "Launch Map Tuner", group = "Bring-up")
 public class LaunchMapTuner extends LinearOpMode {
 
@@ -64,7 +62,7 @@ public class LaunchMapTuner extends LinearOpMode {
     public static double START_Y_IN = -16.5;
     public static double START_HEADING_DEG = 180.0;
     public static double MANUAL_DISTANCE_IN = 0.0;
-    public static double STEP = 25.0;
+    public static double STEP = 20.0;   // the flywheel's velocity reads in steps of 20 ticks/s
     public static double START_SETPOINT = 1000.0;
     public static double TRIGGER_THRESHOLD = 0.3;
 

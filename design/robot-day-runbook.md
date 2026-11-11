@@ -58,7 +58,7 @@ The pusher measurements are finished (the arm is seen about 328 deg ahead of the
 
 ### Block D: Launches with real elements (plan Phase 3)
 
-1. The **Launch Test** opmode was removed on 2026-11-02. Use **TeleOp - Competition**, or the **Launch Map Tuner** (disabled: delete `@Disabled` and its import in `LaunchMapTuner.java` to use it). Launch with the real elements (pollen and both nectars).
+1. The **Launch Test** opmode was removed on 2026-11-02. Use **TeleOp - Competition**, or the **Launch Map Tuner** (enabled again 2026-11-10). Launch with the real elements (pollen and both nectars).
 2. Record per speed: speed at release, lowest speed during the salvo (the `SALVO done` log line), whether all four leave and in what order.
 3. Tune `FEED_FORWARD` (Dashboard) so the hold power is just enough at about 600, 1000 and 1500 ticks/s. Tie it to the minimum launch speed.
 4. Record the pusher's settle after each salvo (the `SALVO done` line shows where the arm rested) over **10 salvos in a row**, including with 4 elements: min and max landing error, no fault.

@@ -13,6 +13,7 @@ All opmodes are in `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode
 | Auton - Cybugs | Auto | the rear-wall start, garden first (2026-11-07, **not yet run on the robot**): the Daryl's preload, garden and garden salvo into the audience cell, then the Blue Wall flower, the rear launch spot at the start wall (a 1 s wait, then the flower pollen into the rear cell), the intake OUT after the last salvo so nothing more is picked up, and the park through the helper point; about 24.7 s; `AutonCybugs`, `DuoAutos.C_REAR_TRIM_DEG` |
 | Auton - Duo Primary | Auto | the rear-wall start with the longest program (2026-11-06, **not yet run on the robot**): preload into the rear cell, the Blue Wall flower into the audience cell, the audience flower into the rear cell, the garden into the rear cell, park in the hive-side corner; blue or red at INIT; will not fit 30 s yet (design/duo-autos.md) |
 | Auton - Duo Garden Side | Auto | the rear-wall half of the pair: launches the preload (tips the rear cell), gathers the Blue Wall flower, waits for the partner's tip, launches, takes the garden, launches again, parks; design/duo-autos.md, **not yet run on the robot** |
+| Launch Map Tuner | Bring-up | enabled 2026-11-10 to hone in a nectar shot: no target lock or aim help (you turn by hand), D-pad up/down changes the flywheel speed by 20 ticks/s (`STEP`), Y launches, B records (distance, speed) for `LaunchMap.TABLE`; distance from the pose or typed (`MANUAL_DISTANCE_IN`) |
 | Pit Check (robot on blocks) | Bring-up | the one check opmode: configuration, ports and stray devices, battery, Pinpoint, color sensors, then flywheel, pusher, intake, ramp, each wheel ([pit-check.md](pit-check.md)) |
 | Tune - Axial (fwd/back 48in), Tune - Lateral (strafe 48in), Tune - Heading (turn pattern) | Tuning | the `DriveToPose` PID tuning (still to do) |
 | Drive Characterization | Tuning | the robot drives 34 open-loop drive tests BY ITSELF on one alliance's half (about 2.7 min of driving in the simulation) while the driver HOLDS the right bumper (letting go stops it at once; X skips a test; at INIT D-pad right / left = blue / red half, up / down = the first test); a geofence keeps it off the walls, the center line, the hive and the flowers; logs every loop to `drivetest.log` for fitting the drive model (`drive/DriveTestRoutine`, design/dash-planner-grid.md); **not yet run on the robot** |
@@ -26,7 +27,6 @@ All opmodes are in `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode
 
 | Opmode | Use when |
 |---|---|
-| Launch Map Tuner | extending the launch map (the far and near ends, nectar) |
 | Pinpoint Offset Check | a pod or the Pinpoint was moved: re-find the offsets (last run 2026-11-03: 2.1 to 2.2 in of wobble with the current offsets, the check suggests about -158.7 / +22.8; the offsets were left as they are) |
 | Pinpoint Push Test | a pod or the Pinpoint was moved or rewired: check the directions by hand |
 | Color Sensors Test (CS1-CS4) | the lighting changed: re-measure the element counter's empty baseline |
