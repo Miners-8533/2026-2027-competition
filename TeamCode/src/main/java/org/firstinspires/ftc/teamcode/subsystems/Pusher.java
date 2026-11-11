@@ -125,8 +125,8 @@ public class Pusher {
     public static double PROGRESS_MIN_GAIN_DEG = 2.0;
     /**
      * AUTOMATIC JAM RESOLUTION (2026-11-06, the user's design). The logs of 11-05 and 11-06 had 10 stuck moves (8 salvos, a reject, a lock seek): the arm stopped within 1 to 11 deg of where it started (the
-     * lock seek at 67 deg) and sat there at 1.4 to 2.5 A until the 3 s MOVE_TIMEOUT_S, while a moving arm draws a median 0.22 A (99th percentile 0.9 A). A FORWARD move (salvo, return, a forward seek such as
-     * the lock) that has run JAM_GRACE_S and then sits at under JAM_MAX_TICKS_PER_SEC with more than JAM_AMPS for JAM_TIME_S is a jam: the arm backs off half a pollen (the user: 90 deg is
+     * lock seek at 67 deg) and sat there at 1.4 to 2.5 A until the 3 s MOVE_TIMEOUT_S, while a moving arm draws a median 0.22 A (99th percentile 0.9 A). A FORWARD move (salvo, return, the lock seek; since
+     * 2026-11-10 not the pusher check's park and sweep, see forwardMove) that has run JAM_GRACE_S and then sits at under JAM_MAX_TICKS_PER_SEC with more than JAM_AMPS for JAM_TIME_S is a jam: the arm backs off half a pollen (the user: 90 deg is
      * one pollen on the rotary transport) and goes on with the move it was doing. The user's rule, 2026-11-06: a jammed LOCK backs off to JAM_BEHIND_HOLD_DEG BEHIND the HOLD position, ON PURPOSE (the nearest 'half
      * a pollen before a HOLD' point behind the stuck arm: stuck 67 deg past a HOLD it goes back to 45 deg before it, a run-up); a jammed SALVO (or return) backs off JAM_SALVO_BACKOFF_DEG from where it is stuck
      * (a jam mid-sweep must not retreat far; 8 of the 10 logged jams were salvos stuck at 66 to 69 deg after starting from the lock). At most JAM_RETRIES times per move (JAM_RETRIES_AUTO in the autos, where the time is
@@ -183,6 +183,7 @@ public class Pusher {
     private final ElapsedTime jamClock = new ElapsedTime();
     private final ElapsedTime jamResumeClock = new ElapsedTime();
     private String jamReport = null;
+    private boolean lockSeek = false;   // the SEEK in progress is the lock (startLock): the only seek the jam resolution backs off
     private boolean gaveUp = false;   // the last move timed out (MOVE_TIMEOUT_S): the arm stays where it is until the next move is commanded
     private String faultReason = "";
     private double progressBest = Double.NEGATIVE_INFINITY;
@@ -416,6 +417,7 @@ public class Pusher {
             stopHere();
             return;
         }
+        lockSeek = false;   // startLock sets it after this returns
         seekDir = diff > 0 ? 1.0 : -1.0;
         seekPower = power;
         targetTicks = target;
@@ -437,6 +439,7 @@ public class Pusher {
             return;
         }
         startSeek(nearestHoldTicks() + LOCK_DEG * TICKS_PER_REV / 360.0, LOCK_POWER);
+        lockSeek = state == State.SEEK;
         lastCommand = "LOCK: " + lastCommand;
     }
 
@@ -766,9 +769,13 @@ public class Pusher {
         jamResumeClock.reset();
     }
 
-    /** True when the arm is on a forward move that the jam resolution handles (not a reverse one). */
+    /**
+     * True when the arm is on a forward move that the jam resolution handles: a salvo, a return, or the LOCK seek. Other forward seeks (the pusher check's park and its 420 deg
+     * sweep) are left alone: the lock's back-off to 45 deg behind a HOLD would reverse a sweep up to about 245 deg back across CS4, and the check would take that reverse pass for its
+     * forward crossing and correct the zero by the sensor's delay. A jammed sweep gives up on the move timeout as before, and the check reports it.
+     */
     private boolean forwardMove() {
-        return state == State.SALVO || state == State.RETURN || (state == State.SEEK && seekDir > 0.0);
+        return state == State.SALVO || state == State.RETURN || (state == State.SEEK && seekDir > 0.0 && lockSeek);
     }
 
     private void detectJam() {
@@ -793,7 +800,7 @@ public class Pusher {
         double unwrapped = getUnwrappedTicks();
         double pastDeg = (unwrapped - nearestHoldTicks()) / ticksPerDeg;   // past the nearest HOLD (negative: before it), for the log
         double backTarget;
-        if (state == State.SEEK) {
+        if (state == State.SEEK) {   // only the lock seek gets here (forwardMove)
             // a jammed LOCK: the greatest point 'JAM_BEHIND_HOLD_DEG before a HOLD' that is behind the arm (HOLDs are every revolution), on purpose past HOLD: a run-up
             double behindTicks = JAM_BEHIND_HOLD_DEG * ticksPerDeg;
             backTarget = Math.floor((unwrapped + behindTicks) / TICKS_PER_REV) * TICKS_PER_REV - behindTicks;
