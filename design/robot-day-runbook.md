@@ -58,7 +58,7 @@ The pusher measurements are finished (the arm is seen about 328 deg ahead of the
 
 ### Block D: Launches with real elements (plan Phase 3)
 
-1. The **Launch Test** opmode was removed on 2026-11-02. Use **TeleOp - Competition**, or the **Launch Map Tuner** (enabled again 2026-11-10). Launch with the real elements (pollen and both nectars).
+1. The **Launch Test** opmode was removed on 2026-11-02. Use **TeleOp - Competition**, or the **Launch Grid Tuner** (2026-11-10, which replaced the Launch Map Tuner). Launch with the real elements (pollen and both nectars).
 2. Record per speed: speed at release, lowest speed during the salvo (the `SALVO done` log line), whether all four leave and in what order.
 3. Tune `FEED_FORWARD` (Dashboard) so the hold power is just enough at about 600, 1000 and 1500 ticks/s. Tie it to the minimum launch speed.
 4. Record the pusher's settle after each salvo (the `SALVO done` line shows where the arm rested) over **10 salvos in a row**, including with 4 elements: min and max landing error, no fault.
@@ -82,9 +82,9 @@ Run first with the robot on blocks, then on the floor. Each row of the plan's Ph
 
 ### Block F: Launch map (plan Phase 5)
 
-1. **Launch Map Tuner** (single gamepad; it runs the real mechanisms since 2026-11-01): right trigger loads elements (the intake stops itself at 4), **X** spins the flywheel, D-pad up/down sets the speed, **Y** launches a salvo, **B** records (distance, speed), **A** undoes the last point, D-pad left/right picks the target cell, left bumper follows the recorded points, Back clears a pusher fault (hold it 1 s to reseed the pose).
-2. For each distance, from the closest legal launching position to the farthest you intend to use, for each target cell that matters: drive there (the distance is the Pinpoint's, or type a tape-measured one into `MANUAL_DISTANCE_IN`), load 4, launch, and raise or lower the speed until the launches score; validate with a full 4-element salvo and count the scores; then **B**.
-3. Paste the printed lines (also in `bringup.log` as `RECORD` and a final `LAUNCH MAP` event) into `LaunchMap.TABLE`. Confirm pollen and nectar both score from the same speed, or note the exception.
+1. **Launch Grid Tuner** (single gamepad, from 2026-11-10; [launch-grid.md](launch-grid.md)): at INIT D-pad left = the NEAR cell, right = the FAR cell, put the robot at the usual start pose (against the audience wall facing the rear wall) and Start. HOLD the **right trigger** to drive to the spot (let go to stop); load elements with the left bumper (intake on/off) and the left trigger (outtake); **Y** fires, D-pad up/down trims the speed (20 ticks/s), D-pad left/right trims the aim (0.5 deg, the robot turns by itself); **A** takes the trims as good and goes to the next spot, **B** says no shot is possible from here and goes on, **X** goes back one spot; Back clears a pusher fault (hold it 1 s to reseed the pose to the start pose).
+2. At each spot: load 4, fire, and raise or lower the speed and the aim until the salvo scores, then **A**. A spot where no salvo was fired is marked UNVERIFIED in the log.
+3. The log (`bringup.log`) has one `GRID POINT` line per spot and a `GRID TABLE` at the end (spot, distance, speed, angle trim, status, salvos fired). Confirm pollen and nectar both score from the same speed, or note the exception. START_INDEX in the Dashboard continues a sweep at a later spot.
 
 ### Block G: Pinpoint offsets and drive PID (autos only)
 
