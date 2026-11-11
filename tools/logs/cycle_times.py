@@ -4,14 +4,21 @@
 
 Reads robot-logs/events/<event>/labels.csv (made by event_day.py label) and writes robot-logs/events/<event>/cycle_times.md.
 
-TeleOp cycle = salvo start to the next salvo start, split in three:
-  salvo   SALVO started to SALVO done (the pusher turning, the flywheel shooting)
-  gather  SALVO done to the lock that led to the next salvo (a lock the driver released again counts as gather): driving, intaking, filling the stack
-          split in two at the moment the stack LAST rose to the count it held when the lock came on (the last pickup that mattered):
-  collect   SALVO done to that moment: driving out, intaking, filling the stack
-  transit   that moment to the lock coming on: the drive to the launch spot with the load (dist = how far the robot moved in that time, from the pose samples)
-  lock    target lock on to the next SALVO started (align, flywheel band wait, hold)
-  full    of the gather time, how long the stack already held 4 (FULL) before the lock: the driver was ready and not yet locked
+TeleOp cycle = salvo start to the next salvo start. Two moments split it besides the salvos and the lock:
+  pickup  when the stack LAST rose to the count it held when the lock came on (the last pickup that mattered)
+  arrival when the robot came within --radius (6 in) of the spot it fired the next salvo from and stayed there (from the pose
+          samples; turning in place and small corrections stay inside the radius)
+The parts, which add up to the cycle:
+  salvo     SALVO started to SALVO done (the pusher turning, the flywheel shooting)
+  collect   SALVO done to the pickup: driving out, intaking, filling the stack
+  find spot the pickup to the arrival: the drive to the launch spot with the load, locked or not
+              lock drive  the part of find spot with the target lock already on (a Hive Dash counts as a lock)
+              find in     straight-line distance from the pickup to the launch spot
+  at spot   at the launch spot before the lock came on: stopped, not yet locked (0 when the lock came on before the arrival)
+  aim       the later of the arrival and the lock coming on, to the next SALVO started (turning onto the target, flywheel band wait)
+  lock      lock on to SALVO started as before (= lock drive + aim), for comparison with older reports
+  gather    SALVO done to the lock that led to the next salvo (a lock the driver released again counts as gather)
+  full      of the gather time, how long the stack already held 4 (FULL) before the lock: the driver was ready and not yet locked
 The time before the first salvo (from RUN STARTED) and after the last salvo is reported on its own.
 
 Auto: the AUTO TIMING lines, summed by kind (drive, aim, launch, flower jostle, waits).
@@ -85,6 +92,25 @@ def pose_samples(path):
     return out
 
 
+def arrival_time(samples, a, b, radius):
+    """When the robot came within radius of its pose at b and stayed there, looking only in [a, b]; a if it never left."""
+    fire = pose_at(samples, b)
+    if fire is None:
+        return None
+    arr = a
+    prev_out = False
+    for st, x, y in samples:
+        if st < a:
+            continue
+        if st > b:
+            break
+        out = ((x - fire[0]) ** 2 + (y - fire[1]) ** 2) ** 0.5 > radius
+        if prev_out and not out:
+            arr = st
+        prev_out = out
+    return arr
+
+
 def pose_at(samples, t):
     best = None
     for st, x, y in samples:
@@ -142,7 +168,7 @@ def full_time_between(a, b, full_on, full_off):
     return tot
 
 
-def teleop_stats(path):
+def teleop_stats(path, radius):
     start, end, salvos, locks, full_on, full_off, elements = teleop(path)
     samples = pose_samples(path)
     rows = []
@@ -161,10 +187,18 @@ def teleop_stats(path):
         full = full_time_between(s["done"], lock_on, full_on, full_off)
         reach, final = reach_time(elements, s["done"], lock_on)
         collect = reach - s["done"]
-        transit = lock_on - reach
-        a, b = pose_at(samples, reach), pose_at(samples, lock_on)
+        arr = arrival_time(samples, s["done"], n["start"], radius)
+        if arr is None:
+            arr = lock_on  # no pose samples: fall back to the old split (transit = find spot, lock = aim)
+        arrive = max(arr, reach)  # still picking up after reaching the spot: the find starts at the pickup
+        find = arrive - reach
+        lock_drive = max(0.0, arrive - lock_on)
+        at_spot = max(0.0, lock_on - arrive)
+        aim = n["start"] - max(arrive, lock_on)
+        a, b = pose_at(samples, reach), pose_at(samples, n["start"])
         dist = ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5 if a and b else float("nan")
-        rows.append({"cycle": cycle, "salvo": salvo_t, "gather": gather, "collect": collect, "transit": transit, "dist": dist, "lock": lock_t, "full": min(full, gather), "held": n["held"]})
+        rows.append({"cycle": cycle, "salvo": salvo_t, "gather": gather, "collect": collect, "find": find, "lock_drive": lock_drive,
+                     "at_spot": at_spot, "aim": aim, "dist": dist, "lock": lock_t, "full": min(full, gather), "held": n["held"]})
     return {
         "length": end - start,
         "salvos": len(salvos),
@@ -216,10 +250,19 @@ def med(v):
     return statistics.median(v) if v else float("nan")
 
 
+def parts(c):
+    """The per-part means of a list of cycles, as table cells from salvo s to full wait s."""
+    return "%.2f | %.1f | %.1f | %.1f | %.0f | %.1f | %.1f | %.1f | %.1f" % (
+        mean([x["salvo"] for x in c]), mean([x["collect"] for x in c]), mean([x["find"] for x in c]), mean([x["lock_drive"] for x in c]),
+        mean([x["dist"] for x in c if x["dist"] == x["dist"]]), mean([x["at_spot"] for x in c]), mean([x["aim"] for x in c]),
+        mean([x["lock"] for x in c]), mean([x["full"] for x in c]))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--event", required=True)
     ap.add_argument("--root", default=ROOT)
+    ap.add_argument("--radius", type=float, default=6.0, help="inches from the launch spot that count as arrived")
     a = ap.parse_args()
     ev_dir = os.path.join(a.root, "events", a.event)
     matches = {}
@@ -235,17 +278,21 @@ def main():
             matches[r["label"]][kind] = os.path.join(a.root, day, rest + ".log")
 
     md = ["# %s: cycle times\n" % a.event]
-    md.append("Cycle = salvo start to the next salvo start. salvo = shooting, gather = SALVO done to the driver's next target lock, lock = lock on to SALVO started, full = part of the gather the stack already held 4.\n")
+    md.append("Cycle = salvo start to the next salvo start = salvo + collect + find spot + at spot + aim.\n")
+    md.append("- salvo: shooting. collect: SALVO done to the last pickup that mattered.")
+    md.append("- find spot: that pickup to arriving within %.0f in of the spot the next salvo was fired from (lock drive = the part of it with the target lock already on; find in = straight-line distance)." % a.radius)
+    md.append("- at spot: at the launch spot, not yet locked. aim: the later of arriving and locking, to SALVO started (turning onto the target, flywheel band wait).")
+    md.append("- lock: lock on to SALVO started as in older reports (= lock drive + aim). full wait: part of SALVO done to the lock with the stack already at 4.\n")
 
     tele = {}
     for lab in order:
         p = matches[lab].get("teleop")
         if p and os.path.exists(p):
-            tele[lab] = teleop_stats(p)
+            tele[lab] = teleop_stats(p, a.radius)
 
     md.append("## TeleOp per match\n")
-    md.append("| match | salvos | pollen | pollen/min | cycle mean s | cycle median s | salvo s | collect s | transit s | transit in | lock s | full wait s | first salvo at s | tail after last s |")
-    md.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    md.append("| match | salvos | pollen | pollen/min | cycle mean s | cycle median s | salvo s | collect s | find spot s | lock drive s | find in | at spot s | aim s | lock s | full wait s | first salvo at s | tail after last s |")
+    md.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     allc = []
     for lab in order:
         s = tele.get(lab)
@@ -253,30 +300,30 @@ def main():
             continue
         c = s["cycles"]
         allc += c
-        md.append("| %s | %d | %d | %.1f | %.1f | %.1f | %.2f | %.1f | %.1f | %.0f | %.1f | %.1f | %.1f | %.1f |" % (
+        md.append("| %s | %d | %d | %.1f | %.1f | %.1f | %s | %.1f | %.1f |" % (
             lab, s["salvos"], s["pollen"], 60.0 * s["pollen"] / max(s["length"], 1.0),
-            mean([x["cycle"] for x in c]), med([x["cycle"] for x in c]), mean([x["salvo"] for x in c]),
-            mean([x["collect"] for x in c]), mean([x["transit"] for x in c]), mean([x["dist"] for x in c if x["dist"] == x["dist"]]), mean([x["lock"] for x in c]), mean([x["full"] for x in c]),
+            mean([x["cycle"] for x in c]), med([x["cycle"] for x in c]), parts(c),
             s["first"] if s["first"] is not None else float("nan"), s["tail"] if s["tail"] is not None else float("nan")))
     if allc:
-        md.append("| **all** | | | | %.1f | %.1f | %.2f | %.1f | %.1f | %.0f | %.1f | %.1f | | |" % (
-            mean([x["cycle"] for x in allc]), med([x["cycle"] for x in allc]), mean([x["salvo"] for x in allc]),
-            mean([x["collect"] for x in allc]), mean([x["transit"] for x in allc]), mean([x["dist"] for x in allc if x["dist"] == x["dist"]]), mean([x["lock"] for x in allc]), mean([x["full"] for x in allc])))
+        md.append("| **all** | | | | %.1f | %.1f | %s | | |" % (mean([x["cycle"] for x in allc]), med([x["cycle"] for x in allc]), parts(allc)))
 
     md.append("\n## TeleOp cycles by pollen shot\n")
-    md.append("| pollen in the salvo | cycles | cycle mean s | collect mean s | transit mean s | lock mean s |")
-    md.append("|---|---|---|---|---|---|")
+    md.append("| pollen in the salvo | cycles | cycle mean s | collect mean s | find spot mean s | at spot mean s | aim mean s |")
+    md.append("|---|---|---|---|---|---|---|")
     for h in range(1, 5):
         c = [x for x in allc if x["held"] == h]
         if c:
-            md.append("| %d | %d | %.1f | %.1f | %.1f | %.1f |" % (h, len(c), mean([x["cycle"] for x in c]), mean([x["collect"] for x in c]), mean([x["transit"] for x in c]), mean([x["lock"] for x in c])))
+            md.append("| %d | %d | %.1f | %.1f | %.1f | %.1f | %.1f |" % (h, len(c), mean([x["cycle"] for x in c]), mean([x["collect"] for x in c]),
+                                                              mean([x["find"] for x in c]), mean([x["at_spot"] for x in c]), mean([x["aim"] for x in c])))
     md.append("\n(The pollen count is that of the salvo that ENDS the cycle.)\n")
 
     md.append("## Every TeleOp cycle\n")
+    md.append("cycle s (collect / find spot, of it locked / at spot / aim)\n")
     for lab in order:
         s = tele.get(lab)
         if s:
-            md.append("- **%s** cycle s: %s" % (lab, ", ".join("%.1f" % x["cycle"] for x in s["cycles"])))
+            md.append("- **%s**: %s" % (lab, ", ".join("%.1f (%.1f / %.1f, %.1f / %.1f / %.1f)" % (
+                x["cycle"], x["collect"], x["find"], x["lock_drive"], x["at_spot"], x["aim"]) for x in s["cycles"])))
     md.append("\n## Auto per match\n")
     md.append("| match | total s | drive | aim | launch | square | jostle | wait | other | steps |")
     md.append("|---|---|---|---|---|---|---|---|---|---|")
