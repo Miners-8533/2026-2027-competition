@@ -31,8 +31,8 @@ import java.util.Locale;
 
 /**
  * Launch Grid Tuner (2026-11-10, replaces the one-dimensional Launch Map Tuner): builds a TWO-dimensional grid of launch aim and speed. The robot drives to
- * each point of a grid of launching spots for ONE hive cell (the NEAR cell, the audience cell, or the FAR cell, the rear cell, picked at INIT; the red hive,
- * the usual start at the audience wall), already pointed at the cell with today's aim (TargetLock's aim heading with the launcher offset and the far-cell
+ * each point of a grid of launching spots for ONE hive cell (the NEAR cell, the blue REAR cell on the start side, or the FAR cell, the blue AUDIENCE cell, picked at INIT; the
+ * assumed alliance is BLUE for now, the usual start against the rear wall), already pointed at the cell with today's aim (TargetLock's aim heading with the launcher offset and the far-cell
  * extra) and the flywheel at today's launch map speed. At the spot the operator loads elements, fires, and trims the ANGLE and the SPEED until the salvo scores;
  * A moves to the next spot (the trims it was left with are taken as good), B says no shot is possible from here and moves on, X goes back one spot.
  *
@@ -53,20 +53,20 @@ import java.util.Locale;
  *   Y                      fire a salvo (the flywheel is already spinning)
  *   D-pad up / down        speed +/- SPEED_STEP ticks/s            D-pad left / right   aim left / right by ANGLE_STEP_DEG (turns the robot)
  *   A                      this spot is done: take its trims as good and go to the next      B   no shot is possible from here: next      X   back one spot
- *   Left bumper            intake on / off (toggle)             Left trigger (hold)   outtake
+ *   (the intake is ALWAYS IN, as in the TeleOp)                    Left trigger (hold)   outtake
  *   Back                   clear a pusher fault; HOLD it 1 s to reseed the pose to the start pose (square the robot on the wall first)
  *
- * INIT (gamepad 1): D-pad left = NEAR cell, D-pad right = FAR cell. Start pose: START_X_IN, START_Y_IN, START_HEADING_DEG (the usual: against the audience
- * wall facing the rear wall); keep still while the Pinpoint calibrates. START_INDEX starts the sweep at a later spot (to continue an earlier session).
+ * INIT (gamepad 1): D-pad left = NEAR cell, D-pad right = FAR cell. Start pose: START_X_IN, START_Y_IN, START_HEADING_DEG (the usual blue start: against the rear
+ * wall facing the audience wall, the pose the TeleOp starts blue from); keep still while the Pinpoint calibrates. START_INDEX starts the sweep at a later spot (to continue an earlier session).
  * The pusher is assumed to be where the last opmode left it (the saved zero).
  */
 @Config
 @TeleOp(name = "Launch Grid Tuner", group = "Bring-up")
 public class LaunchGridTuner extends LinearOpMode {
 
-    public static double START_X_IN = 63.4;
-    public static double START_Y_IN = -16.5;
-    public static double START_HEADING_DEG = 180.0;
+    public static double START_X_IN = -63.4;
+    public static double START_Y_IN = 16.5;
+    public static double START_HEADING_DEG = 0.0;
     /** Grid spacing, inches (12: 30 spots for the near cell, 29 for the far). */
     public static double PITCH_IN = 12.0;
     /** A shot more than this many degrees off the opening's normal is not tried (a shot nearly parallel to the face cannot enter the cell). */
@@ -120,13 +120,13 @@ public class LaunchGridTuner extends LinearOpMode {
         return new Pose2d(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
     }
 
-    /** The red hive's cell: NEAR = the audience cell (the start is at the audience wall), FAR = the rear cell. */
+    /** The blue hive's cell: NEAR = the rear cell (the start is against the rear wall), FAR = the audience cell. */
     private static HiveTarget cellFor(boolean far) {
-        return far ? HiveTarget.RED_REAR : HiveTarget.RED_AUDIENCE;
+        return far ? HiveTarget.BLUE_AUDIENCE : HiveTarget.BLUE_REAR;
     }
 
     private static LaunchGrid.Aim aimFor(HiveTarget cell) {
-        double extra = TargetLock.farCellExtraLeftIn(cell, false);   // red alliance
+        double extra = TargetLock.farCellExtraLeftIn(cell, true);   // blue alliance
         return (x, y) -> TargetLock.aimHeadingRad(x, y, cell, extra);
     }
 
@@ -186,7 +186,8 @@ public class LaunchGridTuner extends LinearOpMode {
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
         mechanisms.setUseLaunchMap(false);          // this opmode sets the speed itself
         mechanisms.setAutoStopAfterSalvo(false);    // the flywheel stays on between launches
-        mechanisms.setBlueAlliance(false);          // the red hive: the usual start is at the audience wall
+        mechanisms.setBlueAlliance(true);           // the assumed alliance (2026-11-12): blue; its usual start is against the rear wall
+        mechanisms.setIntakeAlwaysOn(true);         // IN whatever the count, as in the TeleOp (the 2026-11-12 run had it OFF: nothing turned it on)
 
         boolean far = false;
         HiveTarget cell = cellFor(far);
@@ -248,7 +249,8 @@ public class LaunchGridTuner extends LinearOpMode {
         DriveToPose current = null;
         DriveToPose reaim = null;
         boolean planned = false;
-        boolean prevIntake = false;
+        String notice = "";
+        long noticeUntilNs = 0L;
         boolean backDown = false, reseeded = false;
         ElapsedTime backHold = new ElapsedTime();
 
@@ -268,6 +270,8 @@ public class LaunchGridTuner extends LinearOpMode {
                 boolean aPressed = gamepad1.aWasPressed(), bPressed = gamepad1.bWasPressed();
                 if (aPressed && !here) {
                     aPressed = false;
+                    notice = "A ignored: the robot is not at spot " + (idx + 1) + " yet: HOLD the RIGHT TRIGGER to drive there (B = no shot from here, X = back)";
+                    noticeUntilNs = System.nanoTime() + 6_000_000_000L;
                     RunLog.event("A ignored: the robot is not at spot " + (idx + 1) + " (B says no shot from here, X goes back)");
                 }
                 if (aPressed || bPressed) {
@@ -328,7 +332,6 @@ public class LaunchGridTuner extends LinearOpMode {
             }
 
             // ---- the mechanisms ----
-            if (gamepad1.leftBumperWasPressed()) mechanisms.toggleIntake();
             mechanisms.setManualOuttake(gamepad1.left_trigger > TRIGGER_THRESHOLD);
             if (gamepad1.backWasPressed()) mechanisms.clearPusherStall();
             if (gamepad1.back) {
@@ -472,6 +475,8 @@ public class LaunchGridTuner extends LinearOpMode {
             logSetpoint = setpoint;
 
             // ---- the screen ----
+            if (pt != null && !finished && state != State.AT_POINT && !here) telemetry.addLine("*** HOLD THE RIGHT TRIGGER to drive to spot " + (idx + 1) + " (nothing moves by itself) ***");
+            if (System.nanoTime() < noticeUntilNs) telemetry.addLine("*** " + notice + " ***");
             if (pt != null) {
                 telemetry.addData("Spot", "%d of %d at (%.1f, %.1f)%s   %.1f in from %s   %s", idx + 1, pts.size(), pt.x, pt.y, pt.slid ? " (slid off a wall)" : "", pt.distanceIn, cell,
                         finished ? "GRID COMPLETE" : state == State.AT_POINT ? "AT THE SPOT" : "hold RIGHT TRIGGER to drive here");
@@ -490,12 +495,13 @@ public class LaunchGridTuner extends LinearOpMode {
             telemetry.addData("Drive", driveMode);
             telemetry.addData("Pose x / y (in), heading (deg)", "%.1f / %.1f / %.1f", pose.position.x, pose.position.y, pose.heading.toDegrees());
             mechanisms.log(telemetry);
-            telemetry.addLine("RT hold drive, Y fire, A next, B no shot, X back, D-pad up/down speed, left/right aim, LB intake, LT outtake, Back clear fault (hold = reseed pose)");
+            telemetry.addLine("RT hold drive, Y fire, A next, B no shot, X back, D-pad up/down speed, left/right aim, LT outtake, Back clear fault (hold = reseed pose)");
             telemetry.update();
             dashboard.sendTelemetryPacket(packet);
         }
         RunLog.event(tableText());
         drive.stop();
+        mechanisms.setIntakeAlwaysOn(false);
         mechanisms.setIntakeRequested(false);
         mechanisms.setManualOuttake(false);
         mechanisms.stopFlywheel();

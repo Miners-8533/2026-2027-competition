@@ -6,8 +6,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * PC check of LaunchGrid (the Launch Grid Tuner's spots), run by tools/hive/run-check.cmd. Prints, for the near (red audience) and far (red rear) cells, the
- * spots in visiting order and whether the router (HiveRoute.plan) can route every hop of the sweep, starting from the usual start pose.
+ * PC check of LaunchGrid (the Launch Grid Tuner's spots), run by tools/hive/run-check.cmd. Prints, for both alliances (the tuner assumes BLUE since 2026-11-12; red is the
+ * same turned 180 degrees), the near and far cells, the spots in visiting order and whether the router (HiveRoute.plan) can route every hop of the sweep, starting from the
+ * usual start pose (blue: against the rear wall; red: against the audience wall).
  * Fails (exit 1) when a grid is empty, a spot violates the rules, or a hop between consecutive spots cannot be routed.
  */
 public class LaunchGridCheck {
@@ -38,9 +39,11 @@ public class LaunchGridCheck {
     public static void main(String[] args) {
         double pitch = args.length > 0 ? Double.parseDouble(args[0]) : 12.0;
         HiveRoute.Params p = params();
-        double startX = 63.4, startY = -16.5, startH = Math.PI;
-        for (HiveTarget cell : new HiveTarget[]{HiveTarget.RED_AUDIENCE, HiveTarget.RED_REAR}) {
-            double extra = cell.x < 0 ? FAR_EXTRA_LEFT_IN : 0.0;   // red: the rear cell is the far one
+        for (boolean blue : new boolean[]{true, false}) {
+        double startX = blue ? -63.4 : 63.4, startY = blue ? 16.5 : -16.5, startH = blue ? 0.0 : Math.PI;
+        HiveTarget[] cells = blue ? new HiveTarget[]{HiveTarget.BLUE_REAR, HiveTarget.BLUE_AUDIENCE} : new HiveTarget[]{HiveTarget.RED_AUDIENCE, HiveTarget.RED_REAR};   // near, far
+        for (HiveTarget cell : cells) {
+            double extra = (blue ? cell.x > 0 : cell.x < 0) ? FAR_EXTRA_LEFT_IN : 0.0;   // the cell opposite the start wall is the far one
             LaunchGrid.Aim aim = (x, y) -> {
                 double dx = cell.x - x, dy = cell.y - y;
                 double par = Math.asin(Math.max(-0.9, Math.min(0.9, (LAUNCHER_OFFSET_LEFT_IN + extra) / Math.hypot(dx, dy))));
@@ -81,6 +84,7 @@ public class LaunchGridCheck {
             }
             System.out.printf(Locale.US, "hops: %d routed by the router, %d by a clear straight hop (router refused), %d blocked; total length %.0f in%n", pts.size() - direct - refused, direct, refused, total);
             check(refused == 0, cell + ": " + refused + " hops can be neither routed nor driven straight");
+        }
         }
         System.out.println(fails == 0 ? "\nLaunchGridCheck: all OK" : "\nLaunchGridCheck: " + fails + " FAILED");
         if (fails > 0) System.exit(1);

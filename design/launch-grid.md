@@ -7,7 +7,7 @@ The one-dimensional launch map (flywheel speed from distance only, `LaunchMap.TA
 (The picture is the design drawing, made from the same CAD keep-outs; `tools/hive/LaunchGridCheck.java` prints the real spots.)
 
 ## Which spots (`drive/LaunchGrid.java`)
-One grid per hive cell: the **NEAR** cell (the audience cell; the usual start is against the audience wall) and the **FAR** cell (the rear cell). Red or blue does not matter (red is blue turned 180 degrees); the tuner uses the red hive. A spot is kept only when
+One grid per hive cell: the **NEAR** cell (the cell on the start side) and the **FAR** cell (the cell opposite the start wall). Red or blue does not matter for the grids (red is blue turned 180 degrees); since 2026-11-12 the tuner ASSUMES BLUE: the usual blue start is against the rear wall facing the audience wall (-63.4, 16.5, 0 deg, `START_*` in the Dashboard), the NEAR cell is the blue rear cell and the FAR cell the blue audience cell; the tuner used the red hive. A spot is kept only when
 
 - it is on the cell's **open side** (the audience cell opens toward the audience wall, the rear cell toward the rear wall: nothing behind or beside the opening can score);
 - it is at least `TargetLock.MIN_DISTANCE_IN` (12 in) from the cell;
