@@ -10,7 +10,15 @@ TeleOp cycle = salvo start to the next salvo start. Two moments split it besides
           samples; turning in place and small corrections stay inside the radius)
 The parts, which add up to the cycle:
   salvo     SALVO started to SALVO done (the pusher turning, the flywheel shooting)
-  collect   SALVO done to the pickup: driving out, intaking, filling the stack
+  collect   SALVO done to the pickup: driving out, intaking, filling the stack; split in four (collect_split), the loop's sample
+            rows classified by the speed over 0.2 s and the drive command:
+              travel   moving at FAST_IN_S (15 in/s) or more
+              line-up  slower, the driver commanding motion (positioning, turning onto balls)
+              stopped  slower, no drive command (waiting)
+              pickup   the PICK_S (0.4 s) before each element-count rise (the ball going in: the count rises when it reaches CS1)
+            and each pickup's speed (mean over the 0.3 s before the count rose) and count jump (+2 or +3 = several balls at once,
+            or balls reaching the sensor together). The intake current is no use here: it stays near its free-running 0.8-1.3 A
+            with a ball in (Hartland Q5), so touched-and-lost balls are not seen (CS5, from 2026-11-12, may show them).
   find spot the pickup to the arrival: the drive to the launch spot with the load, locked or not
               lock drive  the part of find spot with the target lock already on (a Hive Dash counts as a lock)
               find in     straight-line distance from the pickup to the launch spot
@@ -33,6 +41,8 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "rob
 ROW = re.compile(r"^E,([0-9.]+),(.*)$")
 HELD = re.compile(r"(\d) held")
 ELEM = re.compile(r"ELEMENTS (\d) -> (\d)")
+FAST_IN_S = 15.0   # collect_split: travel at this speed or more (Hartland Q5 / Q10: travel 55-71 % of collect for 10 to 20 in/s)
+PICK_S = 0.4       # collect_split: the time before a count rise that is the ball going in
 
 
 def events(path):
@@ -90,6 +100,62 @@ def pose_samples(path):
                 except (ValueError, IndexError):
                     pass
     return out
+
+
+def drive_samples(path):
+    """The sample rows as (t, x, y, speed over the last 0.2 s in in/s, drive command 0..1 or NaN), read by the H, header."""
+    cols, raw = None, []
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if line.startswith("H,"):
+                cols = line.rstrip("\n").split(",")[1:]
+            elif line.startswith("S,") and cols:
+                v = line.rstrip("\n").split(",")[1:]
+                if len(v) < len(cols):
+                    continue
+                r = dict(zip(cols, v))
+                try:
+                    t, x, y = float(r["t"]), float(r["x"]), float(r["y"])
+                except (KeyError, ValueError):
+                    continue
+                try:
+                    cmd = max(abs(float(r["cmd_fwd"])), abs(float(r["cmd_left"])), abs(float(r["cmd_turn"])))
+                except (KeyError, ValueError):
+                    cmd = float("nan")   # older logs without the drive command: slow time counts as line-up
+                raw.append((t, x, y, cmd))
+    out, j = [], 0
+    for i, (t, x, y, cmd) in enumerate(raw):
+        while t - raw[j][0] > 0.2:
+            j += 1
+        k = j if j < i else max(0, i - 1)
+        d = t - raw[k][0]
+        sp = ((x - raw[k][1]) ** 2 + (y - raw[k][2]) ** 2) ** 0.5 / d if d > 0 else 0.0
+        out.append((t, x, y, sp, cmd))
+    return out
+
+
+def collect_split(drive, elements, a, b, fast=FAST_IN_S, pick=PICK_S):
+    """Collect [a, b] split into travel / line-up / stopped / pickup seconds, and its pickups as (t, jump, speed in/s)."""
+    rises = [(t, hi - lo) for t, lo, hi in elements if hi > lo and a < t <= b + 0.05]
+    part = {"travel": 0.0, "lineup": 0.0, "stopped": 0.0, "pickup": 0.0}
+    for (t0, _, _, _, cmd), (t1, _, _, sp1, _) in zip(drive, drive[1:]):
+        lo, hi = max(t0, a), min(t1, b)
+        if hi <= lo:
+            continue
+        if any(t - pick <= lo < t for t, _ in rises):
+            k = "pickup"
+        elif sp1 >= fast:
+            k = "travel"
+        elif cmd > 0.05 or cmd != cmd:
+            k = "lineup"
+        else:
+            k = "stopped"
+        part[k] += hi - lo
+    picks = []
+    for t, jump in rises:
+        w = [sp for st_, _, _, sp, _ in drive if t - 0.3 <= st_ <= t]
+        picks.append((t, jump, round(sum(w) / len(w), 1) if w else None))
+    return part, picks
 
 
 def arrival_time(samples, a, b, radius):
@@ -171,6 +237,7 @@ def full_time_between(a, b, full_on, full_off):
 def teleop_stats(path, radius):
     start, end, salvos, locks, full_on, full_off, elements = teleop(path)
     samples = pose_samples(path)
+    drive = drive_samples(path)
     rows = []
     for i in range(len(salvos) - 1):
         s, n = salvos[i], salvos[i + 1]
@@ -197,8 +264,10 @@ def teleop_stats(path, radius):
         aim = n["start"] - max(arrive, lock_on)
         a, b = pose_at(samples, reach), pose_at(samples, n["start"])
         dist = ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5 if a and b else float("nan")
+        part, picks = collect_split(drive, elements, s["done"], reach)
         rows.append({"cycle": cycle, "salvo": salvo_t, "gather": gather, "collect": collect, "find": find, "lock_drive": lock_drive,
-                     "at_spot": at_spot, "aim": aim, "dist": dist, "lock": lock_t, "full": min(full, gather), "held": n["held"]})
+                     "at_spot": at_spot, "aim": aim, "dist": dist, "lock": lock_t, "full": min(full, gather), "held": n["held"],
+                     "travel": part["travel"], "lineup": part["lineup"], "stopped": part["stopped"], "pickup": part["pickup"], "picks": picks})
     return {
         "length": end - start,
         "salvos": len(salvos),
@@ -306,6 +375,28 @@ def main():
             s["first"] if s["first"] is not None else float("nan"), s["tail"] if s["tail"] is not None else float("nan")))
     if allc:
         md.append("| **all** | | | | %.1f | %.1f | %s | | |" % (mean([x["cycle"] for x in allc]), med([x["cycle"] for x in allc]), parts(allc)))
+
+    md.append("\n## Inside collect\n")
+    md.append("Collect split by the robot's speed (travel at %.0f in/s or more; line-up slower with the driver steering; stopped slower with no drive command) "
+              "and the %.1f s before each element-count rise (pickup). Pickup speed = the robot's speed in the 0.3 s before the count rose; "
+              "multi = the count rose by 2 or more at once.\n" % (FAST_IN_S, PICK_S))
+    md.append("| match | collect mean s | travel s | line-up s | stopped s | pickup s | travel share | pickups | pickup speed median in/s | at %.0f in/s or more | under 5 in/s | multi |" % FAST_IN_S)
+    md.append("|---|---|---|---|---|---|---|---|---|---|---|---|")
+
+    def inside(lab, c):
+        pk = [p for x in c for p in x["picks"] if p[2] is not None]
+        col = sum(x["collect"] for x in c)
+        sp = [p[2] for p in pk]
+        md.append("| %s | %.1f | %.1f | %.1f | %.1f | %.1f | %.0f%% | %d | %.0f | %d | %d | %d |" % (
+            lab, mean([x["collect"] for x in c]), mean([x["travel"] for x in c]), mean([x["lineup"] for x in c]), mean([x["stopped"] for x in c]),
+            mean([x["pickup"] for x in c]), 100 * sum(x["travel"] for x in c) / col if col else float("nan"), len(pk), med(sp),
+            sum(v >= FAST_IN_S for v in sp), sum(v < 5 for v in sp), sum(p[1] >= 2 for p in pk)))
+    for lab in order:
+        s = tele.get(lab)
+        if s and s["cycles"]:
+            inside(lab, s["cycles"])
+    if allc:
+        inside("**all**", allc)
 
     md.append("\n## TeleOp cycles by pollen shot\n")
     md.append("| pollen in the salvo | cycles | cycle mean s | collect mean s | find spot mean s | at spot mean s | aim mean s |")
