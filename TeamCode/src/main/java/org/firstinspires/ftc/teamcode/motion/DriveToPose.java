@@ -20,6 +20,12 @@ import org.firstinspires.ftc.teamcode.util.RunLog;
  * Finishes when position and heading are within tolerance for {@link #SETTLE_SEC},
  * or when {@link #TIMEOUT_SEC} elapses (whichever first). Stops the drive on finish.
  *
+ * STICTION (2026-11-13, opt-in): without a static friction term a small error commands a power under the drive's dead zone and the robot does not move (the Launch Grid Tuner's 0.5 deg
+ * re-aim: 1.5 power per radian is 0.013 at 0.5 deg, the drive needs about 0.1). {@link #withStiction} adds, per ROBOT axis (forward, strafe, turn: their dead zones differ) and only while
+ * that axis is still outside the tolerance, a constant KS in the direction of the command (the DECODE approach), and a larger KS_*_START while the robot is nearly still (a robot at rest
+ * needs more to start than to keep going: AimAtCell's logs needed 0.14 to start a turn against a 0.098 dead zone), dropping to the running value once it moves. Off unless asked for
+ * (or STICTION_ALL_LEGS), so the autos' legs, tuned without it, are unchanged.
+ *
  * All gains and tolerances are {@code @Config} statics so they can be tuned live in
  * FTC Dashboard while a tuning OpMode runs. Every {@link #run} copies the statics
  * into the controllers, so edits take effect immediately.
@@ -53,6 +59,18 @@ public final class DriveToPose implements Action {
     public static double SETTLE_SEC = 0.20;     // time within tolerance before "done"
     public static double TIMEOUT_SEC = 4.0;     // hard cap
 
+    // ---- static friction (stiction) compensation, per robot axis; see the class comment ----
+    /** Every DriveToPose gets the stiction term (for a test run); false: only a leg that asks with withStiction(true). */
+    public static boolean STICTION_ALL_LEGS = false;
+    /** Added to the command's size while the axis moves (a little under its dead zone: 0.072 forward, about 0.12 sideways, 0.098 turning, the 2026-11-07 drive test). */
+    public static double KS_FORWARD = 0.065, KS_STRAFE = 0.11, KS_TURN = 0.09;
+    /** Added instead while the axis is nearly still (to get it started; the turn's 0.14 is AimAtCell.BREAKAWAY_POWER). */
+    public static double KS_FORWARD_START = 0.10, KS_STRAFE_START = 0.15, KS_TURN_START = 0.14;
+    /** An axis slower than this counts as still. */
+    public static double STALL_IN_PER_S = 1.5, STALL_DEG_PER_S = 6.0;
+    /** The term is added to an axis only when its own error is at least this (so a leg that strafes does not get a forward push from the forward PID's leftover). */
+    public static double KS_MIN_ERR_IN = 0.3;
+
     private final MecanumDrive drive;
     private final Pose2d target;
     private double timeoutSec = TIMEOUT_SEC;
@@ -62,6 +80,11 @@ public final class DriveToPose implements Action {
     private boolean distanceTimeout = false;
     private double maxOutputOverride = Double.NaN;   // NaN: MAX_OUTPUT
     private double dtBaseSec, dtInPerSec, dtMinSec, dtTurnExtraSec, dtMaxSec;
+    private boolean stiction = STICTION_ALL_LEGS;
+    // the robot's own speed from successive poses, for the stalled test
+    private double lastPoseX, lastPoseY, lastPoseH;
+    private long lastPoseNs = 0L;
+    private double vForward = 0.0, vLeft = 0.0, wDegPerS = 0.0;
 
     private final PidController xCtrl = new PidController(AXIAL_kP, AXIAL_kI, AXIAL_kD);
     private final PidController yCtrl = new PidController(LATERAL_kP, LATERAL_kI, LATERAL_kD);
@@ -96,6 +119,12 @@ public final class DriveToPose implements Action {
     /** The time inside the tolerance before the drive is done (the static SETTLE_SEC is 0.20 s); 0 ends the drive the moment it is near, for a pass-through leg that must not wait. */
     public DriveToPose withSettle(double settleSec) {
         settleSecOverride = settleSec;
+        return this;
+    }
+
+    /** Adds the static friction term (see the class comment) to this drive: true to turn it on, false off whatever STICTION_ALL_LEGS says. */
+    public DriveToPose withStiction(boolean on) {
+        stiction = on;
         return this;
     }
 
@@ -148,7 +177,8 @@ public final class DriveToPose implements Action {
                     from.position.x, from.position.y, from.heading.toDegrees(),
                     target.position.x, target.position.y, target.heading.toDegrees(), timeoutSec,
                     (Double.isNaN(posTolIn) ? "" : String.format(", tolerance %.1f in / %.0f deg", posTolIn, headTolDeg))
-                            + (Double.isNaN(maxOutputOverride) ? "" : String.format(", max power %.2f", maxOutputOverride))));
+                            + (Double.isNaN(maxOutputOverride) ? "" : String.format(", max power %.2f", maxOutputOverride))
+                            + (stiction ? String.format(", stiction kS %.3f / %.3f / %.3f (start %.3f / %.3f / %.3f)", KS_FORWARD, KS_STRAFE, KS_TURN, KS_FORWARD_START, KS_STRAFE_START, KS_TURN_START) : "")));
         }
         applyGains();
 
@@ -173,11 +203,42 @@ public final class DriveToPose implements Action {
 
         // field-frame translation -> robot frame (rotate by -heading)
         Vector2d robotVel = new Vector2d(vxField, vyField).rotated(-heading);
-        drive.setDrivePowers(new PoseVelocity2d(robotVel, omega));
 
         double posError = Math.hypot(errX, errY);
-        boolean inTolerance = posError < (Double.isNaN(posTolIn) ? POS_TOLERANCE_IN : posTolIn)
-                && Math.abs(errH) < Math.toRadians(Double.isNaN(headTolDeg) ? HEADING_TOLERANCE_DEG : headTolDeg);
+        double posTol = Double.isNaN(posTolIn) ? POS_TOLERANCE_IN : posTolIn;
+        double headTolRad = Math.toRadians(Double.isNaN(headTolDeg) ? HEADING_TOLERANCE_DEG : headTolDeg);
+        if (stiction) {
+            // the robot's speed from the poses of the last two loops (0 on the first: still), a little smoothed
+            long nowNs = System.nanoTime();
+            if (lastPoseNs != 0L) {
+                double dt = (nowNs - lastPoseNs) / 1e9;
+                if (dt > 1e-3) {
+                    double wx = (pose.position.x - lastPoseX) / dt, wy = (pose.position.y - lastPoseY) / dt;
+                    Vector2d vr = new Vector2d(wx, wy).rotated(-heading);
+                    double w = Math.toDegrees(Rotation2d.normalize(heading - lastPoseH)) / dt;
+                    vForward += 0.5 * (vr.x - vForward);
+                    vLeft += 0.5 * (vr.y - vLeft);
+                    wDegPerS += 0.5 * (w - wDegPerS);
+                }
+            }
+            lastPoseNs = nowNs;
+            lastPoseX = pose.position.x;
+            lastPoseY = pose.position.y;
+            lastPoseH = heading;
+            double max = Double.isNaN(maxOutputOverride) ? MAX_OUTPUT : maxOutputOverride;
+            double fwd = robotVel.x, left = robotVel.y, om = omega;
+            if (posError >= posTol) {
+                Vector2d err = new Vector2d(errX, errY).rotated(-heading);   // the position error along the robot's own axes
+                if (Math.abs(err.x) >= KS_MIN_ERR_IN) fwd = withKs(fwd, KS_FORWARD, KS_FORWARD_START, Math.abs(vForward) < STALL_IN_PER_S, max);
+                if (Math.abs(err.y) >= KS_MIN_ERR_IN) left = withKs(left, KS_STRAFE, KS_STRAFE_START, Math.abs(vLeft) < STALL_IN_PER_S, max);
+            }
+            if (Math.abs(errH) >= headTolRad) om = withKs(om, KS_TURN, KS_TURN_START, Math.abs(wDegPerS) < STALL_DEG_PER_S, max);
+            robotVel = new Vector2d(fwd, left);
+            omega = om;
+        }
+        drive.setDrivePowers(new PoseVelocity2d(robotVel, omega));
+
+        boolean inTolerance = posError < posTol && Math.abs(errH) < headTolRad;
         if (!inTolerance) {
             settle.reset();
         }
@@ -201,6 +262,13 @@ public final class DriveToPose implements Action {
                     inTolerance ? "settled" : "TIMED OUT", timeout.seconds(), posError, errX, errY, Math.toDegrees(errH)));
         }
         return !done;
+    }
+
+    /** c with the static friction term added in its direction (ks while it moves, ksStart while it is still), limited to max; a zero command stays zero. */
+    private static double withKs(double c, double ks, double ksStart, boolean still, double max) {
+        if (Math.abs(c) < 1e-4) return c;
+        double v = c + Math.signum(c) * (still ? ksStart : ks);
+        return Math.max(-max, Math.min(max, v));
     }
 
     private void applyGains() {
