@@ -17,6 +17,7 @@ import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
 import org.firstinspires.ftc.teamcode.subsystems.ElementCounter;
+import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
@@ -68,6 +69,13 @@ public class CSPassStudy extends LinearOpMode {
 
     /** The flywheel's slow speed while the elements come in (ticks/s). */
     public static double SETPOINT = 500.0;
+    /**
+     * The flywheel's hold power (Flywheel.FEED_FORWARD, 0.35) is used whenever the wheel is ABOVE its setpoint, and it never brakes: at 0.35 the wheel settles near 800 ticks/s, so
+     * the slow SETPOINT (500) was never inside the launch band (480 to 520) and no salvo could start (the 2026-11-12 runs: "LAUNCH held ... ABOVE the band", dropped after 3 s). The study
+     * therefore runs the hold power at this fraction of the power that holds the setpoint (setpoint / OPEN_LOOP_TOP_SPEED, 500 / 2200 = 0.23), never above the Flywheel's own value, so
+     * the wheel decays below the setpoint and the full-power kick brings it back: it hovers around the setpoint. The Flywheel's own value is put back when the opmode ends.
+     */
+    public static double STUDY_FEED_FORWARD_FRACTION = 0.90;
     /** Loop time to emulate, ms: the loop is padded up to this (the TeleOp runs 27 to 30 ms). 0 = no padding, as fast as it goes. */
     public static double LOOP_TARGET_MS = 28.0;
     /** The sensors' fast preset: color 25 ms 16-bit, proximity 6.25 ms (set by reflection; the SDK default is 100 ms for both). Applied at INIT. */
@@ -94,6 +102,13 @@ public class CSPassStudy extends LinearOpMode {
 
     private String rateNote = "";
     private final ElapsedTime sinceStart = new ElapsedTime();
+    private double origFeedForward = Flywheel.FEED_FORWARD;
+
+    /** The hold power that lets the wheel come down to the (slow) setpoint: a fraction of the power that holds it, never more than the Flywheel's own. */
+    private void applyStudyFeedForward() {
+        double hold = STUDY_FEED_FORWARD_FRACTION * SETPOINT / Flywheel.OPEN_LOOP_TOP_SPEED;
+        Flywheel.FEED_FORWARD = Math.max(0.0, Math.min(origFeedForward, hold));
+    }
 
     private static String applyFastRate(RevColorSensorV3 sensor) {
         try {
@@ -381,12 +396,14 @@ public class CSPassStudy extends LinearOpMode {
     @Override
     public void runOpMode() {
         RunLog.open(RunLog.Kind.BRINGUP, "CS Pass Study", hardwareMap);
+        origFeedForward = Flywheel.FEED_FORWARD;
         try {
             runStudy();
         } catch (Throwable t) {
             RunLog.crash(t);
             throw t;
         } finally {
+            Flywheel.FEED_FORWARD = origFeedForward;   // a static: left changed it would stay changed for the match TeleOp until the app restarts
             RunLog.close();
         }
     }
@@ -452,11 +469,13 @@ public class CSPassStudy extends LinearOpMode {
         }
         if (isStopRequested()) return;
         for (Probe p : probes) p.captureBaseline();
+        applyStudyFeedForward();
         mechanisms.setManualSetpoint(SETPOINT);
         mechanisms.setSpinRequested(true);
         RunLog.started();
         RunLog.event("SETUP CS pass study: sensors " + (cs5 != null ? "CS5 (nearest the intake) + " : "") + "CS4, " + rateText + "READ_DISTANCE " + READ_DISTANCE + ", read every "
                 + CS5_EVERY_N_LOOPS + " (CS5) / " + CS4_EVERY_N_LOOPS + " (CS4) loops, loop target " + LOOP_TARGET_MS + " ms, setpoint " + SETPOINT
+                + ", flywheel hold power " + String.format(Locale.US, "%.3f", Math.max(0.0, Math.min(origFeedForward, STUDY_FEED_FORWARD_FRACTION * SETPOINT / Flywheel.OPEN_LOOP_TOP_SPEED))) + " (was " + origFeedForward + ")"
                 + ", auto clear " + AUTO_CLEAR + " at " + CLEAR_AT_COUNT + ", presence " + ON_READS + "/" + OFF_READS + " reads, " + mechanisms.describe());
         StringBuilder cols = new StringBuilder("study_t,");
         for (Probe p : probes) cols.append(p.columns()).append(',');
@@ -533,6 +552,7 @@ public class CSPassStudy extends LinearOpMode {
                 }
             }
 
+            applyStudyFeedForward();   // follows the D-pad speed changes
             mechanisms.setManualSetpoint(SETPOINT);
             mechanisms.setSpinRequested(true);
             mechanisms.update(pose);

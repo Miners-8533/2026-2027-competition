@@ -71,6 +71,12 @@ public class LaunchGridTuner extends LinearOpMode {
     public static double PITCH_IN = 12.0;
     /** A shot more than this many degrees off the opening's normal is not tried (a shot nearly parallel to the face cannot enter the cell). */
     public static double ANGLE_LIMIT_DEG = 75.0;
+    /**
+     * How far inside the walls the robot's rectangle must stay at a spot, inches (3.0 since 2026-11-12; 2.0 moved the most rotated spots only 1.2 in): the robot turned to face the cell has a back corner that
+     * reached about 1 in from the wall at the rear-wall column, and the 2026-11-12 run stopped 3 to 14 in short of four spots there (spots 7 to 10), so those spots were
+     * 2 in too close to the wall. A spot that fails only on this is slid in toward the field center (at most 8 in).
+     */
+    public static double WALL_MARGIN_IN = 3.0;
     /** Start the sweep at this spot (0 = the first). */
     public static int START_INDEX = 0;
     public static double ANGLE_STEP_DEG = 0.5;
@@ -131,7 +137,7 @@ public class LaunchGridTuner extends LinearOpMode {
     }
 
     private static List<LaunchGrid.Point> buildGrid(HiveTarget cell, HiveRoute.Params p) {
-        List<LaunchGrid.Point> pts = LaunchGrid.generate(cell, PITCH_IN, ANGLE_LIMIT_DEG, TargetLock.MIN_DISTANCE_IN, FieldGeometry.HALF_IN, aimFor(cell), p);
+        List<LaunchGrid.Point> pts = LaunchGrid.generate(cell, PITCH_IN, ANGLE_LIMIT_DEG, TargetLock.MIN_DISTANCE_IN, FieldGeometry.HALF_IN - WALL_MARGIN_IN, aimFor(cell), p);
         LaunchGrid.order(pts, START_X_IN, START_Y_IN);
         return pts;
     }
@@ -391,7 +397,7 @@ public class LaunchGridTuner extends LinearOpMode {
                                     legIsVia.add(!last);
                                 }
                                 routeNote = "route: " + plan.description;
-                            } else if (LaunchGrid.straightHopClear(pose.position.x, pose.position.y, h0, pt.x, pt.y, targetH, FieldGeometry.HALF_IN, params)) {
+                            } else if (LaunchGrid.straightHopClear(pose.position.x, pose.position.y, h0, pt.x, pt.y, targetH, FieldGeometry.HALF_IN - WALL_MARGIN_IN, params)) {
                                 legs.add(new Pose2d(pt.x, pt.y, targetH));
                                 legIsVia.add(false);
                                 routeNote = "DIRECT hop (the router refused: " + plan.refusal + ")";

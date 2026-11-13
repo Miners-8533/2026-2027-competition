@@ -50,10 +50,13 @@ public class Pusher {
     public static double ENCODER_SIGN = -1.0;
 
     // placeholders: calibrate on the rig
-    /** Forward power for a salvo or a return to HOLD, until APPROACH_DEG from the target. */
-    public static double SWEEP_POWER = 0.3;   // was 0.6; halved 2026-10-31 so the pusher moves slower (try up to 0.5 live in the Dashboard)
-    /** Forward power for the last APPROACH_DEG of a move, so it lands gently. */
-    public static double APPROACH_POWER = 0.25;
+    /**
+     * Forward power for a salvo or a return to HOLD, until APPROACH_DEG from the target. 0.37 since 2026-11-12 (the Launch Salvo Speed Study of that day: the salvo turns at about
+     * 433 deg/s and takes 1.01 s to the stop threshold, against 354 deg/s and 1.21 s at 0.30; the flywheel dip during a salvo did not change with the power). It was 0.6, halved to 0.3 on 2026-10-31.
+     */
+    public static double SWEEP_POWER = 0.37;
+    /** Forward power for the last APPROACH_DEG of a move, so it lands gently. The same as SWEEP_POWER since 2026-11-12 (it was 0.25; the study at 0.37 ran both at the same power). */
+    public static double APPROACH_POWER = 0.37;
     /** Degrees before the target where the power drops to APPROACH_POWER. 0 turns the slow approach off. */
     public static double APPROACH_DEG = 30.0;
     /** Cut the power this many degrees before the target; the brake and coasting cover the rest. Calibrate. */

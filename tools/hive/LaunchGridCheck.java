@@ -27,6 +27,9 @@ public class LaunchGridCheck {
         return p;
     }
 
+    /** The Launch Grid Tuner's WALL_MARGIN_IN (3 in since 2026-11-12). */
+    static final double WALL_MARGIN_IN = 3.0;
+
     static int fails = 0;
 
     static void check(boolean ok, String what) {
@@ -49,7 +52,7 @@ public class LaunchGridCheck {
                 double par = Math.asin(Math.max(-0.9, Math.min(0.9, (LAUNCHER_OFFSET_LEFT_IN + extra) / Math.hypot(dx, dy))));
                 return Math.atan2(dy, dx) - par;
             };
-            List<LaunchGrid.Point> pts = LaunchGrid.generate(cell, pitch, 75.0, 12.0, 71.0, aim, p);
+            List<LaunchGrid.Point> pts = LaunchGrid.generate(cell, pitch, 75.0, 12.0, 71.0 - WALL_MARGIN_IN, aim, p);
             LaunchGrid.order(pts, startX, startY);
             System.out.printf(Locale.US, "%n== %s (open toward %s), pitch %.0f in: %d spots%n", cell, LaunchGrid.openSide(cell) > 0 ? "audience" : "rear", pitch, pts.size());
             check(!pts.isEmpty(), cell + " grid is empty");
@@ -67,7 +70,7 @@ public class LaunchGridCheck {
                 if (plan.ok) {
                     hop = String.format(Locale.US, "%.0f in, %d leg(s)", plan.lengthIn, plan.waypoints.length - 1);
                     total += plan.lengthIn;
-                } else if (LaunchGrid.straightHopClear(px, py, ph, q.x, q.y, q.headingRad, 71.0, p)) {
+                } else if (LaunchGrid.straightHopClear(px, py, ph, q.x, q.y, q.headingRad, 71.0 - WALL_MARGIN_IN, p)) {
                     double d = Math.hypot(q.x - px, q.y - py);
                     hop = String.format(Locale.US, "router refused (%s); a straight hop of %.0f in is clear", plan.refusal, d);
                     direct++;

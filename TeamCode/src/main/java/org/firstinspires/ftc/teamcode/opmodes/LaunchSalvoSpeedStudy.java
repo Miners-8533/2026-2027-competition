@@ -35,7 +35,7 @@ import java.util.Locale;
 
 /**
  * LAUNCH SALVO SPEED STUDY (2026-11-10): a fork of TeleOp - Competition that gives the DRIVER's D-pad control of the pusher's power, to find how fast the salvo should turn.
- * D-pad up / down: +/- PUSHER_COARSE_STEP (0.05); D-pad right / left: +/- PUSHER_FINE_STEP (0.01); B: back to the power the opmode started with (the Pusher's SWEEP_POWER, 0.30).
+ * D-pad up / down: +/- PUSHER_COARSE_STEP (0.05); D-pad right / left: +/- PUSHER_FINE_STEP (0.01); B: back to the power the opmode started with (the Pusher's SWEEP_POWER, 0.37 since 2026-11-12).
  * The one value is used for SWEEP_POWER and APPROACH_POWER together (the salvo, the return to HOLD and the last 30 deg), limited to PUSHER_MIN_POWER..PUSHER_MAX_POWER (0.15..0.80).
  * It is MOTOR POWER (a fraction of the battery voltage), not regulated volts. The Pusher's statics are put back when the opmode ends. The Hive Dash and the Park Dash are OFF here
  * (their D-pad directions are the pusher power); everything else is as in the match TeleOp, including the operator's D-pad reports of where a salvo landed (left, right, low, high), which
