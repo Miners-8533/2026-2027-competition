@@ -45,6 +45,10 @@ import java.util.Locale;
  * There is NO ground truth: the passes are compared with each other, with the element counter's count and with the salvos (the "N held" of each SALVO started line),
  * and with what you fed in (A drops a MARK line in the log whenever you want to note something).
  *
+ * FAST READ (CS5_FAST_READ, 2026-11-13): CS5's proximity count alone is polled in a tight loop on its own thread (the sensor refreshes it every 6.25 ms; one short I2C read per
+ * sample), every sample stamped on the study clock and logged in the cs5f column of each row ("count@ms count@ms ..." since the previous row), and a CS5 FAST rate line every
+ * FAST_STATS_SEC says how fast it really ran. tools/logs/cs5_counting.py --fast replays the counting algorithms over it.
+ *
  * Feed pollen (by hand or from the floor with the intake IN). The track is cleared by salvos at the slow SETPOINT (500 ticks/s: the elements just fall out
  * of the front): AUTO_CLEAR fires one when the element counter reads FULL (CLEAR_AT_COUNT), or press Y. The counter's own CS4 reads share CS4 and its fast rate, so its
  * CS4 slot may misbehave; fire by hand (Y) when it does, and read the log. CS5 is not in the element counter.
@@ -85,6 +89,16 @@ public class CSPassStudy extends LinearOpMode {
     /** Read CS4 / CS5 on every Nth loop (1 = every loop). Reading both every loop is the study; 2 shows what alternating does to the loop time. */
     public static int CS4_EVERY_N_LOOPS = 1;
     public static int CS5_EVERY_N_LOOPS = 1;
+    /**
+     * FAST READ (2026-11-13): CS5's PROXIMITY register alone (one short I2C read, the sensor refreshes it every 6.25 ms) is polled in a tight loop on its own thread, every sample
+     * stamped and logged (the cs5f column of each row), so a transit that is over in 30 to 100 ms is seen as many samples instead of falling between two 58 ms loop reads (the
+     * 2026-11-12 runs: a single-read event was more than half of what was detected, about 40 percent of the counter's rises had no detection at all). The thread reads the same sensor
+     * as the main loop, so the main loop then reads CS5's color only every CS5_FAST_MAIN_EVERY_N_LOOPS-th loop (at least CS5_EVERY_N_LOOPS) to leave the I2C bus to the fast thread.
+     */
+    public static boolean CS5_FAST_READ = true;
+    public static int CS5_FAST_MAIN_EVERY_N_LOOPS = 4;
+    /** Seconds between the CS5 FAST rate lines in the log. */
+    public static double FAST_STATS_SEC = 5.0;
     /** Fire a salvo by itself when the element counter reports CLEAR_AT_COUNT or more. */
     public static boolean AUTO_CLEAR = true;
     public static int CLEAR_AT_COUNT = 4;
@@ -125,6 +139,125 @@ public class CSPassStudy extends LinearOpMode {
             return "FAST RATE FAILED (" + e + ")";
         }
     }
+
+    /**
+     * The fast proximity poller: a thread that reads CS5's raw proximity count over and over and keeps (time, count) in a ring; the main loop drains it into the log rows. The
+     * time is nanoTime from the SAME origin as the study clock (study_t), so the samples line up with the rows. Reading is rawOptical(): one 2-byte I2C read.
+     */
+    private final class FastProx implements Runnable {
+        static final int RING = 8192;
+        final RevColorSensorV3 sensor;
+        volatile long originNs;             // set when the thread starts: the same instant as the study clock's reset
+        final long[] ts = new long[RING];
+        final int[] val = new int[RING];
+        volatile long head = 0L;            // samples written (the thread)
+        long tail = 0L;                     // samples drained (the OpMode thread)
+        volatile boolean running = true;
+        volatile long errors = 0L;
+        long dropped = 0L;
+        Thread thread;
+        // the intervals between the samples drained since the last stats line, and in the whole run
+        long winN = 0L, runN = 0L, winOver20 = 0L, runOver20 = 0L;
+        double winSumMs = 0.0, winMaxMs = 0.0, runSumMs = 0.0, runMaxMs = 0.0;
+        long lastTs = 0L;
+        int lastDrainCount = 0;
+
+        FastProx(RevColorSensorV3 sensor, long originNs) {
+            this.sensor = sensor;
+            this.originNs = originNs;
+        }
+
+        void start() {
+            originNs = System.nanoTime();
+            thread = new Thread(this, "CS5 fast proximity");
+            thread.setDaemon(true);
+            thread.start();
+        }
+
+        @Override
+        public void run() {
+            while (running) {
+                try {
+                    long t = System.nanoTime();
+                    int v = sensor.rawOptical();
+                    int i = (int) (head % RING);
+                    ts[i] = t;
+                    val[i] = v;
+                    head = head + 1;
+                } catch (Throwable e) {
+                    errors++;
+                    try {
+                        Thread.sleep(2);
+                    } catch (InterruptedException ie) {
+                        return;
+                    }
+                }
+            }
+        }
+
+        /** The samples since the last drain as "count@ms" (ms on the study clock, one decimal), separated by spaces: the cs5f column. */
+        String drain() {
+            long h = head;
+            if (h - tail > RING) {
+                dropped += h - tail - RING;
+                tail = h - RING;
+            }
+            StringBuilder sb = new StringBuilder();
+            int n = 0;
+            for (long k = tail; k < h; k++) {
+                int i = (int) (k % RING);
+                long t = ts[i];
+                long tenths = (t - originNs) / 100_000L;
+                if (n > 0) sb.append(' ');
+                sb.append(val[i]).append('@').append(tenths / 10).append('.').append(tenths % 10);
+                if (lastTs != 0L) {
+                    double dtMs = (t - lastTs) / 1e6;
+                    winN++;
+                    runN++;
+                    winSumMs += dtMs;
+                    runSumMs += dtMs;
+                    winMaxMs = Math.max(winMaxMs, dtMs);
+                    runMaxMs = Math.max(runMaxMs, dtMs);
+                    if (dtMs > 20.0) {
+                        winOver20++;
+                        runOver20++;
+                    }
+                }
+                lastTs = t;
+                n++;
+            }
+            tail = h;
+            lastDrainCount = n;
+            return sb.toString();
+        }
+
+        /** The rate line for the window since the last one (and resets the window). */
+        String windowStats() {
+            String text = winN == 0 ? "no samples" : String.format(Locale.US, "%d intervals, mean %.1f ms (%.0f Hz), max %.0f ms, %d over 20 ms, errors %d, dropped %d",
+                    winN, winSumMs / winN, 1000.0 * winN / Math.max(winSumMs, 1e-9), winMaxMs, winOver20, errors, dropped);
+            winN = 0L;
+            winOver20 = 0L;
+            winSumMs = 0.0;
+            winMaxMs = 0.0;
+            return text;
+        }
+
+        String runStats() {
+            return runN == 0 ? "no samples" : String.format(Locale.US, "%d samples (%d intervals), mean %.1f ms (%.0f Hz), max %.0f ms, %d over 20 ms, errors %d, dropped %d",
+                    head, runN, runSumMs / runN, 1000.0 * runN / Math.max(runSumMs, 1e-9), runMaxMs, runOver20, errors, dropped);
+        }
+
+        void stop() {
+            running = false;
+            try {
+                if (thread != null) thread.join(500);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    private FastProx fastProx;
 
     private static double median(double[] v, int n) {
         double[] s = Arrays.copyOf(v, n);
@@ -403,6 +536,7 @@ public class CSPassStudy extends LinearOpMode {
             RunLog.crash(t);
             throw t;
         } finally {
+            if (fastProx != null) fastProx.stop();
             Flywheel.FEED_FORWARD = origFeedForward;   // a static: left changed it would stay changed for the match TeleOp until the app restarts
             RunLog.close();
         }
@@ -473,16 +607,27 @@ public class CSPassStudy extends LinearOpMode {
         mechanisms.setManualSetpoint(SETPOINT);
         mechanisms.setSpinRequested(true);
         RunLog.started();
-        RunLog.event("SETUP CS pass study: sensors " + (cs5 != null ? "CS5 (nearest the intake) + " : "") + "CS4, " + rateText + "READ_DISTANCE " + READ_DISTANCE + ", read every "
+        RunLog.event("SETUP CS pass study: sensors " + (cs5 != null ? "CS5 (nearest the intake) + " : "") + "CS4, " + rateText + "READ_DISTANCE " + READ_DISTANCE + (CS5_FAST_READ ? ", CS5 FAST proximity thread ON (main loop reads CS5 every " + Math.max(CS5_EVERY_N_LOOPS, CS5_FAST_MAIN_EVERY_N_LOOPS) + "th loop)" : "") + ", read every "
                 + CS5_EVERY_N_LOOPS + " (CS5) / " + CS4_EVERY_N_LOOPS + " (CS4) loops, loop target " + LOOP_TARGET_MS + " ms, setpoint " + SETPOINT
                 + ", flywheel hold power " + String.format(Locale.US, "%.3f", Math.max(0.0, Math.min(origFeedForward, STUDY_FEED_FORWARD_FRACTION * SETPOINT / Flywheel.OPEN_LOOP_TOP_SPEED))) + " (was " + origFeedForward + ")"
                 + ", auto clear " + AUTO_CLEAR + " at " + CLEAR_AT_COUNT + ", presence " + ON_READS + "/" + OFF_READS + " reads, " + mechanisms.describe());
+        // the fast CS5 proximity poller (CS5 only): its own thread, started at the study clock's origin
+        long originNs = System.nanoTime();
+        if (cs5 != null && CS5_FAST_READ) {
+            fastProx = new FastProx(s5, originNs);
+        }
+        final FastProx fast = fastProx;
         StringBuilder cols = new StringBuilder("study_t,");
         for (Probe p : probes) cols.append(p.columns()).append(',');
+        if (fast != null) cols.append("cs5f_n,cs5f,");
         cols.append("auto_clear,").append(Mechanisms.SAMPLE_COLUMNS);
         RunLog.setSampler(cols.toString(), 1, () -> {
             StringBuilder sb = new StringBuilder(String.format(Locale.US, "%.3f,", sinceStart.seconds()));
             for (Probe p : probes) sb.append(p.row()).append(',');
+            if (fast != null) {
+                String samples = fast.drain();
+                sb.append(fast.lastDrainCount).append(',').append(samples).append(',');
+            }
             sb.append(AUTO_CLEAR ? 1 : 0).append(',').append(mechanisms.sampleRow());
             return sb.toString();
         });
@@ -494,6 +639,8 @@ public class CSPassStudy extends LinearOpMode {
         long loops = 0;
         int lastSalvos = 0;
         sinceStart.reset();
+        if (fast != null) fast.start();
+        double lastFastStatsT = 0.0;
 
         while (opModeIsActive()) {
             loopTimer.reset();
@@ -543,7 +690,7 @@ public class CSPassStudy extends LinearOpMode {
             // the reads of this loop, after the drive and the controls, before the mechanisms (as a counter read would be): CS5 first, then CS4
             String pusherState = mechanisms.pusher == null ? "" : String.valueOf(mechanisms.pusher.getState());
             for (Probe p : probes) {
-                int every = Math.max(1, p == cs5 ? CS5_EVERY_N_LOOPS : CS4_EVERY_N_LOOPS);
+                int every = Math.max(1, p == cs5 ? (fast != null ? Math.max(CS5_EVERY_N_LOOPS, CS5_FAST_MAIN_EVERY_N_LOOPS) : CS5_EVERY_N_LOOPS) : CS4_EVERY_N_LOOPS);
                 if (loops % every == 0) {
                     p.read();
                     p.classifyAndTrack(sinceStart.seconds(), pusherState, p == cs5 ? cs4 : cs5);
@@ -565,6 +712,7 @@ public class CSPassStudy extends LinearOpMode {
                 telemetry.addData(p.name + " reads", "%.1f ms each (max %.0f), %.0f%% fresh", p.reads > 0 ? p.readMsSum / p.reads : 0.0, p.readMsMax,
                         p.reads > 0 ? 100.0 * p.freshReads / p.reads : 0.0);
             }
+            if (fast != null) telemetry.addData("CS5 fast proximity", "%d samples, last interval stats: %s", fast.head, fast.runStats());
             telemetry.addData("Loop", "%.1f ms mean, %.0f ms max (target %.0f)", loops > 0 ? loopSum / loops : 0.0, loopMax, LOOP_TARGET_MS);
             telemetry.addData("Counter", "%d held, salvos %d, setpoint %.0f", mechanisms.counter != null ? mechanisms.counter.count() : -1,
                     mechanisms.getSalvosDone(), SETPOINT);
@@ -573,6 +721,10 @@ public class CSPassStudy extends LinearOpMode {
             telemetry.addLine("Y salvo, X auto clear, A mark, B clear tallies, D-pad up/down speed, LT outtake, Back clear fault");
             telemetry.update();
 
+            if (fast != null && sinceStart.seconds() - lastFastStatsT >= FAST_STATS_SEC) {
+                lastFastStatsT = sinceStart.seconds();
+                RunLog.event("CS5 FAST rate: " + fast.windowStats());
+            }
             // pad the loop to the emulated match loop time
             while (LOOP_TARGET_MS > 0 && loopTimer.milliseconds() < LOOP_TARGET_MS && opModeIsActive()) sleep(1);
             double lastLoopTime = loopTimer.milliseconds();
@@ -586,6 +738,10 @@ public class CSPassStudy extends LinearOpMode {
                             + "%d reads, %.1f ms each, %.0f%% fresh",
                     p.name, p.passesTotal, p.passesDuringIntake, p.passesDuringSalvo, Arrays.toString(p.classTally), p.meanReads(), p.meanPassMs(),
                     p.reads, p.reads > 0 ? p.readMsSum / p.reads : 0.0, p.reads > 0 ? 100.0 * p.freshReads / p.reads : 0.0));
+        }
+        if (fast != null) {
+            fast.stop();
+            RunLog.event("CS5 FAST SUMMARY: " + fast.runStats());
         }
         RunLog.event(String.format(Locale.US, "CS PASS SUMMARY: loop %.1f ms mean, %.0f ms max over %d loops; counter %d, salvos %d", loops > 0 ? loopSum / loops : 0.0, loopMax, loops,
                 mechanisms.counter != null ? mechanisms.counter.count() : -1, mechanisms.getSalvosDone()));
