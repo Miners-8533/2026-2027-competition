@@ -102,6 +102,30 @@ def pose_samples(path):
     return out
 
 
+def count_at_start(elements, t):
+    """The element count the robot had at t: the last change before it, else the count the first change started from
+    (at the start of TeleOp, what it still held from AUTO); None with no element events at all."""
+    before = [hi for et, lo, hi in elements if et <= t]
+    if before:
+        return before[-1]
+    after = [lo for et, lo, hi in elements if et > t]
+    return after[0] if after else None
+
+
+def salvo_groups(salvos, locks):
+    """The TeleOp salvos grouped into cycles, as lists of salvo indexes in order. A salvo fired with no target lock (or Hive
+    Dash) since the previous salvo ended is a follow-up and joins that salvo's group: back-to-back salvos, 0.0 to 0.2 s
+    apart at Hartland (14 of 105), are one trip with two launches. The first group starts at the start of TeleOp."""
+    groups = []
+    for i, s in enumerate(salvos):
+        prev = salvos[i - 1] if i else None
+        if groups and prev["done"] is not None and not any(prev["done"] <= t <= s["start"] for t in locks):
+            groups[-1].append(i)
+        else:
+            groups.append([i])
+    return groups
+
+
 def drive_samples(path):
     """The sample rows as (t, x, y, speed over the last 0.2 s in in/s, drive command 0..1 or NaN), read by the H, header."""
     cols, raw = None, []

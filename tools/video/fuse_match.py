@@ -197,6 +197,7 @@ def main():
             for cyc in teleop_cycles(logs[kind]):
                 c = {k: (to_clip(kind, v) if k in ("start", "done", "reach", "arrive", "lock_on", "next") else v) for k, v in cyc.items()}
                 c["pickups"] = [[to_clip(kind, t), jump, sp] for t, jump, sp in cyc["pickups"]]
+                c["salvos"] = [[to_clip(kind, a), None if b is None else to_clip(kind, b), h] for a, b, h in cyc["salvos"]]
                 out["cycles"].append(c)
 
     # 5. tips: physical (frames), reconciled per alliance and period against the official FiM count;
@@ -394,27 +395,43 @@ def teleop_cycles(path, radius=6.0):
     """The cycle split of tools/logs/cycle_times.py, kept as times (log clock) instead of durations. arrive = arriving
     within radius of the spot the next salvo was fired from (never before reach); find_in = straight-line inches from
     reach to that spot. travel_s / lineup_s / stopped_s / pickup_s = collect (done to reach) split by CT.collect_split, and
-    pickups = [[t, count jump, speed in/s]] of the count rises in it."""
+    pickups = [[t, count jump, speed in/s]] of the count rises in it.
+    Cycles follow CT.salvo_groups: back-to-back salvos (a follow-up with no target lock since the one before it) are one
+    cycle, with salvos = [[start, done, held]] of each launch (next = the first one's start). The first group runs from the
+    start of TeleOp (start = done = RUN STARTED; the lock is the salvo's start when none came on): of kind "first", a partial
+    cycle, when the robot still held elements from AUTO (from_auto = the count at the start of TeleOp, CT.count_at_start),
+    else an ordinary "cycle" (it started TeleOp empty). The others are kind "cycle"."""
     start, end, salvos, locks, full_on, full_off, elements = CT.teleop(path)
     samples = CT.pose_samples(path)
     drive = CT.drive_samples(path)
     out = []
-    for i in range(len(salvos) - 1):
-        s, n = salvos[i], salvos[i + 1]
-        if s["done"] is None: continue
-        lk = [t for t in locks if s["done"] <= t <= n["start"]]
-        if not lk: continue
-        lock_on = lk[-1]
-        reach, final = CT.reach_time(elements, s["done"], lock_on)
-        arr = CT.arrival_time(samples, s["done"], n["start"], radius)
+    groups = CT.salvo_groups(salvos, locks)
+    held_at_start = CT.count_at_start(elements, start) or 0
+    for gi, g in enumerate(groups):
+        n, last = salvos[g[0]], salvos[g[-1]]
+        if gi == 0:
+            kind, prev_start, c0 = ("first" if held_at_start > 0 else "cycle"), start, start
+        else:
+            p = salvos[groups[gi - 1][-1]]
+            if p["done"] is None: continue
+            kind, prev_start, c0 = "cycle", p["start"], p["done"]
+        lk = [t for t in locks if c0 <= t <= n["start"]]
+        if not lk and gi > 0: continue   # cannot happen: a salvo with no lock since the one before is a follow-up
+        lock_on = lk[-1] if lk else n["start"]
+        reach, final = CT.reach_time(elements, c0, lock_on)
+        arr = CT.arrival_time(samples, c0, n["start"], radius)
         arrive = max(lock_on if arr is None else arr, reach)
         a, b = CT.pose_at(samples, reach), CT.pose_at(samples, n["start"])
         find_in = round(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5, 1) if a and b else None
-        part, picks = CT.collect_split(drive, elements, s["done"], reach)
-        out.append({"start": s["start"], "done": s["done"], "reach": reach, "arrive": arrive, "lock_on": lock_on, "next": n["start"], "find_in": find_in,
-                    "held_next": n["held"], "full_s": round(CT.full_time_between(s["done"], lock_on, full_on, full_off), 2),
-                    "travel_s": round(part["travel"], 2), "lineup_s": round(part["lineup"], 2), "stopped_s": round(part["stopped"], 2),
-                    "pickup_s": round(part["pickup"], 2), "pickups": picks})
+        part, picks = CT.collect_split(drive, elements, c0, reach)
+        c = {"start": prev_start, "done": c0, "reach": reach, "arrive": arrive, "lock_on": lock_on, "next": n["start"], "find_in": find_in,
+             "held_next": n["held"], "full_s": round(CT.full_time_between(c0, lock_on, full_on, full_off), 2),
+             "travel_s": round(part["travel"], 2), "lineup_s": round(part["lineup"], 2), "stopped_s": round(part["stopped"], 2),
+             "pickup_s": round(part["pickup"], 2), "pickups": picks,
+             "kind": kind, "salvos": [[salvos[k]["start"], salvos[k]["done"], salvos[k]["held"]] for k in g]}
+        if kind == "first":
+            c["from_auto"] = held_at_start
+        out.append(c)
     return out
 
 
