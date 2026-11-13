@@ -89,6 +89,13 @@ public class LaunchGridCheck {
             check(refused == 0, cell + ": " + refused + " hops can be neither routed nor driven straight");
         }
         }
+        // the RETEST_SPOTS list parser (the Launch Grid Tuner's INIT setting)
+        StringBuilder note = new StringBuilder();
+        java.util.Set<Integer> set = LaunchGrid.parseSpotList("8-10, 22-30,5, 99, x", 30, note);
+        check(set != null && set.size() == 3 + 9 + 1 && set.contains(8) && set.contains(30) && set.contains(5) && !set.contains(99), "spot list parse: " + set);
+        check(note.toString().contains("99") && note.toString().contains("x"), "spot list notes: " + note);
+        check(LaunchGrid.parseSpotList("", 30, new StringBuilder()) == null, "blank list means all");
+        check(LaunchGrid.parseSpotList("31", 30, new StringBuilder()) == null, "only invalid numbers means all");
         System.out.println(fails == 0 ? "\nLaunchGridCheck: all OK" : "\nLaunchGridCheck: " + fails + " FAILED");
         if (fails > 0) System.exit(1);
     }

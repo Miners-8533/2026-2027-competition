@@ -57,7 +57,7 @@ import java.util.Locale;
  *   Back                   clear a pusher fault; HOLD it 1 s to reseed the pose to the start pose (square the robot on the wall first)
  *
  * INIT (gamepad 1): D-pad left = NEAR cell, D-pad right = FAR cell. Start pose: START_X_IN, START_Y_IN, START_HEADING_DEG (the usual blue start: against the rear
- * wall facing the audience wall, the pose the TeleOp starts blue from); keep still while the Pinpoint calibrates. START_INDEX starts the sweep at a later spot (to continue an earlier session).
+ * wall facing the audience wall, the pose the TeleOp starts blue from); keep still while the Pinpoint calibrates. START_INDEX starts the sweep at a later spot (to continue an earlier session). RETEST (2026-11-13): RETEST_SPOTS (for example "8-10,22-30") makes it visit only those spots of the full grid, keeping their numbers, and EXTRA_SPOTS ("x,y;x,y") adds field positions of your own after them (numbered 101, 102, ...), checked against the grid's rules; both are set in the Dashboard during INIT and the INIT screen lists what will be visited. tools/launchgrid/log_to_csv.py turns the run's GRID POINT lines into a CSV that make_table.py lets REPLACE the first run's rows for the same spot numbers.
  * The pusher is assumed to be where the last opmode left it (the saved zero).
  */
 @Config
@@ -79,6 +79,17 @@ public class LaunchGridTuner extends LinearOpMode {
     public static double WALL_MARGIN_IN = 3.0;
     /** Start the sweep at this spot (0 = the first). */
     public static int START_INDEX = 0;
+    /**
+     * RETEST (2026-11-13), an INIT setting: visit only these spots of the FULL grid, by their number in the full visiting order (the numbers in the GRID POINT log lines and on the
+     * screen), as a comma list with ranges, for example "8-10,22-30" (the spots that need a second look). Empty: every spot. The spots keep their numbers and their sweep order.
+     * Set it in the Dashboard before Start; the INIT screen shows what will be visited.
+     */
+    public static String RETEST_SPOTS = "";
+    /**
+     * EXTRA spots (an INIT setting) visited after the others: field positions "x,y;x,y" in inches, for example "-30,0;-33,-27". Each must pass the grid's rules (the cell's open side, at
+     * least 12 in out, within the angle limit, clear of the supports, the flower stands and the walls less WALL_MARGIN_IN) or the INIT screen says why it is left out. They are numbered 101, 102, ...
+     */
+    public static String EXTRA_SPOTS = "";
     public static double ANGLE_STEP_DEG = 0.5;
     public static double SPEED_STEP = 20.0;
     public static double MAX_ANGLE_TRIM_DEG = 20.0;
@@ -86,6 +97,8 @@ public class LaunchGridTuner extends LinearOpMode {
     public static double HOP_POWER = 0.5;
     /** The power cap of the turn in place after an angle trim. */
     public static double REAIM_POWER = 0.3;
+    /** The re-aim's heading tolerance, degrees: under ANGLE_STEP_DEG (the first 0.5 deg press was inside the old 0.7 deg and never moved), with the stiction term in DriveToPose (2026-11-13). */
+    public static double REAIM_TOL_DEG = 0.25;
     /** Start a spot with the previous spot's trims instead of none. */
     public static boolean CARRY_TRIMS = false;
     /** Speed used when the saved launch map is empty. */
@@ -165,6 +178,60 @@ public class LaunchGridTuner extends LinearOpMode {
     private double[] donePoseX = new double[0], donePoseY = new double[0];
     private double[] doneSpeed = new double[0];
 
+    // ---- the retest plan: which spots of the full grid are visited (RETEST_SPOTS) and the extra ones (EXTRA_SPOTS) ----
+    private List<LaunchGrid.Point> fullPts = new ArrayList<>();
+    private int[] spotNo = new int[0];          // the number of each visited spot in the full grid (101, 102, ... for the extras)
+    private String planNote = "";
+    private String planSig = "";
+
+    private int no(int i) {
+        return i >= 0 && i < spotNo.length ? spotNo[i] : i + 1;
+    }
+
+    /** Applies RETEST_SPOTS and EXTRA_SPOTS to the full grid: sets pts, spotNo and planNote (and the results when the plan changed). */
+    private void applyPlan(HiveTarget cell, HiveRoute.Params p) {
+        StringBuilder note = new StringBuilder();
+        java.util.Set<Integer> want = LaunchGrid.parseSpotList(RETEST_SPOTS, fullPts.size(), note);
+        List<LaunchGrid.Point> out = new ArrayList<>();
+        List<Integer> nums = new ArrayList<>();
+        for (int i = 0; i < fullPts.size(); i++) {
+            if (want == null || want.contains(i + 1)) {
+                out.add(fullPts.get(i));
+                nums.add(i + 1);
+            }
+        }
+        if (EXTRA_SPOTS != null && !EXTRA_SPOTS.trim().isEmpty()) {
+            int k = 0;
+            for (String tok : EXTRA_SPOTS.split(";")) {
+                String t = tok.trim();
+                if (t.isEmpty()) continue;
+                k++;
+                try {
+                    String[] xy = t.split(",");
+                    double x = Double.parseDouble(xy[0].trim()), y = Double.parseDouble(xy[1].trim());
+                    LaunchGrid.Verdict v = LaunchGrid.check(x, y, cell, ANGLE_LIMIT_DEG, TargetLock.MIN_DISTANCE_IN, FieldGeometry.HALF_IN - WALL_MARGIN_IN, aimFor(cell), p);
+                    if (v == LaunchGrid.Verdict.VALID) {
+                        out.add(LaunchGrid.spotAt(x, y, cell, aimFor(cell)));
+                        nums.add(100 + k);
+                    } else {
+                        note.append(String.format(Locale.US, "extra (%.1f, %.1f) left out: %s; ", x, y, v));
+                    }
+                } catch (RuntimeException e) {
+                    note.append("cannot read the extra spot \"").append(t).append("\"; ");
+                }
+            }
+        }
+        pts = out;
+        spotNo = new int[nums.size()];
+        for (int i = 0; i < spotNo.length; i++) spotNo[i] = nums.get(i);
+        planNote = note.toString();
+        String sig = cell + "|" + RETEST_SPOTS + "|" + EXTRA_SPOTS + "|" + out.size() + "|" + fullPts.size();
+        if (!sig.equals(planSig)) {
+            planSig = sig;
+            resetResults();
+        }
+    }
+
     private void resetResults() {
         int n = pts.size();
         status = new char[n];
@@ -197,8 +264,9 @@ public class LaunchGridTuner extends LinearOpMode {
 
         boolean far = false;
         HiveTarget cell = cellFor(far);
-        pts = buildGrid(cell, params);
-        resetResults();
+        fullPts = buildGrid(cell, params);
+        planSig = "";
+        applyPlan(cell, params);
 
         while (!isStarted() && !isStopRequested()) {
             boolean changed = false;
@@ -212,9 +280,10 @@ public class LaunchGridTuner extends LinearOpMode {
             }
             if (changed) {
                 cell = cellFor(far);
-                pts = buildGrid(cell, params);
-                resetResults();
+                fullPts = buildGrid(cell, params);
+                planSig = "";
             }
+            applyPlan(cell, params);   // RETEST_SPOTS and EXTRA_SPOTS can be edited in the Dashboard during INIT
             drive.updatePoseEstimate();
             if (mechanisms.counter != null) mechanisms.counter.update();   // reads only; nothing moves in INIT
             Pose2d p = drive.getPose();
@@ -224,7 +293,11 @@ public class LaunchGridTuner extends LinearOpMode {
             telemetry.addData("Start pose to use", "X %.1f, Y %.2f in, heading %.0f deg", want.position.x, want.position.y, Math.toDegrees(want.heading.toDouble()));
             telemetry.addData("Pinpoint pose", "%.1f, %.1f, %.0f deg   %s", p.position.x, p.position.y, p.heading.toDegrees(), poseOk ? "OK" : "WARNING: not at the start pose");
             telemetry.addData("Mechanisms present", mechanisms.describe());
-            telemetry.addData("Starts at spot", "%d of %d (START_INDEX)", Math.min(START_INDEX, Math.max(0, pts.size() - 1)) + 1, pts.size());
+            StringBuilder visit = new StringBuilder();
+            for (int i = 0; i < spotNo.length; i++) visit.append(i == 0 ? "" : ",").append(spotNo[i]);
+            telemetry.addData("Will visit (RETEST_SPOTS / EXTRA_SPOTS in the Dashboard)", "%d of the %d spots: %s", pts.size(), fullPts.size(), visit);
+            if (!planNote.isEmpty()) telemetry.addData("Plan notes", planNote);
+            telemetry.addData("Starts at", "number %d (START_INDEX %d in the list above)", no(Math.min(START_INDEX, Math.max(0, pts.size() - 1))), START_INDEX);
             telemetry.addLine("Place the robot at the start pose and keep still while the Pinpoint calibrates. Then Start.");
             telemetry.update();
         }
@@ -232,11 +305,12 @@ public class LaunchGridTuner extends LinearOpMode {
         mechanisms.setOpenCell(cell);
         RunLog.started();
         RunLog.event(String.format(Locale.US, "SETUP launch grid for %s (%s), %d spots, pitch %.0f in, angle limit %.0f deg, min distance %.0f in, start pose (%.1f, %.1f, %.0f deg), %s",
-                cell, far ? "FAR" : "NEAR", pts.size(), PITCH_IN, ANGLE_LIMIT_DEG, TargetLock.MIN_DISTANCE_IN, START_X_IN, START_Y_IN, START_HEADING_DEG, mechanisms.describe()));
+                cell, far ? "FAR" : "NEAR", pts.size(), PITCH_IN, ANGLE_LIMIT_DEG, TargetLock.MIN_DISTANCE_IN, START_X_IN, START_Y_IN, START_HEADING_DEG, mechanisms.describe())
+                + (pts.size() != fullPts.size() || !EXTRA_SPOTS.trim().isEmpty() ? String.format(Locale.US, " | RETEST: visiting %d of the %d spots (RETEST_SPOTS \"%s\", EXTRA_SPOTS \"%s\") %s", pts.size(), fullPts.size(), RETEST_SPOTS, EXTRA_SPOTS, planNote) : ""));
         StringBuilder list = new StringBuilder("GRID SPOTS in visiting order:");
         for (int i = 0; i < pts.size(); i++) {
             LaunchGrid.Point q = pts.get(i);
-            list.append(String.format(Locale.US, " %d(%.1f,%.1f,%.1fdeg,%.1fin%s)", i + 1, q.x, q.y, Math.toDegrees(q.headingRad), q.distanceIn, q.slid ? ",slid" : ""));
+            list.append(String.format(Locale.US, " %d(%.1f,%.1f,%.1fdeg,%.1fin%s)", no(i), q.x, q.y, Math.toDegrees(q.headingRad), q.distanceIn, q.slid ? ",slid" : ""));
         }
         RunLog.event(list.toString());
         RunLog.setSampler("x,y,hdg_deg,target_hdg_deg,spot,state,angle_trim_deg,speed_trim,grid_setpoint," + Mechanisms.SAMPLE_COLUMNS, 200,
@@ -254,6 +328,8 @@ public class LaunchGridTuner extends LinearOpMode {
         boolean blocked = false;
         DriveToPose current = null;
         DriveToPose reaim = null;
+        double reaimTarget = 0.0, reaimFrom = 0.0;
+        ElapsedTime reaimClock = new ElapsedTime();
         boolean planned = false;
         String notice = "";
         long noticeUntilNs = 0L;
@@ -276,9 +352,9 @@ public class LaunchGridTuner extends LinearOpMode {
                 boolean aPressed = gamepad1.aWasPressed(), bPressed = gamepad1.bWasPressed();
                 if (aPressed && !here) {
                     aPressed = false;
-                    notice = "A ignored: the robot is not at spot " + (idx + 1) + " yet: HOLD the RIGHT TRIGGER to drive there (B = no shot from here, X = back)";
+                    notice = "A ignored: the robot is not at spot " + no(idx) + " yet: HOLD the RIGHT TRIGGER to drive there (B = no shot from here, X = back)";
                     noticeUntilNs = System.nanoTime() + 6_000_000_000L;
-                    RunLog.event("A ignored: the robot is not at spot " + (idx + 1) + " (B says no shot from here, X goes back)");
+                    RunLog.event("A ignored: the robot is not at spot " + no(idx) + " (B says no shot from here, X goes back)");
                 }
                 if (aPressed || bPressed) {
                     boolean noShot = bPressed && !aPressed;
@@ -314,7 +390,7 @@ public class LaunchGridTuner extends LinearOpMode {
                     current = null;
                     reaim = null;
                     pt = pts.get(idx);
-                    RunLog.event("BACK to spot " + (idx + 1));
+                    RunLog.event("BACK to spot " + no(idx));
                 }
             }
             if (pt != null) {
@@ -332,8 +408,11 @@ public class LaunchGridTuner extends LinearOpMode {
                 }
                 if (trimmed && here && !deadMan) {
                     double target = pt.headingRad + Math.toRadians(angleTrim[idx]);
-                    reaim = new DriveToPose(drive, new Pose2d(pose.position.x, pose.position.y, target)).withTolerance(1.0, 0.7).withMaxOutput(REAIM_POWER).withTimeout(2.5);
-                    RunLog.event(String.format(Locale.US, "TRIM spot %d: angle %+.1f deg, speed %+.0f ticks/s (aim heading %.1f deg)", idx + 1, angleTrim[idx], speedTrim[idx], Math.toDegrees(target)));
+                    reaim = new DriveToPose(drive, new Pose2d(pose.position.x, pose.position.y, target)).withTolerance(1.0, REAIM_TOL_DEG).withMaxOutput(REAIM_POWER).withTimeout(2.5).withStiction(true);
+                    reaimTarget = target;
+                    reaimFrom = pose.heading.toDouble();
+                    reaimClock.reset();
+                    RunLog.event(String.format(Locale.US, "TRIM spot %d: angle %+.1f deg, speed %+.0f ticks/s (aim heading %.1f deg)", no(idx), angleTrim[idx], speedTrim[idx], Math.toDegrees(target)));
                 }
             }
 
@@ -357,7 +436,7 @@ public class LaunchGridTuner extends LinearOpMode {
             if (pt != null && gamepad1.yWasPressed() && here) {
                 salvos[idx]++;
                 RunLog.event(String.format(Locale.US, "FIRE spot %d salvo %d: pose (%.1f, %.1f, %.1f deg), aim heading %.1f deg (trim %+.1f), %.1f in from %s, setpoint %.0f (map %.0f, trim %+.0f)",
-                        idx + 1, salvos[idx], pose.position.x, pose.position.y, pose.heading.toDegrees(), Math.toDegrees(pt.headingRad) + angleTrim[idx], angleTrim[idx],
+                        no(idx), salvos[idx], pose.position.x, pose.position.y, pose.heading.toDegrees(), Math.toDegrees(pt.headingRad) + angleTrim[idx], angleTrim[idx],
                         cell.distanceFrom(pose), cell, mapSpeed(pt.distanceIn) + speedTrim[idx], mapSpeed(pt.distanceIn), speedTrim[idx]));
                 mechanisms.requestLaunch();
             }
@@ -408,7 +487,7 @@ public class LaunchGridTuner extends LinearOpMode {
                         }
                         planned = true;
                         state = State.DRIVING;
-                        RunLog.event(String.format(Locale.US, "DRIVE to spot %d (%.1f, %.1f) from (%.1f, %.1f, %.0f deg): %s", idx + 1, pt.x, pt.y, pose.position.x, pose.position.y,
+                        RunLog.event(String.format(Locale.US, "DRIVE to spot %d (%.1f, %.1f) from (%.1f, %.1f, %.0f deg): %s", no(idx), pt.x, pt.y, pose.position.x, pose.position.y,
                                 pose.heading.toDegrees(), routeNote));
                     }
                     if (blocked) {
@@ -416,7 +495,7 @@ public class LaunchGridTuner extends LinearOpMode {
                         driveMode = "blocked";
                     } else if (legIdx < legs.size()) {
                         if (current == null) {
-                            current = new DriveToPose(drive, legs.get(legIdx)).withMaxOutput(HOP_POWER).withDistanceTimeout(1.0, 22.0, 1.5, 0.5, 8.0);
+                            current = new DriveToPose(drive, legs.get(legIdx)).withMaxOutput(HOP_POWER).withDistanceTimeout(1.0, 22.0, 1.5, 0.5, 8.0).withStiction(true);
                             if (legIsVia.get(legIdx)) current.withTolerance(3.0, 12.0).withSettle(0.0);
                         }
                         if (!current.run(packet)) {
@@ -428,7 +507,7 @@ public class LaunchGridTuner extends LinearOpMode {
                     if (!blocked && legIdx >= legs.size()) {
                         state = State.AT_POINT;
                         drive.stop();
-                        RunLog.event(String.format(Locale.US, "ARRIVED at spot %d: pose (%.1f, %.1f, %.1f deg) for (%.1f, %.1f, %.1f deg)", idx + 1, pose.position.x, pose.position.y,
+                        RunLog.event(String.format(Locale.US, "ARRIVED at spot %d: pose (%.1f, %.1f, %.1f deg) for (%.1f, %.1f, %.1f deg)", no(idx), pose.position.x, pose.position.y,
                                 pose.heading.toDegrees(), pt.x, pt.y, Math.toDegrees(pt.headingRad) + angleTrim[idx]));
                         legs.clear();
                         legIsVia.clear();
@@ -447,7 +526,16 @@ public class LaunchGridTuner extends LinearOpMode {
                 blocked = false;
                 if (reaim != null && sticksMoved) reaim = null;
                 if (reaim != null) {
-                    if (!reaim.run(packet)) reaim = null;
+                    if (!reaim.run(packet)) {
+                        reaim = null;
+                        double endErr = Math.toDegrees(Rotation2d.normalize(reaimTarget - pose.heading.toDouble()));
+                        double turned = Math.toDegrees(Rotation2d.normalize(pose.heading.toDouble() - reaimFrom));
+                        double asked = Math.toDegrees(Rotation2d.normalize(reaimTarget - reaimFrom));
+                        boolean ok = Math.abs(endErr) <= Math.max(REAIM_TOL_DEG, 0.25) + 0.15;
+                        notice = String.format(Locale.US, "RE-AIM %s: asked %+.2f deg, turned %+.2f deg, %.2f deg left, %.1f s", ok ? "OK" : "STUCK", asked, turned, endErr, reaimClock.seconds());
+                        noticeUntilNs = System.nanoTime() + 6_000_000_000L;
+                        RunLog.event(notice);
+                    }
                     driveMode = "turning to the trimmed aim";
                 } else {
                     double scale = gamepad1.right_bumper ? PRECISION_SCALE : 1.0;
@@ -474,17 +562,17 @@ public class LaunchGridTuner extends LinearOpMode {
             logY = pose.position.y;
             logHeadingDeg = pose.heading.toDegrees();
             logTargetHeadingDeg = targetHeadingDeg;
-            logPoint = pt == null ? 0 : idx + 1;
+            logPoint = pt == null ? 0 : no(idx);
             logState = finished ? "finished" : state.name();
             logAngleTrim = pt == null ? 0.0 : angleTrim[idx];
             logSpeedTrim = pt == null ? 0.0 : speedTrim[idx];
             logSetpoint = setpoint;
 
             // ---- the screen ----
-            if (pt != null && !finished && state != State.AT_POINT && !here) telemetry.addLine("*** HOLD THE RIGHT TRIGGER to drive to spot " + (idx + 1) + " (nothing moves by itself) ***");
+            if (pt != null && !finished && state != State.AT_POINT && !here) telemetry.addLine("*** HOLD THE RIGHT TRIGGER to drive to spot " + no(idx) + " (nothing moves by itself) ***");
             if (System.nanoTime() < noticeUntilNs) telemetry.addLine("*** " + notice + " ***");
             if (pt != null) {
-                telemetry.addData("Spot", "%d of %d at (%.1f, %.1f)%s   %.1f in from %s   %s", idx + 1, pts.size(), pt.x, pt.y, pt.slid ? " (slid off a wall)" : "", pt.distanceIn, cell,
+                telemetry.addData("Spot", "%d (%d of %d to visit) at (%.1f, %.1f)%s   %.1f in from %s   %s", no(idx), idx + 1, pts.size(), pt.x, pt.y, pt.slid ? " (slid off a wall)" : "", pt.distanceIn, cell,
                         finished ? "GRID COMPLETE" : state == State.AT_POINT ? "AT THE SPOT" : "hold RIGHT TRIGGER to drive here");
                 telemetry.addData("Route", routeNote);
                 telemetry.addData("Aim", "heading %.1f deg = geometric aim %.1f %+.1f trim; robot is at %.1f (error %.1f)", targetHeadingDeg, Math.toDegrees(pt.headingRad), angleTrim[idx],
@@ -516,7 +604,7 @@ public class LaunchGridTuner extends LinearOpMode {
 
     private String resultLine(int i, Pose2d pose) {
         LaunchGrid.Point q = pts.get(i);
-        return String.format(Locale.US, "GRID POINT %d of %d: spot (%.1f, %.1f)%s, %.1f in, %s%s", i + 1, pts.size(), q.x, q.y, q.slid ? " slid" : "", q.distanceIn,
+        return String.format(Locale.US, "GRID POINT %d of %d: spot (%.1f, %.1f)%s, %.1f in, %s%s", no(i), pts.size(), q.x, q.y, q.slid ? " slid" : "", q.distanceIn,
                 status[i] == 'N' ? "NO SHOT possible" : String.format(Locale.US, "GOOD: speed %.0f ticks/s (map %.0f %+.0f trim), aim heading %.1f deg (geometric %.1f %+.1f trim)",
                         mapSpeed(q.distanceIn) + speedTrim[i], mapSpeed(q.distanceIn), speedTrim[i], Math.toDegrees(q.headingRad) + angleTrim[i], Math.toDegrees(q.headingRad), angleTrim[i]),
                 String.format(Locale.US, ", %d salvo(s) fired%s, pose (%.1f, %.1f, %.1f deg)", salvos[i], salvos[i] == 0 && status[i] == 'G' ? " (UNVERIFIED)" : "", pose.position.x, pose.position.y, pose.heading.toDegrees()));

@@ -2,7 +2,8 @@
 
     python tools/launchgrid/make_table.py            # writes the generated source and prints the leave-one-out check
 
-Input: the CSV the Launch Grid Tuner run was tabulated into (tools/launchgrid/data/*.csv; one row per spot, written from the run's GRID POINT log lines). The
+Input: the CSVs the Launch Grid Tuner runs were tabulated into (tools/launchgrid/data/*_BLUE_REAR_*.csv, made by log_to_csv.py from the runs' GRID POINT log lines; read in name order and a
+later file REPLACES an earlier one's row for the same spot number, so a retest corrects the first run; spot numbers 101 and up are extra spots and are added as they are). The
 spot is where the robot ACTUALLY stood (pose_x, pose_y, pose_heading_deg at the moment the operator accepted it), not the lattice point it was sent to.
 
 For each spot the table holds: x, y, the flywheel speed (ticks/s), the aim RESIDUAL (deg: the heading flown minus the bearing from the robot to the cell's center; it
@@ -31,7 +32,7 @@ from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
 from scipy.spatial import Delaunay
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
-DATA = os.path.join(ROOT, "tools", "launchgrid", "data", "2026-11-12_BLUE_REAR_193153.csv")
+DATA_DIR = os.path.join(ROOT, "tools", "launchgrid", "data")
 OUT = os.path.join(ROOT, "TeamCode", "src", "main", "java", "org", "firstinspires", "ftc", "teamcode", "drive", "LaunchGridData.java")
 
 LAUNCHER_OFFSET_LEFT_IN = -2.5   # TargetLock.LAUNCHER_OFFSET_LEFT_IN
@@ -42,12 +43,20 @@ def norm_deg(a):
     return (a + 180.0) % 360.0 - 180.0
 
 
-def load(path):
+def load():
+    import glob
+    by_spot = {}
+    files = sorted(glob.glob(os.path.join(DATA_DIR, "*_BLUE_REAR_*.csv")))
+    for path in files:
+        with open(path, newline="") as fh:
+            for r in csv.DictReader(fh):
+                by_spot[int(r["spot"])] = r          # a later file replaces an earlier one's row
+    print("data files: " + ", ".join(os.path.basename(f) for f in files))
     spots = []
     dropped = []
-    with open(path, newline="") as fh:
-        for r in csv.DictReader(fh):
-            n = int(r["spot"])
+    if True:
+        for n in sorted(by_spot):
+            r = by_spot[n]
             x, y, h = float(r["pose_x"]), float(r["pose_y"]), float(r["pose_heading_deg"])
             salvos = int(r["salvos_fired"])
             good = r["status"] == "GOOD"
@@ -189,7 +198,7 @@ def java_table(name, spots, seeded):
 
 
 def main():
-    spots, dropped = load(DATA)
+    spots, dropped = load()
     print("blue rear: %d spots used (%d GOOD, %d NO SHOT); dropped: %s" % (len(spots), sum(s["good"] for s in spots), sum(not s["good"] for s in spots),
                                                                              "; ".join("spot %d (%s)" % d for d in dropped) or "none"))
     spots = prepare(spots, CELLS["BLUE_REAR"])

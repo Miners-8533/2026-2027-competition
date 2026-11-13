@@ -61,6 +61,42 @@ public final class LaunchGrid {
 
     private LaunchGrid() {}
 
+    /** The numbers in a list like "8-10,22,25-27" (null when blank or nothing in it is a valid number); problems go in note. */
+    public static java.util.Set<Integer> parseSpotList(String text, int max, StringBuilder note) {
+        if (text == null || text.trim().isEmpty()) return null;
+        java.util.Set<Integer> out = new java.util.TreeSet<>();
+        for (String tok : text.split(",")) {
+            String t = tok.trim();
+            if (t.isEmpty()) continue;
+            try {
+                int a, b;
+                if (t.contains("-")) {
+                    String[] ab = t.split("-");
+                    a = Integer.parseInt(ab[0].trim());
+                    b = Integer.parseInt(ab[1].trim());
+                } else {
+                    a = b = Integer.parseInt(t);
+                }
+                for (int k = Math.min(a, b); k <= Math.max(a, b); k++) {
+                    if (k >= 1 && k <= max) out.add(k);
+                    else note.append("spot ").append(k).append(" is not in the grid (1 to ").append(max).append("); ");
+                }
+            } catch (RuntimeException e) {
+                note.append("cannot read \"").append(t).append("\" in RETEST_SPOTS; ");
+            }
+        }
+        if (out.isEmpty()) {
+            note.append("RETEST_SPOTS has no valid spot: visiting all; ");
+            return null;
+        }
+        return out;
+    }
+
+    /** A spot at a chosen position (the Launch Grid Tuner's EXTRA_SPOTS): the aim heading there and the distance to the cell; the caller checks it with {@link #check} first. */
+    public static Point spotAt(double x, double y, HiveTarget cell, Aim aim) {
+        return new Point(x, y, x, y, aim.headingRad(x, y), Math.hypot(x - cell.x, y - cell.y), false);
+    }
+
     /** The side the cell opens toward: +1 audience (x), -1 rear. */
     public static int openSide(HiveTarget cell) {
         return cell.x > 0 ? 1 : -1;
