@@ -22,9 +22,11 @@ import org.firstinspires.ftc.teamcode.drive.PoseStorage;
 import org.firstinspires.ftc.teamcode.drive.TargetLock;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
+import org.firstinspires.ftc.teamcode.drive.LaunchGridMap;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
+import org.firstinspires.ftc.teamcode.subsystems.LaunchMap;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 import org.firstinspires.ftc.teamcode.util.LoopProfiler;
@@ -193,10 +195,27 @@ public class TeleOpCompetition extends LinearOpMode {
         double targetLeftIn = dist * Math.sin(err);
         double miss = TargetLock.LAUNCHER_OFFSET_LEFT_IN - targetLeftIn;
         return String.format(Locale.US, "%s, pose (%.1f, %.1f, %.1f deg), target %s (%.1f, %.1f) %.1f in, bearing %.1f deg, target %+.1f deg / %+.1f in left of the front line, "
-                        + "launcher offset %+.1f in + far-cell extra %+.1f in, predicted miss %+.1f in (against the launcher offset alone), setpoint %.0f (trim %+.0f), lock %s, remembered nudge %+.1f deg",
+                        + "launcher offset %+.1f in + far-cell extra %+.1f in, predicted miss %+.1f in (against the launcher offset alone), setpoint %.0f (trim %+.0f), lock %s, remembered nudge %+.1f deg | %s",
                 blue ? "BLUE" : "RED", pose.position.x, pose.position.y, pose.heading.toDegrees(), t, t.x, t.y, dist, Math.toDegrees(bearing),
                 Math.toDegrees(err), targetLeftIn, TargetLock.LAUNCHER_OFFSET_LEFT_IN, TargetLock.farCellExtraLeftIn(t, blue), miss, mechanisms.getLastSetpoint(), mechanisms.getSpeedTrim(),
-                lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off", cellNudgeDeg[t.ordinal()]);
+                lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off", cellNudgeDeg[t.ordinal()], gridSummary(t, pose, blue, mechanisms.isGridOn()));
+    }
+
+    /** What the 2-D launch grid says for this launch beside what the formula and the launch map say (branch launch-grid-2d); used or logged only, by the operator's toggle (Mechanisms.USE_LAUNCH_GRID is its state at the start). */
+    private static String gridSummary(HiveTarget t, Pose2d pose, boolean blue, boolean gridOn) {
+        LaunchGridMap.Result g = LaunchGridMap.lookup(t, pose.position.x, pose.position.y);
+        double bearing = Math.toDegrees(Math.atan2(t.y - pose.position.y, t.x - pose.position.x));
+        double formulaAim = Math.toDegrees(TargetLock.aimHeadingRad(pose.position.x, pose.position.y, t, TargetLock.farCellExtraLeftIn(t, blue)));
+        double dist = t.distanceFrom(pose);
+        String mapSpeed = LaunchMap.isEmpty() ? "map empty" : String.format(Locale.US, "map %.0f ticks/s", LaunchMap.velocityFor(dist));
+        return String.format(Locale.US, "GRID (%s) %s | formula aim %.1f deg%s | %s", gridOn ? "USED where it has data" : "logged only", g.describe(), formulaAim,
+                g.hasValues() ? String.format(Locale.US, ", grid aim %.1f deg (bearing %.1f %+.1f)", bearing + g.residualDeg, bearing, g.residualDeg) : "", mapSpeed);
+    }
+
+    private static String gridColumns(Mechanisms m) {
+        LaunchGridMap.Result g = m.getGridResult();
+        if (g == null) return "-,,";
+        return String.format(Locale.US, "%s,%s,%s", g.zone, g.hasValues() ? String.format(Locale.US, "%.0f", g.speed) : "", g.hasValues() ? String.format(Locale.US, "%.1f", g.residualDeg) : "");
     }
 
     private static boolean assigned(Gamepad gamepad) {
@@ -256,6 +275,7 @@ public class TeleOpCompetition extends LinearOpMode {
         // The ramp is NOT commanded in INIT: the servos sag when the auto ends, the auto may leave the ramp stuck or deployed, and G403 allows no
         // powered movement in the transition. It is stowed once, at Start. (The intake, flywheel and pusher constructors only set power 0.)
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE, false);
+        mechanisms.setGridAllowed(true);   // the 2-D launch grid (Mechanisms.USE_LAUNCH_GRID, off by default, is the state it starts in; the operator's LB + A toggles it)
 
         while (!isStarted() && !isStopRequested()) {
             if (gamepad1.dpadUpWasPressed() && useAutoPose) {
@@ -349,9 +369,9 @@ public class TeleOpCompetition extends LinearOpMode {
                 mechanisms.describe()));
         RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad1.type() + "), gamepad 2 "
                 + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad2.type() + ")");
-        RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS + ",a_lf,a_lb,a_rb,a_rf", SAMPLE_PERIOD_MS,
+        RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS + ",a_lf,a_lb,a_rb,a_rf,grid_zone,grid_speed,grid_resid_deg", SAMPLE_PERIOD_MS,
                 () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%s,%.1f,%s", logX, logY, logHeadingDeg, logUp, logRight, cmdForward, cmdLeft,
-                        cmdTurn, backupMode ? "backup" : fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow() + "," + drive.wheelAmpsRow()));
+                        cmdTurn, backupMode ? "backup" : fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow() + "," + drive.wheelAmpsRow() + "," + gridColumns(mechanisms)));
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
         boolean reseedDown = false, reseeded = false, backupHeld = false, manualLockOn = false, autoLockSuppressed = false, prevDriverLock = false;
@@ -455,6 +475,7 @@ public class TeleOpCompetition extends LinearOpMode {
             HiveDash.Output dash = hiveDash.update(dashIn);
             LoopProfiler.stop("hive_dash", profiledHive);   // route planning on the first loop of a dash shows as the maximum
             mechanisms.setDashLaunchDistance(dash.overrideCell != null ? dash.overrideDistanceIn : 0.0);
+            if (dash.overrideCell != null) mechanisms.setDashLaunchSpot(dash.overrideGoalX, dash.overrideGoalY);
             if (dash.overrideCell != null) {
                 if (!dashOverride) {
                     dashOverride = true;
@@ -509,8 +530,11 @@ public class TeleOpCompetition extends LinearOpMode {
                             pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
                 }
                 long profiledLock = LoopProfiler.start();
+                // the 2-D launch grid's aim (branch launch-grid-2d), only while the grid is on (operator LB + A) and only where it has data; else the formula
+                LaunchGridMap.Result gridAim = mechanisms.isGridOn() ? LaunchGridMap.lookup(lockTarget, pose.position.x, pose.position.y) : null;
+                double gridResidual = gridAim != null && gridAim.hasValues() ? gridAim.residualDeg : Double.NaN;
                 cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget,
-                        TargetLock.farCellExtraLeftIn(lockTarget, blue), cellNudgeDeg[lockTarget.ordinal()], gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt);   // the nudge needs the left bumper held
+                        TargetLock.farCellExtraLeftIn(lockTarget, blue), cellNudgeDeg[lockTarget.ordinal()], gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt, gridResidual);   // the nudge needs the left bumper held
                 LoopProfiler.stop("target_lock", profiledLock);
                 lockErrDeg = targetLock.errorDeg();
                 boolean aligned = targetLock.isAligned();
@@ -673,6 +697,8 @@ public class TeleOpCompetition extends LinearOpMode {
             boolean operatorB = gamepad2.bWasPressed();   // read every loop; the reject needs the left bumper held, so it cannot be set off by accident
             if (operatorB && gamepad2.left_bumper) mechanisms.requestReject();
             if (gamepad2.xWasPressed()) mechanisms.requestDeploy();
+            boolean operatorA = gamepad2.aWasPressed();   // read every loop; with the left bumper held it toggles the 2-D launch grid against the launch map and the formula aim (a test control: guarded so it cannot be hit by accident)
+            if (operatorA && gamepad2.left_bumper) mechanisms.toggleGrid();
             boolean operatorY = gamepad2.yWasPressed();   // read once: with the left bumper held, Y is the pusher calibration instead of the stow
             if (operatorY && gamepad2.left_bumper) mechanisms.requestPusherCalibration();
             else if (operatorY) mechanisms.requestStowNow();   // stow at once: no flower check
@@ -725,6 +751,9 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (hiveDash.status().startsWith("REFUSED")) screen.alert(CompetitionScreen.YELLOW, "DASH REFUSED");   // replaces the old rumble: the dash did not start (the reason is in the log and the verbose screen)
                 if (parkDash.status().startsWith("REFUSED")) screen.alert(CompetitionScreen.YELLOW, "PARK DASH REFUSED");
                 CompetitionScreen.fromMechanisms(screen, mechanisms, backupMode, BACKUP_LAUNCH_DISTANCE_IN);
+                LaunchGridMap.Result gridNow = mechanisms.getGridResult();
+                if (mechanisms.isGridOn()) screen.alert(CompetitionScreen.CYAN, "LAUNCH GRID ON");
+                if (mechanisms.isGridOn() && gridNow != null && gridNow.zone == LaunchGridMap.Zone.NO_SHOT && (lockOn || mechanisms.isLaunchBusy())) screen.alert(CompetitionScreen.YELLOW, "NO SHOT ZONE");
                 HiveTarget dashCell = hiveDash.cell();
                 if (dashCell != null) {
                     String dashName = dashCell.name().endsWith("REAR") ? "REAR" : "AUDIENCE";
@@ -764,6 +793,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Remembered aim (operator D-pad left / right)", "blue rear %+.1f, blue audience %+.1f, red rear %+.1f, red audience %+.1f deg   | speed trim %+.0f ticks/s (D-pad up / down)",
                     cellNudgeDeg[HiveTarget.BLUE_REAR.ordinal()], cellNudgeDeg[HiveTarget.BLUE_AUDIENCE.ordinal()], cellNudgeDeg[HiveTarget.RED_REAR.ordinal()],
                     cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()], mechanisms.getSpeedTrim());
+            telemetry.addData("Launch method (operator LB + A toggles)", mechanisms.isGridOn() ? "2-D LAUNCH GRID (speed and aim where it has data)" : "launch map + formula aim");
             telemetry.addData("Auto-launch (operator RB toggles)", backupMode ? "off (backup mode)" : autoLaunchOn ? "ON: " + autoLaunchState : "off");
             telemetry.addData("Hive Dash (driver D-pad left / right, held)", hiveDash.status());
             telemetry.addData("Park Dash (driver D-pad up / down, held)", parkDash.status());

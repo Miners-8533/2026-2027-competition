@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.drive.LaunchGridMap;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.util.LoopProfiler;
 import org.firstinspires.ftc.teamcode.util.RunLog;
@@ -49,6 +50,12 @@ public class Mechanisms {
 
     public static double LAUNCH_TIMEOUT_SEC = 3.0;
     /** True: while a launch is queued or a salvo runs, and for BURST_LOG_AFTER_SEC after it, the log writes a sample row on every loop (see RunLog.setBurst). */
+    /**
+     * Branch launch-grid-2d: take the flywheel speed (and, in the TeleOp, the aim) from the 2-D launch grid ({@link LaunchGridMap}) where it has data, instead of the launch map's speed for
+     * the distance. OFF by default: the grid's answer is logged next to today's either way (the TeleOp's LAUNCH requested lines), so a practice session compares them first.
+     * Without data (no data, a no-shot zone, a fixed or Hive Dash distance) the launch map is used as before.
+     */
+    public static boolean USE_LAUNCH_GRID = false;
     public static boolean BURST_LOG_SALVOS = true;
     public static double BURST_LOG_AFTER_SEC = 0.6;
     /** While the track reads empty, a COUNTER EMPTY line is logged this often: the four colour shifts from the stored empty baselines (tools/logs/baseline_health.py reads them). 0 turns it off. */
@@ -108,6 +115,7 @@ public class Mechanisms {
     private int salvosDone = 0;
     private boolean flywheelLostSeen = false;
     private boolean manualCalibration = false;   // the operator's pusher calibration sweep is running: the intake is held off
+    private double dashSpotX = Double.NaN, dashSpotY = Double.NaN;   // the Hive Dash's launch spot (NaN: none), for the 2-D launch grid
     private double dashDistanceIn = 0.0;       // > 0 during a Hive Dash: the launch speed is worked out for this distance (the launch spot) from the start of the dash, not for where the robot is now
     private double fixedDistanceIn = 0.0;      // > 0 in the backup mode: the launch distance is this, whatever the pose says
     private boolean manualIntake = false;
@@ -146,6 +154,10 @@ public class Mechanisms {
     private String notice = "";
     private final List<String> warnings = new ArrayList<>();
     private double lastDistance = Double.NaN;
+    private LaunchGridMap.Result gridNow = null;
+    private boolean gridSpeedUsed = false;
+    private boolean gridAllowed = false;   // only the TeleOp turns it on: the autos keep the launch map and their own aim
+    private boolean gridOn = false;        // the operator's toggle in the TeleOp (LB + A); starts as USE_LAUNCH_GRID
     private double lastSetpoint = 0.0;
 
     // for the run log
@@ -618,6 +630,12 @@ public class Mechanisms {
         RunLog.event(String.format(Locale.US, "BACKUP MODE: the launch speed is fixed for %.0f in, no pose", distanceIn));
     }
 
+    /** The Hive Dash's launch spot (field frame; NaN clears it): the 2-D launch grid works out the speed for it while a dash runs (branch launch-grid-2d). */
+    public void setDashLaunchSpot(double x, double y) {
+        dashSpotX = x;
+        dashSpotY = y;
+    }
+
     /**
      * The Hive Dash knows where it will launch from, so the flywheel goes to that speed at once instead of following the distance to the cell all the way along the route (a flywheel that was
      * sent up for a far point arrived above the launch band and the launch waited for it to coast down: 9 times, up to 0.7 s, in the 2026-11-06 log). 0 or less clears it.
@@ -649,6 +667,34 @@ public class Mechanisms {
     }
 
     /** The distance the launch speed was last worked out for (the open cell, the dash's spot or the backup mode's fixed distance), inches. For the competition screen. */
+    /** Lets the 2-D launch grid supply the flywheel speed when it is switched on (USE_LAUNCH_GRID at the start, then the operator's toggle) (the TeleOp only; false by default, so the autos never use it). */
+    public void setGridAllowed(boolean allowed) {
+        gridAllowed = allowed;
+        if (allowed) gridOn = USE_LAUNCH_GRID;   // the Dashboard value is the state the TeleOp starts in
+    }
+
+    /** True when the 2-D launch grid is the method in use now (allowed, and switched on at the start or by the operator's toggle). */
+    public boolean isGridOn() {
+        return gridAllowed && gridOn;
+    }
+
+    /** The operator's toggle between the 2-D launch grid and the launch map with the formula aim (the TeleOp only). */
+    public void toggleGrid() {
+        if (!gridAllowed) return;
+        gridOn = !gridOn;
+        RunLog.event("COMMAND launch method -> " + (gridOn ? "2-D LAUNCH GRID (speed and aim from the grid where it has data)" : "launch map and formula aim") + " (operator LB + A)");
+    }
+
+    /** The 2-D launch grid's answer for the open cell from the pose of the last update (null before the first). */
+    public LaunchGridMap.Result getGridResult() {
+        return gridNow;
+    }
+
+    /** True when the last update took the flywheel speed from the grid (USE_LAUNCH_GRID on and the grid had a speed). */
+    public boolean isGridSpeedUsed() {
+        return gridSpeedUsed;
+    }
+
     public double getLastDistance() {
         return lastDistance;
     }
@@ -757,6 +803,15 @@ public class Mechanisms {
         lastDistance = fixedDistanceIn > 0.0 ? fixedDistanceIn : dashDistanceIn > 0.0 ? dashDistanceIn : openCell.distanceFrom(pose);
         boolean mapAvailable = useLaunchMap && !LaunchMap.isEmpty();
         lastSetpoint = mapAvailable ? Math.max(0.0, LaunchMap.velocityFor(lastDistance) + speedTrim) : manualSetpoint;
+        // the 2-D launch grid: looked up every loop (so its answer can be logged beside the map's), used only when the switch is on and it has a speed for this spot
+        // during a Hive Dash it is looked up for the launch spot, so the flywheel is at its speed on arrival (as the map's dash distance does); in backup mode (no pose) there is no grid
+        boolean dashSpot = dashDistanceIn > 0.0 && !Double.isNaN(dashSpotX);
+        gridNow = LaunchGridMap.lookup(openCell, dashSpot ? dashSpotX : pose.position.x, dashSpot ? dashSpotY : pose.position.y);
+        gridSpeedUsed = isGridOn() && fixedDistanceIn <= 0.0 && gridNow.hasValues();
+        if (gridSpeedUsed) {
+            lastSetpoint = Math.max(0.0, gridNow.speed + speedTrim);
+            mapAvailable = true;
+        }
         // a dead flywheel encoder: no closed loop, so every launch is the same base power (Flywheel.LOST_BASE_SETPOINT) moved only by the speed trim
         if (flywheel != null && flywheel.isEncoderLost()) lastSetpoint = Math.max(0.0, Flywheel.LOST_BASE_SETPOINT + speedTrim);
         if (flywheel != null && !mapAvailable) warnings.add("Launch map empty: using the manual setpoint");

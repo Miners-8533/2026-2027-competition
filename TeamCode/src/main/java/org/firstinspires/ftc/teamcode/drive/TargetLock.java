@@ -93,6 +93,15 @@ public final class TargetLock {
      * @return the angular drive power, counterclockwise positive
      */
     public double turn(Pose2d pose, double angVel, HiveTarget target, double extraOffsetLeftIn, double rememberedDeg, double stickX, double dtSec) {
+        return turn(pose, angVel, target, extraOffsetLeftIn, rememberedDeg, stickX, dtSec, Double.NaN);
+    }
+
+    /**
+     * As above, with the aim from the 2-D launch grid (branch launch-grid-2d): gridResidualDeg, when it is a number, is the aim residual of {@link LaunchGridMap} (the heading that scored
+     * minus the bearing to the cell), so the aim is the bearing plus it, instead of {@link #aimHeadingRad} (the launcher offset and the far-cell extra are already in the data). The
+     * driver's nudge and the remembered correction are added as always. NaN: the formula.
+     */
+    public double turn(Pose2d pose, double angVel, HiveTarget target, double extraOffsetLeftIn, double rememberedDeg, double stickX, double dtSec, double gridResidualDeg) {
         double dx = target.x - pose.position.x;
         double dy = target.y - pose.position.y;
         if (Math.hypot(dx, dy) < MIN_DISTANCE_IN) {
@@ -103,7 +112,8 @@ public final class TargetLock {
         }
         trimDeg = clamp(trimDeg - stickX * STICK_TRIM_DEG_PER_S * dtSec, -MAX_TRIM_DEG, MAX_TRIM_DEG);
         double bearing = Math.atan2(dy, dx);
-        double aim = aimHeadingRad(pose.position.x, pose.position.y, target, extraOffsetLeftIn) + Math.toRadians(trimDeg + rememberedDeg);
+        double aim = (Double.isNaN(gridResidualDeg) ? aimHeadingRad(pose.position.x, pose.position.y, target, extraOffsetLeftIn) : bearing + Math.toRadians(gridResidualDeg))
+                + Math.toRadians(trimDeg + rememberedDeg);
         double error = Rotation2d.normalize(aim - pose.heading.toDouble());
         bearingDeg = Math.toDegrees(bearing);
         errorDeg = Math.toDegrees(error);

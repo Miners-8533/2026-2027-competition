@@ -135,6 +135,8 @@ public final class HiveDash {
         public HiveTarget overrideCell;
         /** While overrideCell is set: the distance the launch speed must be worked out for (the launch spot to the cell), so the flywheel goes to that speed at the start of the dash; 0 otherwise. */
         public double overrideDistanceIn;
+        /** While overrideCell is set: the launch spot itself (field frame), so the 2-D launch grid can work out the speed for it (branch launch-grid-2d); 0 otherwise. */
+        public double overrideGoalX, overrideGoalY;
 
         void reset() {
             translation = false;
@@ -145,6 +147,8 @@ public final class HiveDash {
             launchNow = false;
             overrideCell = null;
             overrideDistanceIn = 0.0;
+            overrideGoalX = 0.0;
+            overrideGoalY = 0.0;
         }
     }
 
@@ -267,7 +271,11 @@ public final class HiveDash {
             default:
                 break;
         }
-        if (out.overrideCell != null) out.overrideDistanceIn = cell.distanceFrom(new Pose2d(goalX, goalY, 0.0));
+        if (out.overrideCell != null) {
+            out.overrideDistanceIn = cell.distanceFrom(new Pose2d(goalX, goalY, 0.0));
+            out.overrideGoalX = goalX;
+            out.overrideGoalY = goalY;
+        }
         status = statusLine(in);
         sample(in);
         overlay(in);
