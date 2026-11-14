@@ -54,9 +54,9 @@ public class Pusher {
      * Forward power for a salvo or a return to HOLD, until APPROACH_DEG from the target. 0.37 since 2026-11-12 (the Launch Salvo Speed Study of that day: the salvo turns at about
      * 433 deg/s and takes 1.01 s to the stop threshold, against 354 deg/s and 1.21 s at 0.30; the flywheel dip during a salvo did not change with the power). It was 0.6, halved to 0.3 on 2026-10-31.
      */
-    public static double SWEEP_POWER = 0.37;
+    public static double SWEEP_POWER = 0.30;   // back to 0.30 on 2026-11-14 (user), from 0.37
     /** Forward power for the last APPROACH_DEG of a move, so it lands gently. The same as SWEEP_POWER since 2026-11-12 (it was 0.25; the study at 0.37 ran both at the same power). */
-    public static double APPROACH_POWER = 0.37;
+    public static double APPROACH_POWER = 0.30;   // back to 0.30 on 2026-11-14 (user), kept equal to SWEEP_POWER
     /** Degrees before the target where the power drops to APPROACH_POWER. 0 turns the slow approach off. */
     public static double APPROACH_DEG = 30.0;
     /** Cut the power this many degrees before the target; the brake and coasting cover the rest. Calibrate. */
@@ -165,6 +165,7 @@ public class Pusher {
     private double seekDir = 1.0;
     private double seekPower = 0.2;
     private double targetTicks = 0.0;
+    private double salvoTargetTicks = Double.NaN;   // the target of the salvo that started last (targetTicks changes during a jam back-off), for isInLaunchSweep
     private boolean stalling = false;
     // active hold (HOLD_SERVO_ENABLED)
     private boolean holdLatched = false;
@@ -279,6 +280,26 @@ public class Pusher {
                 || (state == State.JOG && Math.abs(jogPower) >= STALL_MIN_JOG_POWER);
     }
 
+    /**
+     * True while a SALVO is moving forward through the part of its travel that launches (2026-11-14): from the LOCK position (LOCK_DEG past the HOLD the salvo started from) up to the
+     * next HOLD (360 deg past it). The salvo targets that first HOLD plus SALVO_DEG, so the window is from the target less (SALVO_DEG - LOCK_DEG) to the target less (SALVO_DEG - 360).
+     * The 2026-11-07 to 11-12 logs: the last element leaves at a median 221 deg of the travel (90th percentile 345), so the window covers it and not the arm's last 40 deg and its coast.
+     * The TeleOp holds the driver's translation while it is true.
+     */
+    public boolean isInLaunchSweep() {
+        if (state != State.SALVO || !isCalibrated() || Double.isNaN(salvoTargetTicks)) return false;
+        double ticksPerDeg = TICKS_PER_REV / 360.0;
+        double progressDeg = (getUnwrappedTicks() - (salvoTargetTicks - SALVO_DEG * ticksPerDeg)) / ticksPerDeg;   // past the HOLD the salvo started from
+        return progressDeg >= LOCK_DEG && progressDeg < 360.0;
+    }
+
+    /** How far the salvo has turned past the HOLD it started from, degrees (for the log); NaN when no salvo runs. */
+    public double getSalvoProgressDeg() {
+        if (state != State.SALVO || !isCalibrated() || Double.isNaN(salvoTargetTicks)) return Double.NaN;
+        double ticksPerDeg = TICKS_PER_REV / 360.0;
+        return (getUnwrappedTicks() - (salvoTargetTicks - SALVO_DEG * ticksPerDeg)) / ticksPerDeg;
+    }
+
     public State getState() {
         return state;
     }
@@ -383,6 +404,7 @@ public class Pusher {
         double target = nearestHoldTicks() + SALVO_DEG * TICKS_PER_REV / 360.0;
         lastCommand = String.format("salvo from %s, %+.1f deg to nearest HOLD, now %.0f ticks, target %.0f ticks",
                 state, getHoldErrorDeg(), getUnwrappedTicks(), target);
+        salvoTargetTicks = target;
         beginForwardMove(State.SALVO, target);
     }
 

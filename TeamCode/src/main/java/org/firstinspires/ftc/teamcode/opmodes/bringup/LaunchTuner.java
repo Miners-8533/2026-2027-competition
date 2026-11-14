@@ -43,12 +43,12 @@ import java.util.Locale;
  *   Left stick / right stick X   drive / turn, FIELD-oriented (the TeleOp's)         Left trigger (hold): precision (30%)
  *   Right bumper                 target lock ON / OFF (a toggle here; held in the TeleOp). With it on the robot turns to the cell by itself
  *   A                            fire a salvo (with the lock on it waits for ALIGNED, at most LAUNCH_ALIGN_WAIT_SEC)
- *   D-pad up / down              speed trim +/- SPEED_STEP (10) ticks/s         D-pad right / left   aim trim +/- AIM_STEP_DEG (0.5) deg (right = aim LEFT, counterclockwise)
+ *   D-pad up / down              speed trim +/- SPEED_STEP (20) ticks/s         D-pad right / left   aim trim +/- AIM_STEP_DEG (0.5) deg (right = aim LEFT, counterclockwise)
  *   Back                         clear a pusher fault; HOLD it 1 s to reseed the pose to the start pose (square the robot on the rear wall first)
  * Gamepad 2 (operator):
  *   A                            RECORD this point                B   UNDO the last record               Y   fire (same as the driver's A, without waiting for the lock)
  *   Left trigger (hold)          OUTTAKE                          Left bumper   speed source: saved map / points recorded this session
- *   D-pad (REPORTS, as in the TeleOp, seen from behind the robot):  down = landed LOW (speed +10)   up = landed HIGH (speed -10)   left = landed LEFT (aim right 0.5 deg)   right = landed RIGHT (aim left 0.5 deg)
+ *   D-pad (REPORTS, as in the TeleOp, seen from behind the robot):  down = landed LOW (speed +20)   up = landed HIGH (speed -20)   left = landed LEFT (aim right 0.5 deg)   right = landed RIGHT (aim left 0.5 deg)
  *
  * The log: a SALVO line per salvo (launch speed, lowest speed and the dip, battery, flywheel current, distance, pose, lock error, both trims), TRIM, RECORD and UNDO lines, and at the end a
  * TUNER TABLE line to paste. The pusher is assumed to be where the last opmode left it (the saved zero).
@@ -61,7 +61,8 @@ public class LaunchTuner extends LinearOpMode {
     public static double START_X_IN = -63.4;
     public static double START_Y_IN = 16.5;
     public static double START_HEADING_DEG = 0.0;
-    public static double SPEED_STEP = 10.0;
+    /** Speed trim step, ticks/s (20 since 2026-11-14: the hub reads the flywheel in steps of 20 and the speed varies 20 to 60 from one salvo to the next). */
+    public static double SPEED_STEP = 20.0;
     public static double AIM_STEP_DEG = 0.5;
     public static double MAX_AIM_TRIM_DEG = 15.0;
     /** With the lock on and not ALIGNED, a launch waits this long for ALIGNED (then it is dropped). */
@@ -135,6 +136,7 @@ public class LaunchTuner extends LinearOpMode {
         MecanumDrive drive = new MecanumDrive(hardwareMap, startPose());
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE);
         mechanisms.setUseLaunchMap(false);          // this opmode works out the speed itself: the map (or the session's points) + the trim
+        mechanisms.setSpeedSetByOpMode(true);       // so no "launch map empty" warning
         mechanisms.setAutoStopAfterSalvo(false);    // the flywheel runs the whole time
         mechanisms.setBlueAlliance(true);           // assumed: blue
         mechanisms.setAutoTarget(true);             // the cell follows the pose (the closer of blue's two), as in the TeleOp

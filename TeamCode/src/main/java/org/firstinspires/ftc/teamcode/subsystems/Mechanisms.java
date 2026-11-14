@@ -142,6 +142,7 @@ public class Mechanisms {
     private boolean stopScheduled = false;
     private boolean stowPending = false;
     private boolean useLaunchMap = true;
+    private boolean speedSetByOpMode = false;   // the Launch Tuner works the speed out itself: no "launch map empty" warning
     private double manualSetpoint = 1350.0;   // ticks/s; used while the launch map is empty, tuned with the operator's D-pad
     private double speedTrim = 0.0;            // ticks/s added to the launch map's speed, nudged with the operator's D-pad
     private HiveTarget openCell = HiveTarget.BLUE_REAR;
@@ -549,6 +550,11 @@ public class Mechanisms {
         useLaunchMap = use;
     }
 
+    /** True: the opmode sets the flywheel speed itself (the Launch Tuner), so the "Launch map empty: using the manual setpoint" warning is not shown. */
+    public void setSpeedSetByOpMode(boolean byOpMode) {
+        speedSetByOpMode = byOpMode;
+    }
+
     /** Override: ignore the element counter (a sensor failed). The intake then runs until the operator turns it off. */
     public void toggleCounterOverride() {
         counterOverride = !counterOverride;
@@ -740,6 +746,11 @@ public class Mechanisms {
         return rejectActive;
     }
 
+    /** True while the pusher turns through the launching part of a salvo, from the lock position to the next hold position (Pusher.isInLaunchSweep). */
+    public boolean isLaunchSweep() {
+        return pusher != null && pusher.isInLaunchSweep();
+    }
+
     public boolean isLaunchBusy() {
         return launchQueued || salvoActive;
     }
@@ -824,7 +835,7 @@ public class Mechanisms {
         }
         // a dead flywheel encoder: no closed loop, so every launch is the same base power (Flywheel.LOST_BASE_SETPOINT) moved only by the speed trim
         if (flywheel != null && flywheel.isEncoderLost()) lastSetpoint = Math.max(0.0, Flywheel.LOST_BASE_SETPOINT + speedTrim);
-        if (flywheel != null && !mapAvailable) warnings.add("Launch map empty: using the manual setpoint");
+        if (flywheel != null && !mapAvailable && !speedSetByOpMode) warnings.add("Launch map empty: using the manual setpoint");
         if (flywheel != null && flywheel.isEncoderLost()) {
             warnings.add(String.format(Locale.US, "FLYWHEEL ENCODER LOST: open loop at a fixed power for %.0f ticks/s %+.0f (speed trim); every launch is the same, drive to the same spot", Flywheel.LOST_BASE_SETPOINT, speedTrim));
         } else if (flywheel != null && flywheel.isOpenLoop()) warnings.add("FLYWHEEL OPEN LOOP: the speed sensor is ignored, ready is a timer");

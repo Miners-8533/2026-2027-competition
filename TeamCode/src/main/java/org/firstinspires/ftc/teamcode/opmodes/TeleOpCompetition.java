@@ -78,6 +78,8 @@ import java.util.Locale;
  *                        (the audience-side corner for blue), down = the corner on the driver's RIGHT (the hive-side corner). The ramp is stowed when it starts. Releasing the D-pad
  *                        cancels at once. Refused, with no movement (the screen says PARK DASH REFUSED), in backup mode, with a Pinpoint fault, with an unseeded pose, while the Hive Dash runs, or when the
  *                        robot is touching a hive support. See {@link ParkDash} and design/park-dash.md.
+ *   (DRIVE LOCK has no control and is a BUILD-TIME switch, LOCK_DRIVE_DURING_SALVO: while the pusher turns forward from the LOCK position to the next HOLD during a salvo the driver's translation is ignored and the
+ *                        robot holds its pose; the screen shows DRIVE HELD. See the constant.)
  *   (HOLD POSITION has no control: from a launch request to the end of the salvo, once the robot has settled, it holds that pose with a PID, resisting a push, and the heading too when the
  *                        target lock is not turning it; moving either stick cancels it at once. See {@link HoldPosition} and HoldPosition.ENABLED.)
  *   left bumper + right trigger  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident; it was left + right bumper until 2026-11-05, when the right bumper became the target lock)
@@ -132,6 +134,17 @@ public class TeleOpCompetition extends LinearOpMode {
     /** Field heading (deg) of the direction each driver faces, i.e. "stick up". */
     public static double BLUE_DRIVER_FORWARD_DEG = -90.0;
     public static double RED_DRIVER_FORWARD_DEG = 90.0;
+    /**
+     * DRIVE LOCK during the salvo (2026-11-14, a BUILD-TIME switch: change it here and reinstall; there is no Dashboard value or button): while the pusher turns forward through the launching part
+     * of its travel, from the LOCK position (90 deg past the HOLD it started from) to the next HOLD (360 deg past it), the driver's translation is ignored and HOLD POSITION keeps the robot
+     * where it is (the sticks do not cancel it). The 2026-11-07 to 11-12 logs: 21 percent of TeleOp salvos moved the robot more than 2 in, 13 percent more than 4 in (2 to 4 in sideways at
+     * 45 to 60 in is 2 to 4 deg of aim). The turn is not locked (the target lock and the nudge keep working). Not while the launch is only queued (waiting for the flywheel or the lock), not in
+     * backup mode. A fail-safe releases it after DRIVE_LOCK_MAX_SEC (a jammed pusher must not hold the driver), and a reject, a fault or a jam back-off ends the window by itself (the pusher
+     * leaves the forward salvo). The competition screen shows DRIVE HELD and the log a DRIVE HELD line with the time, the angle range and how far the robot moved and how hard the driver pushed.
+     */
+    public static final boolean LOCK_DRIVE_DURING_SALVO = true;
+    private static final double DRIVE_LOCK_MAX_SEC = 2.0;
+
     /** An auto pose older than this is ignored (a leftover from an earlier run). */
     public static double AUTO_POSE_MAX_AGE_SEC = 300.0;
     public static double RESEED_HOLD_SEC = 1.0;
@@ -393,6 +406,9 @@ public class TeleOpCompetition extends LinearOpMode {
         ParkDash parkDash = new ParkDash(profile.robotDepthIn, profile.robotWidthIn, profile.originFromBackIn);
         ParkDash.Input parkIn = new ParkDash.Input();
         HoldPosition hold = new HoldPosition();
+        boolean driveHeld = false, driveHeldGaveUp = false;
+        ElapsedTime driveHeldClock = new ElapsedTime();
+        double heldStartX = 0.0, heldStartY = 0.0, heldMaxStick = 0.0, heldStartAngle = 0.0;
         boolean dashOverride = false;   // Hive Dash has taken over the target cell (the nearest-cell logic is off until it lets go)
         ElapsedTime pinpointBadFor = new ElapsedTime();
         ElapsedTime loopClock = new ElapsedTime();
@@ -603,6 +619,37 @@ public class TeleOpCompetition extends LinearOpMode {
             // hold position while launching: from the launch request to the end of the salvo the robot holds the pose it settled in (the sticks cancel it at once)
             boolean dashDriving = (dash.translation && (Math.abs(dash.forward) + Math.abs(dash.left) > 1e-3)) || (park.translation && (Math.abs(park.forward) + Math.abs(park.left) > 1e-3));
             boolean driverMoving = Math.abs(gamepad1.left_stick_x) > 0.1 || Math.abs(gamepad1.left_stick_y) > 0.1 || (!lockOn && Math.abs(gamepad1.right_stick_x) > 0.1);
+            // DRIVE LOCK during the salvo's launching sweep (LOCK_DRIVE_DURING_SALVO): the translation is zero, HOLD POSITION keeps the pose and the sticks do not cancel it
+            boolean inSweep = LOCK_DRIVE_DURING_SALVO && !backupMode && mechanisms.isLaunchSweep();
+            if (!inSweep) driveHeldGaveUp = false;
+            boolean wantHeld = inSweep && !driveHeldGaveUp;
+            if (wantHeld && !driveHeld) {
+                driveHeld = true;
+                driveHeldClock.reset();
+                heldStartX = pose.position.x;
+                heldStartY = pose.position.y;
+                heldMaxStick = 0.0;
+                heldStartAngle = mechanisms.pusher.getSalvoProgressDeg();
+            }
+            if (driveHeld && wantHeld && driveHeldClock.seconds() > DRIVE_LOCK_MAX_SEC) {
+                driveHeldGaveUp = true;
+                wantHeld = false;
+                RunLog.event(String.format(Locale.US, "DRIVE HELD gave up after %.1f s: the pusher is still in the sweep (a jam?)", driveHeldClock.seconds()));
+            }
+            if (wantHeld) {
+                heldMaxStick = Math.max(heldMaxStick, Math.hypot(gamepad1.left_stick_x, gamepad1.left_stick_y));
+                robotForward = 0.0;
+                robotLeft = 0.0;
+                cmdForward = 0.0;
+                cmdLeft = 0.0;
+                driverMoving = false;
+            } else if (driveHeld) {
+                driveHeld = false;
+                double progress = mechanisms.pusher != null ? mechanisms.pusher.getSalvoProgressDeg() : Double.NaN;
+                RunLog.event(String.format(Locale.US, "DRIVE HELD ended after %.2f s (the pusher at %s deg of its travel, from %.0f): the robot moved %.2f in, the driver pushed up to %.2f",
+                        driveHeldClock.seconds(), Double.isNaN(progress) ? "the end of the sweep" : String.format(Locale.US, "%.0f", progress), heldStartAngle,
+                        Math.hypot(pose.position.x - heldStartX, pose.position.y - heldStartY), heldMaxStick));
+            }
             long profiledHold = LoopProfiler.start();
             HoldPosition.Output holding = hold.update(pose, measured, !backupMode && !pinpointBad && (mechanisms.isLaunchBusy() || parkDash.holdWanted()), driverMoving || dashDriving || backupMode || pinpointBad, !lockOn);
             LoopProfiler.stop("hold", profiledHold);
@@ -751,6 +798,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (hiveDash.status().startsWith("REFUSED")) screen.alert(CompetitionScreen.YELLOW, "DASH REFUSED");   // replaces the old rumble: the dash did not start (the reason is in the log and the verbose screen)
                 if (parkDash.status().startsWith("REFUSED")) screen.alert(CompetitionScreen.YELLOW, "PARK DASH REFUSED");
                 CompetitionScreen.fromMechanisms(screen, mechanisms, backupMode, BACKUP_LAUNCH_DISTANCE_IN);
+                if (driveHeld) screen.alert(CompetitionScreen.CYAN, "DRIVE HELD");
                 LaunchGridMap.Result gridNow = mechanisms.getGridResult();
                 if (mechanisms.isGridOn()) screen.alert(CompetitionScreen.CYAN, "LAUNCH GRID ON");
                 if (mechanisms.isGridOn() && gridNow != null && gridNow.zone == LaunchGridMap.Zone.NO_SHOT && (lockOn || mechanisms.isLaunchBusy())) screen.alert(CompetitionScreen.YELLOW, "NO SHOT ZONE");
