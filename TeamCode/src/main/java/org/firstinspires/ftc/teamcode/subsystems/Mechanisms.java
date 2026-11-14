@@ -666,6 +666,16 @@ public class Mechanisms {
         return speedTrim;
     }
 
+    /** True from the start of a salvo (the pusher turning) to its end (the Launch Tuner's per-salvo log reads it). */
+    public boolean isSalvoActive() {
+        return salvoActive;
+    }
+
+    /** The lowest flywheel speed seen since the running (or last) salvo started, ticks/s (NaN before the first). */
+    public double getSalvoMinSpeed() {
+        return salvoMinSpeed;
+    }
+
     /** The distance the launch speed was last worked out for (the open cell, the dash's spot or the backup mode's fixed distance), inches. For the competition screen. */
     /** Lets the 2-D launch grid supply the flywheel speed when it is switched on (USE_LAUNCH_GRID at the start, then the operator's toggle) (the TeleOp only; false by default, so the autos never use it). */
     public void setGridAllowed(boolean allowed) {
