@@ -41,6 +41,13 @@ public final class HoldPosition {
     public static double HEADING_KP = 1.5, HEADING_KD = 0.08, HEADING_DEADBAND_DEG = 1.0, HEADING_MAX_TURN = 0.4;
     /** An error beyond this many inches is a pose jump, not a push: the hold lets go (and logs it). */
     public static double SANITY_IN = 30.0;
+    /**
+     * BRAKE (2026-11-14, only when update() is called with brake true: the TeleOp's drive lock during a salvo): while the hold waits for the robot to settle, the translation command is
+     * minus BRAKE_KP times the measured velocity (power per in/s, field frame turned into the robot's), at most BRAKE_MAX, and none once the speed is under LATCH_SPEED_IN_PER_S. It takes the
+     * coast out when a salvo is fired while driving (the 12:35 TeleOp: 2.5 and 4.3 in after the drive command was zeroed at full stick).
+     */
+    public static double BRAKE_KP = 0.02;
+    public static double BRAKE_MAX = 0.6;
 
     /** What the hold wants done this loop. */
     public static final class Output {
@@ -92,6 +99,11 @@ public final class HoldPosition {
      * dash is driving); headingFree: the target lock is not turning the robot, so the hold holds the heading too.
      */
     public Output update(Pose2d pose, PoseVelocity2d measured, boolean wanted, boolean cancel, boolean headingFree) {
+        return update(pose, measured, wanted, cancel, headingFree, false);
+    }
+
+    /** As above; brake true: while it waits for the robot to settle the hold brakes it (BRAKE_KP, BRAKE_MAX). */
+    public Output update(Pose2d pose, PoseVelocity2d measured, boolean wanted, boolean cancel, boolean headingFree, boolean brake) {
         out.active = false;
         out.turnActive = false;
         out.forward = out.left = out.turn = 0.0;
@@ -121,7 +133,21 @@ public final class HoldPosition {
         }
         if (phase == Phase.WAITING) {
             if (speed > LATCH_SPEED_IN_PER_S) still.reset();
-            if (still.seconds() < LATCH_STILL_SEC) return out;
+            if (still.seconds() < LATCH_STILL_SEC) {
+                if (brake && measured != null && speed > LATCH_SPEED_IN_PER_S) {
+                    double bx = -BRAKE_KP * measured.linearVel.x, by = -BRAKE_KP * measured.linearVel.y;   // field frame, against the velocity
+                    double mag = Math.hypot(bx, by);
+                    if (mag > BRAKE_MAX) {
+                        bx *= BRAKE_MAX / mag;
+                        by *= BRAKE_MAX / mag;
+                    }
+                    Vector2d robotBrake = new Vector2d(bx, by).rotated(-pose.heading.toDouble());
+                    out.active = true;
+                    out.forward = robotBrake.x;
+                    out.left = robotBrake.y;
+                }
+                return out;
+            }
             holdX = pose.position.x;
             holdY = pose.position.y;
             holdHeading = pose.heading.toDouble();

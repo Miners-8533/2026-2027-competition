@@ -55,12 +55,19 @@ def load(name):
     r = Run()
     r.name = os.path.basename(name).split("_")[0] if os.path.exists(name) else name
     r.t = np.array([float(x["t"]) for x in rows])
-    age = np.array([float(x["cs5_age_ms"]) for x in rows]) / 1000.0
-    r.read_t = r.t - age                                   # when the CS5 read finished
-    r.rgb = np.array([[float(x["cs5_raw_r"]), float(x["cs5_raw_g"]), float(x["cs5_raw_b"])] for x in rows])
+    if rows and "cs5_age_ms" in rows[0]:
+        age = np.array([float(x["cs5_age_ms"]) for x in rows]) / 1000.0
+        r.read_t = r.t - age                                   # when the CS5 read finished
+        r.rgb = np.array([[float(x["cs5_raw_r"]), float(x["cs5_raw_g"]), float(x["cs5_raw_b"])] for x in rows])
+        r.prox = np.array([float(x["cs5_prox"]) for x in rows])
+        r.fresh = np.array([x["cs5_fresh"] == "1" for x in rows])
+    else:
+        # the 2026-11-14 thread study: the main loop does not read CS5 (only the cs5f / cs5c columns exist), so the per-row values are empty
+        r.read_t = r.t.copy()
+        r.rgb = np.ones((len(rows), 3))
+        r.prox = np.full(len(rows), 66.0)
+        r.fresh = np.zeros(len(rows), bool)
     r.sum = r.rgb.sum(axis=1)
-    r.prox = np.array([float(x["cs5_prox"]) for x in rows])
-    r.fresh = np.array([x["cs5_fresh"] == "1" for x in rows])
     r.blue = r.rgb[:, 2] / np.maximum(r.sum, 1e-9)
     r.pusher = [x["pusher_state"] for x in rows]
     r.count = np.array([int(x["count"]) if x["count"].lstrip("-").isdigit() else -1 for x in rows])

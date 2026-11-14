@@ -281,16 +281,16 @@ public class Pusher {
     }
 
     /**
-     * True while a SALVO is moving forward through the part of its travel that launches (2026-11-14): from the LOCK position (LOCK_DEG past the HOLD the salvo started from) up to the
-     * next HOLD (360 deg past it). The salvo targets that first HOLD plus SALVO_DEG, so the window is from the target less (SALVO_DEG - LOCK_DEG) to the target less (SALVO_DEG - 360).
-     * The 2026-11-07 to 11-12 logs: the last element leaves at a median 221 deg of the travel (90th percentile 345), so the window covers it and not the arm's last 40 deg and its coast.
-     * The TeleOp holds the driver's translation while it is true.
+     * True while a SALVO is moving forward, from its START up to the next HOLD (360 deg past the HOLD it started from) (2026-11-14; it began at the LOCK position, 90 deg, until the same
+     * day: the 12:35 TeleOp showed the robot still coasting 2 to 4 in when a salvo was fired while driving, because the first 90 deg ran with the sticks live). The salvo targets that first HOLD
+     * plus SALVO_DEG, so the end is the target less (SALVO_DEG - 360). The 2026-11-07 to 11-12 logs: the last element leaves at a median 221 deg of the travel (90th percentile 345), so the
+     * window covers it and not the arm's last 40 deg and its coast. The TeleOp holds the driver's translation and brakes the robot while it is true.
      */
     public boolean isInLaunchSweep() {
         if (state != State.SALVO || !isCalibrated() || Double.isNaN(salvoTargetTicks)) return false;
         double ticksPerDeg = TICKS_PER_REV / 360.0;
         double progressDeg = (getUnwrappedTicks() - (salvoTargetTicks - SALVO_DEG * ticksPerDeg)) / ticksPerDeg;   // past the HOLD the salvo started from
-        return progressDeg >= LOCK_DEG && progressDeg < 360.0;
+        return progressDeg < 360.0;
     }
 
     /** How far the salvo has turned past the HOLD it started from, degrees (for the log); NaN when no salvo runs. */
