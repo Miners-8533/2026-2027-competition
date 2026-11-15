@@ -762,6 +762,7 @@ public class TeleOpCompetition extends LinearOpMode {
             if (gamepad2.xWasPressed()) mechanisms.requestDeploy();
             boolean operatorA = gamepad2.aWasPressed();   // read every loop; with the left bumper held it toggles the 2-D launch grid against the launch map and the formula aim (a test control: guarded so it cannot be hit by accident)
             if (operatorA && gamepad2.left_bumper) mechanisms.toggleGrid();
+            else if (operatorA) mechanisms.toggleLaunchElement();   // PROTOTYPE (flywheel-servo-prototype): pollen / nectar position of the flywheel (Mechanisms.FLYWHEEL_POSITION_ENABLED)
             boolean operatorY = gamepad2.yWasPressed();   // read once: with the left bumper held, Y is the pusher calibration instead of the stow
             if (operatorY && gamepad2.left_bumper) mechanisms.requestPusherCalibration();
             else if (operatorY) mechanisms.requestStowNow();   // stow at once: no flower check
@@ -816,6 +817,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 CompetitionScreen.fromMechanisms(screen, mechanisms, backupMode, BACKUP_LAUNCH_DISTANCE_IN);
                 if (driveHeld) screen.alert(CompetitionScreen.CYAN, "DRIVE HELD");
                 if (mechanisms.isEntryFull()) screen.alert(CompetitionScreen.CYAN, mechanisms.fullStatusText());
+                if (mechanisms.isNectarMode()) screen.alert(CompetitionScreen.CYAN, "NECTAR MODE");
                 if (autoLaunchArmed && !autoLaunchOn) screen.alert(CompetitionScreen.CYAN, "AUTO-LAUNCH ARMED");
                 LaunchGridMap.Result gridNow = mechanisms.getGridResult();
                 if (mechanisms.isGridOn()) screen.alert(CompetitionScreen.CYAN, "LAUNCH GRID ON");

@@ -91,6 +91,11 @@ public class Mechanisms {
     public static boolean FULL_CLEARS_FIFTH = true;
     public static boolean FULL_LOCKS_PUSHER = true;
     /**
+     * PROTOTYPE (branch flywheel-servo-prototype, 2026-11-15): the servo that moves the flywheel between a POLLEN and a NECTAR position ({@link FlywheelPosition}). Off by default: nothing is commanded and no launch
+     * waits for it. On (and the servo in the configuration, both positions measured): the TeleOp's operator A switches the position, a launch waits until the servo has settled, and the TeleOp starts in the POLLEN position.
+     */
+    public static boolean FLYWHEEL_POSITION_ENABLED = false;
+    /**
      * THE FULL SEQUENCE (2026-11-15, user): 0. the intake runs on IN for FULL_IN_HOLD_SEC (the 4th element in first); 1. the intake runs OUT for FULL_PRE_OUT_SEC (a short reverse to clear the entrance); 2. it STOPS, and only then does the pusher move to the lock position (the intake stays
      * stopped while the arm moves); 3. once LOCKED the intake runs OUT (FULL_LOCKED_INTAKE_OUT: the entrance is kept clear while the robot is full; false: it stays stopped and runs OUT only to clear a fifth element
      * under CS5, FULL_CLEARS_FIFTH). If the lock is refused the intake goes back IN after step 1 (a stopped intake with the arm open lets the elements roll out). A salvo, a reject or the operator's right trigger ends it.
@@ -147,6 +152,9 @@ public class Mechanisms {
     public final ElementCounter counter;
     /** Counts the elements as they enter, from CS5's proximity (SHADOW MODE, 2026-11-14: logged only, nothing depends on it); null without CS5 in the configuration. */
     public final EntryCounter entries;
+    /** PROTOTYPE: the servo that moves the flywheel between a pollen and a nectar position; null without the servo in the configuration. */
+    public final FlywheelPosition flywheelPosition;
+    private boolean positionWaitLogged = false;
     /** Checks the pusher's zero against CS4 after a salvo; null without the pusher or the counter. */
     private final PusherCheck pusherCheck;
 
@@ -244,6 +252,11 @@ public class Mechanisms {
     }
 
     public Mechanisms(Intake intake, Flywheel flywheel, Pusher pusher, Ramp ramp, ElementCounter counter, EntryCounter entries) {
+        this(intake, flywheel, pusher, ramp, counter, entries, null);
+    }
+
+    public Mechanisms(Intake intake, Flywheel flywheel, Pusher pusher, Ramp ramp, ElementCounter counter, EntryCounter entries, FlywheelPosition flywheelPosition) {
+        this.flywheelPosition = flywheelPosition;
         this.entries = entries;
         this.intake = intake;
         this.flywheel = flywheel;
@@ -271,7 +284,8 @@ public class Mechanisms {
                 && hardwareMap.tryGet(Servo.class, "depolRight") != null ? new Ramp(hardwareMap, commandRampAtInit) : null;
         ElementCounter counter = ElementCounter.tryCreate(hardwareMap);
         EntryCounter entries = EntryCounter.tryCreate(hardwareMap);   // CS5 at the intake: shadow mode (counts and logs only)
-        return new Mechanisms(intake, flywheel, pusher, ramp, counter, entries);
+        FlywheelPosition flywheelPosition = FlywheelPosition.tryCreate(hardwareMap);   // PROTOTYPE: null without the servo
+        return new Mechanisms(intake, flywheel, pusher, ramp, counter, entries, flywheelPosition);
     }
 
     public String describe() {
@@ -878,6 +892,7 @@ public class Mechanisms {
             }
         }
 
+        if (FLYWHEEL_POSITION_ENABLED && flywheelPosition != null && flywheelPosition.isConfigured() && flywheelPosition.target() == null) flywheelPosition.set(FlywheelPosition.Element.POLLEN);   // the first command, at Start (prototype)
         if (entries != null) {
             entries.touch();   // starts the thread on the first call (nothing is read in INIT) and keeps it alive
             updateEntries();
@@ -1047,7 +1062,12 @@ public class Mechanisms {
                     RunLog.event(String.format(Locale.US, "LAUNCH held: the flywheel (filtered %.0f ticks/s) is %s %.0f to %.0f; the salvo starts when it is inside (at most %.1f s)",
                             flywheel.getFilteredVelocity(), flywheel.launchBandState(), lastSetpoint * Flywheel.LAUNCH_BAND_LOW_FRACTION, lastSetpoint * Flywheel.LAUNCH_BAND_HIGH_FRACTION, LAUNCH_TIMEOUT_SEC));
                 }
-                if (inBand && pusher.isStopped()) {
+                if (inBand && pusher.isStopped() && !launchPositionSettled() && !positionWaitLogged) {
+                    positionWaitLogged = true;
+                    RunLog.event("LAUNCH held: the flywheel servo is still moving to its " + flywheelPosition.target() + " position");
+                }
+                if (inBand && pusher.isStopped() && launchPositionSettled()) {
+                    positionWaitLogged = false;
                     if (bandWaitLogged) RunLog.event(String.format(Locale.US, "LAUNCH released: the flywheel is inside the band after %.2f s of waiting", launchTimer.seconds()));
                     releaseLockForSalvo();
                     pusher.startSalvo();
@@ -1256,6 +1276,29 @@ public class Mechanisms {
         return launchedTotal;
     }
 
+    /** PROTOTYPE: true when the flywheel servo is not in the way of a launch (off, missing, not configured, or settled). */
+    private boolean launchPositionSettled() {
+        return !FLYWHEEL_POSITION_ENABLED || flywheelPosition == null || !flywheelPosition.isConfigured() || flywheelPosition.isSettled();
+    }
+
+    /** PROTOTYPE, the operator's A: switches the flywheel between its pollen and nectar positions. Not while a launch is running. */
+    public void toggleLaunchElement() {
+        if (!FLYWHEEL_POSITION_ENABLED || flywheelPosition == null || !flywheelPosition.isConfigured()) {
+            notice("Flywheel position: " + (!FLYWHEEL_POSITION_ENABLED ? "off (FLYWHEEL_POSITION_ENABLED)" : flywheelPosition == null ? "no servo \"" + FlywheelPosition.SERVO_NAME + "\" in the configuration" : "positions not measured"));
+            return;
+        }
+        if (launchQueued || salvoActive || rejectActive) {
+            notice("Flywheel position change ignored: a launch is running.");
+            return;
+        }
+        flywheelPosition.toggle();
+    }
+
+    /** PROTOTYPE: true while the flywheel is in its NECTAR position (for the screen). */
+    public boolean isNectarMode() {
+        return FLYWHEEL_POSITION_ENABLED && flywheelPosition != null && flywheelPosition.target() == FlywheelPosition.Element.NECTAR;
+    }
+
     /** The intake has run on for FULL_IN_HOLD_SEC since FULL was declared. */
     private boolean fullInHoldDone() {
         return entryFullStartNs != 0L && (System.nanoTime() - entryFullStartNs) / 1e9 >= FULL_IN_HOLD_SEC;
@@ -1416,6 +1459,7 @@ public class Mechanisms {
         telemetry.addData("Launch", launchQueued ? (flywheel != null && !flywheel.isInLaunchBand() ? "QUEUED, waiting: the flywheel is " + flywheel.launchBandState() : "QUEUED, starting") : salvoActive ? "SALVO running" : "idle");
         telemetry.addData("Reject", rejectActive ? "running" : "idle");
         telemetry.addData("Launched (elements)", launchedTotal);
+        if (flywheelPosition != null) flywheelPosition.log(telemetry);
         if (entries != null) {
             telemetry.addData("CS5 entries", "%d counted, %d held by the count%s, %s", entries.entries(), heldByEntries, entryFull ? " FULL" + (clearingFifth ? ": clearing a 5th (intake OUT)" : ": intake stopped") : "", entries.isStarted() ? (entries.isHealthy() ? "answering, prox " + entries.latestProx() : "NOT ANSWERING") : "not started");
         }
