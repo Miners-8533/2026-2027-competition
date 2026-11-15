@@ -81,16 +81,44 @@ public class Mechanisms {
     /** Rule 6: stop the intake when the element counter reports a full robot. */
     public static boolean AUTO_STOP_INTAKE_AT_FULL = true;
     /**
-     * (2026-11-14, user) In the always-IN TeleOp, when the robot is FULL by the CS5 entry count (ENTRY_CAPACITY elements have entered since the last salvo or reject), the intake runs OUT until the next salvo, so a fifth element
-     * does not sit under CS5 and jam. The counter on CS1 to CS4 does not work when the track is over-full, so the count of CS5's entries is the one acted on. Off: the intake stays IN (the count is only logged).
+     * (2026-11-14, user) THE ACTIONS ON "FULL": the robot is FULL when ENTRY_CAPACITY (4: pollen, the pusher at HOLD) elements have entered, counted by CS5, since the last salvo or reject. The counter on CS1 to
+     * CS4 does not work when the track is over-full, so the CS5 entry count is the one acted on. This is the master switch; only an opmode that asks ({@link #setEntryFullActionsAllowed}: TeleOp - Competition) gets them,
+     * and only the always-IN intake changes: FULL STOPS the intake (FULL_STOPS_INTAKE), a fifth element under CS5 sends it OUT until the sensor reads empty again (FULL_CLEARS_FIFTH), FULL locks the pusher across
+     * the entrance so nothing falls out (FULL_LOCKS_PUSHER), and the TeleOp's auto-launch is armed (TeleOpCompetition.AUTO_LAUNCH_WHEN_FULL). A salvo, a reject, or the counter reading 0 for a while ends FULL.
      */
-    public static boolean OUTTAKE_WHEN_FULL = true;
+    public static boolean ENTRY_FULL_ACTIONS = true;
+    public static boolean FULL_STOPS_INTAKE = true;
+    public static boolean FULL_CLEARS_FIFTH = true;
+    public static boolean FULL_LOCKS_PUSHER = true;
+    /**
+     * THE FULL SEQUENCE (2026-11-15, user): 0. the intake runs on IN for FULL_IN_HOLD_SEC (the 4th element in first); 1. the intake runs OUT for FULL_PRE_OUT_SEC (a short reverse to clear the entrance); 2. it STOPS, and only then does the pusher move to the lock position (the intake stays
+     * stopped while the arm moves); 3. once LOCKED the intake runs OUT (FULL_LOCKED_INTAKE_OUT: the entrance is kept clear while the robot is full; false: it stays stopped and runs OUT only to clear a fifth element
+     * under CS5, FULL_CLEARS_FIFTH). If the lock is refused the intake goes back IN after step 1 (a stopped intake with the arm open lets the elements roll out). A salvo, a reject or the operator's right trigger ends it.
+     */
+    public static double FULL_PRE_OUT_SEC = 0.1;
+    /**
+     * Before the short OUT the intake keeps running IN for this long after FULL is declared (2026-11-15, user: 0.1 s) so the 4th element, counted at the RISE of its bump (about 50 ms in), is in first: a single element is above
+     * the threshold for 80 to 120 ms (median, study and TeleOps), so 60 to 100 ms of its pass is left after the count.
+     */
+    public static double FULL_IN_HOLD_SEC = 0.1;
+    public static boolean FULL_LOCKED_INTAKE_OUT = true;
+    /** A FIFTH element is UNDER CS5 when the proximity stays this many counts above the empty level for FIFTH_DWELL_SEC (the empty noise is 0.5, a passing element +8 to +44), or when an entry is counted while FULL. */
+    public static double FIFTH_DWELL_COUNTS = 8.0;
+    public static double FIFTH_DWELL_SEC = 0.3;
+    /** The fifth-element watch is ARMED only after the sensor has read within FIFTH_CLEAR_COUNTS of empty for this long since FULL (an element resting under CS5 after the intake stopped is one of the four, not a fifth: the 15:12 TeleOp pushed held elements out). */
+    public static double FIFTH_ARM_EMPTY_SEC = 0.5;
+    /** The clearing ends when the proximity has been within FIFTH_CLEAR_COUNTS of the empty level for FIFTH_CLEAR_HOLD_SEC (after at least FIFTH_MIN_OUT_SEC of OUT); it gives up after FIFTH_CLEAR_MAX_SEC and waits FIFTH_RETRY_SEC. */
+    public static double FIFTH_CLEAR_COUNTS = 3.0;
+    public static double FIFTH_CLEAR_HOLD_SEC = 0.3;
+    public static double FIFTH_MIN_OUT_SEC = 0.6;
+    public static double FIFTH_CLEAR_MAX_SEC = 3.0;
+    public static double FIFTH_RETRY_SEC = 2.0;
     /** Elements the track holds with the pusher at HOLD (pollen only): 4. */
     public static int ENTRY_CAPACITY = 4;
     /** CS5 can only say FULL when the counter on CS1 to CS4 also holds at least this many (a check against false peaks while the robot is nearly empty); 0 turns it off; ignored while the counter is not reading. */
-    public static int ENTRY_FULL_MIN_COUNTER = 2;
+    public static int ENTRY_FULL_MIN_COUNTER = 0;
     /** The entry count goes back to 0 when the counter has read 0 for this long, so false peaks never pile up into a phantom FULL. */
-    public static double ENTRY_ZERO_RESET_SEC = 3.0;
+    public static double ENTRY_ZERO_RESET_SEC = 0.0;
     /** After a salvo, when the robot is empty and idle, check the pusher's zero against CS4 and correct a belt slip (see PusherCheck). */
     public static boolean AUTO_PUSHER_CHECK = true;
     /** Also check right after Start when the zero has not been verified since the app started (a power cycle, an install, or a zero set by hand). */
@@ -193,9 +221,16 @@ public class Mechanisms {
     private String entriesNoteLogged = "";
     private final java.util.ArrayDeque<long[]> intakeOutIntervals = new java.util.ArrayDeque<>();   // recent stretches with the intake OUT: {start, end} in System.nanoTime(), for judging an entry by the time of its PEAK
     private long intakeOutStartNs = 0L;
-    private boolean outtakeWhenFullAllowed = false;   // an opmode opts in (the competition TeleOp); the tuners and the autos keep their own intake rules
+    private String lockRefusalLogged = "";
+    private boolean entryFullActionsAllowed = false;   // an opmode opts in (the competition TeleOp); the tuners and the autos keep their own rules
+    private boolean clearingFifth = false;
+    private boolean fifthArmed = false;
+    private long fifthArmEmptyStartNs = 0L;
+    private long fifthDwellStartNs = 0L, fifthClearStartNs = 0L, fifthClearOkStartNs = 0L, fifthRetryUntilNs = 0L;
+    private int launchedTotal = 0;                  // elements launched since the opmode started (the entry count, or the counter's, at each salvo start)
     private int heldByEntries = 0;                 // CS5 entries since the track was last emptied (a salvo, a reject, or the counter reading 0 for ENTRY_ZERO_RESET_SEC)
     private boolean entryFull = false;
+    private long entryFullStartNs = 0L;
     private final ElapsedTime counterZeroClock = new ElapsedTime();
     private final ElapsedTime entriesStatsTimer = new ElapsedTime();
     private final ElapsedTime entriesStartedClock = new ElapsedTime();
@@ -352,13 +387,21 @@ public class Mechanisms {
     }
 
     /** Why the arm cannot be moved to the lock now, or null. */
-    private String lockRefusal() {
+    private String lockRefusal(boolean fromRestingArm) {
         if (pusher == null || !pusher.isCalibrated()) return "the pusher is missing or not calibrated";
         if (counter == null) return "there is no element counter";
         if (launchQueued || salvoActive || rejectActive || manualOuttake || manualCalibration) return "the robot is busy";
         if (pusher.isStalled()) return "the pusher is faulted";
         if (pusherCheck != null && (pusherCheck.isActive() || checkPending)) return "a pusher check is running or wanted";
-        if (!pusher.atHold()) return "the arm is not at HOLD (it is " + String.format(Locale.US, "%.0f", pusher.getAnglePastHoldDeg()) + " deg past it)";
+        if (fromRestingArm) {
+            // after a salvo the arm rests about 40 to 60 deg PAST a HOLD (SALVO_DEG 400 less a turn) until a pusher check parks it, and with the intake always IN the check is skipped ("did not read empty"):
+            // the lock for FULL goes forward from wherever the arm rests (the 15:12 TeleOp: the lock never started because atHold() was false after every salvo)
+            if (!pusher.isStopped()) return "the arm is moving";
+            double past = pusher.getAnglePastHoldDeg();
+            if (past < -Pusher.HOLD_TOLERANCE_DEG || past > Pusher.LOCK_DEG + 40.0) return "the arm rests " + String.format(Locale.US, "%.0f", past) + " deg past a HOLD (the lock goes forward from -" + Pusher.HOLD_TOLERANCE_DEG + " to " + (Pusher.LOCK_DEG + 40.0) + ")";
+        } else if (!pusher.atHold()) {
+            return "the arm is not at HOLD (it is " + String.format(Locale.US, "%.0f", pusher.getAnglePastHoldDeg()) + " deg past it)";
+        }
         return null;
     }
 
@@ -394,7 +437,16 @@ public class Mechanisms {
         if (!full && lockState == LockState.NONE) intakeStoppedByFull = false;
         switch (lockState) {
             case NONE:
-                if (PUSHER_LOCK_ENABLED && lockWanted && counter.count() > 0 && !manualIntake && counter.isValid() && !counterOverride && lockRefusal() == null) {
+                if (lockForFull() && !manualIntake && fullPreOutDone()) {   // no counter condition: the counter on CS1 to CS4 does not see every element (user, 2026-11-15)
+                    String why = lockRefusal(true);
+                    if (why == null) {
+                        lockRefusalLogged = "";
+                        beginLock("the robot is FULL (CS5 entry count)");
+                    } else if (!why.equals(lockRefusalLogged)) {
+                        lockRefusalLogged = why;
+                        RunLog.event("PUSHER LOCK for FULL refused: " + why + " (the intake stays IN until the pusher is locked)");
+                    }
+                } else if (PUSHER_LOCK_ENABLED && lockWanted && counter.count() > 0 && !manualIntake && counter.isValid() && !counterOverride && lockRefusal(false) == null) {
                     beginLock("a target lock or a Hive Dash is on");
                 }
                 break;
@@ -415,7 +467,7 @@ public class Mechanisms {
                 break;
             case LOCKED:
                 // the request is over (the target lock was released or the dash ended without a launch): back to HOLD so the intake can take more. A queued launch or a salvo releases the lock itself.
-                if (!lockWanted && lockWantedOffClock.seconds() >= LOCK_RELEASE_DELAY_SEC && !launchQueued && !salvoActive && !rejectActive) {
+                if (!lockWanted && !lockForFull() && lockWantedOffClock.seconds() >= LOCK_RELEASE_DELAY_SEC && !launchQueued && !salvoActive && !rejectActive) {
                     beginUnlock("the target lock or Hive Dash ended without a launch");
                 }
                 break;
@@ -1002,9 +1054,13 @@ public class Mechanisms {
                     salvoActive = true;
                     salvoMinSpeed = flywheel.getVelocity();
                     long entriesNow = entries == null ? 0L : entries.entries();
-                    RunLog.event(String.format(Locale.US, "SALVO started: flywheel %.0f of %.0f ticks/s, %s | %s%s",
+                    int counterHeldNow = counter != null && counter.isValid() ? counter.count() : 0;
+                    int launchedNow = Math.min(ENTRY_CAPACITY, Math.max(heldByEntries, counterHeldNow));   // the entry count and the counter, whichever is higher, at most the capacity: both undercount, neither is trusted alone (2026-11-15)   // the counter's count when it reads (the entry count ran 3, 10, 6, 11 at salvos the counter saw 4, 4, 4, 3), else the entry count at most the capacity
+                    launchedTotal += launchedNow;
+                    RunLog.event(String.format(Locale.US, "SALVO started: flywheel %.0f of %.0f ticks/s, %s | %s%s | LAUNCHED %d (the entry count %d, the counter %d): %d in all",
                             flywheel.getFilteredVelocity(), lastSetpoint, heldText(), pusher.getLastCommand(),
-                            entries == null ? "" : String.format(Locale.US, " | CS5 shadow count: %d entries since the last salvo started (%d in all, %d peaks rejected by the valley rule)", entriesNow - entriesAtLastSalvo, entriesNow, entries.rejected())));
+                            entries == null ? "" : String.format(Locale.US, " | CS5 shadow count: %d entries since the last salvo started (%d in all, %d peaks rejected by the valley rule)", entriesNow - entriesAtLastSalvo, entriesNow, entries.rejected()),
+                            launchedNow, heldByEntries, counterHeldNow, launchedTotal));
                     entriesAtLastSalvo = entriesNow;
                     resetEntryHeld("a salvo started");
                     launchQueued = false;
@@ -1044,7 +1100,17 @@ public class Mechanisms {
             if (intakeAlwaysOn) {
                 // the TeleOp (user, 2026-11-06): the intake is ALWAYS IN, whatever the element count says (a phantom or a real full no longer stops it) and whatever the pusher's lock is doing;
                 // only the operator's forced OUT (left trigger) and a reject run it OUT. A fifth pollen is the operator's to push out with the left trigger.
-                mode = (rejectActive || manualOuttake || (OUTTAKE_WHEN_FULL && outtakeWhenFullAllowed && entryFull)) ? Intake.Mode.OUT : Intake.Mode.IN;   // OUT too while the CS5 entry count says FULL
+                boolean fullActs = ENTRY_FULL_ACTIONS && entryFullActionsAllowed && entryFull;
+                Intake.Mode fullMode = Intake.Mode.IN;
+                if (fullActs && FULL_STOPS_INTAKE && !manualIntake) {
+                    boolean lockedNow = !FULL_LOCKS_PUSHER || lockState == LockState.LOCKED;
+                    if (!fullInHoldDone()) fullMode = Intake.Mode.IN;                                   // 0. the intake runs on so the 4th element is in
+                    else if (!fullPreOutDone()) fullMode = Intake.Mode.OUT;                             // 1. a short reverse
+                    else if (lockedNow) fullMode = FULL_LOCKED_INTAKE_OUT || (FULL_CLEARS_FIFTH && clearingFifth) ? Intake.Mode.OUT : Intake.Mode.OFF;   // 3. locked: OUT
+                    else if (lockRefusalLogged.isEmpty()) fullMode = Intake.Mode.OFF;                   // 2. stopped while the arm moves to the lock
+                    else fullMode = Intake.Mode.IN;                                                     // the lock is refused: not stopped with the arm open
+                }
+                mode = (rejectActive || manualOuttake) ? Intake.Mode.OUT : fullMode;
             }
             // an auto's flower gather holds the intake IN through the flower salvo, whatever the count says (a reject or the operator's outtake still wins)
             if (forcedIntakeIn && !rejectActive && !manualOuttake) mode = Intake.Mode.IN;
@@ -1110,7 +1176,7 @@ public class Mechanisms {
             entriesStartLogged = true;
             entriesStatsTimer.reset();
             entriesStartedClock.reset();
-            RunLog.event(String.format(Locale.US, "CS5 ENTRY COUNTER started (it counts; in the always-IN TeleOp with OUTTAKE_WHEN_FULL (" + OUTTAKE_WHEN_FULL + ") the intake goes OUT when " + ENTRY_CAPACITY + " have entered since the last salvo): a 2-byte proximity read every %.0f ms, peaks of at least %.0f counts, smoothing %d, a group with a peak of +%.0f or more within %.1f s counts once; %s", EntryCounter.PERIOD_MS, EntryCounter.PROMINENCE, EntryCounter.SMOOTH, EntryCounter.MERGE_HEIGHT, EntryCounter.MERGE_GAP_SEC, entries.presetNote));
+            RunLog.event(String.format(Locale.US, "CS5 ENTRY COUNTER started (it counts; TeleOp - Competition acts on FULL = " + ENTRY_CAPACITY + " entered since the last salvo: ENTRY_FULL_ACTIONS " + ENTRY_FULL_ACTIONS + "): a 2-byte proximity read every %.0f ms, peaks of at least %.0f counts, smoothing %d, a group with a peak of +%.0f or more within %.1f s counts once; %s", EntryCounter.PERIOD_MS, EntryCounter.PROMINENCE, EntryCounter.SMOOTH, EntryCounter.MERGE_HEIGHT, EntryCounter.MERGE_GAP_SEC, entries.presetNote));
         }
         if (!entries.baselineNote().equals(entriesNoteLogged)) {
             entriesNoteLogged = entries.baselineNote();
@@ -1128,15 +1194,18 @@ public class Mechanisms {
         }
         boolean counterReads = counter != null && counter.isValid() && !counterOverride && !counter.isFrozen();
         if (!counterReads || counter.count() > 0) counterZeroClock.reset();
-        if (heldByEntries > 0 && counterReads && counter.count() == 0 && counterZeroClock.seconds() >= ENTRY_ZERO_RESET_SEC) {
+        if (ENTRY_ZERO_RESET_SEC > 0.0 && heldByEntries > 0 && counterReads && counter.count() == 0 && counterZeroClock.seconds() >= ENTRY_ZERO_RESET_SEC) {
             resetEntryHeld("the counter has read 0 for " + ENTRY_ZERO_RESET_SEC + " s");
         }
         boolean fullGuardOk = !counterReads || ENTRY_FULL_MIN_COUNTER <= 0 || counter.count() >= ENTRY_FULL_MIN_COUNTER;
         if (!entryFull && heldByEntries >= ENTRY_CAPACITY && fullGuardOk) {
             entryFull = true;
+            entryFullStartNs = System.nanoTime();
+            lockRefusalLogged = "";
             RunLog.event(String.format(Locale.US, "ENTRY FULL: %d elements have entered since the track was last emptied (%s): %s", heldByEntries, heldText(),
-                    OUTTAKE_WHEN_FULL && outtakeWhenFullAllowed ? "the intake runs OUT until the next salvo" : "this opmode does not act on it (or OUTTAKE_WHEN_FULL is off): the intake stays as it is"));
+                    ENTRY_FULL_ACTIONS && entryFullActionsAllowed ? "the intake runs on " + FULL_IN_HOLD_SEC + " s, reverses " + FULL_PRE_OUT_SEC + " s, stops, the pusher locks, then the intake runs OUT; the auto-launch is armed until the next salvo" : "this opmode does not act on it (or ENTRY_FULL_ACTIONS is off)"));
         }
+        updateFifth();
         if (entriesStatsTimer.seconds() >= EntryCounter.STATS_SEC) {
             entriesStatsTimer.reset();
             RunLog.event("CS5 ENTRY THREAD: " + entries.windowStats());
@@ -1163,21 +1232,134 @@ public class Mechanisms {
         if (heldByEntries != 0 || entryFull) RunLog.event(String.format(Locale.US, "ENTRY COUNT reset from %d%s: %s", heldByEntries, entryFull ? " (FULL, the intake goes back IN)" : "", why));
         heldByEntries = 0;
         entryFull = false;
+        entryFullStartNs = 0L;
+        lockRefusalLogged = "";
     }
 
-    /** The opmode lets the always-IN intake run OUT while the CS5 entry count says FULL (OUTTAKE_WHEN_FULL is the master switch). Only TeleOp - Competition asks for it. */
-    public void setOuttakeWhenFullAllowed(boolean allowed) {
-        outtakeWhenFullAllowed = allowed;
+    /** The opmode lets the always-IN intake, the pusher lock and the auto-launch act on FULL (ENTRY_FULL_ACTIONS is the master switch). Only TeleOp - Competition asks for it. */
+    public void setEntryFullActionsAllowed(boolean allowed) {
+        entryFullActionsAllowed = allowed;
     }
 
-    /** True while the always-IN TeleOp's intake runs OUT because the CS5 entry count says FULL (for the screen). */
-    public boolean isOuttakingForFull() {
-        return intakeAlwaysOn && OUTTAKE_WHEN_FULL && outtakeWhenFullAllowed && entryFull;
+    /** True while the robot is FULL by the CS5 entry count and this opmode acts on it (for the screen, the auto-launch and the pusher lock). */
+    public boolean isEntryFull() {
+        return ENTRY_FULL_ACTIONS && entryFullActionsAllowed && entryFull;
+    }
+
+    /** True while FULL and the intake runs OUT to clear a fifth element from under CS5. */
+    public boolean isClearingFifth() {
+        return clearingFifth && isEntryFull();
+    }
+
+    /** Elements launched since the opmode started. */
+    public int getLaunchedTotal() {
+        return launchedTotal;
+    }
+
+    /** The intake has run on for FULL_IN_HOLD_SEC since FULL was declared. */
+    private boolean fullInHoldDone() {
+        return entryFullStartNs != 0L && (System.nanoTime() - entryFullStartNs) / 1e9 >= FULL_IN_HOLD_SEC;
+    }
+
+    /** The short OUT of the FULL sequence is over (FULL_IN_HOLD_SEC + FULL_PRE_OUT_SEC since FULL was declared): the pusher may move to the lock now. */
+    private boolean fullPreOutDone() {
+        return entryFullStartNs != 0L && (System.nanoTime() - entryFullStartNs) / 1e9 >= FULL_IN_HOLD_SEC + FULL_PRE_OUT_SEC;
+    }
+
+    /** For the screen: where the FULL sequence is ("" when not FULL). */
+    public String fullStatusText() {
+        if (!isEntryFull()) return "";
+        if (!fullInHoldDone()) return "FULL: INTAKE RUNNING ON";
+        if (!fullPreOutDone()) return "FULL: REVERSING";
+        if (clearingFifth && isClearingFifth()) return "FULL: CLEARING 5TH";
+        if (FULL_LOCKS_PUSHER && lockState != LockState.LOCKED) return lockRefusalLogged.isEmpty() ? "FULL: LOCKING" : "FULL: LOCK REFUSED";
+        return FULL_LOCKED_INTAKE_OUT ? "FULL: LOCKED, INTAKE OUT" : "FULL: LOCKED";
+    }
+
+    private boolean lockForFull() {
+        return FULL_LOCKS_PUSHER && isEntryFull();
+    }
+
+    private void startClearingFifth(String why) {
+        if (clearingFifth) return;
+        clearingFifth = true;
+        fifthClearStartNs = System.nanoTime();
+        fifthClearOkStartNs = 0L;
+        fifthDwellStartNs = 0L;
+        RunLog.event("ENTRY FIFTH: " + why + ": the intake runs OUT until the sensor reads empty again");
+    }
+
+    /** FULL and the intake stopped: an element under CS5 (a fifth one) sends the intake OUT until the proximity is back at the empty level. */
+    private void updateFifth() {
+        long now = System.nanoTime();
+        if (!isEntryFull() || !FULL_CLEARS_FIFTH || FULL_LOCKED_INTAKE_OUT || manualIntake || (FULL_LOCKS_PUSHER && lockState != LockState.LOCKED)) {
+            if (!isEntryFull()) fifthArmed = false;
+            fifthArmEmptyStartNs = 0L;
+            clearingFifth = false;
+            fifthDwellStartNs = 0L;
+            fifthClearOkStartNs = 0L;
+            return;
+        }
+        double empty = entries.baseline();
+        int prox = entries.latestProx();
+        if (Double.isNaN(empty) || Double.isInfinite(empty) || prox < 0) return;
+        double above = prox - empty;
+        if (!fifthArmed) {
+            if (above <= FIFTH_CLEAR_COUNTS) {
+                if (fifthArmEmptyStartNs == 0L) fifthArmEmptyStartNs = now;
+                else if ((now - fifthArmEmptyStartNs) / 1e9 >= FIFTH_ARM_EMPTY_SEC) {
+                    fifthArmed = true;
+                    RunLog.event("ENTRY FIFTH watch armed: the sensor reads empty while FULL and locked");
+                }
+            } else {
+                fifthArmEmptyStartNs = 0L;
+            }
+            return;
+        }
+        if (!clearingFifth) {
+            if (now < fifthRetryUntilNs) return;
+            if (above >= FIFTH_DWELL_COUNTS) {
+                if (fifthDwellStartNs == 0L) fifthDwellStartNs = now;
+                else if ((now - fifthDwellStartNs) / 1e9 >= FIFTH_DWELL_SEC) startClearingFifth(String.format(Locale.US, "an element has been under CS5 for %.1f s (+%.0f counts)", (now - fifthDwellStartNs) / 1e9, above));
+            } else {
+                fifthDwellStartNs = 0L;
+            }
+            return;
+        }
+        double outFor = (now - fifthClearStartNs) / 1e9;
+        if (above <= FIFTH_CLEAR_COUNTS) {
+            if (fifthClearOkStartNs == 0L) fifthClearOkStartNs = now;
+            else if ((now - fifthClearOkStartNs) / 1e9 >= FIFTH_CLEAR_HOLD_SEC && outFor >= FIFTH_MIN_OUT_SEC) {
+                clearingFifth = false;
+                RunLog.event(String.format(Locale.US, "ENTRY FIFTH cleared after %.1f s: the sensor reads empty again, the intake stays stopped (FULL)", outFor));
+            }
+        } else {
+            fifthClearOkStartNs = 0L;
+        }
+        if (clearingFifth && outFor >= FIFTH_CLEAR_MAX_SEC) {
+            clearingFifth = false;
+            fifthRetryUntilNs = now + (long) (FIFTH_RETRY_SEC * 1e9);
+            RunLog.event(String.format(Locale.US, "ENTRY FIFTH: gave up after %.1f s (the sensor still reads +%.0f), trying again in %.0f s", outFor, above, FIFTH_RETRY_SEC));
+        }
     }
 
     /** Elements that have entered (CS5) since the track was last emptied. */
     public int getHeldByEntries() {
         return heldByEntries;
+    }
+
+    /**
+     * The count for the DRIVER SCREEN (2026-11-15, user: show the CS5 count, never the other color sensors'): the CS5 entry count since the track was last emptied, or -1 when CS5 is not in the configuration or not answering
+     * (the screen then shows ? HELD).
+     */
+    public int getShownCount() {
+        if (entries == null || !entries.isStarted() || !entries.isHealthy()) return -1;
+        return heldByEntries;
+    }
+
+    /** True when CS5 is in the configuration and has started but is not answering (for the screen's alert). */
+    public boolean isEntryCounterDown() {
+        return entries != null && entries.isStarted() && !entries.isHealthy();
     }
 
     private void notice(String message) {
@@ -1192,12 +1374,12 @@ public class Mechanisms {
     }
 
     /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
-    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps,cs5_entries,cs5_held,cs5_full,cs5_prox,cs5f";
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps,cs5_entries,cs5_held,cs5_full,cs5_prox,cs5f,launched_total";
 
     /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
     public String sampleRow() {
         String launch = launchQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
-        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
+        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d",
                 lastSetpoint,
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getVelocity()),
@@ -1220,7 +1402,8 @@ public class Mechanisms {
                 entries == null || !entries.isStarted() ? "" : String.valueOf(heldByEntries),
                 entries == null || !entries.isStarted() ? "" : (entryFull ? "1" : "0"),
                 entries == null || !entries.isStarted() ? "" : String.valueOf(entries.latestProx()),
-                entries == null || !entries.isStarted() ? "" : entries.drainSamples());
+                entries == null || !entries.isStarted() ? "" : entries.drainSamples(),
+                launchedTotal);
     }
 
     public void log(Telemetry telemetry) {
@@ -1232,8 +1415,9 @@ public class Mechanisms {
         telemetry.addData("Pusher lock", lockText());
         telemetry.addData("Launch", launchQueued ? (flywheel != null && !flywheel.isInLaunchBand() ? "QUEUED, waiting: the flywheel is " + flywheel.launchBandState() : "QUEUED, starting") : salvoActive ? "SALVO running" : "idle");
         telemetry.addData("Reject", rejectActive ? "running" : "idle");
+        telemetry.addData("Launched (elements)", launchedTotal);
         if (entries != null) {
-            telemetry.addData("CS5 entries", "%d counted, %d held by the count%s, %s", entries.entries(), heldByEntries, entryFull ? " FULL" + (isOuttakingForFull() ? ": intake OUT" : "") : "", entries.isStarted() ? (entries.isHealthy() ? "answering, prox " + entries.latestProx() : "NOT ANSWERING") : "not started");
+            telemetry.addData("CS5 entries", "%d counted, %d held by the count%s, %s", entries.entries(), heldByEntries, entryFull ? " FULL" + (clearingFifth ? ": clearing a 5th (intake OUT)" : ": intake stopped") : "", entries.isStarted() ? (entries.isHealthy() ? "answering, prox " + entries.latestProx() : "NOT ANSWERING") : "not started");
         }
         if (intake != null) intake.log(telemetry);
         if (flywheel != null) flywheel.log(telemetry);

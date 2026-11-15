@@ -227,6 +227,59 @@ public class PeakCounterCheck {
         check(pn == 2, "an object arriving (1 entry) and parking with wiggles on top (rejected), then a real bump after it has gone (1 entry): 2 entries (got " + pn + ")");
         check(park.rejected() >= 4, "the wiggles on the parked object are rejected (got " + park.rejected() + ")");
 
+        // ---- EDGE mode (2026-11-15): the robot's counter ----
+        EntryPipeline eStudy = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        List<Double> edgeStudy = new ArrayList<>();
+        for (int i = 0; i < t.length; i++) for (EntryGrouper.Entry e : eStudy.push(t[i], x[i])) edgeStudy.add(e.time);
+        int edgeMatched = matched(edgeStudy, presses);
+        System.out.println(String.format(Locale.US, "EDGE on the study run: %d entries, %d of %d presses matched", edgeStudy.size(), edgeMatched, presses.size()));
+        check(edgeStudy.size() >= 30 && edgeStudy.size() <= 32, "edge, study run: 30 to 32 entries for the 31 elements fed (got " + edgeStudy.size() + ")");
+        check(edgeMatched >= 29, "edge, study run: at least 29 of the 31 presses matched (got " + edgeMatched + ")");
+        EntryPipeline eTele = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        int eEmpty = 0, eLoads = 0;
+        for (double[] sm : tele) {
+            for (EntryGrouper.Entry e : eTele.push(sm[0], sm[1])) {
+                if (e.time < 29.0) eEmpty++;
+                if (e.time < 57.9) eLoads++;
+            }
+        }
+        System.out.println(String.format(Locale.US, "EDGE on the 14:16 TeleOp: %d entries while driving empty (0 to 29 s), %d before the third salvo (3 loads of 4)", eEmpty, eLoads));
+        check(eEmpty == 0, "edge, 14:16 empty drive: 0 entries");
+        check(eLoads == 12, "edge, 14:16: exactly 12 entries in the three loads of 4 (got " + eLoads + ")");
+        List<double[]> comp = readCsv(dir + "2026-11-14_152200_teleop_cs5_proximity.csv", 2);
+        EntryPipeline eComp = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        int compTotal = 0;
+        for (double[] sm : comp) compTotal += eComp.push(sm[0], sm[1]).size();
+        System.out.println("EDGE on the 15:22 TeleOp: " + compTotal + " entries in all (the counter held 25 at the nine salvos; the peaks gave 37)");
+        check(compTotal >= 24 && compTotal <= 26, "edge, 15:22: 24 to 26 entries (got " + compTotal + ")");
+        // synthetic: an element parked at +8 with wiggles to +20: ONE entry; four elements with dips to +2: four; a baseline that moves up and stays: a note, no entries
+        EntryPipeline eParked = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        int pe = 0;
+        for (int i = 0; i < 600; i++) {
+            double v = 66 + (i % 2);
+            if (i >= 100 && i < 400) v = 74 + (i % 7 == 0 ? 12 : 0) + (i % 11 == 0 ? 6 : 0);
+            pe += eParked.push(i * 0.025, v).size();
+        }
+        check(pe == 1, "edge: an element parked at +8 with wiggles to +20 is ONE entry (got " + pe + ")");
+        EntryPipeline eClump = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        int ce = 0;
+        for (int i = 0; i < 400; i++) {
+            double v = 66 + (i % 2);
+            for (int k = 0; k < 4; k++) if (i >= 60 + k * 12 && i < 66 + k * 12) v = 66 + 14;     // a bump of 6 samples, 6 samples apart, dipping to the empty level between
+            ce += eClump.push(i * 0.025, v).size();
+        }
+        check(ce == 4, "edge: four bumps 0.3 s apart that dip back to empty: 4 entries (got " + ce + ")");
+        EntryPipeline eStuck = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        int se = 0;
+        String stuckNote = null;
+        for (int i = 0; i < 1200; i++) {
+            double v = i < 100 ? 66 : 72;   // the level jumps to +6 at 2.5 s and stays
+            se += eStuck.push(i * 0.025, v).size();
+            String nt = eStuck.takeNote();
+            if (nt != null && nt.contains("above the empty level")) stuckNote = nt;
+        }
+        check(se == 1 && stuckNote != null, "edge: a level that jumps up and stays: one entry for the arrival, then a stuck note and no more (entries " + se + ", note " + (stuckNote != null) + ")");
+
         System.out.println(failures == 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED");
         if (failures != 0) System.exit(1);
     }

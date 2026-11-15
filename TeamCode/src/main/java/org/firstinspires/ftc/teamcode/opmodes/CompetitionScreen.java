@@ -36,6 +36,7 @@ public final class CompetitionScreen {
         double x, y, headingDeg;
         boolean pusherLocked = false;
         double speedTrim = 0.0;
+        int shot = 0;                 // elements launched since Start (the entry count / the counter at each salvo)
         final List<int[]> alertColors = new ArrayList<>();   // one {color} per alert, in the same order as alertTexts
         final List<String> alertTexts = new ArrayList<>();
 
@@ -81,6 +82,7 @@ public final class CompetitionScreen {
         if (!s.target.isEmpty()) t.addLine("<big><b>" + s.target + "</b></big>");
         // the pose
         t.addLine(String.format(Locale.US, "%.1f, %.1f, %.0f deg", s.x, s.y, s.headingDeg));
+        if (s.shot > 0) t.addLine("<small>" + s.shot + " SHOT</small>");
         // small and conditional
         if (s.pusherLocked) t.addLine("<small>" + colored(YELLOW, "PUSHER LOCKED") + "</small>");
         if (Math.abs(s.speedTrim) > 0.5) t.addLine(String.format(Locale.US, "<small>speed trim %+.0f</small>", s.speedTrim));
@@ -88,12 +90,10 @@ public final class CompetitionScreen {
 
     /** The robot's own facts: the flywheel, the count, the target cell and the warnings that matter. */
     static void fromMechanisms(State s, Mechanisms m, boolean backupMode, double backupFixedDistanceIn) {
-        if (m.counter != null && m.counter.isValid()) {
-            s.count = m.counter.count();
-        } else {
-            s.count = -1;
-        }
-        s.full = m.isFull();
+        // the count is CS5's entry count (2026-11-15, user), not the counter on CS1 to CS4; green when FULL
+        s.count = m.getShownCount();
+        s.full = s.count >= Mechanisms.ENTRY_CAPACITY || m.isEntryFull();
+        if (m.isEntryCounterDown()) s.alert(YELLOW, "CS5 NOT ANSWERING");
 
         if (m.flywheel == null) {
             s.flywheel = "NO FLY";
@@ -114,6 +114,7 @@ public final class CompetitionScreen {
         s.target = backupMode ? String.format(Locale.US, "FIXED %.0f in", backupFixedDistanceIn) : String.format(Locale.US, "%s %.0f in", name, m.getLastDistance());
         s.pusherLocked = m.isPusherLocked();
         s.speedTrim = m.getSpeedTrim();
+        s.shot = m.getLaunchedTotal();
 
         for (String w : m.getWarnings()) {
             if (w.startsWith("FULL") || w.startsWith("Stow waiting") || w.startsWith("Pusher zero not verified") || w.startsWith("BACKUP MODE")) continue;   // shown elsewhere or not for a match

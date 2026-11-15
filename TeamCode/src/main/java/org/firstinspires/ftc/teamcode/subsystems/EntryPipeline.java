@@ -19,6 +19,16 @@ import java.util.Locale;
  */
 public final class EntryPipeline {
 
+    /** EDGE MODE (2026-11-15, the robot's mode): a seconds figure for the stuck-high note. */
+    public static final double STUCK_SEC = 10.0;
+    private final boolean edgeMode;
+    private final double edgeHi, edgeLo;
+    private final int edgeConfirm;
+    private boolean edgeArmed = true;
+    private int edgeAbove = 0;
+    private double edgeFirstAboveT = 0.0, edgeStuckSince = Double.NaN;
+    private boolean stuckNoted = false;
+
     private final PeakCounter peaks;
     private final EntryGrouper grouper;
     private final double valleyMax, baselineSec;
@@ -30,7 +40,32 @@ public final class EntryPipeline {
     private double nextCheckT = Double.NaN;
     private String note = null;
 
+    /**
+     * EDGE MODE (2026-11-15, the user's idea, replaces the peaks on the robot): count the RISE of the proximity above the empty level + `hi` (held for `confirm` samples), at the time of the rise, and count
+     * again only after the signal has come back down to the empty level + `lo`. There is no fall to detect for the count, so an element that stays under the sensor, wiggling or ringing, is ONE entry (all its readings
+     * are above the threshold), at the price of counting a clump that never dips back as one. On the recorded runs (hi 6, lo 2, confirm 2): the 31-element study 30 of 31 matched with 1 extra, the 14:16 TeleOp exactly 4, 4 and 4,
+     * the 15:22 TeleOp 25 entries where the peaks gave 37 (the counter held 25 in all). A signal that stays above lo for STUCK_SEC puts a note out (a parked element, or the empty level moved) and no more entries come until it drops.
+     */
+    public static EntryPipeline edge(double hi, double lo, int confirm, double baselineSec) {
+        return new EntryPipeline(true, hi, lo, confirm, baselineSec);
+    }
+
+    private EntryPipeline(boolean edge, double hi, double lo, int confirm, double baselineSec) {
+        this.edgeMode = edge;
+        this.edgeHi = hi;
+        this.edgeLo = lo;
+        this.edgeConfirm = Math.max(1, confirm);
+        this.peaks = new PeakCounter(6.0, 1, 0.06);
+        this.grouper = new EntryGrouper(45.0, 0.4);
+        this.valleyMax = 100000.0;
+        this.baselineSec = baselineSec;
+    }
+
     public EntryPipeline(double prominence, int smooth, double minSepSec, double mergeHeight, double mergeGapSec, double valleyMax, double baselineSec) {
+        this.edgeMode = false;
+        this.edgeHi = 0.0;
+        this.edgeLo = 0.0;
+        this.edgeConfirm = 1;
         this.peaks = new PeakCounter(prominence, smooth, minSepSec);
         this.grouper = new EntryGrouper(mergeHeight, mergeGapSec);
         this.valleyMax = valleyMax;
@@ -49,6 +84,7 @@ public final class EntryPipeline {
         } else {
             adapt(t, v);
         }
+        if (edgeMode) return pushEdge(t, v);
         List<EntryGrouper.Entry> out = new ArrayList<>();
         double h = peaks.push(t, v);
         if (!Double.isNaN(h)) {
@@ -60,6 +96,40 @@ public final class EntryPipeline {
             }
         }
         out.addAll(grouper.poll(t));
+        return out;
+    }
+
+    private List<EntryGrouper.Entry> pushEdge(double t, double v) {
+        List<EntryGrouper.Entry> out = new ArrayList<>();
+        if (!baselineDone || Double.isInfinite(empty)) return out;
+        double d = v - empty;
+        if (edgeArmed) {
+            if (d >= edgeHi) {
+                if (edgeAbove == 0) edgeFirstAboveT = t;
+                edgeAbove++;
+                if (edgeAbove >= edgeConfirm) {
+                    out.add(new EntryGrouper.Entry(edgeFirstAboveT, d, 1, ""));
+                    edgeArmed = false;
+                    edgeAbove = 0;
+                    edgeStuckSince = Double.NaN;
+                }
+            } else {
+                edgeAbove = 0;
+            }
+        } else if (d <= edgeLo) {
+            edgeArmed = true;
+            edgeAbove = 0;
+            edgeStuckSince = Double.NaN;
+            if (stuckNoted) {
+                stuckNoted = false;
+                note = "the proximity is back near the empty level, counting again";
+            }
+        } else if (Double.isNaN(edgeStuckSince)) {
+            edgeStuckSince = t;
+        } else if (!stuckNoted && t - edgeStuckSince >= STUCK_SEC) {
+            stuckNoted = true;
+            note = String.format(Locale.US, "the proximity has read above the empty level (+%.0f now) for %.0f s: an element parked under the sensor, or the empty level moved; no more entries until it is back at +%.0f", d, STUCK_SEC, edgeLo);
+        }
         return out;
     }
 
@@ -84,9 +154,11 @@ public final class EntryPipeline {
         for (int i = 0; i < n; i++) dev[i] = Math.abs(s[i] - med);
         Arrays.sort(dev);
         double mad = n % 2 == 1 ? dev[n / 2] : 0.5 * (dev[n / 2 - 1] + dev[n / 2]);
-        empty = med;
+        // the empty level is the UPPER end of the empty readings (the 90th percentile of the first second), not the median: the empty proximity flickers between two neighbouring counts (65 and 66 in the study, 66 and 67 on
+        // other days), the thresholds are counts above it, and with the median a 1-count difference in which of the two it landed on moved the study from 31 entries to 28 (edge mode, hi 6, lo 2)
+        empty = s[Math.min(n - 1, (int) Math.ceil(0.9 * n) - 1)];
         noise = Math.max(1.4826 * mad, 0.5);
-        note = String.format(Locale.US, "empty proximity %.0f, noise %.2f counts (%d samples in the first %.1f s; an element in front of the sensor then would read as the empty level; a peak whose valley is more than +%.0f above it is rejected)", med, noise, n, baselineSec, valleyMax);
+        note = String.format(Locale.US, "empty proximity %.0f (the median of the first second %.0f), noise %.2f counts (%d samples in the first %.1f s; an element in front of the sensor then would read as the empty level)", empty, med, noise, n, baselineSec);
     }
 
     /** Lowers the empty level when the last 2 s were quiet and clearly lower (never raises it). */

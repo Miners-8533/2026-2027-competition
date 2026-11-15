@@ -49,6 +49,14 @@ public final class EntryCounter {
     public static double MERGE_HEIGHT = 45.0;
     public static double MERGE_GAP_SEC = 0.4;
     /**
+     * EDGE counting (2026-11-15, the user's idea; replaces the peaks): an entry is the RISE of the proximity to EDGE_HI counts above the empty level (held for EDGE_CONFIRM samples), counted at the rise (about 50 ms after, not 0.5 s as the peaks),
+     * and the next one needs the signal back at EDGE_LO or lower. A persistent element, its wiggles and its ringing are one entry. USE_EDGE false goes back to the peaks (PROMINENCE, MERGE_*, VALLEY_MAX). Read when the thread starts.
+     */
+    public static boolean USE_EDGE = true;
+    public static double EDGE_HI = 6.0;
+    public static double EDGE_LO = 2.0;
+    public static int EDGE_CONFIRM = 2;
+    /**
      * (EntryPipeline, 2026-11-14) A peak whose VALLEY (the lowest point before it) is more than this many counts above the empty level is rejected. OFF (100000) since 2026-11-14 (user): it rejected the wiggles of elements
      * parked under the sensor after a pile-up (valleys +4 to +8; the valley rule at 3 gave 18 entries on the 14:16 TeleOp, 15 of them right), but the robot now goes OUT when full, which removes that case, and tight groupings
      * whose dips do not come back to the empty level are expected. 3 would turn it on again. Read when the thread starts.
@@ -180,7 +188,8 @@ public final class EntryCounter {
     }
 
     private void run() {
-        EntryPipeline pipe = new EntryPipeline(PROMINENCE, SMOOTH, MIN_SEPARATION_SEC, MERGE_HEIGHT, MERGE_GAP_SEC, VALLEY_MAX, BASELINE_SEC);
+        EntryPipeline pipe = USE_EDGE ? EntryPipeline.edge(EDGE_HI, EDGE_LO, EDGE_CONFIRM, BASELINE_SEC)
+                : new EntryPipeline(PROMINENCE, SMOOTH, MIN_SEPARATION_SEC, MERGE_HEIGHT, MERGE_GAP_SEC, VALLEY_MAX, BASELINE_SEC);
         long next = System.nanoTime();
         long lastStart = 0L;
         int consecutiveErrors = 0;

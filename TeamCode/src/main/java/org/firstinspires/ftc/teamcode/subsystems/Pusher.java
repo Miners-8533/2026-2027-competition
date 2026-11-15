@@ -67,7 +67,8 @@ public class Pusher {
      * slow approach where a fixed STOP_EARLY_DEG cannot. Calibrate it from "Pusher last settle". 0 turns it off.
      */
     public static double COAST_LOOKAHEAD_S = 0.0;
-    public static double REJECT_POWER = 0.6;
+    /** Reverse power of a reject. 0.30 since 2026-11-14 (user: too fast), the same as the salvo's SWEEP_POWER; it was 0.6, which ran at 690 to 785 deg/s and coasted 7 to 13 deg past the target (14:36 TeleOp, 7 rejects of 0.52 to 0.91 s). Expect about 370 deg/s and 0.9 s. */
+    public static double REJECT_POWER = 0.30;
     /**
      * How far a salvo turns the arm, in degrees forward from the nearest HOLD: a full turn (360) and a margin so the last element is
      * surely out. The arm rests this far (less 360) past a HOLD, and the next salvo targets the nearest HOLD plus this again, so
