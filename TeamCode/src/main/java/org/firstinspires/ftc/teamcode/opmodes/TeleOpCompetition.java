@@ -57,6 +57,7 @@ import java.util.Locale;
  * INIT (gamepad 1):
  *   D-pad right / left   BLUE / RED alliance (only when there is no auto pose; an auto pose fixes the alliance)
  *   D-pad up             discard the auto pose and use the default start pose (then the D-pad picks the alliance)
+ *   X                    CS5 FULL: FULL AUTO <-> COUNT ONLY (default FULL AUTO; the INIT screen and the competition screen say which; COUNT ONLY shows and logs the count and acts on nothing, as at Hartland)
  *
  * Gamepad 1 (driver):
  *   left stick           drive, field-oriented: up = away from the driver, right = the driver's right
@@ -148,6 +149,11 @@ public class TeleOpCompetition extends LinearOpMode {
      * stops and one salvo goes when the lock is ALIGNED and the robot has stopped (the driver still holds the target lock). The operator's toggle still works on its own.
      */
     public static boolean AUTO_LAUNCH_WHEN_FULL = true;
+    /**
+     * (2026-11-16, user) The CS5 FULL actions, chosen at INIT with gamepad 1 X (the choice is kept until the app restarts): true = FULL AUTO (a CS5 FULL stops the intake, locks the pusher, runs the intake OUT and arms the auto-launch: the Mechanisms FULL_* settings and
+     * AUTO_LAUNCH_WHEN_FULL); false = COUNT ONLY (the count is shown and logged, nothing acts on it: the intake is always IN, no lock on FULL, no auto-launch from FULL, as at Hartland). Default ON.
+     */
+    public static boolean FULL_AUTO = true;
     private static final double DRIVE_LOCK_MAX_SEC = 2.0;
 
     /** An auto pose older than this is ignored (a leftover from an earlier run). */
@@ -296,6 +302,7 @@ public class TeleOpCompetition extends LinearOpMode {
         mechanisms.setGridAllowed(true);   // the 2-D launch grid (Mechanisms.USE_LAUNCH_GRID, off by default, is the state it starts in; the operator's LB + A toggles it)
 
         while (!isStarted() && !isStopRequested()) {
+            if (gamepad1.xWasPressed()) FULL_AUTO = !FULL_AUTO;   // INIT only: FULL AUTO <-> COUNT ONLY
             if (gamepad1.dpadUpWasPressed() && useAutoPose) {
                 useAutoPose = false;
                 PoseStorage.clear();
@@ -348,6 +355,9 @@ public class TeleOpCompetition extends LinearOpMode {
             }
             telemetry.addData("Mechanisms present", mechanisms.describe());
             if (mechanisms.rampPositionUnknown()) telemetry.addData("Ramp", "position unknown: not commanded in INIT, it stows when you press Start");
+            telemetry.addData("CS5 FULL (gamepad 1 X toggles)", FULL_AUTO ? "FULL AUTO: a FULL (4 entered) stops the intake, locks the pusher, runs the intake OUT and arms the auto-launch"
+                    : "COUNT ONLY: the count is shown, nothing acts on FULL (intake always IN, as at Hartland)");
+            telemetry.addData("Flywheel position", mechanisms.flywheelPositionText());
             telemetry.addData("Element counter", mechanisms.counter == null ? "not configured"
                     : mechanisms.counter.isValid() ? "reading   " + mechanisms.counter.stackString()
                     : "NOT READING (all four sensors must answer; count by eye in the match if it stays this way)");
@@ -374,14 +384,16 @@ public class TeleOpCompetition extends LinearOpMode {
         double driverForwardRad = Math.toRadians(blue ? BLUE_DRIVER_FORWARD_DEG : RED_DRIVER_FORWARD_DEG);
 
         mechanisms.stowRampAtStart();              // the first and only ramp command of the start (it was left alone in INIT)
+        mechanisms.holdFlywheelPollenAtStart();    // the flywheel position servo: POLLEN, held all match (nothing moved in INIT)
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
         mechanisms.setAutoTarget(true);            // the target is the closer of the alliance's own two cells: nothing to pick
-        mechanisms.setEntryFullActionsAllowed(true);   // ... except STOPPED when FULL (4 entered by the CS5 count since the last salvo), OUT to clear a 5th element under CS5, the pusher locked, the auto-launch armed: Mechanisms.ENTRY_FULL_ACTIONS, 2026-11-14
+        mechanisms.setEntryFullActionsAllowed(FULL_AUTO);   // ... except STOPPED when FULL (4 entered by the CS5 count since the last salvo), OUT to clear a 5th element under CS5, the pusher locked, the auto-launch armed: Mechanisms.ENTRY_FULL_ACTIONS, 2026-11-14
         mechanisms.setIntakeAlwaysOn(true);        // the intake is always IN, whatever the count and the pusher lock say; only the operator's left trigger and a reject run it OUT
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
         mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
 
+        RunLog.event("SETUP CS5 FULL mode: " + (FULL_AUTO ? "FULL AUTO (the intake / lock / auto-launch act on FULL)" : "COUNT ONLY (the count is shown and logged, nothing acts on FULL)"));
         RunLog.event(String.format("SETUP profile %s, alliance %s, start pose %s (%.1f, %.1f, %.1f deg), driver forward %.0f deg; %s",
                 profile.name, blue ? "BLUE" : "RED", useAutoPose ? "from the AUTO" : "default",   // (pull_logs.py parses this; the PINPOINT lines say whether the device was adopted)
                 startPose.position.x, startPose.position.y, startPose.heading.toDegrees(), Math.toDegrees(driverForwardRad),
@@ -860,6 +872,7 @@ public class TeleOpCompetition extends LinearOpMode {
                     cellNudgeDeg[HiveTarget.BLUE_REAR.ordinal()], cellNudgeDeg[HiveTarget.BLUE_AUDIENCE.ordinal()], cellNudgeDeg[HiveTarget.RED_REAR.ordinal()],
                     cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()], mechanisms.getSpeedTrim());
             telemetry.addData("Launch method (operator LB + A toggles)", mechanisms.isGridOn() ? "2-D LAUNCH GRID (speed and aim where it has data)" : "launch map + formula aim");
+            telemetry.addData("CS5 FULL mode", FULL_AUTO ? "FULL AUTO" : "COUNT ONLY");
             telemetry.addData("Auto-launch (operator RB toggles; FULL arms it)", backupMode ? "off (backup mode)" : autoLaunchOn ? "ON: " + autoLaunchState : autoLaunchArmed ? "ARMED BY FULL: " + autoLaunchState : "off");
             telemetry.addData("Hive Dash (driver D-pad left / right, held)", hiveDash.status());
             telemetry.addData("Park Dash (driver D-pad up / down, held)", parkDash.status());

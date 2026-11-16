@@ -35,6 +35,7 @@ public final class CompetitionScreen {
         String target = "";           // for example "REAR 36 in"
         double x, y, headingDeg;
         boolean pusherLocked = false;
+        boolean countOnly = false;    // the CS5 FULL actions are off (COUNT ONLY): the count is shown, nothing acts on FULL
         double speedTrim = 0.0;
         int shot = 0;                 // elements launched since Start (the entry count / the counter at each salvo)
         final List<int[]> alertColors = new ArrayList<>();   // one {color} per alert, in the same order as alertTexts
@@ -85,6 +86,7 @@ public final class CompetitionScreen {
         if (s.shot > 0) t.addLine("<small>" + s.shot + " SHOT</small>");
         // small and conditional
         if (s.pusherLocked) t.addLine("<small>" + colored(YELLOW, "PUSHER LOCKED") + "</small>");
+        if (s.countOnly) t.addLine("<small>" + colored(YELLOW, "COUNT ONLY") + " (no automatic FULL actions)</small>");
         if (Math.abs(s.speedTrim) > 0.5) t.addLine(String.format(Locale.US, "<small>speed trim %+.0f</small>", s.speedTrim));
     }
 
@@ -113,6 +115,7 @@ public final class CompetitionScreen {
         String name = cell.name().endsWith("REAR") ? "REAR" : "AUDIENCE";
         s.target = backupMode ? String.format(Locale.US, "FIXED %.0f in", backupFixedDistanceIn) : String.format(Locale.US, "%s %.0f in", name, m.getLastDistance());
         s.pusherLocked = m.isPusherLocked();
+        s.countOnly = !m.isEntryFullActionsOn();
         s.speedTrim = m.getSpeedTrim();
         s.shot = m.getLaunchedTotal();
 

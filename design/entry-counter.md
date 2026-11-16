@@ -70,3 +70,16 @@ Pollen only so far (nectar may reflect differently); floor-fed elements; a stuck
 
 ## Next (when the shadow logs agree)
 Use the count for the intake stop at 4 (a fraction of a second after the 4th element passes, against 1.3 s for the counter), warnings when the two counts disagree, the autos' pickup checks (after the auto rework), and maybe nectar classification at the intake from CS5's colors.
+
+## FULL AUTO / COUNT ONLY (2026-11-16)
+
+The automatic actions on a CS5 FULL are chosen at INIT of TeleOp - Competition with gamepad 1 X (`TeleOpCompetition.FULL_AUTO`, default true, kept until the app restarts):
+
+- **FULL AUTO**: FULL (4 entries since the last salvo or reject) runs the intake IN 0.1 s, OUT 0.1 s, stops it, locks the pusher, runs the intake OUT while locked (or clears a fifth under CS5), and arms the auto-launch.
+- **COUNT ONLY**: the count is shown on the driver screen (with a COUNT ONLY note) and logged (`ENTRY FULL ... COUNT ONLY`), nothing acts on it: the intake is always IN, no lock on FULL, no auto-launch from FULL, as at Hartland. The operator's own auto-launch toggle, the operator right trigger and the target-lock pusher lock work as before.
+
+Both the INIT screen and the competition screen name the mode, and the log's SETUP line has it. Not switchable after Start.
+
+## Flywheel position servo (2026-11-16)
+
+The competition TeleOp and the autos hold the POLLEN position (`fly_pos` at 0.45), no toggle: `Mechanisms.holdFlywheelPollenAtStart()` in the TeleOp (nothing moves in INIT, G403), `Mechanisms.fromHardware` in the autos and tuners (at INIT, like the ramp), and a safety net on the first mechanisms update. A launch waits out the servo's travel after a first command. The nectar position, the indexed launch and the pusher PID are on the flywheel-servo-prototype branch.

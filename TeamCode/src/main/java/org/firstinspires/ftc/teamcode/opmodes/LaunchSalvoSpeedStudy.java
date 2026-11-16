@@ -371,6 +371,7 @@ public class LaunchSalvoSpeedStudy extends LinearOpMode {
                 continuingAtStart ? "" : " (the robot must not have moved since INIT: a move shows as an error in the pose)"));
         double driverForwardRad = Math.toRadians(blue ? BLUE_DRIVER_FORWARD_DEG : RED_DRIVER_FORWARD_DEG);
 
+        mechanisms.holdFlywheelPollenAtStart();
         mechanisms.stowRampAtStart();              // the first and only ramp command of the start (it was left alone in INIT)
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);

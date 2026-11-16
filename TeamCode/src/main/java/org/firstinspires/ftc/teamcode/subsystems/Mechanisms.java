@@ -222,6 +222,11 @@ public class Mechanisms {
     private final java.util.ArrayDeque<long[]> intakeOutIntervals = new java.util.ArrayDeque<>();   // recent stretches with the intake OUT: {start, end} in System.nanoTime(), for judging an entry by the time of its PEAK
     private long intakeOutStartNs = 0L;
     private String lockRefusalLogged = "";
+    /**
+     * The flywheel position servo (2026-11-16, user): the competition TeleOp and the autos HOLD THE POLLEN POSITION, nothing else for now (no toggle: a nectar jams at the pollen position and a pollen misses from the nectar position, but the launch map was tuned for the pollen position). Null when the servo is
+     * not in the configuration. Without a command the servo has no signal and sags after an opmode ends, so every opmode that launches commands POLLEN: the autos and the tuners when built (INIT), the TeleOp at Start ({@link #holdFlywheelPollenAtStart}, nothing moves in its INIT: G403), and any opmode on its first update.
+     */
+    public final FlywheelPosition flywheelPosition;
     private boolean entryFullActionsAllowed = false;   // an opmode opts in (the competition TeleOp); the tuners and the autos keep their own rules
     private boolean clearingFifth = false;
     private boolean fifthArmed = false;
@@ -244,6 +249,11 @@ public class Mechanisms {
     }
 
     public Mechanisms(Intake intake, Flywheel flywheel, Pusher pusher, Ramp ramp, ElementCounter counter, EntryCounter entries) {
+        this(intake, flywheel, pusher, ramp, counter, entries, null);
+    }
+
+    public Mechanisms(Intake intake, Flywheel flywheel, Pusher pusher, Ramp ramp, ElementCounter counter, EntryCounter entries, FlywheelPosition flywheelPosition) {
+        this.flywheelPosition = flywheelPosition;
         this.entries = entries;
         this.intake = intake;
         this.flywheel = flywheel;
@@ -271,12 +281,14 @@ public class Mechanisms {
                 && hardwareMap.tryGet(Servo.class, "depolRight") != null ? new Ramp(hardwareMap, commandRampAtInit) : null;
         ElementCounter counter = ElementCounter.tryCreate(hardwareMap);
         EntryCounter entries = EntryCounter.tryCreate(hardwareMap);   // CS5 at the intake: shadow mode (counts and logs only)
-        return new Mechanisms(intake, flywheel, pusher, ramp, counter, entries);
+        FlywheelPosition flywheelPosition = FlywheelPosition.tryCreate(hardwareMap);   // null without the servo
+        if (flywheelPosition != null && commandRampAtInit) flywheelPosition.set(FlywheelPosition.Element.POLLEN);   // the autos and the tuners: held from INIT, like the ramp (the TeleOp commands it at Start)
+        return new Mechanisms(intake, flywheel, pusher, ramp, counter, entries, flywheelPosition);
     }
 
     public String describe() {
         return "intake " + (intake != null) + ", flywheel " + (flywheel != null)
-                + ", pusher " + (pusher != null) + ", ramp " + (ramp != null) + ", element counter " + (counter != null);
+                + ", pusher " + (pusher != null) + ", ramp " + (ramp != null) + ", element counter " + (counter != null) + ", flywheel position servo " + (flywheelPosition != null);
     }
 
     // ---- commands ----
@@ -558,6 +570,27 @@ public class Mechanisms {
         stowPending = false;
         ramp.stow();
         RunLog.event("COMMAND ramp stow at Start (not commanded in INIT: the position was unknown)");
+    }
+
+    /** The first command of the flywheel position servo in the TeleOp: POLLEN, held for the whole match (it was left alone in INIT; its position is unknown, the servo may have sagged). */
+    public void holdFlywheelPollenAtStart() {
+        if (flywheelPosition == null) {
+            RunLog.event("FLYWHEEL POSITION servo \"" + FlywheelPosition.SERVO_NAME + "\" is not in the configuration: the flywheel position is not held");
+            return;
+        }
+        if (!flywheelPosition.isConfigured()) {
+            RunLog.event("FLYWHEEL POSITION positions are not set: the servo is not commanded");
+            return;
+        }
+        flywheelPosition.set(FlywheelPosition.Element.POLLEN);
+        RunLog.event("COMMAND flywheel position POLLEN at Start (held all match)");
+    }
+
+    /** For the INIT screen: what the servo will do. */
+    public String flywheelPositionText() {
+        if (flywheelPosition == null) return "NO servo \"" + FlywheelPosition.SERVO_NAME + "\" in the configuration: the flywheel position is NOT held (launch aim will be off)";
+        if (!flywheelPosition.isConfigured()) return "positions not set: the servo will not be commanded";
+        return String.format(Locale.US, "POLLEN (servo %s at %.2f) is commanded at Start and held all match", FlywheelPosition.SERVO_NAME, FlywheelPosition.POLLEN_POSITION);
     }
 
     public void toggleSpin() {
@@ -855,6 +888,10 @@ public class Mechanisms {
 
     private void updateAll(Pose2d pose) {
         warnings.clear();
+        if (flywheelPosition != null && flywheelPosition.isConfigured() && flywheelPosition.target() == null) {
+            flywheelPosition.set(FlywheelPosition.Element.POLLEN);   // the safety net: no opmode has commanded it yet
+            RunLog.event("COMMAND flywheel position POLLEN (first update: nothing had commanded it)");
+        }
 
         // the element counter reads one sensor every READ_PERIOD_MS (never more than one per loop)
         boolean full = false;
@@ -1047,7 +1084,9 @@ public class Mechanisms {
                     RunLog.event(String.format(Locale.US, "LAUNCH held: the flywheel (filtered %.0f ticks/s) is %s %.0f to %.0f; the salvo starts when it is inside (at most %.1f s)",
                             flywheel.getFilteredVelocity(), flywheel.launchBandState(), lastSetpoint * Flywheel.LAUNCH_BAND_LOW_FRACTION, lastSetpoint * Flywheel.LAUNCH_BAND_HIGH_FRACTION, LAUNCH_TIMEOUT_SEC));
                 }
-                if (inBand && pusher.isStopped()) {
+                if (inBand && pusher.isStopped() && flywheelPosition != null && flywheelPosition.isConfigured() && !flywheelPosition.isSettled()) {
+                    // the servo was only just commanded (the first launch after the safety net): wait out its travel
+                } else if (inBand && pusher.isStopped()) {
                     if (bandWaitLogged) RunLog.event(String.format(Locale.US, "LAUNCH released: the flywheel is inside the band after %.2f s of waiting", launchTimer.seconds()));
                     releaseLockForSalvo();
                     pusher.startSalvo();
@@ -1203,7 +1242,7 @@ public class Mechanisms {
             entryFullStartNs = System.nanoTime();
             lockRefusalLogged = "";
             RunLog.event(String.format(Locale.US, "ENTRY FULL: %d elements have entered since the track was last emptied (%s): %s", heldByEntries, heldText(),
-                    ENTRY_FULL_ACTIONS && entryFullActionsAllowed ? "the intake runs on " + FULL_IN_HOLD_SEC + " s, reverses " + FULL_PRE_OUT_SEC + " s, stops, the pusher locks, then the intake runs OUT; the auto-launch is armed until the next salvo" : "this opmode does not act on it (or ENTRY_FULL_ACTIONS is off)"));
+                    ENTRY_FULL_ACTIONS && entryFullActionsAllowed ? "the intake runs on " + FULL_IN_HOLD_SEC + " s, reverses " + FULL_PRE_OUT_SEC + " s, stops, the pusher locks, then the intake runs OUT; the auto-launch is armed until the next salvo" : "COUNT ONLY: nothing acts on it (this opmode does not ask for the FULL actions, or ENTRY_FULL_ACTIONS is off)"));
         }
         updateFifth();
         if (entriesStatsTimer.seconds() >= EntryCounter.STATS_SEC) {
@@ -1242,6 +1281,11 @@ public class Mechanisms {
     }
 
     /** True while the robot is FULL by the CS5 entry count and this opmode acts on it (for the screen, the auto-launch and the pusher lock). */
+    /** True when the FULL actions are on for this opmode (FULL AUTO): the master switch ENTRY_FULL_ACTIONS and the opmode's choice. False: COUNT ONLY, the count is shown and logged, nothing acts on it. */
+    public boolean isEntryFullActionsOn() {
+        return ENTRY_FULL_ACTIONS && entryFullActionsAllowed;
+    }
+
     public boolean isEntryFull() {
         return ENTRY_FULL_ACTIONS && entryFullActionsAllowed && entryFull;
     }
