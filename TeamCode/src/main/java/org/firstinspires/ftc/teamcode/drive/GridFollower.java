@@ -34,6 +34,17 @@ public final class GridFollower {
     public static double FINAL_MAX_SPEED = 40.0, FINAL_DECEL = 100.0, ARRIVE_MAX_SPEED = 10.0;
     public static double LOCK_RADIUS_IN = 20.0;
     /**
+     * Inside the lock radius the drive power is scaled by the cosine of the heading error to the aim, not below this floor: a robot still turned away from its aim
+     * goes slowly until the lock has turned it, so it does not spin at the launch spot itself. 1.0: no scaling (as before 2026-11-17). 0.2 with the arrival brake
+     * of HiveDash passed the safety gate in the simulation; 0.5, or 0.2 with half the brake, still grazed the audience flower stand from 1 or 2 starts.
+     */
+    public static double AIM_ALIGN_FLOOR = 0.2;
+    /**
+     * A park corner is against the wall, and the pose may be out by the drift margin (GridRoutes.DRIFT_IN): a robot that has stopped (below this, in/s) within the
+     * goal tolerance plus that margin has arrived. Without it a robot whose pose read 4 in short pushed at the wall and never arrived (simulation, 2026-11-17).
+     */
+    public static double PARK_STALL_SPEED = 1.0;
+    /**
      * Static friction feedforward (kS): each axis of the command gets KS added in its direction, ramped in over the first KS_RAMP of command so it does not
      * chatter at zero. The 2026-11-07 drive test measured dead zones of 0.072 forward, about 0.12 sideways (also while moving) and 0.098 turning: without this a
      * sideways correction under about 2 in did nothing and a strafing approach stalled short (as the Solo auto's legs did). Set slightly under the dead zones;
@@ -55,6 +66,8 @@ public final class GridFollower {
     }
 
     private final double[] xs, ys, speeds;
+    /** The route's first legs that are a MOVE CLEAR slide (GridRoutes.pickOrMoveClear): 0 or 1. Driven with the heading held and no faster than its speed. */
+    private final int moveClearLegs;
     private final boolean aim;
     private final double aimHeading, goalTolIn;
     private final Output out = new Output();
@@ -62,9 +75,16 @@ public final class GridFollower {
     private double legHeading;
     private boolean legAligned, arrived = false;
     private double offRouteIn = 0.0;
+    /** The robot has moved on this route (a stall is a stop after moving, not the rest it started from). */
+    private boolean sawSpeed = false;
 
     /** The route in the field frame. aimHeading: the heading at the goal (a hive cell; the lock does the aiming), or NaN (a park corner). */
     public GridFollower(double[] xs, double[] ys, double[] speeds, double aimHeading, double goalTolIn, double startHeading) {
+        this(xs, ys, speeds, aimHeading, goalTolIn, startHeading, 0);
+    }
+
+    public GridFollower(double[] xs, double[] ys, double[] speeds, double aimHeading, double goalTolIn, double startHeading, int moveClearLegs) {
+        this.moveClearLegs = moveClearLegs;
         this.xs = xs;
         this.ys = ys;
         this.speeds = speeds;
@@ -106,9 +126,10 @@ public final class GridFollower {
         double dir = Math.atan2(ys[leg + 1] - ys[leg], xs[leg + 1] - xs[leg]);
         double len = Math.hypot(xs[leg + 1] - xs[leg], ys[leg + 1] - ys[leg]);
         boolean last = leg == xs.length - 2;
-        legAligned = !(leg == 0 && xs.length > 2 && len < HOP_KEEP_HEADING_IN);
+        boolean hop = leg == moveClearLegs && xs.length > 2 + moveClearLegs && len < HOP_KEEP_HEADING_IN;
+        legAligned = !(leg < moveClearLegs || hop);
         if (!legAligned) {
-            legHeading = heading;   // a short hop: hold the heading the robot has
+            legHeading = heading;   // a move-clear slide or a short hop: hold the heading the robot has
             return;
         }
         if (last && aim) {
@@ -147,7 +168,10 @@ public final class GridFollower {
             cross = (x - ax) * nx + (y - ay) * ny;
             remaining = len - along;
             if (leg == legs - 1) {
-                if (goalDist <= goalTolIn && Math.hypot(vx, vy) <= ARRIVE_MAX_SPEED) {
+                double speed = Math.hypot(vx, vy);
+                boolean stalledAtWall = !aim && GridRoutes.DRIFT_IN > 0.0 && goalDist <= goalTolIn + GridRoutes.DRIFT_IN && speed <= PARK_STALL_SPEED && sawSpeed;
+                if (speed > 2.0 * PARK_STALL_SPEED) sawSpeed = true;
+                if ((goalDist <= goalTolIn && speed <= ARRIVE_MAX_SPEED) || stalledAtWall) {
                     arrived = true;
                     out.arrived = true;
                     out.lockWanted = aim;
@@ -183,6 +207,7 @@ public final class GridFollower {
             // the speed must be down to vEnd where the next leg starts, PASS_TOL_IN before the corner (braking for the corner point itself entered corners
             // at the speed allowed 3 in out: 28 in/s into a corner limited to 10, found on the wheel plant 2026-11-07)
             double vTarget = Math.min(GridRoutes.V_MAX, Math.sqrt(vEnd * vEnd + 2.0 * GridRoutes.A_DEC * Math.max(0.0, remaining - PASS_TOL_IN)));
+            if (leg < moveClearLegs) vTarget = Math.min(vTarget, GridRoutes.MOVE_CLEAR_SPEED_IN_PER_S);
             double vAlong = vx * ux + vy * uy;
             double p = vTarget <= 0.5 || vAlong > vTarget + BRAKE_OVER_IN_PER_S ? 0.0 : FF_DEAD + vTarget / FF_GAIN + SPEED_KP * (vTarget - vAlong);
             p = clamp(p, 0.0, MAX_POWER);
@@ -196,6 +221,9 @@ public final class GridFollower {
         boolean inLock = aim && last && goalDist <= LOCK_RADIUS_IN;
         if (inLock) {
             out.lockWanted = true;
+            double scale = Math.max(AIM_ALIGN_FLOOR, Math.cos(Rotation2d.normalize(aimHeading - h)));
+            fwd *= scale;
+            left *= scale;
         } else {
             double err = Rotation2d.normalize(legHeading - h);
             out.turn = clamp(withKs(HEADING_KP * err - HEADING_KD * w, KS_TURN), -TURN_MAX, TURN_MAX);

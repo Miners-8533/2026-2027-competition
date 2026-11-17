@@ -1852,8 +1852,9 @@ public final class DashSim {
                             String tg = !o.red ? target : target.equals("BLUE_REAR") ? "RED_AUDIENCE" : target.equals("BLUE_AUDIENCE") ? "RED_REAR" : target;
                             Case c = o.red ? freeCase(-x, -y, hd + 180.0, tg, true) : freeCase(x, y, hd, target, false);
                             Result r = grid ? simulateGrid(c, o, tables.get(target)) : simulate(c, o, false);
-                            boolean off = false, again = false;
+                            boolean off = false, again = false, movedClear = false;
                             for (RunLog.Event e : r.events) {
+                                if (e.text.contains("MOVES CLEAR")) movedClear = true;
                                 if (e.text.contains("OFF ROUTE")) off = true;
                                 if (e.text.contains("new route")) again = true;
                                 if (e.text.contains("grid routes not used")) fellBack++;
@@ -1884,7 +1885,7 @@ public final class DashSim {
                                     worst.add(String.format(Locale.US, "from (%.0f, %.0f, %.0f deg) %s: %s by %.1f in", x, y, hd, r.plannedDesc, con.touched(), depth));
                                 }
                             }
-                            w.printf(Locale.US, "%s,%.0f,%.0f,%.0f,%s,%s,%s,%s,%s,%s%n", target, x, y, hd, result, r.plannedDesc.replace(',', ' '),
+                            w.printf(Locale.US, "%s,%.0f,%.0f,%.0f,%s,%s,%s,%s,%s,%s%n", target, x, y, hd, result, (r.refused != null ? r.refused : (movedClear ? "MOVES CLEAR first; " : "") + r.plannedDesc).replace(',', ' '),
                                     Double.isNaN(r.tArrive) ? "" : String.format(Locale.US, "%.2f", r.tArrive),
                                     con == null ? "" : String.format(Locale.US, "%.1f", con.supportClear()), con == null ? "" : String.format(Locale.US, "%.1f", con.flowerClear()),
                                     con == null ? "" : String.join(" ", con.touched()));
@@ -2266,6 +2267,18 @@ public final class DashSim {
                 case "--grid": o.grid = true; break;
                 case "--drift": o.driftX = Double.parseDouble(args[++i]); o.driftY = Double.parseDouble(args[++i]); break;
                 case "--moving": o.moving = true; break;
+                case "--route-drift": {
+                    // a trial of the drift margin without writing the robot's tables: the four trees are built in memory with it (with the tables' corner speeds)
+                    // and put in place of GridTables; the hop and the start turn use it too
+                    GridRoutes.DRIFT_IN = Double.parseDouble(args[++i]);
+                    List<GridRoutes.Table> ts = new ArrayList<>();
+                    for (RouteGen.Result g : RouteGen.buildAll()) {
+                        ts.add(RouteGen.quantize(g.table));
+                        System.out.printf(Locale.US, "drift margin %.1f in: %-14s %d states reach the goal from %d nodes%n", GridRoutes.DRIFT_IN, g.table.name, g.reachableStates, g.nodesReachable);
+                    }
+                    GridRoutes.useTables(ts.toArray(new GridRoutes.Table[0]));
+                    break;
+                }
                 case "--set": {
                     String[] kv = args[++i].split("=");
                     String[] cf = kv[0].split("[.]");

@@ -83,12 +83,12 @@ public final class GridDash {
     /** Picks the route from the robot's pose (field frame). Null when there is one, otherwise why not. */
     public String start(double x, double y, double h) {
         double s = blue ? 1.0 : -1.0;
-        GridRoutes.Route r = GridRoutes.pick(table, s * x, s * y, blue ? h : h + Math.PI);
-        if (r == null) return "no grid route from here (no grid point near the robot reaches the goal)";
+        GridRoutes.Route r = GridRoutes.pickOrMoveClear(table, s * x, s * y, blue ? h : h + Math.PI);
+        if (r == null) return "no grid route from here, and no straight move of up to " + (int) GridRoutes.MOVE_CLEAR_MAX_IN + " in leads clear to one";
         route = r;
         double[][] f = GridFollower.toField(r, blue);
         double aim = Double.isNaN(table.aimHeading) ? Double.NaN : blue ? table.aimHeading : table.aimHeading + Math.PI;
-        follower = new GridFollower(f[0], f[1], f[2], aim, goalTolIn, h);
+        follower = new GridFollower(f[0], f[1], f[2], aim, goalTolIn, h, r.moveClearLegs);
         waypoints = new double[f[0].length][];
         for (int i = 0; i < waypoints.length; i++) waypoints[i] = new double[]{f[0][i], f[1][i]};
         stopping = false;
@@ -103,7 +103,12 @@ public final class GridDash {
 
     /** The route in HiveRoute's words ("via (x, y) (x, y), 123 in"), with the grid's predicted time. */
     public String describe() {
-        StringBuilder b = new StringBuilder(waypoints.length == 2 ? "direct" : "via");
+        StringBuilder b = new StringBuilder();
+        if (route.moveClearLegs > 0) {
+            b.append(String.format(Locale.US, "MOVES CLEAR %.0f in first (heading held), then ",
+                    Math.hypot(waypoints[1][0] - waypoints[0][0], waypoints[1][1] - waypoints[0][1])));
+        }
+        b.append(waypoints.length == 2 ? "direct" : "via");
         double len = 0.0;
         for (int i = 1; i < waypoints.length; i++) {
             len += Math.hypot(waypoints[i][0] - waypoints[i - 1][0], waypoints[i][1] - waypoints[i - 1][1]);

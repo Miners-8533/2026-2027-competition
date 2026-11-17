@@ -18,7 +18,9 @@ import java.util.PriorityQueue;
  *
  * CLEARANCE (no route may come nearer than this to a hive support, a flower stand or a wall): the robot is a box 2 x L2 by 2 x W2 (L2 the larger of the origin's
  * distances to the front and the back, so the box does not care which end leads), grown by MARGIN_IN plus a TRACKING ALLOWANCE E that is E_MAX_IN away from the
- * goal and falls to GridRoutes.E_GOAL at it (over E_TAPER_IN; near the goal the robot is slow and tracks closely). An edge is valid when the box swept along it is clear;
+ * goal and falls to GridRoutes.E_GOAL at it (over E_TAPER_IN; near the goal the robot is slow and tracks closely). The DRIFT MARGIN GridRoutes.DRIFT_IN (the pose
+ * may be out) grows every support and flower stand and moves the walls in; the footprint AT the goal is checked against them as they are (the goal is where the
+ * team put it, and a park corner is against the wall). An edge is valid when the box swept along it is clear;
  * a corner when the box is clear at every body heading between the two legs' (the robot turns there to stay aligned); the final leg when its sweep, the real
  * footprint at the goal and (for a cell) the turn onto the aim are clear.
  *
@@ -32,6 +34,10 @@ public final class RouteGen {
     // the robot (ROBOT_1) and the allowances
     static double DEPTH = 17.48, WIDTH = 13.70, FROM_BACK = 7.598;
     static double MARGIN_IN = 1.5;
+
+    static double margin() {
+        return MARGIN_IN;
+    }
     /** The final leg (straight to the goal) is at most this long. */
     static double FINAL_MAX_IN = 30.0;
     // the motion model the costs and speeds come from (the tuned simulation plant of 2026-11-06; regenerate after a refit)
@@ -78,17 +84,35 @@ public final class RouteGen {
     }
 
     static final List<Box> OBST = new ArrayList<>();
+    /** The same obstacles as they are (no drift margin): what the footprint AT the goal is checked against. */
+    static final List<Box> OBST_PLAIN = new ArrayList<>();
 
-    static {
+    /** The supports and the flower stands, each grown by the drift margin (GridRoutes.DRIFT_IN): called before every build. */
+    static void loadObstacles() {
+        OBST.clear();
+        OBST_PLAIN.clear();
         HiveRoute.Params p = new HiveRoute.Params();
         p.robotHeightIn = 18.0;
-        for (HiveRoute.Rect r : HiveRoute.keepOuts(p, false)) OBST.add(Box.of(r));
-        for (HiveRoute.Rect r : HiveRoute.flowerKeepOuts(0.0)) OBST.add(Box.of(r));
+        for (HiveRoute.Rect r : HiveRoute.keepOuts(p, false)) OBST_PLAIN.add(Box.of(r));
+        for (HiveRoute.Rect r : HiveRoute.flowerKeepOuts(0.0)) OBST_PLAIN.add(Box.of(r));
+        for (HiveRoute.Rect r : HiveRoute.keepOuts(p, false)) OBST.add(new Box(r.cx, r.cy, r.hx + GridRoutes.DRIFT_IN, r.hy + GridRoutes.DRIFT_IN, r.ang));
+        for (HiveRoute.Rect r : HiveRoute.flowerKeepOuts(0.0)) OBST.add(new Box(r.cx, r.cy, r.hx + GridRoutes.DRIFT_IN, r.hy + GridRoutes.DRIFT_IN, r.ang));
+    }
+
+    static {
+        loadObstacles();
     }
 
     static boolean clear(Box b) {
-        for (int i = 0; i < 8; i++) if (Math.abs(b.k[i]) > WALL) return false;
+        for (int i = 0; i < 8; i++) if (Math.abs(b.k[i]) > WALL - GridRoutes.DRIFT_IN) return false;
         for (Box o : OBST) if (overlap(b, o)) return false;
+        return true;
+    }
+
+    /** The footprint at the goal: against the obstacles and the walls as they are (the goal is where the team put it; a park corner is against the wall). */
+    static boolean clearAtGoal(Box b) {
+        for (int i = 0; i < 8; i++) if (Math.abs(b.k[i]) > WALL) return false;
+        for (Box o : OBST_PLAIN) if (overlap(b, o)) return false;
         return true;
     }
 
@@ -151,7 +175,7 @@ public final class RouteGen {
             for (int d = 0; d < ND; d++) {
                 int m = GridRoutes.stepNode(n, d);
                 if (m == GridRoutes.NONE) continue;
-                double g = MARGIN_IN + Math.max(e[n], e[m]);
+                double g = margin() + Math.max(e[n], e[m]);
                 double mx = GridRoutes.nodeX(m), my = GridRoutes.nodeY(m);
                 if (clear(sweep(x, y, mx, my, g, l2 + g, l2 + g))) {
                     edge[n * S + d] = true;
@@ -169,20 +193,20 @@ public final class RouteGen {
             double x = GridRoutes.nodeX(n), y = GridRoutes.nodeY(n);
             double len = Math.hypot(gx - x, gy - y);
             if (len > FINAL_MAX_IN || len < 1.0) continue;
-            double g = MARGIN_IN + e[n];
+            double g = margin() + e[n];
             if (!clear(sweep(x, y, gx, gy, g, l2 + g, 0.0))) continue;
             double dir = Math.atan2(gy - y, gx - x);
             double gg = MARGIN_IN * 0.5 + GridRoutes.E_GOAL;
             double turnCost = 0.0;
             boolean ok;
             if (Double.isNaN(aim)) {
-                ok = clear(footprint(gx, gy, dir, gg)) || clear(footprint(gx, gy, dir + Math.PI, gg));
+                ok = clearAtGoal(footprint(gx, gy, dir, gg)) || clearAtGoal(footprint(gx, gy, dir + Math.PI, gg));
             } else {
                 ok = true;
                 int steps = Math.max(1, (int) Math.ceil(len / 2.0));
                 for (int k = 0; k <= steps && ok; k++) {
                     double px = x + (gx - x) * k / steps, py = y + (gy - y) * k / steps;
-                    ok = clear(footprint(px, py, aim, k == steps ? gg : MARGIN_IN + allowance(px, py, gx, gy)));
+                    ok = k == steps ? clearAtGoal(footprint(px, py, aim, gg)) : clear(footprint(px, py, aim, margin() + allowance(px, py, gx, gy)));
                 }
                 // the leg is driven sideways to its direction as much as the aim says: slower than aligned (UNALIGNED_RATIO)
                 turnCost = len / GridRoutes.V_MAX * (1.0 / UNALIGNED_RATIO - 1.0);
@@ -213,7 +237,7 @@ public final class RouteGen {
                 if (done[s] || !edge[s]) continue;
                 double ang1 = GridRoutes.dirAngle(d);
                 int key = (m * S + d) * S + d2;
-                if (turnOk[key] == 0) turnOk[key] = (byte) ((toAim ? aimTurnClear(m, ang1, aim, MARGIN_IN + e[m]) : turnClear(m, ang1, ang2, MARGIN_IN + e[m])) ? 1 : 2);
+                if (turnOk[key] == 0) turnOk[key] = (byte) ((toAim ? aimTurnClear(m, ang1, aim, margin() + e[m]) : turnClear(m, ang1, ang2, margin() + e[m])) ? 1 : 2);
                 if (turnOk[key] != 1) continue;
                 double theta = Rotation2d.normalize(ang2 - ang1);
                 double bodyTurn = toAim ? GridRoutes.aimTurn(ang1, aim) : GridRoutes.axisTurn(ang1, ang2);
@@ -293,6 +317,7 @@ public final class RouteGen {
 
     /** The four blue goals: the two launch spots (aim from TargetLock) and the two park corners. */
     static List<Result> buildAll() {
+        loadObstacles();
         List<Result> out = new ArrayList<>();
         for (HiveTarget cell : new HiveTarget[]{HiveTarget.BLUE_REAR, HiveTarget.BLUE_AUDIENCE}) {
             double gx = AutoLaunch.centerX(cell), gy = AutoLaunch.centerY(cell);

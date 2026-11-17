@@ -215,9 +215,8 @@ public final class ParkDash {
             GridRoutes.Table table = GridDash.tableFor(g[0], g[1], in.blue);
             if (table == null) {
                 RunLog.event("PARK DASH grid routes not used (" + GridDash.whyNoTable(g[0], g[1], in.blue) + "): today's planner instead");
-            } else if (HiveRoute.touchingSupport(pose.position.x, pose.position.y, pose.heading.toDouble(), p)) {
-                pl = HiveRoute.Plan.refused("the robot is touching a hive support: drive clear of it by hand");
             } else {
+                // a pose that reads as touching a support is not refused here: the grid route moves clear of it first (GridRoutes.pickOrMoveClear)
                 GridDash gd = new GridDash("PARK DASH", table, in.blue, GOAL_TOL_IN);
                 String why = gd.start(pose.position.x, pose.position.y, pose.heading.toDouble());
                 if (why != null) {

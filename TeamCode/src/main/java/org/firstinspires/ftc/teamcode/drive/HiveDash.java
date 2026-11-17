@@ -92,6 +92,12 @@ public final class HiveDash {
      * when the tables cannot be used (see the log) the dash falls back to today's planner.
      */
     public static boolean GRID_ROUTES = false;
+    /**
+     * A grid dash that has arrived brakes against its remaining velocity: drive power per in/s, its limit, and the speed (in/s) below which it stops (the Pinpoint's
+     * velocity is noise there). 0 gain turns it off (the robot coasts to rest, as today's route does). Not run on the robot (2026-11-17): watch for a
+     * buzz or a rocking stop there, and lower the gain if so.
+     */
+    public static double ARRIVE_BRAKE_GAIN = 0.04, ARRIVE_BRAKE_MAX = 0.35, ARRIVE_BRAKE_OFF_IN_PER_S = 1.5;
 
     // ---- launch and logging ----
     /** The launch is requested when the lock is ALIGNED and the chassis has stopped (AutoLaunch.MAX_SPEED_IN_PER_S) for LAUNCH_HOLD_SEC. */
@@ -320,9 +326,8 @@ public final class HiveDash {
             GridRoutes.Table table = GridDash.tableFor(gx, gy, in.blue);
             if (table == null) {
                 RunLog.event("HIVE DASH grid routes not used (" + GridDash.whyNoTable(gx, gy, in.blue) + "): today's planner instead");
-            } else if (HiveRoute.touchingSupport(pose.position.x, pose.position.y, pose.heading.toDouble(), p)) {
-                pl = HiveRoute.Plan.refused("the robot is touching a hive support: drive clear of it by hand");
             } else {
+                // a pose that reads as touching a support is not refused here: the grid route moves clear of it first (GridRoutes.pickOrMoveClear)
                 GridDash g = new GridDash("HIVE DASH", table, in.blue, GOAL_TOL_IN);
                 String why = g.start(pose.position.x, pose.position.y, pose.heading.toDouble());
                 if (why != null) {
@@ -489,6 +494,14 @@ public final class HiveDash {
         out.translation = true;   // hold: no drive power
         out.lockWanted = true;
         double speed = in.measured == null ? 0.0 : Math.hypot(in.measured.linearVel.x, in.measured.linearVel.y);
+        if (grid != null && ARRIVE_BRAKE_GAIN > 0.0 && speed > ARRIVE_BRAKE_OFF_IN_PER_S) {
+            // a grid dash arrives still moving (up to GridFollower.ARRIVE_MAX_SPEED) and the lock is turning the robot, so the wheels are not braking: with no drive
+            // power it slid on about 2 in, at the audience spot toward the flower stand (simulation, 2026-11-17). Power against the velocity stops the slide.
+            double p = Math.min(ARRIVE_BRAKE_MAX, ARRIVE_BRAKE_GAIN * speed) / speed, h = in.pose.heading.toDouble();
+            double bx = -p * in.measured.linearVel.x, by = -p * in.measured.linearVel.y;
+            out.forward = bx * Math.cos(h) + by * Math.sin(h);
+            out.left = -bx * Math.sin(h) + by * Math.cos(h);
+        }
         boolean still = in.lockAligned && speed <= AutoLaunch.MAX_SPEED_IN_PER_S;
         if (!still) stillClock.reset();
         if (!in.hasElements) return;   // nothing to launch: wait for the driver to let go
