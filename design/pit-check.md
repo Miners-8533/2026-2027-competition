@@ -19,7 +19,7 @@ The Pit Check is the only check opmode on the Driver Station. It took over the *
 
 | Step | How | Judged by |
 |---|---|---|
-| Configuration | every device name and type, a stale `fly_follow`, where each device is plugged in (hub and port, in the `Ports` line, for hub-configuration.md) and any configured device the code does not use | automatic |
+| Configuration | every device name and type, a stale `fly_follow`, where each device is plugged in (hub and port, in the `Ports` line, for robot_design/hub-configuration.md) and any configured device the code does not use | automatic |
 | Battery | at least 12.0 V on every hub | automatic |
 | Pinpoint | status READY, loop time 300-1500 us | automatic |
 | Color sensors CS1-CS4 | each answers, and matches its empty baseline (so a changed lighting or something left in the track shows up) | automatic |

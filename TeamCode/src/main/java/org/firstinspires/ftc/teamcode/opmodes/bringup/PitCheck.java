@@ -162,7 +162,7 @@ public class PitCheck extends LinearOpMode {
         reportPortsAndStrays();
     }
 
-    /** Where each device our code uses is plugged in (for design/hub-configuration.md), and configured devices the code does not use (stale ones to delete). */
+    /** Where each device our code uses is plugged in (for robot_design/hub-configuration.md), and configured devices the code does not use (stale ones to delete). */
     private void reportPortsAndStrays() {
         Set<String> expected = new TreeSet<>();
         for (String name : DRIVE_MOTORS) expected.add(name);
