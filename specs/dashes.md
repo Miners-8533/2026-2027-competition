@@ -38,7 +38,7 @@ The virtual lane walls are rectangles too: each fills the space from the lane ha
 - **A robot that starts inside the box between the two bars** may always leave: its first leg ignores the virtual walls, for the whole leg.
 - **Any other leg from the robot** checks the virtual walls only from 10 in along the leg onward; a leg of 10 in or less ignores them. So a robot at the lane's mouth can leave or turn away, while one heading into the lane must be centered.
 - **A flower just gathered from** is ignored on a leg from the robot, when the stand is within the far-corner radius plus the margin of the start and the leg ends farther from it than it starts.
-- **A leg that ends at the goal** is judged against the flower stands differently: the rectangle ends at the goal and does not reach past it, and the robot at the goal is the far-corner circle with no margin. (The audience launch spot is only 6.8 in from a flower stand's footprint; a rectangle reaching past it would make the spot unreachable.) Against the supports and the lane walls the ordinary rectangle applies.
+- **A leg that ends at the goal** is judged against the flower stands differently: the rectangle ends at the goal and does not reach past it, and the robot at the goal is the far-corner circle with no margin. (The audience launch spot is only 16.8 in from a flower stand's footprint, 4.8 in more than the far-corner radius; a rectangle reaching past the spot would make it unreachable once the stand is grown by its clearance. The code's own note says 6.8 in, which the dimensions do not give.) Against the supports and the lane walls the ordinary rectangle applies.
 
 ### 1.3 Choosing a route
 
@@ -195,13 +195,14 @@ Each dash has its own switch. With a switch off, everything in sections 1 to 4 a
 - For each of four blue goals (two launch spots, two park corners) a **tree**: for every state, the next state, the time to the goal, and the speed to carry at its end. Red uses the same tables with the pose rotated 180 degrees.
 - A **corner speed table**: the fastest speed at which a turn of a given angle can be taken.
 - The tables are generated offline by a PC tool that simulates the robot, and are stored as generated source. They record the lattice shape and the motion values they were built with.
-- **Layout of the generated file.** It holds:
-  - a *geometry* text, `pitch 6.0 in, half span 66.0 in, 16 directions`, and a *model* text listing the motion values the tables were built with (top speed, planning deceleration, grip, the tracking allowances and their taper, the corner cluster length and the corner safety factor);
+- **Layout of the generated file.** It is a class named `GridTables` with the fields `GEOMETRY`, `MODEL`, `CORNER_SPEED`, `NAMES`, `GOAL_X`, `GOAL_Y`, `AIM`, `NEXT`, `COST` and `SPEED`. It holds:
+  - a *geometry* text, `pitch 6.0 in, half span 66.0 in, 16 directions`, and a *model* text listing the motion values the tables were built with, `V_MAX 66.0, A_DEC 120.0, A_GRIP 150.0, E_MAX 3.00, E_GOAL 0.50, E_TAPER 24.0, CORNER_CLUSTER_IN 30.0, CORNER_SAFETY 0.75` (top speed, planning deceleration, grip, the tracking allowance on the route and at the goal and the distance over which it tapers, the corner cluster length, the corner safety factor);
   - the corner speed table;
   - for each of the four goals, named `BLUE_REAR`, `BLUE_AUDIENCE`, `LEFT` and `RIGHT`: its x and y, and the heading at the goal in radians (a cell's aim; not a number for a park corner);
   - for each goal three packed arrays with one entry per state, each stored as Base64 text: the next state (2 bytes; 0xFFFF = none), the time to the goal in milliseconds (2 bytes; 0xFFFF = unreachable), and the speed at the end of the leg in half inches per second (1 byte, rounded down). Two-byte values have the high byte first.
 - **Numbering of the states.** A node (i, j), with i and j from 0 to 22, is at x = -66 + 6 i, y = -66 + 6 j, and has the number 23 i + j. A state's number is 17 x node + direction: 8,993 states per goal. Directions 0 to 15 are the lattice steps (1, 0), (2, 1), (1, 1), (1, 2), (0, 1), (-1, 2), (-1, 1), (-2, 1), (-1, 0), (-2, -1), (-1, -1), (-1, -2), (0, -1), (1, -2), (1, -1), (2, -1), in that order. Direction 16 is the final state: straight from the node to the goal, at most 30 in.
 - A table whose geometry text differs from the code's is not used. A model text that differs is reported in the log and the tables are still used.
+- A goal has a table when a table's goal is within 1 in of it. Farther than that, the goal has moved.
 - If a table's lattice shape does not match the code, or a goal has moved (a launch spot or park corner changed on the Dashboard), the dash logs why and falls back to the planner of section 1.
 
 | Corner angle (deg) | 0 | 10 | 20 | 30 | 45 | 60 and more |

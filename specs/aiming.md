@@ -122,7 +122,7 @@ The spot generator (used by the tuning opmode) keeps a lattice point for a cell 
 3. the shot is within 75 deg of the opening's normal;
 4. the robot, turned to its aim heading there, overlaps no hive support or flower stand (with the route planner's margin) and fits inside the walls less 3 in.
 
-A point that fails only on a wall is slid toward the field center, up to 8 in. The lattice is centered on the field with a 12 in pitch, giving about 30 spots per cell, visited as a serpentine sweep.
+A point that fails only on a wall is slid toward the field center, up to 8 in: on each axis it is moved by as much as the robot's rectangle is over the limit, and that is repeated until it fits. The lattice is centered on the field with a 12 in pitch, giving about 30 spots per cell, visited as a serpentine sweep.
 
 ## 5. Target T1: drift is accepted, and allowed for in one place
 

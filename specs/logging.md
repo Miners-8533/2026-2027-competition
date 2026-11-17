@@ -44,7 +44,7 @@ Plain text, one record per line. The first field says what it is.
 | `S` | `S,` then one value per column of the `H` line, in its order |
 | `E` | `E,<seconds>,<text>`. The text may contain commas: a reader splits on the first two only |
 
-*How it ended* is one of: `none`; `ended normally`; `CRASHED (see the exception in <file>)`; `NO END MARKER: the app stopped hard or the robot lost power`; `init only, stopped before start`.
+*How it ended* is one of: `none`; `ended normally`; `CRASHED (see the exception in <kind>_prev.log)`; `NO END MARKER: the app stopped hard or the robot lost power`; `init only, stopped before start`.
 
 **Start and end of a run.**
 

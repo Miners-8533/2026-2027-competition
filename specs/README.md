@@ -116,6 +116,9 @@ On 2026-11-17 the team's code was rebuilt from these pages and `robot_design/` a
 | The 34 tests of Drive Characterization | [support-opmodes.md](support-opmodes.md) section 4.3 | filled |
 | When the pusher counts as not calibrated | [pusher.md](pusher.md) section 1 | filled |
 | The heading asked for at a pass-through point of an auto | [autos.md](autos.md) section 2.7 | filled |
+| Where a flower stand stands: centered on its opening, not flush against the wall | [field.md](field.md) section 3 | filled |
+| The names in the grid route file, its model text, and how near a goal must be to have a table | [dashes.md](dashes.md) section 5.1 | filled |
+| Details of the support opmodes a second pass still had to choose: the tuners' log lines and settings, the drive tests' seeding and random draws, the offset check's method, automatic clear | [support-opmodes.md](support-opmodes.md) | filled |
 | Where the worked-out launch spot of target T1 lives, given the layers of target T5 | [aiming.md](aiming.md) section 5.4 | proposal |
 
 The generated tables themselves (the grid routes and the launch grid data) are data, not text. A rebuild regenerates them with the PC tools; it cannot take them from these pages.
