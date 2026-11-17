@@ -32,7 +32,8 @@ A straight leg is acceptable when the area the robot sweeps along it, grown by a
 **Exemptions** that keep real situations plannable:
 
 - Behind the start of a route the robot is only moving away, so a leg from the start is checked from the start point onward, with the robot's own circle at the start checked without margin.
-- A robot that starts inside the lane may always leave: its first leg ignores the virtual walls. The walls are only checked from a short distance along a leg that starts at the robot.
+- A robot that starts inside the lane may always leave: its first leg ignores the virtual walls, for the whole leg. (A short leg is checked with the far-corner radius plus the margin, 13.5 in, which is more than the lane's half width; if the walls counted anywhere on that leg, a robot in the lane could never reach a gate. Found by the rebuild of 2026-11-17.)
+- On a leg that starts at the robot outside the lane, the walls are only checked from a short distance along the leg. **Not specified:** that distance.
 - A robot that starts within reach of a flower and moves away from it ignores that flower on its first leg (it has just gathered there).
 - A leg that ends at a launch spot is judged at the spot with the far-corner circle only, because the audience launch spot is only 6.8 in from a flower stand.
 
@@ -191,11 +192,20 @@ Each dash has its own switch. With a switch off, everything in sections 1 to 4 a
 - For each of four blue goals (two launch spots, two park corners) a **tree**: for every state, the next state, the time to the goal, and the speed to carry at its end. Red uses the same tables with the pose rotated 180 degrees.
 - A **corner speed table**: the fastest speed at which a turn of a given angle can be taken.
 - The tables are generated offline by a PC tool that simulates the robot, and are stored as generated source. They record the lattice shape and the motion values they were built with.
+- **Layout of the generated file** (from the generator in `tools/dash`; not checked against the code that reads it). It holds:
+  - a text naming the lattice (the *geometry*) and a text naming the motion values (the *model*) the tables were built with;
+  - the corner speed table;
+  - for each of the four goals: its name, its x and y, and the heading at the goal (a cell's aim; none for a park corner);
+  - for each goal three packed arrays with one entry per state, each stored as Base64 text: the next state (2 bytes; 0xFFFF = none), the time to the goal in milliseconds (2 bytes; 0xFFFF = unreachable), and the speed at the end of the leg in half inches per second (1 byte, rounded down).
+  - A state is a node (23 by 23) with one of 16 travel directions, or a final state: about 9,000 states per goal. A final leg is at most 30 in.
+  - **Not specified:** how a node, a direction and a final state are numbered, the byte order, and the wording of the geometry and model texts. A rebuild needs them to read the existing file; without them it regenerates the tables with its own numbering.
 - If a table's lattice shape does not match the code, or a goal has moved (a launch spot or park corner changed on the Dashboard), the dash logs why and falls back to the planner of section 1.
 
 | Corner angle (deg) | 0 | 10 | 20 | 30 | 45 | 60 and more |
 |---|---|---|---|---|---|---|
 | Speed limit (in/s) | 66 | 60 | 44 | 36 | 24 | 20 |
+
+**To check:** `design/dash-planner-grid.md` records a later calibration (2026-11-07) with other values: 66 up to 10 deg, 64, 50 at 20 deg, 36 at 30 deg, 31 at 45 deg, 24 from 60 deg. Which table is in the code is not checked.
 
 ### 5.2 Picking a start
 

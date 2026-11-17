@@ -19,6 +19,8 @@ Hardware: [robot_design/chassis.md](../robot_design/chassis.md). Frames: [field.
 
 Only `ROBOT_1` has ids registered, so rule 4 is in force for every other hub.
 
+**Not specified:** the values of the other two profiles the code carries, `PROTOTYPE` and `DRAFT_1` (only `ROBOT_1` is in [robot_design/](../robot_design/README.md)), and how the hub's hardware serial is read. A rebuild from these pages has `ROBOT_1` alone.
+
 ## 2. Mecanum drive
 
 **Purpose.** Turn one robot-frame command into four wheel powers, and own the localizer.
