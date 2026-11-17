@@ -119,6 +119,7 @@ On 2026-11-17 the team's code was rebuilt from these pages and `robot_design/` a
 | Where a flower stand stands: centered on its opening, not flush against the wall | [field.md](field.md) section 3 | filled |
 | The names in the grid route file, its model text, and how near a goal must be to have a table | [dashes.md](dashes.md) section 5.1 | filled |
 | Details of the support opmodes a second pass still had to choose: the tuners' log lines and settings, the drive tests' seeding and random draws, the offset check's method, automatic clear | [support-opmodes.md](support-opmodes.md) | filled |
+| Three choices the code still had to make after that: what the corner speed field holds, the Launch Grid Tuner's start index, re-aim limit and table speed, and what happens between two drive tests | [dashes.md](dashes.md) section 5.1, [support-opmodes.md](support-opmodes.md) sections 2.2 and 4.3 | filled |
 | Where the worked-out launch spot of target T1 lives, given the layers of target T5 | [aiming.md](aiming.md) section 5.4 | proposal |
 
 The generated tables themselves (the grid routes and the launch grid data) are data, not text. A rebuild regenerates them with the PC tools; it cannot take them from these pages.

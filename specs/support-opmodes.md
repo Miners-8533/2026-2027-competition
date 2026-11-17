@@ -105,11 +105,11 @@ The alliance is assumed blue: the start is the blue default start against the re
 | Left trigger (hold) | intake OUT |
 | Back | clear a pusher fault; held 1 s, reseed the pose to the start |
 
-**Settings read at INIT.** `START_INDEX`: start the sweep at this spot. `RETEST_SPOTS`: visit only these spots, a comma list of spot numbers with ranges, such as `8-10,22-30`; the spots keep their numbers. `EXTRA_SPOTS`: extra positions as `x,y;x,y`, visited last and numbered from 101; each must pass the grid's rules. `CARRY_TRIMS` (off): start a spot with the previous spot's trims; otherwise they start at 0.
+**Settings read at INIT.** `START_INDEX`: start the sweep at this position in the list of spots that will be visited, counted from 0, so 0 is its first spot; a value past the end means the last spot. The earlier spots stay in the list, and X can go back to them. `RETEST_SPOTS`: visit only these spots, a comma list of spot numbers with ranges, such as `8-10,22-30`; the spots keep their numbers. `EXTRA_SPOTS`: extra positions as `x,y;x,y`, visited last and numbered from 101; each must pass the grid's rules. `CARRY_TRIMS` (off): start a spot with the previous spot's trims; otherwise they start at 0.
 
 **Visiting order.** A serpentine over the columns (x), the column nearest the start first. Inside a column the spots are taken along y, beginning at the end nearer to where the column before finished.
 
-**Driving.** At most 0.5 power to a spot. A spot driven to by hand counts as reached within 4 in. An angle trim is limited to 20 deg either way. A re-aim turns at no more than 0.3 power to within 0.25 deg and reports `RE-AIM OK` or `RE-AIM STUCK` (more than 0.4 deg left), with the degrees asked, turned and left.
+**Driving.** At most 0.5 power to a spot. A spot driven to by hand counts as reached within 4 in. An angle trim is limited to 20 deg either way. A re-aim turns at no more than 0.3 power to within 0.25 deg, keeping the position within 1 in, for at most 2.5 s, and reports `RE-AIM OK` or `RE-AIM STUCK` (more than 0.4 deg left), with the degrees asked, turned and left. A (accept) is ignored, with a notice, unless the robot is at the spot; B (no shot) works from anywhere.
 
 **The short straight hop** is clear when the robot's rectangle, grown by the planner's margin and turning steadily from its present heading to the spot's, touches no support and no flower stand (the stands not grown) at any half inch of the line, and stays inside the walls less 3 in.
 
@@ -118,6 +118,9 @@ The alliance is assumed blue: the start is the blue default start against the re
 - `FIRE spot <n> salvo <k>: pose (<x>, <y>, <deg> deg), aim heading <deg> deg (trim <t>), <d> in from <cell>, setpoint <s> (map <m>, trim <t>)`
 - `GRID POINT <n> of <N>: spot (<x>, <y>)[ slid], <d> in, GOOD: speed <s> ticks/s (map <m> <t> trim), aim heading <deg> deg (geometric <g> <t> trim), <k> salvo(s) fired[ (UNVERIFIED)], pose (...)`, or with `NO SHOT possible` in place of the `GOOD: ...` part
 - `GRID TABLE (x, y, distance in, speed ticks/s, angle trim deg, status G good / N no shot / - not done, salvos fired): {<x>, <y>, <d>, <speed>, <trim>, '<status>', <k>}, ...`
+- `TRIM spot <n>: angle <t> deg, speed <t> ticks/s (aim heading <deg> deg)` at every trim
+
+In the table, x and y are the spot's, and the speed is written only for a good spot; for any other it is `NaN`. `<N>` in `GRID POINT` is the number of spots that will be visited.
 
 ### 2.3 Launcher Offset Finder
 
@@ -283,7 +286,7 @@ All are tunable values with these proposed numbers as defaults. They are to be s
 
 **The area** (blue frame; a red robot's pose is rotated first). A lane along x at y = 46, from x = -54 to +54: a run starts at the end the robot is nearer and drives to the other, so one test ends where the next starts. Spot tests are at x = +40 or -40 on the lane, whichever is nearer.
 
-**A test:** drive to its start under position control (at most 0.6 power, to within 2 in and 2 deg), wait until the robot is still (slower than 2 in/s and 10 deg/s for 0.25 s; the wait is at most 1.5 s), then run its segments. The robot is seeded at the TeleOp's default start of the chosen half. At a spot it faces along the lane. A geofence stop ends the test and the next one begins. The `phase` column is one of `MOVE`, `REST`, `RUN`, `PAUSED`, `DONE`. A segment is one constant command, turned into robot-frame powers once, when it starts. On the lane the command is (along the lane, across it toward the alliance wall, turn toward the alliance wall); at a spot it is the robot's own (forward, left, turn). A segment ends after its time (3.0 s unless stated), or earlier on its own condition.
+**A test:** drive to its start under position control (at most 0.6 power, to within 2 in and 2 deg), wait until the robot is still (slower than 2 in/s and 10 deg/s for 0.25 s; the wait is at most 1.5 s), then run its segments. The robot is seeded at the TeleOp's default start of the chosen half. At a spot it faces along the lane. Every test ends with a zero-power segment. When that is over the next test begins at once, with its own drive to the start and its own wait for stillness: there is no other pause between two tests. A geofence stop jumps to the test's closing zero-power segment, which is still run and logged, and the test counts as stopped. Letting go of the bumper pauses; holding it again resumes a drive to the start, and restarts from its start a test that was resting or running. The `phase` column is one of `MOVE`, `REST`, `RUN`, `PAUSED`, `DONE`. A segment is one constant command, turned into robot-frame powers once, when it starts. On the lane the command is (along the lane, across it toward the alliance wall, turn toward the alliance wall); at a spot it is the robot's own (forward, left, turn). A segment ends after its time (3.0 s unless stated), or earlier on its own condition.
 
 **The geofence** stops a run at once when the footprint, or the robot where it would stop at 200 in/s², would cross a wall (68 in), the center line (y = 4), the hive (|x| under 22.5 with y under 28) or a flower stand grown by 3 in.
 
