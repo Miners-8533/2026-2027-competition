@@ -156,6 +156,18 @@ public class ColorSensorsTest extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+        // the two statics this test changes are put back to what they were however it ends (2026-11-16: they were put back only on a normal end, and to fixed values, so a test that
+        // threw left the match TeleOp's counter treating every sensor as an arm sensor until the app restarted)
+        boolean savedAnySensor = ElementCounter.ARM_ANY_SENSOR, savedRequireDistance = ElementCounter.ARM_REQUIRE_DISTANCE;
+        try {
+            runTest();
+        } finally {
+            ElementCounter.ARM_ANY_SENSOR = savedAnySensor;
+            ElementCounter.ARM_REQUIRE_DISTANCE = savedRequireDistance;
+        }
+    }
+
+    private void runTest() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         ElementCounter.ARM_ANY_SENSOR = true;
@@ -443,8 +455,6 @@ public class ColorSensorsTest extends LinearOpMode {
             }
         }
         setLeds(color, false);
-        ElementCounter.ARM_ANY_SENSOR = false;
-        ElementCounter.ARM_REQUIRE_DISTANCE = true;
     }
 
     private static void setLeds(NormalizedColorSensor[] sensors, boolean on) {

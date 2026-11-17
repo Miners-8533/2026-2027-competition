@@ -74,7 +74,7 @@ import java.util.Locale;
  *   D-pad left / right   (HOLD) HIVE DASH: the robot drives to the launch spot of a cell, target locks and launches when ALIGNED. Left = the cell on the driver's LEFT, right = the
  *                        cell on the driver's RIGHT as seen from behind the alliance wall (blue: left = audience cell, right = rear cell; red the other way round). Releasing
  *                        the D-pad cancels at once (the sticks drive again); a salvo already launched always finishes. Refused, with no movement (the screen says DASH REFUSED), in backup mode, with a
- *                        Pinpoint fault, when the counter reads and holds nothing, or when the robot is touching a hive support. See {@link HiveDash} and design/hive-dash.md.
+ *                        Pinpoint fault, when the robot reads empty (the CS5 entry count and the counter on CS1 to CS4 both hold nothing), or when the robot is touching a hive support. See {@link HiveDash} and design/hive-dash.md.
  *   D-pad up / down      (HOLD) PARK DASH: the robot drives to a park corner of its own loading zone and stays there while the D-pad is held. Up = the corner on the driver's LEFT
  *                        (the audience-side corner for blue), down = the corner on the driver's RIGHT (the hive-side corner). The ramp is stowed when it starts. Releasing the D-pad
  *                        cancels at once. Refused, with no movement (the screen says PARK DASH REFUSED), in backup mode, with a Pinpoint fault, with an unseeded pose, while the Hive Dash runs, or when the
@@ -103,7 +103,7 @@ import java.util.Locale;
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
  *   right bumper         AUTO-LAUNCH on / off (a toggle, off at Start; a prototype). With it on, while the target lock is on (automatic or manual) and the robot is inside the
  *                        launch zone of the cell it is locked on (see {@link AutoLaunch}), the chassis stops by itself and, once the lock is ALIGNED and the robot has stopped,
- *                        one salvo is launched. It does nothing when the counter reads 0 elements, and the driver gets the robot back if the launch has not gone within
+ *                        one salvo is launched. It does nothing when the robot reads empty (the CS5 entry count and the counter both at 0), and the driver gets the robot back if the launch has not gone within
  *                        AutoLaunch.FREEZE_MAX_SEC. The salvo releases the lock as always.
  *   hold left bumper + Y pusher calibration sweep now (the track must be empty; the intake is held off by itself until it ends; again to stop it); Y alone stows
  *   (no control clears a pusher fault: the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
@@ -484,7 +484,7 @@ public class TeleOpCompetition extends LinearOpMode {
             cmdLeft = robotLeft;
             double manualTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
             // Hive Dash (driver D-pad, held): drive to the launch spot of a cell, lock on it, launch when aligned. It uses this loop's pose and flags; nothing is read again.
-            boolean counterReads = mechanisms.counter != null && mechanisms.counter.isValid();
+            int heldEstimate = mechanisms.getHeldEstimate();   // the higher of the CS5 entry count and the counter's (CS1 to CS4), -1 when neither reads: 0 means nothing to launch
             dashIn.pose = pose;
             dashIn.measured = measured;
             // Park Dash (driver D-pad up / down, held) shares the loop's pose and flags; the two dashes never run together
@@ -502,8 +502,8 @@ public class TeleOpCompetition extends LinearOpMode {
             dashIn.requestedCell = parkDash.state() != ParkDash.State.IDLE ? null : HiveDash.cellForDpad(gamepad1.dpad_left, gamepad1.dpad_right, blue, driverForwardRad);
             dashIn.blue = blue;
             dashIn.blockedWhy = backupMode ? "backup mode" : pinpointBad ? "Pinpoint fault" : !loc.seedConfirmed ? "pose not seeded" : null;
-            dashIn.counterReadsEmpty = counterReads && mechanisms.counter.count() == 0;
-            dashIn.hasElements = !counterReads || mechanisms.counter.count() > 0;
+            dashIn.counterReadsEmpty = heldEstimate == 0;
+            dashIn.hasElements = heldEstimate != 0;
             dashIn.lockAligned = targetLock.isAligned();
             dashIn.launchBusy = mechanisms.isLaunchBusy();
             long profiledHive = LoopProfiler.start();
@@ -589,8 +589,8 @@ public class TeleOpCompetition extends LinearOpMode {
                 lockWasAligned = aligned;
 
                 // auto-launch (prototype, the operator's right bumper): inside the launch zone of the locked cell the chassis stops, then one salvo goes
-                // when the lock is ALIGNED and the robot has stopped. Not with an empty robot (the counter reads 0), and at most FREEZE_MAX_SEC of holding.
-                boolean hasElements = mechanisms.counter == null || !mechanisms.counter.isValid() || mechanisms.counter.count() > 0;
+                // when the lock is ALIGNED and the robot has stopped. Not with an empty robot (the CS5 entry count and the counter both read 0: Mechanisms.getHeldEstimate), and at most FREEZE_MAX_SEC of holding.
+                boolean hasElements = heldEstimate != 0;
                 boolean inZone = AutoLaunch.inZone(lockTarget, pose.position.x, pose.position.y);
                 if (!autoLaunchArmed) {
                     autoLaunchState = "off";
@@ -829,7 +829,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (driveHeld) screen.alert(CompetitionScreen.CYAN, "DRIVE HELD");
                 if (mechanisms.isEntryFull()) screen.alert(CompetitionScreen.CYAN, mechanisms.fullStatusText());
                 if (autoLaunchArmed && !autoLaunchOn) screen.alert(CompetitionScreen.CYAN, "AUTO-LAUNCH ARMED");
-                LaunchGridMap.Result gridNow = mechanisms.getGridResult();
+                LaunchGridMap.Result gridNow = mechanisms.isGridOn() ? mechanisms.getGridResult() : null;   // only with the grid on: off, asking would look the grid up on every loop for nothing
                 if (mechanisms.isGridOn()) screen.alert(CompetitionScreen.CYAN, "LAUNCH GRID ON");
                 if (mechanisms.isGridOn() && gridNow != null && gridNow.zone == LaunchGridMap.Zone.NO_SHOT && (lockOn || mechanisms.isLaunchBusy())) screen.alert(CompetitionScreen.YELLOW, "NO SHOT ZONE");
                 HiveTarget dashCell = hiveDash.cell();
@@ -887,11 +887,7 @@ public class TeleOpCompetition extends LinearOpMode {
             LoopProfiler.stop("telemetry", profiledTelemetry);   // the Driver Station and the Dashboard
         }
         drive.stop();
-        mechanisms.setIntakeRequested(false);
-        mechanisms.setManualOuttake(false);
-        mechanisms.setManualIntake(false);
-        mechanisms.stopFlywheel();
-        mechanisms.update(drive.getPose());
+        mechanisms.stopAll();   // the intake, the flywheel and the pusher off, written at once; no update() after it (with the always-IN intake an update wrote the intake IN again)
         RunLog.event("STOPPED by the driver station");
     }
 }

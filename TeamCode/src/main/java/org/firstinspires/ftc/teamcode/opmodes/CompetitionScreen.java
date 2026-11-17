@@ -119,20 +119,28 @@ public final class CompetitionScreen {
         s.speedTrim = m.getSpeedTrim();
         s.shot = m.getLaunchedTotal();
 
-        for (String w : m.getWarnings()) {
-            if (w.startsWith("FULL") || w.startsWith("Stow waiting") || w.startsWith("Pusher zero not verified") || w.startsWith("BACKUP MODE")) continue;   // shown elsewhere or not for a match
-            if (w.startsWith("FLYWHEEL ENCODER LOST")) s.alert(RED, "FLYWHEEL LOST");
-            else if (w.startsWith("FLYWHEEL OPEN LOOP")) s.alert(RED, "FLY OPEN LOOP");
-            else if (w.startsWith("Pusher STALLED")) s.alert(RED, "PUSHER STALLED");
-            else if (w.startsWith("Pusher not calibrated")) s.alert(RED, "PUSHER NOT CALIBRATED");
-            else if (w.startsWith("Pusher JAMMED")) s.alert(RED, "PUSHER JAMMED");
-            else if (w.startsWith("PUSHER ZERO UNCERTAIN")) s.alert(YELLOW, "PUSHER ZERO?");
-            else if (w.startsWith("OPPONENT NECTAR")) s.alert(YELLOW, "OPPONENT NECTAR: REJECT");
-            else if (w.startsWith("ELEMENT COUNTER NOT READING")) s.alert(YELLOW, "COUNTER NOT READING");
-            else if (w.startsWith("COUNTER OVERRIDE")) s.alert(YELLOW, "COUNTER OVERRIDE");
-            else if (w.startsWith("Launch map empty")) s.alert(YELLOW, "LAUNCH MAP EMPTY");
-            else if (w.startsWith("Ramp positions not measured")) continue;   // the ramp is not on this screen
-            else s.alert(YELLOW, "CHECK ROBOT (verbose)");
+        // by the warning's CODE, not its text (2026-11-16): the sentences in Mechanisms can be reworded without changing what this screen shows
+        for (Mechanisms.WarningCode w : m.getWarningCodes()) {
+            switch (w) {
+                case FULL:
+                case STOW_WAITING:
+                case PUSHER_ZERO_NOT_VERIFIED:
+                case BACKUP_MODE:
+                    break;   // shown elsewhere or not for a match
+                case RAMP_NOT_CONFIGURED:
+                    break;   // the ramp is not on this screen
+                case FLYWHEEL_ENCODER_LOST: s.alert(RED, "FLYWHEEL LOST"); break;
+                case FLYWHEEL_OPEN_LOOP: s.alert(RED, "FLY OPEN LOOP"); break;
+                case PUSHER_STALLED: s.alert(RED, "PUSHER STALLED"); break;
+                case PUSHER_NOT_CALIBRATED: s.alert(RED, "PUSHER NOT CALIBRATED"); break;
+                case PUSHER_JAMMED: s.alert(RED, "PUSHER JAMMED"); break;
+                case PUSHER_ZERO_UNCERTAIN: s.alert(YELLOW, "PUSHER ZERO?"); break;
+                case OPPONENT_NECTAR: s.alert(YELLOW, "OPPONENT NECTAR: REJECT"); break;
+                case COUNTER_NOT_READING: s.alert(YELLOW, "COUNTER NOT READING"); break;
+                case COUNTER_OVERRIDE: s.alert(YELLOW, "COUNTER OVERRIDE"); break;
+                case LAUNCH_MAP_EMPTY: s.alert(YELLOW, "LAUNCH MAP EMPTY"); break;
+                default: s.alert(YELLOW, "CHECK ROBOT (verbose)"); break;   // a code added in Mechanisms without a case here
+            }
         }
         String notice = m.getNotice();
         if (!notice.isEmpty()) s.alert(YELLOW, notice.length() > 26 ? notice.substring(0, 26) : notice);

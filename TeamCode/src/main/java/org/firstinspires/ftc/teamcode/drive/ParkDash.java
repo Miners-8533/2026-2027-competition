@@ -110,6 +110,11 @@ public final class ParkDash {
     private double goalX, goalY;
     private HiveRoute.Plan plan;
     private GridDash grid;   // the grid planner's dash, or null (today's planner)
+    // the shared route follower (LegFollower): its values and answer are reused every loop, and the listener is made once (no garbage in the loop)
+    private final LegFollower.Config followConfig = new LegFollower.Config();
+    private final LegFollower.Step followStep = new LegFollower.Step();
+    private final LegFollower.ViaListener onVia = this::viaReached;
+    private Input followIn;   // the input of the drive() call in progress, for viaReached
     private int legIndex = 0;
     private double legHeading = 0.0, prevLegHeading = 0.0;
     private boolean legAligned = false;
@@ -143,23 +148,7 @@ public final class ParkDash {
 
     /** The planner's settings: the Hive Dash's Dashboard values (the same supports, helper corners and speeds). */
     private HiveRoute.Params params() {
-        HiveRoute.Params p = new HiveRoute.Params();
-        p.robotHeightIn = HiveDash.ROBOT_HEIGHT_IN;
-        p.marginIn = HiveDash.MARGIN_IN;
-        p.depthIn = depthIn;
-        p.widthIn = widthIn;
-        p.fromBackIn = fromBackIn;
-        p.alignMinLegIn = HiveDash.ALIGN_MIN_LEG_IN;
-        p.turnPenaltyInPerDeg = HiveDash.TURN_PENALTY_IN_PER_DEG;
-        p.unalignedSpeedRatio = HiveDash.UNALIGNED_SPEED_RATIO;
-        p.underHive = HiveDash.UNDER_HIVE_ROUTES;
-        p.laneHalfWidthIn = HiveDash.LANE_HALF_WIDTH_IN;
-        p.flowerClearanceIn = HiveDash.FLOWER_CLEARANCE_IN;
-        for (int sx = -1; sx <= 1; sx += 2) {
-            for (int sy = -1; sy <= 1; sy += 2) p.points.add(new double[]{sx * HiveDash.HELPER_X, sy * HiveDash.HELPER_Y});
-            p.points.add(new double[]{sx * HiveDash.GATE_X, 0.0});
-        }
-        return p;
+        return HiveDash.routeParams(depthIn, widthIn, fromBackIn);
     }
 
     private static double clamp(double v, double lo, double hi) {
@@ -309,6 +298,14 @@ public final class ParkDash {
         out.turn = g.turn;
     }
 
+    /** The follower reached a via point (LegFollower.ViaListener): the log line, then the next leg starts. */
+    private void viaReached(int nextLegIndex, double[] via) {
+        Pose2d p = followIn.pose;
+        RunLog.event(String.format(Locale.US, "PARK DASH via point (%.0f, %.0f) reached at (%.1f, %.1f), %.2f s", via[0], via[1], p.position.x, p.position.y, dashClock.seconds()));
+        legIndex = nextLegIndex;
+        startLeg();
+    }
+
     private void drive(Input in) {
         if (grid != null) {
             driveGrid(in);
@@ -316,48 +313,28 @@ public final class ParkDash {
         }
         Pose2d pose = in.pose;
         double x = pose.position.x, y = pose.position.y, h = pose.heading.toDouble();
-        int legs = plan.waypoints.length - 1;
-        double goalDist = Math.hypot(x - goalX, y - goalY);
-        double ux = 0, uy = 0, nx = 0, ny = 0, cross = 0, remaining = 0;
-        for (int guard = 0; guard < 4; guard++) {
-            double[] a = plan.waypoints[legIndex], b = plan.waypoints[legIndex + 1];
-            double len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-            ux = len < 1e-6 ? 1.0 : (b[0] - a[0]) / len;
-            uy = len < 1e-6 ? 0.0 : (b[1] - a[1]) / len;
-            nx = -uy;
-            ny = ux;
-            double along = (x - a[0]) * ux + (y - a[1]) * uy;
-            cross = (x - a[0]) * nx + (y - a[1]) * ny;
-            remaining = len - along;
-            boolean last = legIndex == legs - 1;
-            if (last) {
-                if (goalDist <= GOAL_TOL_IN) {
-                    state = State.PARKED;
-                    RunLog.event(String.format(Locale.US, "PARK DASH parked after %.2f s at (%.1f, %.1f, %.1f deg), %.1f in from the corner", dashClock.seconds(), x, y,
-                            pose.heading.toDegrees(), goalDist));
-                    out.translation = true;
-                    return;
-                }
-                break;
-            }
-            if (remaining > PASS_TOL_IN && along <= len) break;
-            RunLog.event(String.format(Locale.US, "PARK DASH via point (%.0f, %.0f) reached at (%.1f, %.1f), %.2f s", b[0], b[1], x, y, dashClock.seconds()));
-            legIndex++;
-            startLeg();
+        // the legs, the via points, the arrival and the translation command are the shared follower's (LegFollower, also the Hive Dash's); the values are this class's Dashboard statics.
+        // The Hive Dash's approach power limit and corner slow-down are OFF here (0), as they always were for the Park Dash: turning them on is a change of behavior to decide and try, not a refactoring.
+        LegFollower.Config c = followConfig;
+        c.maxPower = MAX_POWER;
+        c.goalTolIn = GOAL_TOL_IN;
+        c.passTolIn = PASS_TOL_IN;
+        c.alongKp = ALONG_KP;
+        c.minFinalPower = MIN_FINAL_POWER;
+        c.crossKp = CROSS_KP;
+        c.crossMax = CROSS_MAX;
+        c.approachPower = 0.0;
+        c.cornerPower = 0.0;
+        followIn = in;
+        LegFollower.Step s = LegFollower.follow(plan.waypoints, legIndex, x, y, goalX, goalY, c, onVia, followStep);
+        if (s.arrived) {
+            state = State.PARKED;
+            RunLog.event(String.format(Locale.US, "PARK DASH parked after %.2f s at (%.1f, %.1f, %.1f deg), %.1f in from the corner", dashClock.seconds(), x, y,
+                    pose.heading.toDegrees(), s.goalDist));
+            out.translation = true;
+            return;
         }
-        boolean last = legIndex == legs - 1;
-        double vfx, vfy;
-        if (last) {
-            // the last leg heads straight for the corner: a robot that overshoots it or passes it to the side is driven back (power along the leg kept pushing it on past)
-            double v = clamp(ALONG_KP * goalDist, MIN_FINAL_POWER, MAX_POWER);
-            double d = Math.max(goalDist, 1e-6);
-            vfx = (goalX - x) / d * v;
-            vfy = (goalY - y) / d * v;
-        } else {
-            double vC = clamp(-CROSS_KP * cross, -CROSS_MAX, CROSS_MAX);
-            vfx = ux * MAX_POWER + nx * vC;
-            vfy = uy * MAX_POWER + ny * vC;
-        }
+        double vfx = s.vfx, vfy = s.vfy;
         double fwd = vfx * Math.cos(h) + vfy * Math.sin(h);
         double left = -vfx * Math.sin(h) + vfy * Math.cos(h);
         // the heading: an aligned leg turns the robot to the leg's heading and slows it by the heading error; a short leg keeps the heading it has

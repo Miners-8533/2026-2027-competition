@@ -64,7 +64,7 @@ public final class EntryCounter {
     public static double VALLEY_MAX = 100000.0;
     /** The empty-level statistics (for the log) are taken over the first this many seconds after the thread starts. */
     public static double BASELINE_SEC = 1.0;
-    /** The thread ends when touch() has not been called for this long (the opmode ended). */
+    /** The thread ends when touch() has not been called for this long (the opmode ended); a touch() after that (the loop only stood still) starts it again. */
     public static double IDLE_EXIT_SEC = 1.5;
     /** Seconds between the CS5 ENTRY THREAD stats lines. */
     public static double STATS_SEC = 15.0;
@@ -121,6 +121,8 @@ public final class EntryCounter {
     private volatile long rejected = 0L;
     private Thread thread;
     private long originNs;
+    private EntryPipeline pipe;           // used only by the counter thread (one at a time: restart() waits for the old one to end)
+    private volatile int restarts = 0;
     // thread-side interval statistics, copied out by statsLine()
     private final Object statLock = new Object();
     private long winN = 0L, winOver = 0L;
@@ -153,10 +155,15 @@ public final class EntryCounter {
         return s == null ? null : new EntryCounter(s);
     }
 
-    /** Called every loop by Mechanisms.update: starts the thread on the first call and keeps it alive. */
+    /**
+     * Called every loop by Mechanisms.update: starts the thread on the first call and keeps it alive. A thread that stopped because the loop itself stood still for IDLE_EXIT_SEC (a hub that
+     * stopped answering for a moment) is started again here (2026-11-16: it used to stay stopped until the opmode ended, so one long loop ended the count and FULL for the rest of a match).
+     */
     public void touch() {
         lastTouchNs = System.nanoTime();
-        if (!started && ENABLED && !disabled) start();
+        if (!ENABLED || disabled) return;
+        if (!started) start();
+        else if (!running) restart();
     }
 
     /** This opmode reads CS5 itself: the thread will not start (and stops if it is running). */
@@ -170,9 +177,31 @@ public final class EntryCounter {
         started = true;
         running = true;
         originNs = System.nanoTime();
+        pipe = USE_EDGE ? EntryPipeline.edge(EDGE_HI, EDGE_LO, EDGE_CONFIRM, BASELINE_SEC)
+                : new EntryPipeline(PROMINENCE, SMOOTH, MIN_SEPARATION_SEC, MERGE_HEIGHT, MERGE_GAP_SEC, VALLEY_MAX, BASELINE_SEC);
         thread = new Thread(this::run, "CS5 entry counter");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    /**
+     * Starts a new thread after the last one stopped by itself (the idle exit, or an interrupt). The pipeline and the time origin are kept, so the empty level measured at the start still holds
+     * (a new baseline taken in the middle of a match could have an element under the sensor) and the entry numbers and times go on. Not after {@link #disable}.
+     */
+    private synchronized void restart() {
+        if (!started || running || disabled) return;
+        Thread old = thread;
+        if (old != null && old.isAlive()) return;   // still on its way out: the next loop's touch starts the new one
+        running = true;
+        restarts++;
+        thread = new Thread(this::run, "CS5 entry counter");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /** How many times the thread has been started again after stopping by itself (0 in a normal run). */
+    public int restarts() {
+        return restarts;
     }
 
     public void stop() {
@@ -188,8 +217,7 @@ public final class EntryCounter {
     }
 
     private void run() {
-        EntryPipeline pipe = USE_EDGE ? EntryPipeline.edge(EDGE_HI, EDGE_LO, EDGE_CONFIRM, BASELINE_SEC)
-                : new EntryPipeline(PROMINENCE, SMOOTH, MIN_SEPARATION_SEC, MERGE_HEIGHT, MERGE_GAP_SEC, VALLEY_MAX, BASELINE_SEC);
+        final EntryPipeline pipe = this.pipe;   // made in start(), kept across a restart
         long next = System.nanoTime();
         long lastStart = 0L;
         int consecutiveErrors = 0;

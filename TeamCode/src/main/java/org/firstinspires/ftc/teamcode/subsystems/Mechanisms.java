@@ -102,6 +102,12 @@ public class Mechanisms {
      */
     public static double FULL_IN_HOLD_SEC = 0.1;
     public static boolean FULL_LOCKED_INTAKE_OUT = true;
+    /**
+     * (2026-11-16) A pusher lock that FAILED (the arm stopped outside the lock position) is tried again at most this many times in all; after that the lock is refused (for FULL: the intake goes
+     * back IN, as for any refused lock) until a salvo, a reject or a new lock request. It was tried again on the next loop without a limit, so an arm that could not reach the lock kept
+     * pushing at the stack. 0: no limit, as before.
+     */
+    public static int LOCK_MAX_TRIES = 2;
     /** A FIFTH element is UNDER CS5 when the proximity stays this many counts above the empty level for FIFTH_DWELL_SEC (the empty noise is 0.5, a passing element +8 to +44), or when an entry is counted while FULL. */
     public static double FIFTH_DWELL_COUNTS = 8.0;
     public static double FIFTH_DWELL_SEC = 0.3;
@@ -197,6 +203,8 @@ public class Mechanisms {
     private final List<String> warnings = new ArrayList<>();
     private double lastDistance = Double.NaN;
     private LaunchGridMap.Result gridNow = null;
+    private HiveTarget gridCell = null;        // the cell and spot of the last update, for getGridResult() (null before the first update)
+    private double gridX = 0.0, gridY = 0.0;
     private boolean gridSpeedUsed = false;
     private boolean gridAllowed = false;   // only the TeleOp turns it on: the autos keep the launch map and their own aim
     private boolean gridOn = false;        // the operator's toggle in the TeleOp (LB + A); starts as USE_LAUNCH_GRID
@@ -222,6 +230,7 @@ public class Mechanisms {
     private final java.util.ArrayDeque<long[]> intakeOutIntervals = new java.util.ArrayDeque<>();   // recent stretches with the intake OUT: {start, end} in System.nanoTime(), for judging an entry by the time of its PEAK
     private long intakeOutStartNs = 0L;
     private String lockRefusalLogged = "";
+    private int lockFailures = 0;   // pusher locks that failed since the last salvo, reject, lock or change of the lock request (LOCK_MAX_TRIES)
     /**
      * The flywheel position servo (2026-11-16, user): the competition TeleOp and the autos HOLD THE POLLEN POSITION, nothing else for now (no toggle: a nectar jams at the pollen position and a pollen misses from the nectar position, but the launch map was tuned for the pollen position). Null when the servo is
      * not in the configuration. Without a command the servo has no signal and sags after an opmode ends, so every opmode that launches commands POLLEN: the autos and the tuners when built (INIT), the TeleOp at Start ({@link #holdFlywheelPollenAtStart}, nothing moves in its INIT: G403), and any opmode on its first update.
@@ -234,6 +243,8 @@ public class Mechanisms {
     private long fifthDwellStartNs = 0L, fifthClearStartNs = 0L, fifthClearOkStartNs = 0L, fifthRetryUntilNs = 0L;
     private int launchedTotal = 0;                  // elements launched since the opmode started (the entry count, or the counter's, at each salvo start)
     private int heldByEntries = 0;                 // CS5 entries since the track was last emptied (a salvo, a reject, or the counter reading 0 for ENTRY_ZERO_RESET_SEC)
+    private int heldBeforeSalvo = 0, launchedBySalvo = 0;   // what the last salvo's start took off the entry count and added to launchedTotal (put back if the pusher gives up on it)
+    private int entriesRestartsLogged = 0;
     private boolean entryFull = false;
     private long entryFullStartNs = 0L;
     private final ElapsedTime counterZeroClock = new ElapsedTime();
@@ -378,6 +389,7 @@ public class Mechanisms {
     public void setPusherLockWanted(boolean wanted) {
         if (wanted != lockWanted) {
             lockWanted = wanted;
+            lockFailures = 0;   // a new request (or its end): the lock may be tried again
             lockWantedOffClock.reset();
             RunLog.event("PUSHER LOCK request " + (wanted ? "ON (target lock or Hive Dash)" : "off") + " (" + heldText() + ", lock " + lockCode() + ")");
         }
@@ -404,6 +416,10 @@ public class Mechanisms {
         if (counter == null) return "there is no element counter";
         if (launchQueued || salvoActive || rejectActive || manualOuttake || manualCalibration) return "the robot is busy";
         if (pusher.isStalled()) return "the pusher is faulted";
+        // a move that gave up (a jam, or the timeout) leaves the arm where it stuck: a lock seek from there goes into the same jam, and with the count put back after a salvo that gave up
+        // (salvoNotCompleted) FULL would start one after another; the next salvo or reject clears it
+        if (pusher.isGaveUp()) return "the pusher gave up on its last move (a jam or the timeout): launch or reject first";
+        if (LOCK_MAX_TRIES > 0 && lockFailures >= LOCK_MAX_TRIES) return "the lock failed " + lockFailures + " times: no more tries until a salvo, a reject or a new lock request";
         if (pusherCheck != null && (pusherCheck.isActive() || checkPending)) return "a pusher check is running or wanted";
         if (fromRestingArm) {
             // after a salvo the arm rests about 40 to 60 deg PAST a HOLD (SALVO_DEG 400 less a turn) until a pusher check parks it, and with the intake always IN the check is skipped ("did not read empty"):
@@ -468,9 +484,11 @@ public class Mechanisms {
                         RunLog.event(String.format(Locale.US, "PUSHER LOCKED at %.1f deg past HOLD after %.2f s (%s)", pusher.getAnglePastHoldDeg(), lockClock.seconds(), pusher.getLastResult()));
                         lockState = LockState.LOCKED;
                         lockClock.reset();
+                        lockFailures = 0;
                     } else {
-                        RunLog.event(String.format(Locale.US, "PUSHER LOCK FAILED: the arm rests at %.1f deg past HOLD (%s); the lock is off (the automatic lock tries again when the conditions hold)",
-                                pusher.getAnglePastHoldDeg(), pusher.getLastResult()));
+                        lockFailures++;
+                        RunLog.event(String.format(Locale.US, "PUSHER LOCK FAILED (%d of at most %s): the arm rests at %.1f deg past HOLD (%s); the lock is off (the automatic lock tries again when the conditions hold, up to the limit)",
+                                lockFailures, LOCK_MAX_TRIES > 0 ? String.valueOf(LOCK_MAX_TRIES) : "any number", pusher.getAnglePastHoldDeg(), pusher.getLastResult()));
                         lockState = LockState.NONE;
                         counter.setFrozen(false);
                         lockClock.reset();
@@ -614,6 +632,25 @@ public class Mechanisms {
         if (spinRequested) RunLog.event("COMMAND flywheel stop");
         spinRequested = false;
         stopScheduled = false;
+    }
+
+    /**
+     * The opmode is ending (2026-11-16): the intake, the flywheel and the pusher are switched off here, written to the hub at once, and whatever was queued or running is dropped. Call it INSTEAD
+     * of a last update(): an update() works out what the mechanisms should do next, so with the always-IN intake it wrote the intake IN again, and a launch still queued could start its salvo
+     * in the opmode's last loop. Do not call update() after it.
+     */
+    public void stopAll() {
+        launchQueued = false;
+        salvoActive = false;
+        rejectActive = false;
+        pendingRejectAfterUnlock = false;
+        spinRequested = false;
+        stopScheduled = false;
+        checkPending = false;
+        if (intake != null) intake.setMode(Intake.Mode.OFF);
+        if (flywheel != null) flywheel.stop();
+        if (pusher != null) pusher.stopNow();
+        RunLog.event("STOP ALL: the intake, the flywheel and the pusher are off (the opmode is ending)");
     }
 
     /** Clears the speed trim (the operator's guarded reset). */
@@ -818,6 +855,7 @@ public class Mechanisms {
 
     /** The 2-D launch grid's answer for the open cell from the pose of the last update (null before the first). */
     public LaunchGridMap.Result getGridResult() {
+        if (gridNow == null && gridCell != null) gridNow = LaunchGridMap.lookup(gridCell, gridX, gridY);   // not looked up in update() while the grid is off: done here, once per update at most
         return gridNow;
     }
 
@@ -830,7 +868,29 @@ public class Mechanisms {
         return lastDistance;
     }
 
-    /** A copy of the current warnings (for the competition screen). */
+    /**
+     * What a warning is about (2026-11-16). Every warning has one of these beside its text: the text is a sentence for the log and the verbose screen and may be reworded freely, the code is
+     * what other code acts on (the competition screen picks its short alert by it; it used to match the start of the sentence, so a reworded warning silently became CHECK ROBOT).
+     * A new warning needs a new code here and, if it is for a match, a case in CompetitionScreen.fromMechanisms.
+     */
+    public enum WarningCode {
+        COUNTER_OVERRIDE, COUNTER_NOT_READING, FULL, OPPONENT_NECTAR, LAUNCH_MAP_EMPTY, FLYWHEEL_ENCODER_LOST, FLYWHEEL_OPEN_LOOP, RAMP_NOT_CONFIGURED, BACKUP_MODE, STOW_WAITING,
+        PUSHER_NOT_CALIBRATED, PUSHER_STALLED, PUSHER_JAMMED, PUSHER_ZERO_NOT_VERIFIED, PUSHER_ZERO_UNCERTAIN
+    }
+
+    private final List<WarningCode> warningCodes = new ArrayList<>();   // the codes of the warnings list, in the same order
+
+    private void warn(WarningCode code, String text) {
+        warningCodes.add(code);
+        warnings.add(text);
+    }
+
+    /** A copy of the current warnings' codes, in the order of {@link #getWarnings} (for the competition screen). */
+    public List<WarningCode> getWarningCodes() {
+        return new ArrayList<>(warningCodes);
+    }
+
+    /** A copy of the current warnings' texts (for the log and the verbose screen; code that acts on a warning uses {@link #getWarningCodes}). */
     public java.util.List<String> getWarnings() {
         return new ArrayList<>(warnings);
     }
@@ -888,6 +948,7 @@ public class Mechanisms {
 
     private void updateAll(Pose2d pose) {
         warnings.clear();
+        warningCodes.clear();
         if (flywheelPosition != null && flywheelPosition.isConfigured() && flywheelPosition.target() == null) {
             flywheelPosition.set(FlywheelPosition.Element.POLLEN);   // the safety net: no opmode has commanded it yet
             RunLog.event("COMMAND flywheel position POLLEN (first update: nothing had commanded it)");
@@ -904,14 +965,14 @@ public class Mechanisms {
             counter.update();
             LoopProfiler.stop("mech.counter", profiledCounter);   // one color sensor read every READ_PERIOD_MS, so the maximum is the read
             if (counterOverride) {
-                warnings.add("COUNTER OVERRIDE: no 4-element stop and no element warnings; the intake runs until you turn it off");
+                warn(WarningCode.COUNTER_OVERRIDE, "COUNTER OVERRIDE: no 4-element stop and no element warnings; the intake runs until you turn it off");
             } else if (!counter.isValid()) {
-                warnings.add("ELEMENT COUNTER NOT READING: there is no 4-element stop (count by eye; hold the left trigger to push extras out)");
+                warn(WarningCode.COUNTER_NOT_READING, "ELEMENT COUNTER NOT READING: there is no 4-element stop (count by eye; hold the left trigger to push extras out)");
             } else {
                 full = counter.isFull();
-                if (full) warnings.add("FULL: " + counter.count() + " elements held");
+                if (full) warn(WarningCode.FULL, "FULL: " + counter.count() + " elements held");
                 int opponentAt = counter.opponentNectarAt(blueAlliance);
-                if (opponentAt > 0) warnings.add("OPPONENT NECTAR at sensor " + opponentAt + " (CS" + opponentAt + "): reject (LB + B)");
+                if (opponentAt > 0) warn(WarningCode.OPPONENT_NECTAR, "OPPONENT NECTAR at sensor " + opponentAt + " (CS" + opponentAt + "): reject (LB + B)");
             }
         }
 
@@ -951,41 +1012,46 @@ public class Mechanisms {
         // the 2-D launch grid: looked up every loop (so its answer can be logged beside the map's), used only when the switch is on and it has a speed for this spot
         // during a Hive Dash it is looked up for the launch spot, so the flywheel is at its speed on arrival (as the map's dash distance does); in backup mode (no pose) there is no grid
         boolean dashSpot = dashDistanceIn > 0.0 && !Double.isNaN(dashSpotX);
-        gridNow = LaunchGridMap.lookup(openCell, dashSpot ? dashSpotX : pose.position.x, dashSpot ? dashSpotY : pose.position.y);
-        gridSpeedUsed = isGridOn() && fixedDistanceIn <= 0.0 && gridNow.hasValues();
+        // (2026-11-16) with the grid off its answer is only wanted for the log, a few times a second: the spot is remembered here and getGridResult() looks it up when asked (it was looked up on
+        // every loop: a scan of the triangles and, outside the spots, a formatted note each time)
+        gridCell = openCell;
+        gridX = dashSpot ? dashSpotX : pose.position.x;
+        gridY = dashSpot ? dashSpotY : pose.position.y;
+        gridNow = isGridOn() && fixedDistanceIn <= 0.0 ? LaunchGridMap.lookup(gridCell, gridX, gridY) : null;
+        gridSpeedUsed = gridNow != null && gridNow.hasValues();
         if (gridSpeedUsed) {
             lastSetpoint = Math.max(0.0, gridNow.speed + speedTrim);
             mapAvailable = true;
         }
         // a dead flywheel encoder: no closed loop, so every launch is the same base power (Flywheel.LOST_BASE_SETPOINT) moved only by the speed trim
         if (flywheel != null && flywheel.isEncoderLost()) lastSetpoint = Math.max(0.0, Flywheel.LOST_BASE_SETPOINT + speedTrim);
-        if (flywheel != null && !mapAvailable && !speedSetByOpMode) warnings.add("Launch map empty: using the manual setpoint");
+        if (flywheel != null && !mapAvailable && !speedSetByOpMode) warn(WarningCode.LAUNCH_MAP_EMPTY, "Launch map empty: using the manual setpoint");
         if (flywheel != null && flywheel.isEncoderLost()) {
-            warnings.add(String.format(Locale.US, "FLYWHEEL ENCODER LOST: open loop at a fixed power for %.0f ticks/s %+.0f (speed trim); every launch is the same, drive to the same spot", Flywheel.LOST_BASE_SETPOINT, speedTrim));
-        } else if (flywheel != null && flywheel.isOpenLoop()) warnings.add("FLYWHEEL OPEN LOOP: the speed sensor is ignored, ready is a timer");
+            warn(WarningCode.FLYWHEEL_ENCODER_LOST, String.format(Locale.US, "FLYWHEEL ENCODER LOST: open loop at a fixed power for %.0f ticks/s %+.0f (speed trim); every launch is the same, drive to the same spot", Flywheel.LOST_BASE_SETPOINT, speedTrim));
+        } else if (flywheel != null && flywheel.isOpenLoop()) warn(WarningCode.FLYWHEEL_OPEN_LOOP, "FLYWHEEL OPEN LOOP: the speed sensor is ignored, ready is a timer");
 
         fullNow = full;
 
         // rule 5: remembered stow
         if (ramp != null) {
-            if (!ramp.isConfigured()) warnings.add("Ramp positions not measured: it will not move");
-            if (poseOverride) warnings.add(String.format(Locale.US, "BACKUP MODE (no pose): robot-oriented drive, launch speed fixed for %.0f in, no target lock; service the robot", fixedDistanceIn));
+            if (!ramp.isConfigured()) warn(WarningCode.RAMP_NOT_CONFIGURED, "Ramp positions not measured: it will not move");
+            if (poseOverride) warn(WarningCode.BACKUP_MODE, String.format(Locale.US, "BACKUP MODE (no pose): robot-oriented drive, launch speed fixed for %.0f in, no target lock; service the robot", fixedDistanceIn));
             if (stowPending) {
                 if (poseOverride || Ramp.isClearOfFlower(pose)) {
                     ramp.stow();
                     stowPending = false;
                     RunLog.event(poseOverride ? "RAMP stowing (pose override)" : "RAMP stowing (clear of the flowers)");
                 } else {
-                    warnings.add("Stow waiting: robot not clear of a flower yet");
+                    warn(WarningCode.STOW_WAITING, "Stow waiting: robot not clear of a flower yet");
                 }
             }
         }
 
         // pusher events and warnings
         if (pusher != null) {
-            if (!pusher.isCalibrated()) warnings.add("Pusher not calibrated: salvos and rejects disabled");
-            if (pusher.isStalled()) warnings.add("Pusher STALLED: clear it before the next move");
-            if (pusher.isJamUnresolved()) warnings.add("Pusher JAMMED: the arm could not be freed; reject (LB + B) or launch again");
+            if (!pusher.isCalibrated()) warn(WarningCode.PUSHER_NOT_CALIBRATED, "Pusher not calibrated: salvos and rejects disabled");
+            if (pusher.isStalled()) warn(WarningCode.PUSHER_STALLED, "Pusher STALLED: clear it before the next move");
+            if (pusher.isJamUnresolved()) warn(WarningCode.PUSHER_JAMMED, "Pusher JAMMED: the arm could not be freed; reject (LB + B) or launch again");
             // finished means stopped, wherever it came to rest: not "within the HOLD tolerance", which a salvo that
             // lands a few degrees past HOLD never satisfies
             boolean pusherIdle = pusher.isStopped();
@@ -1000,6 +1066,7 @@ public class Mechanisms {
                 salvosDone++;
                 RunLog.event(String.format(Locale.US, "SALVO done: lowest flywheel speed %.0f ticks/s | %s | %s",
                         salvoMinSpeed, pusher.getLastResult(), pusher.getLastSettle()));
+                if (pusher.isGaveUp()) salvoNotCompleted(pusher.isJamUnresolved() ? "the pusher gave up on a jam" : "the pusher gave up on the move timeout");
                 if (AUTO_PUSHER_CHECK && pusherCheck != null) {
                     checkPending = true;
                     checkTimer.reset();
@@ -1013,6 +1080,7 @@ public class Mechanisms {
                 if (salvoActive || rejectActive) {
                     RunLog.event("PUSHER STALLED during a " + (salvoActive ? "salvo" : "reject") + ": " + pusher.getLastResult());
                 }
+                if (salvoActive) salvoNotCompleted("the pusher faulted");
                 salvoActive = false;
                 rejectActive = false;
             }
@@ -1058,10 +1126,10 @@ public class Mechanisms {
             }
             if (pusherCheck.takeFinished()) counter.ignoreCountFor(CHECK_COUNT_HOLDOFF_SEC);
             if (!Pusher.isZeroVerified() && !pusherCheck.isLost() && !pusherCheck.isActive()) {
-                warnings.add("Pusher zero not verified against CS4 yet (the first pusher check will do it)");
+                warn(WarningCode.PUSHER_ZERO_NOT_VERIFIED, "Pusher zero not verified against CS4 yet (the first pusher check will do it)");
             }
             if (pusherCheck.isLost()) {
-                warnings.add("PUSHER ZERO UNCERTAIN: the pusher check could not find the arm (" + pusherCheck.lastDetail() + ")");
+                warn(WarningCode.PUSHER_ZERO_UNCERTAIN, "PUSHER ZERO UNCERTAIN: the pusher check could not find the arm (" + pusherCheck.lastDetail() + ")");
             }
         }
 
@@ -1101,6 +1169,8 @@ public class Mechanisms {
                             entries == null ? "" : String.format(Locale.US, " | CS5 shadow count: %d entries since the last salvo started (%d in all, %d peaks rejected by the valley rule)", entriesNow - entriesAtLastSalvo, entriesNow, entries.rejected()),
                             launchedNow, heldByEntries, counterHeldNow, launchedTotal));
                     entriesAtLastSalvo = entriesNow;
+                    heldBeforeSalvo = heldByEntries;   // put back by salvoNotCompleted if the pusher gives up on this salvo
+                    launchedBySalvo = launchedNow;
                     resetEntryHeld("a salvo started");
                     launchQueued = false;
                     stopScheduled = false;
@@ -1187,9 +1257,15 @@ public class Mechanisms {
         LoopProfiler.stop("mech.flywheel", profiledFlywheel);
         if (flywheel != null && flywheel.isEncoderLost() && !flywheelLostSeen) {
             flywheelLostSeen = true;
-            RunLog.event("FLYWHEEL ENCODER LOST: " + flywheel.getLostReason() + "; open loop for the rest of the run (base power for "
+            RunLog.event("FLYWHEEL ENCODER LOST: " + flywheel.getLostReason() + "; open loop until the speed reads again, else for the rest of the run (base power for "
                     + Flywheel.LOST_BASE_SETPOINT + " ticks/s, speed trim " + speedTrim + ")");
             notice("Flywheel encoder lost: open loop at a fixed power. Use the speed trim.");
+        }
+        String flywheelBack = flywheel == null ? null : flywheel.takeRecoveredNote();
+        if (flywheelBack != null) {
+            flywheelLostSeen = false;   // a later loss is logged again
+            RunLog.event("FLYWHEEL ENCODER BACK: " + flywheelBack);
+            notice("Flywheel encoder is back");
         }
         long profiledPusher = LoopProfiler.start();
         if (pusher != null) {
@@ -1249,6 +1325,11 @@ public class Mechanisms {
             entriesStatsTimer.reset();
             RunLog.event("CS5 ENTRY THREAD: " + entries.windowStats());
         }
+        if (entries.restarts() != entriesRestartsLogged) {
+            entriesRestartsLogged = entries.restarts();
+            RunLog.event("CS5 ENTRY THREAD started again (" + entriesRestartsLogged + " in this run): it had stopped because the loop stood still for more than " + EntryCounter.IDLE_EXIT_SEC
+                    + " s; the empty level and the count are kept, entries during the gap are missed");
+        }
         boolean healthy = entries.isHealthy();
         if (entriesStartedClock.seconds() > 2.0 && healthy != entriesHealthy) {
             entriesHealthy = healthy;
@@ -1273,6 +1354,24 @@ public class Mechanisms {
         entryFull = false;
         entryFullStartNs = 0L;
         lockRefusalLogged = "";
+        lockFailures = 0;   // a salvo or a reject moved the stack: the lock may be tried again
+    }
+
+    /**
+     * The salvo that just ended did not complete (2026-11-16): the pusher gave up on it (a jam the back-offs did not free, or the move timeout) or faulted. The entry count was set to 0 and the
+     * elements were added to the launched total when the salvo STARTED, so both are put back here: the count the salvo started with plus what has entered since, and the launched total less the
+     * salvo's elements. How many really left is not known, so all of them are taken to be still in the track (a robot that shows too many is launched or rejected; one that shows 0 with a
+     * jammed track kept taking elements in). FULL is declared again by the next updateEntries when the count is at the capacity.
+     */
+    private void salvoNotCompleted(String why) {
+        if (heldBeforeSalvo == 0 && launchedBySalvo == 0) return;
+        int enteredSince = heldByEntries;
+        heldByEntries += heldBeforeSalvo;
+        launchedTotal = Math.max(0, launchedTotal - launchedBySalvo);
+        RunLog.event(String.format(Locale.US, "SALVO NOT COMPLETED (%s): the entry count is put back to %d (%d before the salvo + %d entered since), launched total back to %d (less %d); all of the salvo's elements are taken to be still held | %s",
+                why, heldByEntries, heldBeforeSalvo, enteredSince, launchedTotal, launchedBySalvo, pusher.getLastResult()));
+        heldBeforeSalvo = 0;
+        launchedBySalvo = 0;
     }
 
     /** The opmode lets the always-IN intake, the pusher lock and the auto-launch act on FULL (ENTRY_FULL_ACTIONS is the master switch). Only TeleOp - Competition asks for it. */
@@ -1399,6 +1498,17 @@ public class Mechanisms {
     public int getShownCount() {
         if (entries == null || !entries.isStarted() || !entries.isHealthy()) return -1;
         return heldByEntries;
+    }
+
+    /**
+     * For the gates that only ask whether there is anything to launch (the Hive Dash and the auto-launch, 2026-11-16): the higher of the CS5 entry count and the counter's on CS1 to CS4, as the
+     * salvo's LAUNCHED figure takes it (both undercount, neither is trusted alone), or -1 when neither is reading (the caller then takes it that there is something). The gates used the counter
+     * alone, which can read 0 with elements between its sensors, or stay frozen by the pusher lock, while the screen's CS5 count shows some.
+     */
+    public int getHeldEstimate() {
+        int byEntries = getShownCount();
+        int byCounter = counter != null && counter.isValid() ? counter.count() : -1;
+        return Math.max(byEntries, byCounter);
     }
 
     /** True when CS5 is in the configuration and has started but is not answering (for the screen's alert). */

@@ -509,6 +509,16 @@ public class Pusher {
         }
     }
 
+    /**
+     * The opmode is ending: stops whatever the arm is doing where it is and takes the power off the motor, the active hold's too (state HOLD; a fault stays a fault, its motor is already off).
+     * Written to the hub here: no update() is expected after it.
+     */
+    public void stopNow() {
+        if (state == State.STALLED) return;
+        pendingSettle = false;
+        stopHere();
+    }
+
     /** Stops a seek where it is (the arm stays put). Other moves are left alone. */
     public void abortSeek() {
         if (state == State.SEEK) stopHere();

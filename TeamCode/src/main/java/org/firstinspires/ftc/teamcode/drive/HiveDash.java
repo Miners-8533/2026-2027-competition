@@ -113,9 +113,9 @@ public final class HiveDash {
         public boolean blue;
         /** Why the dash is not available (backup mode, a Pinpoint fault, ...), or null. */
         public String blockedWhy;
-        /** The element counter is reading and holds nothing. */
+        /** The robot reads empty: a count is reading and neither the CS5 entry count nor the counter on CS1 to CS4 holds anything (Mechanisms.getHeldEstimate() is 0; the counter alone until 2026-11-16). */
         public boolean counterReadsEmpty;
-        /** The robot may have something to launch (the counter is not reading, or it holds at least one). */
+        /** The robot may have something to launch (no count is reading, or one of them holds at least one). */
         public boolean hasElements;
         public boolean lockAligned;
         public boolean launchBusy;
@@ -175,6 +175,11 @@ public final class HiveDash {
     private HiveRoute.Plan plan;
     private HiveRoute.Params planParams;
     private GridDash grid;   // the grid planner's dash, or null (today's planner)
+    // the shared route follower (LegFollower): its values and answer are reused every loop, and the listener is made once (no garbage in the loop)
+    private final LegFollower.Config followConfig = new LegFollower.Config();
+    private final LegFollower.Step followStep = new LegFollower.Step();
+    private final LegFollower.ViaListener onVia = this::viaReached;
+    private Input followIn;   // the input of the drive() call in progress, for viaReached
     private int legIndex = 0;
     private double legHeading = 0.0, prevLegHeading = 0.0;
     private boolean legAligned = false;
@@ -216,6 +221,11 @@ public final class HiveDash {
     }
 
     private HiveRoute.Params params() {
+        return routeParams(depthIn, widthIn, fromBackIn);
+    }
+
+    /** The planner's values for a robot of this size, from this class's Dashboard statics: the Park Dash plans with the same ones (it had its own copy of this until 2026-11-16). */
+    static HiveRoute.Params routeParams(double depthIn, double widthIn, double fromBackIn) {
         HiveRoute.Params p = new HiveRoute.Params();
         p.robotHeightIn = ROBOT_HEIGHT_IN;
         p.marginIn = MARGIN_IN;
@@ -406,6 +416,14 @@ public final class HiveDash {
         out.lockWanted = g.lockWanted;
     }
 
+    /** The follower reached a via point (LegFollower.ViaListener): the log line, then the next leg starts. */
+    private void viaReached(int nextLegIndex, double[] via) {
+        Pose2d p = followIn.pose;
+        RunLog.event(String.format(Locale.US, "HIVE DASH via point (%.0f, %.0f) reached at (%.1f, %.1f), %.2f s", via[0], via[1], p.position.x, p.position.y, dashClock.seconds()));
+        legIndex = nextLegIndex;
+        startLeg(followIn);
+    }
+
     private void drive(Input in) {
         if (grid != null) {
             driveGrid(in);
@@ -413,60 +431,35 @@ public final class HiveDash {
         }
         Pose2d pose = in.pose;
         double x = pose.position.x, y = pose.position.y, h = pose.heading.toDouble();
-        int legs = plan.waypoints.length - 1;
-        double goalDist = Math.hypot(x - goalX, y - goalY);
-        double ux = 0, uy = 0, nx = 0, ny = 0, along = 0, cross = 0, remaining = 0;
-        for (int guard = 0; guard < 4; guard++) {
-            double[] a = plan.waypoints[legIndex], b = plan.waypoints[legIndex + 1];
-            double len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-            ux = len < 1e-6 ? 1.0 : (b[0] - a[0]) / len;
-            uy = len < 1e-6 ? 0.0 : (b[1] - a[1]) / len;
-            nx = -uy;
-            ny = ux;
-            along = (x - a[0]) * ux + (y - a[1]) * uy;
-            cross = (x - a[0]) * nx + (y - a[1]) * ny;
-            remaining = len - along;
-            boolean last = legIndex == legs - 1;
-            if (last) {
-                if (goalDist <= GOAL_TOL_IN) {
-                    state = State.ARRIVED;
-                    stillClock.reset();
-                    RunLog.event(String.format(Locale.US, "HIVE DASH arrived after %.2f s at (%.1f, %.1f, %.1f deg), %.1f in from the launch spot", dashClock.seconds(), x, y,
-                            pose.heading.toDegrees(), goalDist));
-                    out.overrideCell = cell;
-                    arrived(in);
-                    return;
-                }
-                break;
-            }
-            if (remaining > PASS_TOL_IN && along <= len) break;
-            RunLog.event(String.format(Locale.US, "HIVE DASH via point (%.0f, %.0f) reached at (%.1f, %.1f), %.2f s", b[0], b[1], x, y, dashClock.seconds()));
-            legIndex++;
-            startLeg(in);
+        // the legs, the via points, the arrival and the translation command are the shared follower's (LegFollower, also the Park Dash's); the values are this class's Dashboard statics
+        LegFollower.Config c = followConfig;
+        c.maxPower = MAX_POWER;
+        c.goalTolIn = GOAL_TOL_IN;
+        c.passTolIn = PASS_TOL_IN;
+        c.alongKp = ALONG_KP;
+        c.minFinalPower = MIN_FINAL_POWER;
+        c.crossKp = CROSS_KP;
+        c.crossMax = CROSS_MAX;
+        c.approachPower = APPROACH_POWER;
+        c.approachRadiusIn = APPROACH_RADIUS_IN;
+        c.cornerPower = CORNER_POWER;
+        c.cornerFreeDeg = CORNER_FREE_DEG;
+        c.cornerFullDeg = CORNER_FULL_DEG;
+        c.cornerRampPerIn = CORNER_RAMP_PER_IN;
+        followIn = in;
+        LegFollower.Step s = LegFollower.follow(plan.waypoints, legIndex, x, y, goalX, goalY, c, onVia, followStep);
+        double goalDist = s.goalDist;
+        if (s.arrived) {
+            state = State.ARRIVED;
+            stillClock.reset();
+            RunLog.event(String.format(Locale.US, "HIVE DASH arrived after %.2f s at (%.1f, %.1f, %.1f deg), %.1f in from the launch spot", dashClock.seconds(), x, y,
+                    pose.heading.toDegrees(), goalDist));
+            out.overrideCell = cell;
+            arrived(in);
+            return;
         }
-        boolean last = legIndex == legs - 1;
-        double vfx, vfy;
-        if (last) {
-            // the last leg heads straight for the goal point: a robot that overshoots it or passes it to the side is driven back (power along the leg kept pushing it on past)
-            double v = clamp(ALONG_KP * goalDist, MIN_FINAL_POWER, MAX_POWER);
-            if (APPROACH_POWER > 0.0 && goalDist <= APPROACH_RADIUS_IN) v = Math.min(v, Math.max(APPROACH_POWER, MIN_FINAL_POWER));
-            double d = Math.max(goalDist, 1e-6);
-            vfx = (goalX - x) / d * v;
-            vfy = (goalY - y) / d * v;
-        } else {
-            double vC = clamp(-CROSS_KP * cross, -CROSS_MAX, CROSS_MAX);
-            double vMag = MAX_POWER;
-            if (CORNER_POWER > 0.0 && CORNER_FULL_DEG > CORNER_FREE_DEG) {
-                // slow down for the turn at the via point ahead: the next leg's direction against this one's
-                double[] via = plan.waypoints[legIndex + 1], next = plan.waypoints[legIndex + 2];
-                double turnDeg = Math.toDegrees(Math.abs(Rotation2d.normalize(Math.atan2(next[1] - via[1], next[0] - via[0]) - Math.atan2(uy, ux))));
-                double f = clamp((turnDeg - CORNER_FREE_DEG) / (CORNER_FULL_DEG - CORNER_FREE_DEG), 0.0, 1.0);
-                double cornerPower = MAX_POWER + (Math.min(CORNER_POWER, MAX_POWER) - MAX_POWER) * f;
-                vMag = Math.min(MAX_POWER, cornerPower + CORNER_RAMP_PER_IN * Math.max(0.0, remaining));
-            }
-            vfx = ux * vMag + nx * vC;
-            vfy = uy * vMag + ny * vC;
-        }
+        boolean last = s.last;
+        double vfx = s.vfx, vfy = s.vfy;
         double fwd = vfx * Math.cos(h) + vfy * Math.sin(h);
         double left = -vfx * Math.sin(h) + vfy * Math.cos(h);
         boolean inLock = goalDist <= LOCK_RADIUS_IN
