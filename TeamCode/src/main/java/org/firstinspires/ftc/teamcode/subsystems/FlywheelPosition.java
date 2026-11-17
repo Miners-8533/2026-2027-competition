@@ -11,11 +11,15 @@ import org.firstinspires.ftc.teamcode.util.RunLog;
 import java.util.Locale;
 
 /**
- * PROTOTYPE (branch flywheel-servo-prototype, 2026-11-15): a servo that moves the FLYWHEEL between two positions, one for launching POLLEN and one for launching NECTAR. design/flywheel-position.md.
+ * The servo that moves the FLYWHEEL between two positions, one for launching POLLEN and one for launching NECTAR. On this branch (integration, 2026-11-16, user) it only HOLDS THE POLLEN position: the launch map
+ * was tuned there, a nectar jams at the pollen position and a pollen misses from the nectar one, so nothing here switches it. The switch between the two is the prototype on the branch flywheel-servo-prototype
+ * (with its design notes, design/flywheel-position.md, and the Flywheel Position Test that measured the positions; neither is on this branch).
  *
  * Deliberately plain, like the {@link Ramp}: a position servo set straight to one of two positions (0 to 1), no slew, no feedback. The positions are NaN until they are measured (Flywheel Position Test),
  * and until both are set nothing moves (set on 2026-11-15: pollen 0.45, nectar 0.30). With no position feedback "settled" means the travel time of the last command (250 ms to nectar, 100 ms to pollen) since the command, so a launch waits for it (Mechanisms holds a launch while the servo is moving).
- * Nothing is commanded when this is built or at Start (the servo sags like the ramp's when an opmode ends, and its position is unknown until the first command); the first {@link #set} commands it.
+ * This class commands nothing when it is built (the servo sags like the ramp's when an opmode ends, and its position is unknown until the first command); the first {@link #set} commands it. Who calls it
+ * (Mechanisms): fromHardware commands POLLEN for the autos and the tuners when they are built (INIT), the competition TeleOp commands it at Start (holdFlywheelPollenAtStart; nothing moves in its INIT), and
+ * update() commands it on the first update if nothing has.
  * The hardware configuration needs a servo named SERVO_NAME (the channel is not decided yet: add it in the Robot Configuration under that name, or change SERVO_NAME in the Dashboard before INIT).
  */
 @Config
@@ -77,10 +81,6 @@ public class FlywheelPosition {
     /** The element the flywheel was last sent to, or null before the first command. */
     public Element target() {
         return target;
-    }
-
-    public void toggle() {
-        set(target == Element.NECTAR ? Element.POLLEN : Element.NECTAR);
     }
 
     /** The travel time of the last command has passed (true before any command: nothing is moving). */

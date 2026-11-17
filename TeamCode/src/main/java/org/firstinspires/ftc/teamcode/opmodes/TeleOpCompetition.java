@@ -872,7 +872,7 @@ public class TeleOpCompetition extends LinearOpMode {
                     cellNudgeDeg[HiveTarget.BLUE_REAR.ordinal()], cellNudgeDeg[HiveTarget.BLUE_AUDIENCE.ordinal()], cellNudgeDeg[HiveTarget.RED_REAR.ordinal()],
                     cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()], mechanisms.getSpeedTrim());
             telemetry.addData("Launch method (operator LB + A toggles)", mechanisms.isGridOn() ? "2-D LAUNCH GRID (speed and aim where it has data)" : "launch map + formula aim");
-            telemetry.addData("CS5 FULL mode", FULL_AUTO ? "FULL AUTO" : "COUNT ONLY");
+            telemetry.addData("CS5 FULL mode", mechanisms.isEntryFullActionsOn() ? "FULL AUTO" : "COUNT ONLY");   // the mode in use (set at Start, and the Mechanisms master switch), as on the match screen; not the FULL_AUTO static, which the Dashboard can change after Start
             telemetry.addData("Auto-launch (operator RB toggles; FULL arms it)", backupMode ? "off (backup mode)" : autoLaunchOn ? "ON: " + autoLaunchState : autoLaunchArmed ? "ARMED BY FULL: " + autoLaunchState : "off");
             telemetry.addData("Hive Dash (driver D-pad left / right, held)", hiveDash.status());
             telemetry.addData("Park Dash (driver D-pad up / down, held)", parkDash.status());
