@@ -26,9 +26,10 @@ import java.util.Locale;
  * HeldCount, SpeedSelector, LaunchSequencer, the reject sequencer, CheckScheduler, FullAndLock, the intake arbiter,
  * the ramp rules and Warnings.
  *
- * SPEC GAP: the order the parts run in is behavior, and the specs say it is to be "written down from the code".
- * The order here (counts, speed, launch, reject, check, FULL and lock, intake, ramp, flywheel, actuators, warnings)
- * is this rebuild's choice. Commands act at once, in the order the opmode calls them.
+ * The order the parts run in is behavior (specs/mechanisms.md section 16.3). A command acts at once when the opmode
+ * calls it, before the update; the update then runs the 15 steps of that section, in that order. Two consequences:
+ * a launch the opmode requests is tested in the same update, so a salvo can start in the loop it was requested in;
+ * and the end of a salvo or a reject is seen one update late, because the pusher is updated last.
  */
 public final class Mechanisms {
     /** The per-opmode settings (specs/mechanisms.md section 1). The opmode may change them at Start. */
@@ -90,7 +91,7 @@ public final class Mechanisms {
 
     private Alliance alliance;
     private Reject reject = Reject.IDLE;
-    private boolean rejectJustStarted;
+    private int lastSlotCount = -2;
     private boolean outtakeHeld, forceInOperator, forceInAuto, intakeRequested, spinRequested, aimLockWanted;
     private boolean calibrationSweep, stowPending, backup, stopped, first = true, wasFull, flyReported;
     private double speedTrim, backupDistance, flyStopAt = -1, countHoldoffUntil = -1, lastHealthLine = -1e9, slotsEmptySince = -1;
@@ -116,7 +117,6 @@ public final class Mechanisms {
         if (settings.flyPosAtInit && flyPos != null) flyPos.commandPollen();
         if (entry != null) held.start(settings.startHeld);
         RunLog.event("SETUP mechanisms: " + found());
-        if (slots != null) RunLog.event("COUNTER stored baselines: " + SlotCounter.baselinesText());
         if (entry != null) {
             RunLog.event("ENTRY COUNT starts at " + held.held());
             if (!entry.fastMode()) RunLog.event("CS5 ENTRY the sensor could not be put into its fast proximity mode: the count is useless");
@@ -197,8 +197,13 @@ public final class Mechanisms {
 
     private void startReject() {
         pusher.reject();
+        if (pusher.state() != Pusher.State.REJECT) {
+            // The pusher ignored the move (faulted, not calibrated, or stopped for the end of the opmode).
+            reject = Reject.IDLE;
+            RunLog.event("REJECT not started: the pusher ignored the move");
+            return;
+        }
         reject = Reject.RUNNING;
-        rejectJustStarted = true;
         RunLog.eventf("REJECT started at %.0f deg", pusher.angle());
     }
 
@@ -339,16 +344,13 @@ public final class Mechanisms {
         double t = Clock.now();
         lastPose = pose;
         LoopProfiler.begin("mechanisms");
-        if (first) {
-            first = false;
-            // A safety net: if nothing has commanded the flywheel position yet, do it now.
-            if (flyPos != null && !flyPos.commanded()) flyPos.commandPollen();
-            // Once after the first update, if the pusher's zero has not been verified since it was assumed.
-            if (check != null && !pusher.zeroVerified()) sched.want(t);
-            if (entry != null) RunLog.event("CS5 ENTRY COUNTER started" + (entry.fastMode() ? "" : " (NOT in fast mode)"));
-        }
+        boolean firstUpdate = first;
+        first = false;
 
-        // ---- 1. Counts ----
+        // ---- 1. The flywheel position safety net: if nothing has commanded the servo yet, do it now ----
+        if (firstUpdate && flyPos != null && !flyPos.commanded()) flyPos.commandPollen();
+
+        // ---- 2. The slot count: one sensor read, then its warnings ----
         LoopProfiler.begin("mech.counter");
         if (slots != null) {
             double rel = pusher == null ? 0 : pusher.relAngle();
@@ -356,8 +358,17 @@ public final class Mechanisms {
             boolean checking = check != null && check.running(), sweeping = check != null && check.sweeping();
             slots.setContext(armNear, checking, sweeping || t < countHoldoffUntil, fullLock.countFrozen(), sweeping);
             slots.update(t);
+            if (!slots.valid()) {
+                warnings.raise(Warnings.Code.COUNTER_NOT_READING, "CS" + slots.staleSensor() + " has stopped answering");
+            } else {
+                int at = slots.opponentNectarAt(alliance);
+                if (at > 0) warnings.raise(Warnings.Code.OPPONENT_NECTAR, "the other alliance's nectar is at CS" + at + "; reject is the operator's decision");
+            }
         }
+
+        // ---- 3. The entry count: the new entries, then full ----
         if (entry != null) {
+            if (firstUpdate) RunLog.event("CS5 ENTRY COUNTER started" + (entry.fastMode() ? "" : " (NOT in fast mode)"));
             for (EntryRule.Entry e : entry.collect()) {
                 boolean counted = held.onEntry(e.t);
                 RunLog.eventf("CS5 ENTRY height %d, proximity %d, %.3f s ago, %s, held %d", e.height, e.proximity, t - e.t,
@@ -376,13 +387,29 @@ public final class Mechanisms {
             } else {
                 slotsEmptySince = -1;
             }
+            if (entry.started() && !entry.healthy()) warnings.raise(Warnings.Code.ENTRY_NOT_ANSWERING, "CS5 is not answering");
         }
         LoopProfiler.end("mech.counter");
         boolean full = full();
         if (full != wasFull) RunLog.event(full ? "ENTRY FULL: " + heldText() + " held" : "ENTRY no longer full");
         wasFull = full;
+        if (full) warnings.raise(Warnings.Code.FULL, "4 held");
 
-        // ---- 2. Launch speed ----
+        // ---- 4. The counts' log lines: the baselines once, the empty-track line, a change of the count ----
+        if (slots != null) {
+            if (firstUpdate) RunLog.event("COUNTER stored baselines: " + SlotCounter.baselinesText());
+            if (slots.valid() && slots.count() == 0 && t - lastHealthLine >= MechParams.HEALTH_LINE_S) {
+                lastHealthLine = t;
+                RunLog.event("COUNTER empty track, color shifts " + slots.shiftsText());
+            }
+            int n = slots.valid() ? slots.count() : -1;
+            if (n != lastSlotCount) {
+                RunLog.event("ELEMENTS count " + (lastSlotCount < 0 ? "?" : String.valueOf(lastSlotCount)) + " -> " + (n < 0 ? "?" : String.valueOf(n)) + ", slots " + slots.slots());
+                lastSlotCount = n;
+            }
+        }
+
+        // ---- 5. The target cell, the distance, the setpoint, the launch grid, the lost-encoder setpoint, and their warnings ----
         speedIn.pose = pose;
         speedIn.alliance = alliance;
         speedIn.followsPose = settings.targetFollowsPose && poseTrusted;
@@ -397,72 +424,110 @@ public final class Mechanisms {
         speedIn.flywheelLost = flywheel != null && flywheel.lost();
         speed.update(speedIn);
         double setpoint = Double.isNaN(manualSetpoint) ? speed.setpoint : manualSetpoint + speedTrim;
+        if (speed.mapEmpty) warnings.raise(Warnings.Code.LAUNCH_MAP_EMPTY, "no speed source; the manual setpoint is in use");
+        if (flywheel != null && flywheel.lost()) warnings.raise(Warnings.Code.FLYWHEEL_LOST, "flywheel encoder lost: open loop at a fixed power");
+        if (backup) warnings.raise(Warnings.Code.BACKUP_MODE, "no pose: fixed launch distance");
 
-        // ---- 3. Launch ----
-        if (launch.busy() && flywheel != null && pusher != null) {
-            boolean failed = launch.salvo() && (pusher.gaveUp() || pusher.faulted());
-            LaunchSequencer.Event ev = launch.step(t, flywheel.inBand(), pusher.stopped(), flyPos == null || flyPos.inPlace(), failed,
-                    flywheel.filtered(), setpoint);
-            switch (ev) {
-                case START: {
-                    fullLock.onSalvoStart();        // the salvo sweeps from the lock position
-                    pusher.salvo();
-                    int taken = held.salvoStarted(slots != null && slots.valid() ? slots.count() : 0);
-                    RunLog.eventf("SALVO started: flywheel %.0f for %.0f, arm at %.0f deg, %d taken to be aboard, tally %d",
-                            flywheel.filtered(), setpoint, pusher.angle(), taken, held.tally());
-                    break;
-                }
-                case DROPPED:
-                    RunLog.event("LAUNCH dropped: " + launch.detail);
-                    warnings.notice("Launch dropped: " + launch.detail, t);
-                    break;
-                case DONE:
-                    RunLog.eventf("SALVO done #%d in %.2f s: lowest flywheel speed %.0f, arm settled at %.0f deg",
-                            launch.salvoCount(), launch.salvoSeconds(t), launch.minSpeed(), pusher.angle());
-                    sched.want(t);
-                    if (settings.flywheelStopsAfterSalvo) flyStopAt = t + MechParams.FLYWHEEL_STOP_DELAY_S;
-                    break;
-                case INCOMPLETE:
-                    // A robot that shows too many is launched or rejected again; safer than one that shows 0 while jammed.
-                    held.salvoIncomplete();
-                    RunLog.eventf("SALVO did not complete (the pusher %s): count put back to %d, tally %d",
-                            pusher.faulted() ? "faulted" : "gave up", held.held(), held.tally());
-                    break;
-                default:
-                    if (launch.detail != null) RunLog.event("LAUNCH " + launch.detail);
+        // ---- 6. The ramp: a checked stow that has become due ----
+        if (ramp != null) {
+            if (stowPending && (!poseTrusted || pose == null || Ramp.clearOfFlowers(pose.x, pose.y))) {
+                stowPending = false;
+                ramp.stow();
+                RunLog.event("RAMP checked stow carried out");
             }
+            if (!ramp.configured()) warnings.raise(Warnings.Code.RAMP_NOT_CONFIGURED, "ramp servo positions missing from the chassis profile");
+            if (stowPending) warnings.raise(Warnings.Code.STOW_WAITING, "a checked stow is waiting for the robot to clear a flower");
         }
 
-        // ---- 4. Reject ----
+        // ---- 7. The pusher's events: a reject that has finished, then a salvo that has finished, then a fault ----
+        // The pusher is updated last (step 14), so the end of a move is seen here one update late.
         if (pusher != null) {
-            if (reject == Reject.WAIT_UNLOCK && fullLock.lock() == FullAndLock.Lock.NONE && pusher.stopped()) {
-                startReject();
-            } else if (reject == Reject.RUNNING && !rejectJustStarted && pusher.idle() && (pusher.stopped() || pusher.gaveUp())) {
+            boolean moveOver = pusher.stopped() || (pusher.idle() && pusher.gaveUp());
+            if (reject == Reject.RUNNING && moveOver) {
                 reject = Reject.IDLE;
                 held.reset();
                 fullLock.onRejectDone();
                 RunLog.eventf("REJECT done at %.0f deg%s; the entry count is reset", pusher.angle(), pusher.gaveUp() ? " (the pusher gave up)" : "");
             }
-            rejectJustStarted = false;
+            if (launch.salvo()) {
+                if (flywheel != null) launch.trackSpeed(flywheel.filtered());
+                if (!pusher.faulted() && moveOver) {
+                    // A pusher that gave up still ends the salvo as a salvo: the counter, the check and the flywheel's
+                    // stop follow. Only the count and the tally are put back, as if nothing left the robot.
+                    boolean gaveUp = pusher.gaveUp();
+                    launch.salvoEnded(t);
+                    if (gaveUp) {
+                        held.salvoIncomplete();
+                        RunLog.eventf("SALVO did not complete (the pusher gave up): count put back to %d, tally %d", held.held(), held.tally());
+                    }
+                    RunLog.eventf("SALVO done #%d in %.2f s%s: lowest flywheel speed %.0f, arm settled at %.0f deg",
+                            launch.salvoCount(), launch.salvoSeconds(t), gaveUp ? " (the pusher gave up)" : "", launch.minSpeed(), pusher.angle());
+                    if (check != null) sched.want(t);      // skipped in step 8 when the pusher gave up
+                    if (settings.flywheelStopsAfterSalvo) flyStopAt = t + MechParams.FLYWHEEL_STOP_DELAY_S;
+                }
+            }
+            if (pusher.faulted()) {
+                if (launch.salvo()) {
+                    // A fault drops the salvo: no salvo count, no pusher check, no flywheel stop. The count is put back.
+                    launch.cancel(t);
+                    held.salvoIncomplete();
+                    RunLog.eventf("SALVO dropped (the pusher faulted): count put back to %d, tally %d", held.held(), held.tally());
+                }
+                if (reject != Reject.IDLE) {
+                    // SPEC GAP: what a fault does to a running reject is not stated; it is dropped, so the intake does not run OUT for good.
+                    reject = Reject.IDLE;
+                    RunLog.event("REJECT dropped (the pusher faulted)");
+                }
+                warnings.raise(Warnings.Code.PUSHER_STALLED, "pusher stalled");
+            }
+            if (!pusher.calibrated()) warnings.raise(Warnings.Code.PUSHER_NOT_CALIBRATED, "pusher not calibrated: every move is ignored");
+            if (pusher.jamUnresolved()) warnings.raise(Warnings.Code.PUSHER_JAMMED, "pusher jam not resolved: launch or reject again");
         }
 
-        // ---- 5. Pusher check ----
+        // ---- 8. The pusher check: wanted at the start; aborted or updated while it runs; started or skipped while it is wanted ----
         if (check != null) {
-            boolean slotsOk = slots.valid();
-            CheckScheduler.Decision d = sched.step(t, check.running(), busy(), slotsOk, slots.count(), pusher.stopped(), pusher.gaveUp(),
-                    fullLock.lock() != FullAndLock.Lock.NONE);
-            if (d == CheckScheduler.Decision.START) check.start(false, t);
-            else if (d == CheckScheduler.Decision.SKIP) RunLog.event("PUSHER CHECK skipped: " + sched.why);
-            else if (d == CheckScheduler.Decision.ABORT) check.abort(sched.why, t);
+            // Once, at the first update, if the pusher's zero has not been verified since it was assumed.
+            if (firstUpdate && !pusher.zeroVerified()) sched.want(t);
             boolean was = check.running();
-            check.update(t);
-            if (was && !check.running()) {
-                countHoldoffUntil = t + MechParams.CHECK_COUNT_HOLDOFF_S;
-                calibrationSweep = false;
+            CheckScheduler.Decision d = sched.step(t, was, busy(), slots.valid(), slots.count(), pusher.stopped(), pusher.gaveUp(),
+                    fullLock.lock() != FullAndLock.Lock.NONE);
+            if (was) {
+                if (d == CheckScheduler.Decision.ABORT) check.abort(sched.why, t);
+                else check.update(t);
+                if (!check.running()) {
+                    countHoldoffUntil = t + MechParams.CHECK_COUNT_HOLDOFF_S;
+                    calibrationSweep = false;
+                }
+            } else if (d == CheckScheduler.Decision.START) {
+                check.start(false, t);
+            } else if (d == CheckScheduler.Decision.SKIP) {
+                RunLog.event("PUSHER CHECK skipped: " + sched.why);
+            }
+            if (check.result() == PusherCheck.Result.LOST) warnings.raise(Warnings.Code.ZERO_UNCERTAIN, "pusher zero uncertain: the last check ended LOST");
+            else if (!pusher.zeroVerified()) warnings.raise(Warnings.Code.ZERO_NOT_VERIFIED, "pusher zero not verified yet");
+        } else if (pusher != null && !pusher.zeroVerified()) {
+            warnings.raise(Warnings.Code.ZERO_NOT_VERIFIED, "pusher zero not verified yet");
+        }
+
+        // ---- 9. The queued launch: dropped on its timeout, otherwise started when its conditions hold ----
+        // A launch the opmode requested before this update is tested here, so a salvo can start in the loop it was requested in.
+        if (launch.queued() && flywheel != null && pusher != null) {
+            LaunchSequencer.Event ev = launch.queuedStep(t, flywheel.inBand(), pusher.stopped(), flyPos == null || flyPos.inPlace(), flywheel.filtered(), setpoint);
+            if (ev == LaunchSequencer.Event.DROPPED) {
+                RunLog.event("LAUNCH dropped: " + launch.detail);
+                warnings.notice("Launch dropped: " + launch.detail, t);
+            } else if (ev == LaunchSequencer.Event.START) {
+                fullLock.onSalvoStart();        // the salvo sweeps from the lock position
+                pusher.salvo();
+                int taken = held.salvoStarted(slots != null && slots.valid() ? slots.count() : 0);
+                RunLog.eventf("SALVO started: flywheel %.0f for %.0f, arm at %.0f deg, %d taken to be aboard, tally %d",
+                        flywheel.filtered(), setpoint, pusher.angle(), taken, held.tally());
+            } else if (launch.detail != null) {
+                RunLog.event("LAUNCH " + launch.detail);
             }
         }
 
-        // ---- 6. FULL and the pusher lock ----
+        // ---- 10. The pusher lock (with the FULL sequence, which asks for it) ----
         boolean checkBusy = check != null && (check.running() || sched.wanted());
         flIn.t = t;
         flIn.full = entry != null && held.full() && (!MechParams.FULL_NEEDS_SLOT_AGREEMENT || (slots != null && slots.valid() && slots.full()));
@@ -482,8 +547,16 @@ public final class Mechanisms {
             if (fullLock.cmdUnlock) pusher.unlock();
         }
         if (fullLock.lock() != lockBefore) RunLog.eventf("PUSHER lock %s -> %s at %.0f deg", lockBefore, fullLock.lock(), pusher == null ? 0 : pusher.angle());
+        // A reject that had to unlock first starts by itself when the unlock has finished.
+        if (pusher != null && reject == Reject.WAIT_UNLOCK && fullLock.lock() == FullAndLock.Lock.NONE && pusher.stopped()) startReject();
 
-        // ---- 7. Intake: decided fresh each update; later rules override earlier ones ----
+        // ---- 11. Burst logging: a row on every loop from a queued launch until a moment after the salvo ----
+        RunLog.burst(launch.burst(t));
+
+        // ---- 12. The flywheel's target, with its stop after a salvo: it runs while spin is requested, a launch is queued, a salvo runs, or a stop is pending ----
+        boolean runs = spinRequested || launch.busy() || (flyStopAt >= 0 && t < flyStopAt);
+
+        // ---- 13. The intake's mode: decided fresh each update; later rules override earlier ones ----
         Intake.Mode mode;
         boolean outNow = reject == Reject.RUNNING || outtakeHeld;
         if (settings.intakeAlwaysOn) {
@@ -494,12 +567,13 @@ public final class Mechanisms {
             if (calibrationSweep) mode = Intake.Mode.OFF;
         } else {
             mode = (intakeRequested || (ramp != null && ramp.deployed())) ? Intake.Mode.IN : Intake.Mode.OFF;
-            if (mode == Intake.Mode.IN && full) {
+            if (mode == Intake.Mode.IN && full()) {
                 mode = Intake.Mode.OFF;
                 if (intakeRequested) warnings.notice("Full: the intake is stopped", t);
                 intakeRequested = false;
             }
             if (outNow) mode = Intake.Mode.OUT;
+            else if (forceInAuto) mode = Intake.Mode.IN;     // forced in: IN whatever any count says; a reject or outtake still wins (section 9)
             if (fullLock.lock() == FullAndLock.Lock.LOCKED || fullLock.lock() == FullAndLock.Lock.LOCKING) mode = Intake.Mode.OFF;
             if (calibrationSweep) mode = Intake.Mode.OFF;
         }
@@ -507,17 +581,7 @@ public final class Mechanisms {
         lastIntakeMode = mode;
         held.intakeOut(mode == Intake.Mode.OUT, t);
 
-        // ---- 8. Ramp ----
-        if (ramp != null && stowPending && (!poseTrusted || pose == null || Ramp.clearOfFlowers(pose.x, pose.y))) {
-            stowPending = false;
-            ramp.stow();
-            RunLog.event("RAMP checked stow carried out");
-        }
-
-        // ---- 9. Flywheel target: runs while spin is requested, a launch is queued, a salvo runs, or a stop is pending ----
-        boolean runs = spinRequested || launch.busy() || (flyStopAt >= 0 && t < flyStopAt);
-
-        // ---- 10. The actuators: each reads once and writes when needed ----
+        // ---- 14. The actuators, in the order intake, flywheel, pusher: each reads once and writes when needed ----
         if (intake != null) {
             LoopProfiler.begin("mech.intake");
             intake.set(mode);
@@ -542,37 +606,9 @@ public final class Mechanisms {
             if (pusher.takeJamCleared()) warnings.notice("Pusher jam cleared", t);
         }
 
-        // ---- 11. Warnings, burst logging, the empty-track health line ----
-        raiseWarnings();
+        // ---- 15. The log of the warnings that appeared or cleared ----
         warnings.commit();
-        RunLog.burst(launch.burst(t));
-        if (slots != null && slots.valid() && slots.count() == 0 && t - lastHealthLine >= MechParams.HEALTH_LINE_S) {
-            lastHealthLine = t;
-            RunLog.event("COUNTER empty track, color shifts " + slots.shiftsText());
-        }
         LoopProfiler.end("mechanisms");
-    }
-
-    private void raiseWarnings() {
-        if (slots != null && !slots.valid()) warnings.raise(Warnings.Code.COUNTER_NOT_READING, "CS" + slots.staleSensor() + " has stopped answering");
-        if (entry != null && entry.started() && !entry.healthy()) warnings.raise(Warnings.Code.ENTRY_NOT_ANSWERING, "CS5 is not answering");
-        if (full()) warnings.raise(Warnings.Code.FULL, "4 held");
-        if (slots != null && slots.valid()) {
-            int at = slots.opponentNectarAt(alliance);
-            if (at > 0) warnings.raise(Warnings.Code.OPPONENT_NECTAR, "the other alliance's nectar is at CS" + at + "; reject is the operator's decision");
-        }
-        if (speed.mapEmpty) warnings.raise(Warnings.Code.LAUNCH_MAP_EMPTY, "no speed source; the manual setpoint is in use");
-        if (flywheel != null && flywheel.lost()) warnings.raise(Warnings.Code.FLYWHEEL_LOST, "flywheel encoder lost: open loop at a fixed power");
-        if (ramp != null && !ramp.configured()) warnings.raise(Warnings.Code.RAMP_NOT_CONFIGURED, "ramp servo positions missing from the chassis profile");
-        if (backup) warnings.raise(Warnings.Code.BACKUP_MODE, "no pose: fixed launch distance");
-        if (stowPending) warnings.raise(Warnings.Code.STOW_WAITING, "a checked stow is waiting for the robot to clear a flower");
-        if (pusher != null) {
-            if (!pusher.calibrated()) warnings.raise(Warnings.Code.PUSHER_NOT_CALIBRATED, "pusher not calibrated");
-            if (pusher.faulted()) warnings.raise(Warnings.Code.PUSHER_STALLED, "pusher stalled");
-            if (pusher.jamUnresolved()) warnings.raise(Warnings.Code.PUSHER_JAMMED, "pusher jam not resolved: launch or reject again");
-            if (check != null && check.result() == PusherCheck.Result.LOST) warnings.raise(Warnings.Code.ZERO_UNCERTAIN, "pusher zero uncertain: the last check ended LOST");
-            else if (!pusher.zeroVerified()) warnings.raise(Warnings.Code.ZERO_NOT_VERIFIED, "pusher zero not verified yet");
-        }
     }
 
     // ================= Queries =================
@@ -716,7 +752,7 @@ public final class Mechanisms {
 
     public static final String LOG_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,"
             + "intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps,"
-            + "cs5_entries,cs5_held,cs5_full,cs5_prox,cs5_raw,tally";
+            + "cs5_entries,cs5_held,cs5_full,cs5_prox,cs5f,launched_total";
 
     public String logRow() {
         String overrides = (backup ? "B" : "") + (forceInOperator ? "F" : "") + (forceInAuto ? "A" : "") + (outtakeHeld ? "O" : "");

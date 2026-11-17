@@ -31,21 +31,21 @@ public final class AutonDuoPrimary extends AutoBase {
                 gather(true, AutoParams.PRIMARY_WALL_JOSTLE_DEADLINE),
                 backOut(true),
                 setTarget(Cell.BLUE_AUDIENCE),
-                withStowDuringTurn(passThrough("east helper", via(Field.helperEast(), audShot), true), true),
+                withStowDuringTurn(passThrough("east helper", via(Field.helperEast(), 180), true), true),
                 toLaunchSpot("audience launch spot", audShot, false),
                 launch("wall flower pollen", Cell.BLUE_AUDIENCE, AutoParams.AUDIENCE_CELL_TRIM_DEG),
                 gather(false, AutoParams.PRIMARY_AUDIENCE_JOSTLE_DEADLINE),
                 backOut(false),
                 setTarget(Cell.BLUE_REAR),
-                withStowDuringTurn(passThrough("east helper", via(Field.helperEast(), rearShot), false), false),
-                passThrough("west helper", via(Field.helperWest(), rearShot), true),
+                withStowDuringTurn(passThrough("east helper", via(Field.helperEast(), 180), false), false),
+                passThrough("west helper", via(Field.helperWest(), 180), true),
                 toLaunchSpot("rear launch spot", rearShot, false),
                 launch("audience flower pollen", Cell.BLUE_REAR, 0),
                 unlessLate(AutoParams.PRIMARY_GARDEN_LATEST_START, "garden pickup and its launch", Actions.sequence(
                         gardenPickup(),
                         toLaunchSpot("rear launch spot", rearShot, false),
                         launch("garden pollen", Cell.BLUE_REAR, 0))),
-                passThrough("west helper", via(Field.helperWest(), Field.parkAuto(false)), false),
+                passThrough("west helper", via(Field.helperWest(), 180), false),
                 park(false));
     }
 }

@@ -28,10 +28,10 @@ public class AutonDuoDaryl extends AutoBase {
                 launch("preload", Cell.BLUE_REAR, 0),
                 gardenPickup(),
                 setTarget(Cell.BLUE_AUDIENCE),
-                passThrough("east helper", via(Field.helperEast(), shot), true),
+                passThrough("east helper", via(Field.helperEast(), 180), true),
                 toLaunchSpot("audience launch spot", shot, true),
                 launch("garden pollen", Cell.BLUE_AUDIENCE, AutoParams.AUDIENCE_CELL_TRIM_DEG),
-                passThrough("east helper", via(Field.helperEast(), AutoPoses.flowerPre(true)), false),
+                passThrough("east helper", via(Field.helperEast(), 180), false),
                 gather(true, AutoParams.DARYL_WALL_JOSTLE_DEADLINE));
     }
 
@@ -43,7 +43,7 @@ public class AutonDuoDaryl extends AutoBase {
                 // Do not leave the flower before the second launch time less the drive back.
                 waitUntil(AutoParams.DARYL_SECOND_LAUNCH_NOT_BEFORE - AutoParams.DARYL_RETURN_TRAVEL, "do not leave the flower early"),
                 backOut(true),
-                withStowDuringTurn(passThrough("east helper", via(Field.helperEast(), shot), false), true),
+                withStowDuringTurn(passThrough("east helper", via(Field.helperEast(), 180), false), true),
                 toLaunchSpot("audience launch spot", shot, false),
                 mech.waitRampSettled(),
                 waitUntil(AutoParams.DARYL_SECOND_LAUNCH_NOT_BEFORE, "the partner's window"),

@@ -96,8 +96,8 @@ public abstract class AutoBase extends TeamOpMode {
         Handover.dropAims();            // the auto has reseeded the Pinpoint: the remembered aims belonged to the old pose
         mech.setSpin(true);             // the flywheel runs from Start and stays up between launches
         mech.prePositionPreload();      // to the lock angle while the flywheel spins up, so the preload salvo is shorter
-        RunLog.eventf("SETUP profile %s, alliance %s, start pose default %s (%s), mechanisms: %s, held count starts at %s",
-                profile.name, alliance, drive.pose(), drive.localizer.seedConfirmed() ? "seed confirmed" : "SEED NOT CONFIRMED", mech.found(), mech.heldText());
+        RunLog.eventf("SETUP profile %s, alliance %s, start pose default %s, driver forward %.0f deg; %s, mechanisms: %s, held count starts at %s",
+                profile.name, alliance, drive.pose(), Math.toDegrees(alliance.driverForwardRad()), drive.localizer.seedConfirmed() ? "seed confirmed" : "SEED NOT CONFIRMED", mech.found(), mech.heldText());
         RunLog.sampler("x,y,hdg_deg," + MecanumDrive.LOG_COLUMNS.replace(",a_lf,a_lb,a_rb,a_rf", "") + "," + Mechanisms.LOG_COLUMNS
                 + ",a_lf,a_lb,a_rb,a_rf", RunLog.NORMAL_PERIOD_S, new RunLog.Sampler() {
                     @Override public String row() {
@@ -177,6 +177,9 @@ public abstract class AutoBase extends TeamOpMode {
 
     /** A blue-frame point with the heading of another pose. */
     protected Pose via(Vec bluePoint, Pose headingOf) { return new Pose(bluePoint.x, bluePoint.y, headingOf.h); }
+
+    /** A blue-frame point with a heading in degrees. The heading asked for at each pass-through point is in specs/autos.md section 2.7. */
+    protected Pose via(Vec bluePoint, double headingDeg) { return Pose.deg(bluePoint.x, bluePoint.y, headingDeg); }
 
     /** Ordinary leg: ends within 1 in and 2 deg, after 0.2 s. */
     protected Action ordinary(String name, Pose blue) {

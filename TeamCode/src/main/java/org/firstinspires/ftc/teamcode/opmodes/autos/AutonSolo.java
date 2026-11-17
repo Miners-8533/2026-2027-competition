@@ -28,7 +28,7 @@ public final class AutonSolo extends AutoBase {
         if (AutoParams.SOLO_FINAL_GATHER) {
             // The final gather: the pollen stay in the robot for the TeleOp.
             finish = Actions.sequence(
-                    passThrough("east helper", via(Field.helperEast(), AutoPoses.flowerPre(true)), true),
+                    passThrough("east helper", via(Field.helperEast(), 180), true),
                     gather(true, AutoParams.SOLO_FINAL_JOSTLE_DEADLINE),
                     backOut(true),
                     stowNow(),

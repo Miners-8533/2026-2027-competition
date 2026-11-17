@@ -114,7 +114,7 @@ public final class Pusher {
         haveSavedZero = true;
     }
 
-    private double toDeg(double ticks) { return ENCODER_SIGN * (ticks - zeroTicks) * 360.0 / TICKS_PER_REV; }
+    private double toDeg(double ticks) { return calibrated() ? ENCODER_SIGN * (ticks - zeroTicks) * 360.0 / TICKS_PER_REV : 0; }
 
     private static double nearestHold(double deg) { return Math.round(deg / 360.0) * 360.0; }
 
@@ -125,11 +125,12 @@ public final class Pusher {
     /** Degrees past the nearest HOLD, -180 to 180. */
     public double relAngle() { return angle - nearestHold(angle); }
     public double speedTicks() { return speedTicks; }
-    public double speedDeg() { return speedTicks * 360.0 / TICKS_PER_REV; }
+    public double speedDeg() { return calibrated() ? speedTicks * 360.0 / TICKS_PER_REV : 0; }
     public double amps() { return amps; }
     public double power() { return sentPower; }
     public double holdPower() { return holdPower; }
-    public boolean calibrated() { return true; }   // SPEC GAP: when the pusher counts as "not calibrated" is not stated
+    /** Calibrated means the ticks per arm revolution is set. Until then every move is ignored and the coordinator warns. */
+    public boolean calibrated() { return TICKS_PER_REV > 0; }
     public boolean zeroVerified() { return zeroVerified; }
     public boolean idle() { return state == State.HOLD; }
     /** Idle and not moving, wherever it rests. A salvo may start from here. */
@@ -245,7 +246,7 @@ public final class Pusher {
     }
 
     private void begin(Kind k, State s, double targetDeg, double power) {
-        if (state == State.STALLED || disabled) return;
+        if (state == State.STALLED || disabled || !calibrated()) return;
         kind = k;
         state = s;
         target = targetDeg;
