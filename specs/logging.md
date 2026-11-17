@@ -34,6 +34,20 @@ Plain text, one record per line. The first field says what it is.
 | `S` | a sample row |
 | `E` | an event: seconds since the log opened, then free text |
 
+**Layout** (from `design/` or the PC tools, not checked against the code). Fields are separated by commas, with no quoting.
+
+| Line | Layout |
+|---|---|
+| First line | `# <opmode name>, opened <YYYY-MM-DD> <HH:MM:SS>`, then how the previous run ended |
+| Second line | `# Build: commit <short id> (<branch>), built <PC time> (PC clock), clean`, or in place of `clean`: `UNCOMMITTED changes: <n> file(s) changed, <m> new, fingerprint <8 hex digits>` |
+| `H` | `H,t,<average loop>,loop_max_ms,volt,` then the opmode's column names |
+| `S` | `S,` then one value per column of the `H` line, in its order |
+| `E` | `E,<seconds>,<text>`. The text may contain commas: a reader splits on the first two only |
+
+The tools read `t`, `loop_max_ms` and `volt` by name. **Not specified:** the name of the average-loop column.
+
+**End of a run.** A run that ends normally writes an `E` line whose text starts `RUN ENDED`. A crash writes one that starts `CRASH:` and no `RUN ENDED`. A log with neither stopped hard.
+
 **Sample rows** start with: seconds since the log opened; the average and the worst loop time since the previous sample, in milliseconds; the battery voltage. Then come the columns the opmode registered.
 
 **Events** are written when things happen: commands, state changes, warnings appearing and clearing, notices, faults, a crash with its stack trace.
@@ -69,6 +83,20 @@ Plain text, one record per line. The first field says what it is.
 
 The coordinator's columns are listed in [mechanisms.md](mechanisms.md). Study opmodes define their own rows.
 
+**Column names** (from `design/` or the PC tools, not checked against the code).
+
+| Columns | Names |
+|---|---|
+| Pose | `x`, `y`, `hdg_deg` |
+| The driver's stick | `stick_up`, `stick_right` |
+| The drive command | `cmd_fwd`, `cmd_left`, `cmd_turn` |
+| Drive mode | `drive_mode` |
+| The four wheel currents, last in the row | `a_lf`, `a_lb`, `a_rb`, `a_rf` |
+| Launch grid | `grid_zone`, `grid_speed`, `grid_resid_deg` |
+| Drive Characterization | `x`, `y`, `hdg_deg`, `vx`, `vy`, `w_dps`, `cmd_fwd`, `cmd_left`, `cmd_turn`, `p_lf`, `p_lb`, `p_rb`, `p_rf`, `vbat`, `a_lf`, `a_lb`, `a_rb`, `a_rf`, `test`, `seg`, `phase` |
+
+**Not specified:** the name of the lock error column.
+
 ### 1.6 Event families
 
 These prefixes are relied on by the analysis tools, so they are part of the interface.
@@ -97,6 +125,19 @@ These prefixes are relied on by the analysis tools, so they are part of the inte
 | `DRIVE WHEEL` | a wheel drawing too little current, and its recovery |
 | `LOOP PROFILE` | section 3 |
 | `BACKUP MODE`, `DRIVER`, `GAMEPAD`, `SLOW LOOP`, `CRASH:` | as named |
+
+**Exact wording the pull tool matches** (from the tool; a different wording leaves a field of the run index empty).
+
+| Event text starts with | Used for |
+|---|---|
+| `RUN ENDED`, `CRASH:` | how the run ended |
+| `SETUP profile`, containing `alliance BLUE` or `alliance RED`, and `start pose default (...)` or `start pose from the AUTO (...)` | the alliance and the start |
+| `SALVO started` | the number of salvos |
+| `MARK <n>`, `CHECK <n>` | the Auto Waypoint Marker's marks |
+| `PUSHER CHECK` with `started`, `SEEK` or `OK` | the number of pusher checks |
+| `WARNING` without `cleared` | the number of warnings |
+| `SLOW LOOP` | the number of slow loops |
+| `BACKUP MODE ENTERED` | the backup flag |
 
 Team vocabulary is fixed: logs say launch, launcher, pusher and ramp. Logs from before 2026-11-04 use older words and the tools accept both.
 

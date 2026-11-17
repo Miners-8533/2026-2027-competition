@@ -138,6 +138,8 @@ The robot's front edge ends 8 in from the wall and about 4 in inside the loading
 | Rear spot at the start wall (-61.5, 15.25) | launches at the rear cell from beside the start |
 | Audience spot at the wall (61.5, 7.5) | launches at the audience cell from the audience-wall start |
 
+**Not specified:** the heading the robot is asked for at a helper or any other pass-through point. (The rebuild of 2026-11-17 asked for the heading of the pose that follows.)
+
 ## 3. Auton - Solo
 
 Start: rear wall, (-63.4, 16.0, 0 deg). Cells: rear, then audience.

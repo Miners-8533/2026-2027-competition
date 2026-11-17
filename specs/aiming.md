@@ -87,6 +87,8 @@ For each measured spot: where the robot actually stood, the flywheel speed that 
 - The red cells are the blue data rotated 180 degrees.
 - Spots the tuner would have visited but nobody measured (near the walls) are **estimated** from their nearest measured neighbours and flagged.
 - The table is generated source, produced by a PC tool from the tuning run's log. It must not be edited by hand.
+- **Layout of the generated table** (from the table maker in `tools/launchgrid`; not checked against the code that reads it): one row per spot of the blue rear cell, holding x, y, the speed in ticks/s, the aim residual in degrees, shot possible (1 or 0) and estimated (1 or 0); and a list of triangles, each three row numbers, so that the robot does not work out the triangles itself.
+- The measured spots themselves are in `tools/launchgrid/data/`. They are data and are not on these pages.
 
 Because the residual is relative to the bearing, the grid's aim does not depend on the launcher offset or the far-cell extra of section 1; they are already in the data.
 
@@ -175,6 +177,7 @@ Decided the same day:
 | Nudge | the driver's turn stick | until the lock is released |
 
 - **The far cell's launch spot is worked out, not stored.** A launch spot is where the robot stands square to the wall with the launcher's line through the cell: the cell's y, shifted by the launcher offset and by the starting allowance. For the blue audience cell that is 12.75 - 2.5 - 3.0 = 7.25. In the code the spot is its own stored number, 7.5, set when the allowance was a little different, and the far-cell extra is another. Change the extra and the lock aims with the new value while the Hive Dash and the auto-launch zone still send the robot to the old spot, where it then has to stand slightly turned. With today's values the two differ by 0.25 in, which is under half a degree and harmless. The target removes the second number so they cannot drift apart: change the allowance and the spot and its zone move with it.
+- **Where the worked-out spot lives: a proposal, for the team to confirm.** The layers of target T5 ([architecture.md](architecture.md) section 2.1) let the field model use nothing but `math`, and keep the dashes from using the aiming code. But the spot is worked out from the launcher offset and the allowance, which are aiming values. The rebuild of 2026-11-17 settled it this way: the field model holds how far out a spot stands (55.4 in) and the rule; the aiming code supplies the sideways offset and gives out the spot; the opmode hands the spot, and the aim from it, to the dashes.
 - **Built (2026-11-17, not run on the robot):** the remembered aims are saved with the pose hand-over ([teleop.md](teleop.md) section 5.1); the match screen shows both cells' aim trims ([teleop.md](teleop.md) section 11); each auto launch has one trim and no far-cell extra, -2.5 deg where it was -8.0 ([autos.md](autos.md) section 8).
 - **After each event** the log tools report, per match and per cell, the remembered aim the operator ended on. A value that repeats becomes the next starting allowance. This is how the fixed part follows what actually happened without anyone guessing.
 

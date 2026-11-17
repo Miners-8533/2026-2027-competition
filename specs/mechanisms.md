@@ -243,6 +243,8 @@ These exist in the coordinator but no control reaches them in the competition op
 
 Every sample row of the run log carries the coordinator's state: setpoint, flywheel target, speed and ready flag; pusher state, angle, speed and current; intake mode; ramp target; CS1 to CS4 count and slots; launch state; number of warnings; overrides; pusher check status; flywheel power and current; pusher lock state; active hold power; intake current; CS5 total entries, held count, FULL flag, latest proximity and raw samples; launched tally. See [logging.md](logging.md).
 
+**Column names** (from `design/` or the PC tools, not checked against the code), in this order as far as it is recorded: `setpoint`, `fly_target`, `fly_vel`, `fly_ready`, `pusher_state`, `pusher_deg`, `pusher_vel`, `pusher_amps`, `intake_mode`, `ramp`, `count`, `slots`, `launch`, `warnings`, `overrides`, `check`, `fly_power`, `fly_amps`, `pusher_lock`, `pusher_hold`, `intake_amps`, `cs5_entries`, `cs5_held`, `cs5_full`, `cs5_prox`. **Not specified:** the names of the raw-samples and launched-tally columns, and where the later columns stand in the row.
+
 ## 15. Status
 
 In the Hartland build: the queued launch with the launch band, reject, always-on intake, the pusher check, jam handling, the preload pre-position, backup mode. Added 2026-11-17 and not run: the entry count as the only count for full and the tally, the held count carried between opmodes, stop all at the end of the autos. Added after Hartland: the CS5 entry count and FULL (the first version ran in practice; the present sequence and the edge counter have not run), the lock retry limit, the put-back after an incomplete salvo, stop all, the flywheel position hold, and the launch grid.
@@ -278,6 +280,7 @@ The coordinator itself keeps five jobs: build the actuators that exist; read the
 | Warnings | the standing list and the notices | 11 |
 
 - **The order the parts run in each update is behavior.** It is written down from the code when the split is made and kept: a launch request and a reject in the same loop, or FULL and a salvo start in the same loop, must come out as they do today.
+- **The order is not yet written down, here or anywhere but the code**, so a rebuild cannot reproduce it. The rebuild of 2026-11-17 had to choose one: the counts, the speed, the launch, the reject, the pusher check, FULL and the lock, the intake, the ramp, the flywheel target, the actuators, the warnings; with every command acting at once, in the order the opmode calls them. Whether that is the code's order is not checked.
 - A part never talks to an actuator or to another part. It gets what it needs in its snapshot and returns decisions; the coordinator carries them.
 - The per-opmode settings of section 1 stay one table, handed to the parts.
 - The log columns of section 14 and the event prefixes do not change, so the tools keep working and old logs replay through the new parts. **That replay is the acceptance test:** each part, fed the logged rows of the Hartland matches, must produce the logged decisions.

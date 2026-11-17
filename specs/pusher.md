@@ -13,6 +13,7 @@ Hardware and angles: [robot_design/mechanisms.md](../robot_design/mechanisms.md)
   - *Continue* (the TeleOp after an auto): the zero saved by the previous opmode is reused.
   - The zero is saved in memory for the life of the robot app, with a flag **zero verified**. The flag is false whenever the zero is only an assumption and becomes true when a pusher check has seen the arm where the zero says, or has corrected it.
   - The zero can be redefined ("the arm was truly at angle A when the old zero said X"); the correction keeps the revolution count, so it is always the smallest shift.
+- **Not specified:** when the pusher counts as *not calibrated* (a warning in [mechanisms.md](mechanisms.md) section 11 and a precondition of the pusher check). With the two ways of setting the zero above, a pusher that has been built always has a zero.
 
 ## 2. Control principle
 

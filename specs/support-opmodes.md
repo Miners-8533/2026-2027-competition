@@ -60,6 +60,22 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 
 **Output.** One log line per salvo (launch speed, lowest speed and dip, battery, flywheel current, distance, pose, lock error, trims), and a table line ready to paste into the launch map.
 
+**Controls** (from `design/opmodes.md`; not checked against the code).
+
+| Who | Control | Effect |
+|---|---|---|
+| Driver | right bumper | target lock on / off |
+| Driver | D-pad up / down | speed trim, 20 ticks/s a step |
+| Driver | D-pad right / left | aim trim, 0.5 deg a step |
+| Driver | A | fire |
+| Operator | left trigger | intake OUT |
+| Operator | D-pad | the TeleOp's landed low / high / left / right reports |
+| Operator | A / B | record / undo |
+| Operator | Y | fire |
+| Operator | left bumper | speed base: the points recorded this session |
+
+Log lines: `TUNER SALVO`, `TRIM`, `RECORD`, `UNDO`, `TUNER TABLE`.
+
 ### 2.2 Launch Grid Tuner
 
 **Purpose.** Collect the data for the two-dimensional launch grid ([aiming.md](aiming.md)): aim and speed per field position for one hive cell.
@@ -71,6 +87,8 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 - A sweep can be continued from a later spot, restricted to a list of spot numbers, or extended with extra positions, by settings read at INIT.
 
 **Output.** One line per spot (speed split into map and trim, aim heading split likewise, distance, salvos fired, pose; a good spot with no salvo is marked unverified), a line per salvo, and a table at the end. A PC tool turns the log into the generated grid table.
+
+**Controls** (from `design/opmodes.md`; not checked against the code). At INIT: NEAR is the audience cell, FAR the rear cell; the start is the usual audience-wall start. Hold the right trigger to drive to the next spot. D-pad left / right trims the angle by 0.5 deg, up / down the speed by 20 ticks/s. Y fires. A accepts the spot, B marks it as no shot, X goes back one spot. Log lines: `GRID POINT`, `FIRE`, `GRID TABLE`.
 
 ### 2.3 Launcher Offset Finder
 
@@ -110,6 +128,18 @@ Not in the code. See "As built and target" in the [README](README.md).
 **What would behave differently.** Nothing in a match. One opmode leaves the Driver Station list.
 
 **Color Sensors Test** is an older tool that measures the empty baseline and scores the classification thresholds against hand-set labels; the Color Sensor Study replaced it for baselines.
+
+### 3.2 Procedure details of the studies
+
+(from `design/opmodes.md`; not checked against the code.)
+
+| Study | Details |
+|---|---|
+| Flywheel Step Study | Setpoints in ticks/s: 1350, 1650, 1350, 1450, 1350, 1375, 1325, 1650, 1450, 1650, 1325, the whole list repeated. The loop is padded to 28 ms, like the TeleOp's. A runs the sequence, B stops it; with it stopped the D-pad steps the setpoint by 100 or 25. One `STEP` line per change and a `STEP TABLE` at the end; a step that does not settle within its limit says `NEVER SETTLED`. **Not specified:** the settle time and the limit |
+| CS Pass Study | Intake IN throughout, flywheel at 500 ticks/s, loop padded to 28 ms. CS5 on its own thread every 20 ms, one 15-byte burst read per cycle. B = one element fed (a `FED n` line, the ground truth); Y salvo; X automatic clear; A mark; D-pad speed. A `CS5 THREAD` line every 5 s |
+| Color Sensor Study, Color Sensors Test | **Not specified:** the controls |
+
+Also **not specified:** the controls of the Launcher Offset Finder, the Pinpoint Push Test and the Pinpoint Offset Check, which buttons Pit Check uses for its four functions, and which button is the tuners' kill switch.
 
 ## 4. Drive and odometry
 
@@ -214,17 +244,25 @@ All are tunable values with these proposed numbers as defaults. They are to be s
 
 **Output.** A log row on every loop (section 1.5 of [logging.md](logging.md)). PC tools fit the drive model from it.
 
+**Controls** (from `design/opmodes.md`; not checked against the code). At INIT, D-pad right / left chooses the blue / red half and up / down the first test. The bumper to hold is the right one. X skips a test.
+
+**Events the tools read:** `DRIVE TEST <n> of 34: <name>; start ...`, `DRIVE TEST <n> segment <k> of <m>: ... -> robot powers forward <f>, left <l>, turn <t>`, `DRIVE TEST <n> GEOFENCE (<reason>)`.
+
+**Not specified:** the 34 tests themselves (each test's segments, powers and durations). They are in the code; the `DRIVE TEST` events of any `drivetest` log name them.
+
 ## 5. Auto Waypoint Marker
 
 **Purpose.** Collect poses for writing autos.
 
 **Procedure.** Choose a start at INIT, drive by hand, and press a button to **mark** the current pose. Each mark is logged and shown as a ready-to-paste pose with the ramp state. A second button logs a numbered **check** at a spot whose true position is known, to test the odometry. Two buttons deploy and stow the ramp; a held chord reseeds to the start. There is no undo.
 
+**Controls** (from `design/opmodes.md`; not checked against the code). At INIT: the blue start (rear wall, y +16) or the red start (audience wall, y -16). A marks (a `MARK <n>: x, y, heading, ramp` line with the pose ready to paste), B logs a `CHECK <n>`, X / Y deploy / stow the ramp, holding left bumper + right bumper reseeds.
+
 ## 6. Telemetry Font Test
 
 **Purpose.** Find out what the Driver Station screen can display.
 
-**Procedure.** Pages of test patterns (sizes, headings, styles, colors, widths, line counts, and three mock-ups of the match screen) in each of the Driver Station's display formats. No hardware is used.
+**Procedure.** Pages of test patterns (sizes, headings, styles, colors, widths, line counts, and three mock-ups of the match screen) in each of the Driver Station's display formats (HTML, MONOSPACE, CLASSIC). No hardware is used. The D-pad changes the page and A the format (from `design/opmodes.md`; not checked against the code).
 
 **Finding.** Only the HTML format formats text. Nested "big" and "small" tags change size; font-size attributes and background colors are ignored; about 15 to 16 lines of about 36 characters fit; longer lines wrap. The match screen is built on this ([teleop.md](teleop.md)).
 
