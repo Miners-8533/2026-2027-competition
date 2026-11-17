@@ -23,6 +23,7 @@ public abstract class TeamOpMode extends LinearOpMode {
     protected Mechanisms mech;
     protected ChassisProfile profile;
 
+    /** The kind of run log this opmode writes, or null for none. */
     protected abstract RunLog.Kind logKind();
 
     /** The opmode's name in the log. */
@@ -36,7 +37,7 @@ public abstract class TeamOpMode extends LinearOpMode {
 
     @Override
     public final void runOpMode() throws InterruptedException {
-        RunLog.open(logKind(), title());
+        if (logKind() != null) RunLog.open(logKind(), title());
         try {
             RunLog.volts(new RunLog.Volts() {
                 @Override public double read() { return battery(); }
@@ -82,6 +83,13 @@ public abstract class TeamOpMode extends LinearOpMode {
             if (x > 0 && (Double.isNaN(v) || x < v)) v = x;
         }
         return v;
+    }
+
+    /** Plain field-oriented driving for the support opmodes: stick up is away from the alliance's drivers; turn stick right is clockwise. */
+    protected void driveByHand(org.firstinspires.ftc.teamcode.field.Alliance alliance, double scale) {
+        double up = -gamepad1.left_stick_y, right = gamepad1.left_stick_x, th = alliance.driverForwardRad(), h = drive.pose().h;
+        double fx = up * Math.cos(th) + right * Math.sin(th), fy = up * Math.sin(th) - right * Math.cos(th);
+        drive.drive((fx * Math.cos(h) + fy * Math.sin(h)) * scale, (-fx * Math.sin(h) + fy * Math.cos(h)) * scale, -gamepad1.right_stick_x * 0.5 * scale);
     }
 
     /** A button that reports only the moment it is pressed. */
