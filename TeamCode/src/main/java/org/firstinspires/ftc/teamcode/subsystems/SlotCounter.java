@@ -161,8 +161,12 @@ public final class SlotCounter {
     }
 
     private Kind classify(int i) {
-        double r = red[i], g = green[i], b = blue[i];
-        if (i == 3 && b >= ARM_BLUE_MIN && r <= ARM_RED_MAX && Math.abs(g - b) <= ARM_GREEN_BLUE_WITHIN && cm[i] >= ARM_MIN_CM) return Kind.PUSHER_ARM;
+        return classify(i, red[i], green[i], blue[i], cm[i]);
+    }
+
+    /** The kind of something present at sensor i (0 to 3), from its color shares and distance. Also used by the color sensor studies. */
+    public static Kind classify(int i, double r, double g, double b, double cm) {
+        if (i == 3 && b >= ARM_BLUE_MIN && r <= ARM_RED_MAX && Math.abs(g - b) <= ARM_GREEN_BLUE_WITHIN && cm >= ARM_MIN_CM) return Kind.PUSHER_ARM;
         if (r >= RED_RED_MIN && r >= g && b < RED_BLUE_MAX) return Kind.RED_NECTAR;
         if (b >= BLUE_BLUE_MIN && b >= g + BLUE_OVER_GREEN && r <= BLUE_RED_MAX) return Kind.BLUE_NECTAR;
         if (g >= POLLEN_GREEN_OVER_BLUE * b && r <= POLLEN_RED_MAX) return Kind.POLLEN;
@@ -170,6 +174,21 @@ public final class SlotCounter {
     }
 
     private static double sq(double v) { return v * v; }
+
+    /**
+     * Whether a reading shows something present, against an empty reading {alpha, cm, red, green, blue shares}: the
+     * rule that switches presence on, without the hysteresis and the debounce. For the color sensor studies.
+     */
+    public static boolean presentAgainst(double alpha, double cm, double r, double g, double b, double[] empty) {
+        double shift = Math.sqrt(sq(r - empty[2]) + sq(g - empty[3]) + sq(b - empty[4]));
+        double ratio = alpha / Math.max(1e-6, empty[0]), nearer = empty[1] - cm;
+        return shift >= SHIFT_ON || (ratio >= BRIGHT_ON && alpha - empty[0] >= BRIGHT_MIN_ABOVE) || nearer >= NEAR_ON_CM;
+    }
+
+    /** The stored empty reading of sensor i: {alpha, cm, red, green, blue shares}. */
+    public static double[] storedEmpty(int i) {
+        return new double[] {EMPTY_ALPHA[i], EMPTY_CM[i], EMPTY_RED[i], EMPTY_GREEN[i], EMPTY_BLUE[i]};
+    }
 
     /** Valid only while every sensor has been read within the last second. Callers must not act on it otherwise. */
     public boolean valid() {

@@ -14,7 +14,7 @@ import java.util.Locale;
 
 /**
  * The drive tuners (specs/support-opmodes.md section 4.2): each drives a repeating pattern with drive to pose so its
- * gains can be adjusted live in the Dashboard. B is a kill switch; A goes on. They write a run log: the gains at the
+ * gains can be adjusted live in the Dashboard. B is the kill switch. They write a run log: the gains at the
  * start and whenever a Dashboard edit changes them, every leg's DRIVE lines, and a row every 50 ms.
  *
  * Hidden: remove the @Disabled line of the one wanted to bring it back.
@@ -32,7 +32,7 @@ public abstract class DriveTuner extends TeamOpMode {
         while (opModeInInit()) {
             drive.updatePose();
             telemetry.addLine(title() + ": the robot must stand still until Start.");
-            telemetry.addLine("B stops it (kill switch); A goes on. Edit the DriveToPose gains in the Dashboard.");
+            telemetry.addLine("B is the kill switch. Edit the DriveToPose gains in the Dashboard.");
             telemetry.addLine("Pinpoint: " + drive.localizer.statusText());
             telemetry.update();
             idle();
@@ -54,12 +54,11 @@ public abstract class DriveTuner extends TeamOpMode {
         String last = "";
         while (opModeIsActive()) {
             drive.updatePose();
-            if (gamepad1.b) {
+            if (gamepad1.b && !killed) {
                 killed = true;
                 leg = null;
                 drive.stop();
-            } else if (gamepad1.a) {
-                killed = false;
+                RunLog.event("TUNE killed by B");
             }
             String now = DriveToPose.gainsLine();
             if (!now.equals(gains)) {
@@ -76,7 +75,7 @@ public abstract class DriveTuner extends TeamOpMode {
                 }
             }
             RunLog.tick();
-            telemetry.addLine(killed ? "STOPPED (A goes on)" : "running; B stops");
+            telemetry.addLine(killed ? "STOPPED by the kill switch. Stop the opmode and start it again to go on." : "running; B is the kill switch");
             telemetry.addLine("Pose " + drive.pose());
             telemetry.addLine("Last leg: " + last);
             telemetry.update();
@@ -87,20 +86,25 @@ public abstract class DriveTuner extends TeamOpMode {
     @TeleOp(name = "Tune - Axial", group = "3 Tuning")
     public static final class Axial extends DriveTuner {
         @Override protected String title() { return "Tune - Axial"; }
-        @Override protected Pose[] pattern() { return new Pose[] {Pose.deg(48, 0, 0), Pose.deg(0, 0, 0)}; }
+        @Override protected Pose[] pattern() { return new Pose[] {Pose.deg(0, 0, 0), Pose.deg(48, 0, 0)}; }
     }
 
     @Disabled
     @TeleOp(name = "Tune - Lateral", group = "3 Tuning")
     public static final class Lateral extends DriveTuner {
         @Override protected String title() { return "Tune - Lateral"; }
-        @Override protected Pose[] pattern() { return new Pose[] {Pose.deg(0, 48, 0), Pose.deg(0, 0, 0)}; }
+        @Override protected Pose[] pattern() { return new Pose[] {Pose.deg(0, 0, 0), Pose.deg(0, 48, 0)}; }
     }
 
     @Disabled
     @TeleOp(name = "Tune - Heading", group = "3 Tuning")
     public static final class Heading extends DriveTuner {
         @Override protected String title() { return "Tune - Heading"; }
-        @Override protected Pose[] pattern() { return new Pose[] {Pose.deg(0, 0, 90), Pose.deg(0, 0, 180), Pose.deg(0, 0, 90), Pose.deg(0, 0, 0)}; }
+        @Override protected Pose[] pattern() {
+            double[] deg = {0, 135, -135, 20, -20, 175, -175, 90, -90};
+            Pose[] p = new Pose[deg.length];
+            for (int i = 0; i < deg.length; i++) p[i] = Pose.deg(0, 0, deg[i]);
+            return p;
+        }
     }
 }

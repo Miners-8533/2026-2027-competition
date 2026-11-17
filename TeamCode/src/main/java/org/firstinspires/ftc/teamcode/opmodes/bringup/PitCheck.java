@@ -37,7 +37,8 @@ import java.util.Set;
  * that step; every move is short and slow. It drives the raw hardware, not the subsystem classes, so it does not
  * disturb the pusher's saved zero. It does not check CS5 or the flywheel position servo.
  *
- * Controls (gamepad 1): A runs a step, or confirms "what I saw was right"; B says "wrong"; X skips; Y stops everything.
+ * Controls (gamepad 1): A runs a step, or confirms "what I saw was right"; B says "wrong"; X skips; Back stops everything and ends
+ * (one of the six support opmodes that use Back, which the match opmodes never do).
  * Hidden: remove the @Disabled line to bring it back.
  */
 @Config
@@ -73,10 +74,10 @@ public final class PitCheck extends TeamOpMode {
         telemetry.update();
     }
 
-    /** Waits for a button: 'A', 'B', 'X', or 'Y' (stop everything). */
+    /** Waits for a button: 'A', 'B', 'X', or 'Y' for Back (stop everything and end). */
     private char waitButton(String... prompt) {
         while (opModeIsActive()) {
-            if (gamepad1.y) return 'Y';
+            if (gamepad1.back) return 'Y';
             if (a.pressed(gamepad1.a)) return 'A';
             if (b.pressed(gamepad1.b)) return 'B';
             if (x.pressed(gamepad1.x)) return 'X';
@@ -86,13 +87,13 @@ public final class PitCheck extends TeamOpMode {
         return 'Y';
     }
 
-    /** Runs a motor at a power for a time; Y stops at once. Returns false if stopped. */
+    /** Runs a motor at a power for a time; Back stops at once. Returns false if stopped. */
     private boolean pulse(DcMotorEx m, double power, double seconds, String label) {
         long end = System.nanoTime() + (long) (seconds * 1e9);
         m.setPower(power);
         boolean ok = true;
         while (opModeIsActive() && System.nanoTime() < end) {
-            if (gamepad1.y) {
+            if (gamepad1.back) {
                 ok = false;
                 break;
             }
@@ -112,7 +113,7 @@ public final class PitCheck extends TeamOpMode {
     protected void body() throws InterruptedException {
         profile = ChassisProfile.get();
         telemetry.addLine("Pit Check: robot ON BLOCKS, wheels clear, ramp free, track empty.");
-        telemetry.addLine("A = run / right, B = wrong, X = skip, Y = stop everything.");
+        telemetry.addLine("A = run / right, B = wrong, X = skip, Back = stop everything and end.");
         telemetry.update();
         waitForStart();
         if (isStopRequested()) return;
@@ -209,7 +210,7 @@ public final class PitCheck extends TeamOpMode {
             fly.setPower(FLYWHEEL_POWER);
             double best = 0;
             long end = System.nanoTime() + (long) 2e9;
-            while (opModeIsActive() && System.nanoTime() < end && !gamepad1.y) {
+            while (opModeIsActive() && System.nanoTime() < end && !gamepad1.back) {
                 best = Math.max(best, Flywheel.ENCODER_SIGN * fly.getVelocity());
                 show("Flywheel spinning", String.format(Locale.US, "%.0f ticks/s", best));
                 idle();
@@ -232,14 +233,14 @@ public final class PitCheck extends TeamOpMode {
             double start = gate.getCurrentPosition(), perDeg = Pusher.TICKS_PER_REV / 360.0;
             long end = System.nanoTime() + (long) 3e9;
             gate.setPower(PUSHER_POWER);
-            while (opModeIsActive() && System.nanoTime() < end && !gamepad1.y
+            while (opModeIsActive() && System.nanoTime() < end && !gamepad1.back
                     && Math.abs(gate.getCurrentPosition() - start) < PUSHER_MOVE_DEG * perDeg) idle();
             gate.setPower(0);
             sleep(300);
             double movedDeg = Pusher.ENCODER_SIGN * (gate.getCurrentPosition() - start) / perDeg;
             end = System.nanoTime() + (long) 3e9;
             gate.setPower(-PUSHER_POWER);
-            while (opModeIsActive() && System.nanoTime() < end && !gamepad1.y
+            while (opModeIsActive() && System.nanoTime() < end && !gamepad1.back
                     && Pusher.ENCODER_SIGN * (gate.getCurrentPosition() - start) / perDeg > 3) idle();
             gate.setPower(0);
             sleep(300);

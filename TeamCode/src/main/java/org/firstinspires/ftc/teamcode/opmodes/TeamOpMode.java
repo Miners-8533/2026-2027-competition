@@ -92,6 +92,23 @@ public abstract class TeamOpMode extends LinearOpMode {
         drive.drive((fx * Math.cos(h) + fy * Math.sin(h)) * scale, (-fx * Math.sin(h) + fy * Math.cos(h)) * scale, -gamepad1.right_stick_x * 0.5 * scale);
     }
 
+    /** Robot-oriented driving for the studies: stick up is the robot's front, stick right its right; turn stick right is clockwise. */
+    protected void driveRobotOriented(double scale) {
+        drive.drive(-gamepad1.left_stick_y * scale, -gamepad1.left_stick_x * scale, -gamepad1.right_stick_x * 0.5 * scale);
+    }
+
+    /** Pads a loop to a fixed length, so a study's loop is as long as the TeleOp's (28 ms in the studies that ask for it). */
+    public static final class LoopPad {
+        private long last = System.nanoTime();
+
+        /** Call once per loop, at its end. */
+        public void pad(double ms) throws InterruptedException {
+            long left = (long) (ms * 1e6) - (System.nanoTime() - last);
+            if (left > 0) Thread.sleep(left / 1_000_000L, (int) (left % 1_000_000L));
+            last = System.nanoTime();
+        }
+    }
+
     /** A button that reports only the moment it is pressed. */
     public static final class Edge {
         private boolean last;
