@@ -128,9 +128,16 @@ public final class ParkDash {
         if (why == null) {
             if (GRID_ROUTES) {
                 String g = GridRoutes.unusable(Field.parkDashCorner(in.up));
-                if (g != null) RunLog.event("PARK DASH grid routes not used: " + g + "; using the route planner");
+                if (g != null) {
+                    RunLog.event("PARK DASH grid routes not used: " + g + "; using the route planner");
+                } else {
+                    // The tables can be read and pass their checks, but picking a start and the grid follower are not built.
+                    String note = GridRoutes.modelNote();
+                    RunLog.event("PARK DASH grid routes not used: the tables are usable" + (note == null ? "" : " (" + note + ")")
+                            + ", but the grid follower is not built; using the route planner");
+                }
             }
-            p = RoutePlanner.plan(in.pose.vec(), goal, false, fp);
+            p = RoutePlanner.plan(in.pose.vec(), goal, fp);
             if (!p.ok()) why = p.refusal;
         }
         if (why != null) {

@@ -127,7 +127,7 @@ public final class CompetitionTeleOp extends TeamOpMode {
         });
         parkDash = new ParkDash(footprint);
         // Warm up the planner, so the first press does not pay for it.
-        for (Cell c : Cell.values()) RoutePlanner.plan(new Vec(0, 50), Aim.launchSpot(c), true, footprint);
+        for (Cell c : Cell.values()) RoutePlanner.plan(new Vec(0, 50), Aim.launchSpot(c), footprint);
         RunLog.eventf("PINPOINT at INIT: %s; start pose from %s", drive.localizer.mode(), usingSaved
                 ? String.format(Locale.US, "a pose saved %.0f s ago", savedAge) : "the default start");
 
@@ -181,13 +181,15 @@ public final class CompetitionTeleOp extends TeamOpMode {
         mech.setSpin(true);
         mech.settings.fullActions = fullAuto;
         mech.settings.launchGridAllowed = true;
-        RunLog.eventf("SETUP profile %s%s, alliance %s, start pose %s %s (%s), mechanisms: %s, %s, gamepads: driver %s, operator %s",
-                profile.name, ChassisProfile.noHubRegistered() ? " (NO HUB REGISTERED)" : "", alliance, usingSaved ? "from the AUTO" : "default", pose, drive.localizer.mode(),
-                mech.found(), fullAuto ? "FULL AUTO" : "COUNT ONLY", assigned(gamepad1) ? "assigned" : "NOT ASSIGNED",
+        // The pull tool reads the alliance and the start from this line: the wording up to the semicolon is fixed (specs/logging.md section 1.6).
+        RunLog.eventf("SETUP profile %s, alliance %s, start pose %s %s, driver forward %.0f deg; %sPinpoint %s, mechanisms: %s, %s, gamepads: driver %s, operator %s",
+                profile.name, alliance, usingSaved ? "from the AUTO" : "default", pose, Math.toDegrees(alliance.driverForwardRad()),
+                ChassisProfile.noHubRegistered() ? "NO HUB REGISTERED, " : "", drive.localizer.mode(),
+                mech.found(),fullAuto ? "FULL AUTO" : "COUNT ONLY", assigned(gamepad1) ? "assigned" : "NOT ASSIGNED",
                 assigned(gamepad2) ? "assigned" : "NOT ASSIGNED");
         RunLog.eventf("PINPOINT at Start: %s, pose %s, %s", drive.localizer.statusText(), pose, seededOk ? "acceptable" : "NOT ACCEPTABLE");
         RunLog.sampler("x,y,hdg_deg,stick_up,stick_right," + MecanumDrive.LOG_COLUMNS.replace(",a_lf,a_lb,a_rb,a_rf", "")
-                + ",drive_mode,lock_err," + Mechanisms.LOG_COLUMNS + ",a_lf,a_lb,a_rb,a_rf,grid_zone,grid_speed,grid_resid_deg",
+                + ",drive_mode,lock_err_deg," + Mechanisms.LOG_COLUMNS + ",a_lf,a_lb,a_rb,a_rf,grid_zone,grid_speed,grid_resid_deg",
                 SAMPLE_PERIOD_S, new RunLog.Sampler() {
                     @Override public String row() { return sampleRow(); }
                 });
@@ -488,7 +490,7 @@ public final class CompetitionTeleOp extends TeamOpMode {
     private void enterBackup(String why) {
         if (backup) return;
         backup = true;
-        RunLog.event("BACKUP MODE ENTERED: " + why);
+        RunLog.event("BACKUP MODE ENTERED (" + why + ")");
         mech.enterBackup(BACKUP_DISTANCE_IN);
         mech.setDash(null, null, 0);
         lock.release();

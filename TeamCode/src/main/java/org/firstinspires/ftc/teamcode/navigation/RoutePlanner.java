@@ -28,8 +28,10 @@ public final class RoutePlanner {
     public static double TURN_PENALTY_IN_PER_DEG = 0.1;
     public static boolean UNDER_HIVE_ALLOWED = true;
     public static int MAX_VIA = 3;
-    /** SPEC GAP: "the walls are only checked from a short distance along a leg that starts at the robot"; the distance is not given. */
-    public static double LANE_WALL_SKIP_IN = 12.0;
+    /** A leg from the robot checks the virtual lane walls only from this far along the leg onward. */
+    public static double LANE_WALL_SKIP_IN = 10.0;
+    /** Two shapes closer than this touch. */
+    private static final double TOUCH_EPS = 1e-9;
 
     enum Kind { SUPPORT, FLOWER, LANE_WALL }
 
@@ -75,10 +77,11 @@ public final class RoutePlanner {
             out.add(new Obstacle(Geom.rect(r[0] - c, r[1] - c, r[2] + c, r[3] + c), Kind.FLOWER));
         }
         if (UNDER_HIVE_ALLOWED) {
-            // Walls that keep a route under the hive centered on the lane's middle line.
+            // Walls that keep a route under the hive centered on the lane's middle line: each fills the space from
+            // the lane half width out to the inner edge of a bar, along the bars' length.
             double w = LANE_HALF_WIDTH_IN;
-            out.add(new Obstacle(Geom.rect(-Field.BAR_HALF_X, w, Field.BAR_HALF_X, w + 0.1), Kind.LANE_WALL));
-            out.add(new Obstacle(Geom.rect(-Field.BAR_HALF_X, -w - 0.1, Field.BAR_HALF_X, -w), Kind.LANE_WALL));
+            out.add(new Obstacle(Geom.rect(-Field.BAR_HALF_X, w, Field.BAR_HALF_X, Field.BAR_Y_NEAR), Kind.LANE_WALL));
+            out.add(new Obstacle(Geom.rect(-Field.BAR_HALF_X, -Field.BAR_Y_NEAR, Field.BAR_HALF_X, -w), Kind.LANE_WALL));
         } else {
             out.add(new Obstacle(Geom.rect(-Field.BAR_HALF_X, -Field.BAR_Y_NEAR, Field.BAR_HALF_X, Field.BAR_Y_NEAR), Kind.LANE_WALL));
         }
@@ -95,53 +98,95 @@ public final class RoutePlanner {
     }
 
     /**
-     * Whether a straight leg is acceptable: the area the robot sweeps along it, grown by the margin, touches no obstacle.
-     *
-     * @param first        the leg starts where the robot is now
-     * @param toLaunchSpot the leg ends at a launch spot, which is judged with the far-corner circle only
+     * Whether the robot's footprint at a pose stays at least a margin from every hive support and every flower stand
+     * (grown by the planner's clearance). The virtual lane walls are not obstacles for a standing robot.
+     * Used by the launch grid's spot generator (specs/aiming.md section 4.4).
      */
-    static boolean legOk(Vec a, Vec b, boolean first, boolean toLaunchSpot, Footprint fp, List<Obstacle> obstacles) {
-        double len = a.dist(b);
-        if (len < 1e-6) return true;
-        Vec u = b.minus(a).unit();
-        boolean aligned = len >= ALIGN_LENGTH_IN;
-        double corner = fp.farCorner();
-        for (Obstacle o : obstacles) {
-            double[][] poly = o.poly;
-            if (first) {
-                // A robot that starts within reach of a flower and moves away from it ignores that flower (it has just gathered there).
-                if (o.kind == Kind.FLOWER && Geom.polyPoint(poly, a.x, a.y) < corner + MARGIN_IN && o.center.minus(a).dot(u) < 0) continue;
-                // The robot's own circle at the start, without margin. The lane walls and the flowers are not solid there.
-                if (o.kind == Kind.SUPPORT && Geom.polyPoint(o.poly, a.x, a.y) < corner) return false;
-                // A robot that starts inside the lane may always leave: its first leg ignores the virtual walls.
-                boolean inLane = Math.abs(a.y) < LANE_HALF_WIDTH_IN && Math.abs(a.x) < Field.BAR_HALF_X + corner;
-                if (o.kind == Kind.LANE_WALL && inLane) continue;
-                // Behind the start the robot is only moving away. The walls are only checked from a short distance along the leg.
-                double skip = o.kind == Kind.LANE_WALL ? LANE_WALL_SKIP_IN : 0;
-                poly = Geom.clip(poly, a.x + u.x * skip, a.y + u.y * skip, u.x, u.y);
-                if (poly.length == 0) continue;
-            }
-            // The sweep. Near a launch spot it is checked without the margin (the audience spot is close to a flower stand).
-            double[][] far = poly;
-            if (toLaunchSpot) {
-                double back = corner + MARGIN_IN;
-                far = Geom.clip(poly, b.x - u.x * back, b.y - u.y * back, -u.x, -u.y);
-                if (!sweepClear(poly, a, b, aligned, fp, 0)) return false;
-            }
-            if (far.length > 0 && !sweepClear(far, a, b, aligned, fp, MARGIN_IN)) return false;
-            // Where the heading changes, the robot is a circle of its far-corner radius.
-            if (Geom.polyPoint(poly, b.x, b.y) < corner + (toLaunchSpot ? 0 : MARGIN_IN)) return false;
+    public static boolean bodyClear(Pose pose, Footprint fp, double margin) {
+        double[][] body = fp.corners(pose.x, pose.y, pose.h);
+        for (Obstacle o : obstacles()) {
+            if (o.kind != Kind.LANE_WALL && Geom.polyPoly(body, o.poly) < margin) return false;
         }
         return true;
     }
 
-    private static boolean sweepClear(double[][] poly, Vec a, Vec b, boolean aligned, Footprint fp, double margin) {
-        if (aligned) {
-            // A long leg is driven aligned, front or rear leading: the robot's real rectangle moved along the leg.
-            return Geom.polyPoly(Geom.band(a.x, a.y, b.x, b.y, fp.halfWidth), poly) >= margin;
+    /** The rectangle laid along a leg from a to b: it starts "behind" before a, ends "ahead" past b, and reaches halfWidth to each side. */
+    private static double[][] swept(Vec a, Vec u, double len, double behind, double ahead, double halfWidth) {
+        return Geom.band(a.x - u.x * behind, a.y - u.y * behind, a.x + u.x * (len + ahead), a.y + u.y * (len + ahead), halfWidth);
+    }
+
+    private static boolean touches(double[][] p, double[][] q) { return Geom.polyPoly(p, q) <= TOUCH_EPS; }
+
+    private static boolean circleTouches(double[][] poly, Vec c, double radius) { return Geom.polyPoint(poly, c.x, c.y) <= radius; }
+
+    /** Inside the box between the two bars: a robot there may always leave. */
+    static boolean betweenBars(Vec p) {
+        return Math.abs(p.x) <= Field.BAR_HALF_X && Math.abs(p.y) <= Field.BAR_Y_NEAR;
+    }
+
+    /**
+     * Whether a straight leg is acceptable (specs/dashes.md section 1.2): the area the robot sweeps along it touches
+     * no obstacle. The swept area is a rectangle laid along the leg.
+     *
+     *   long leg (at least the align length; driven aligned, front or rear leading):
+     *       half width = half the robot's width + the margin; it reaches past each end by the longer of
+     *       origin-to-front and origin-to-back + the margin;
+     *   short leg (not aligned): half width and reach = the far-corner radius + the margin.
+     *
+     * @param fromRobot the leg starts where the robot is now
+     * @param toGoal    the leg ends at the goal
+     */
+    public static boolean legOk(Vec a, Vec b, boolean fromRobot, boolean toGoal, Footprint fp, List<Obstacle> obstacles) {
+        double len = a.dist(b);
+        if (len < 1e-6) return true;
+        Vec u = b.minus(a).unit();
+        boolean isLong = len >= ALIGN_LENGTH_IN;
+        double corner = fp.farCorner();
+        double halfWidth = (isLong ? fp.halfWidth : corner) + MARGIN_IN;
+        double reach = (isLong ? Math.max(fp.front, fp.back) : corner) + MARGIN_IN;
+        // A short leg from the robot is boxed from the start point onward, with nothing behind it: behind the start
+        // the robot is only moving away. A long leg from the robot keeps its reach behind the start.
+        boolean boxedFromStart = fromRobot && !isLong;
+        double behind = boxedFromStart ? 0 : reach;
+        boolean startBetweenBars = fromRobot && betweenBars(a);
+
+        for (Obstacle o : obstacles) {
+            switch (o.kind) {
+                case SUPPORT:
+                    if (touches(swept(a, u, len, behind, reach, halfWidth), o.poly)) return false;
+                    // The robot's own circle at the start (no margin), checked on its own.
+                    if (boxedFromStart && circleTouches(o.poly, a, corner)) return false;
+                    break;
+                case FLOWER: {
+                    // A flower just gathered from is ignored on a leg from the robot: the stand is within the far-corner
+                    // radius plus the margin of the start, and the leg ends farther from it than it starts.
+                    // ("The stand" is taken as the planner's obstacle, the stand grown by its clearance; with the bare
+                    // stand a robot 13.5 to 15 in from it could not leave, its own circle touching the grown stand.)
+                    double fromStart = Geom.polyPoint(o.poly, a.x, a.y);
+                    if (fromRobot && fromStart <= corner + MARGIN_IN && Geom.polyPoint(o.poly, b.x, b.y) > fromStart) break;
+                    // A leg that ends at the goal: the rectangle ends at the goal and does not reach past it, and the
+                    // robot at the goal is the far-corner circle with no margin.
+                    if (touches(swept(a, u, len, behind, toGoal ? 0 : reach, halfWidth), o.poly)) return false;
+                    if (toGoal && circleTouches(o.poly, b, corner)) return false;
+                    if (boxedFromStart && circleTouches(o.poly, a, corner)) return false;
+                    break;
+                }
+                case LANE_WALL:
+                    if (fromRobot) {
+                        // A robot that starts between the bars may always leave: the whole leg ignores the walls.
+                        if (startBetweenBars) break;
+                        // Any other leg from the robot checks the walls only from a distance along the leg onward, so a
+                        // robot at the lane's mouth can leave or turn away, while one heading into the lane must be centered.
+                        if (len <= LANE_WALL_SKIP_IN) break;
+                        Vec from = new Vec(a.x + u.x * LANE_WALL_SKIP_IN, a.y + u.y * LANE_WALL_SKIP_IN);
+                        if (touches(swept(from, u, len - LANE_WALL_SKIP_IN, 0, reach, halfWidth), o.poly)) return false;
+                    } else if (touches(swept(a, u, len, behind, reach, halfWidth), o.poly)) {
+                        return false;
+                    }
+                    break;
+            }
         }
-        // A short leg is not aligned: the far-corner radius.
-        return Geom.polySeg(poly, a.x, a.y, b.x, b.y) >= fp.farCorner() + margin;
+        return true;
     }
 
     private static double turnFolded(Vec a, Vec b, Vec c) {
@@ -170,9 +215,9 @@ public final class RoutePlanner {
     }
 
     /** Plans from the robot's position to a goal. */
-    public static Plan plan(Vec start, Vec goal, boolean goalIsLaunchSpot, Footprint fp) {
+    public static Plan plan(Vec start, Vec goal, Footprint fp) {
         List<Obstacle> obs = obstacles();
-        if (legOk(start, goal, true, goalIsLaunchSpot, fp, obs)) return make(new Vec[] {start, goal});
+        if (legOk(start, goal, true, true, fp, obs)) return make(new Vec[] {start, goal});
 
         Vec[] via = Field.routePoints();
         int n = via.length;
@@ -180,7 +225,8 @@ public final class RoutePlanner {
         boolean[][] between = new boolean[n][n];
         for (int i = 0; i < n; i++) {
             fromStart[i] = legOk(start, via[i], true, false, fp, obs);
-            toGoal[i] = legOk(via[i], goal, false, goalIsLaunchSpot, fp, obs);
+            toGoal[i] = legOk(via[i], goal, false, true, fp, obs);
+
             for (int j = 0; j < n; j++) between[i][j] = i != j && legOk(via[i], via[j], false, false, fp, obs);
         }
         Vec[] best = null;
