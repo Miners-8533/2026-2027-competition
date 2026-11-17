@@ -87,7 +87,7 @@ For each measured spot: where the robot actually stood, the flywheel speed that 
 - The red cells are the blue data rotated 180 degrees.
 - Spots the tuner would have visited but nobody measured (near the walls) are **estimated** from their nearest measured neighbours and flagged.
 - The table is generated source, produced by a PC tool from the tuning run's log. It must not be edited by hand.
-- **Layout of the generated table** (from the table maker in `tools/launchgrid`; not checked against the code that reads it): one row per spot of the blue rear cell, holding x, y, the speed in ticks/s, the aim residual in degrees, shot possible (1 or 0) and estimated (1 or 0); and a list of triangles, each three row numbers, so that the robot does not work out the triangles itself.
+- **Layout of the generated table:** one row per spot of the blue rear cell, holding x, y, the speed in ticks/s, the aim residual in degrees, shot possible (1 or 0) and estimated (1 or 0); and a list of triangles, each three row numbers, so that the robot does not work out the triangles itself.
 - The measured spots themselves are in `tools/launchgrid/data/`. They are data and are not on these pages.
 
 Because the residual is relative to the bearing, the grid's aim does not depend on the launcher offset or the far-cell extra of section 1; they are already in the data.

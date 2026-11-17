@@ -71,6 +71,8 @@ The first time a queued launch waits on the band, a log line says whether the sp
 
 **A salvo that did not complete** (the pusher gave up on a jam or the timeout, or faulted): the entry count and the launched tally are put back as if nothing left the robot, plus whatever entered since. A robot that shows too many is launched or rejected again; that is safer than one that shows 0 while jammed and keeps collecting.
 
+When the pusher **gave up**, the salvo still ends as a salvo: the salvo counter increases, the pusher check is asked for (and then skipped, because the pusher gave up) and the flywheel's stop is scheduled. When the pusher **faulted**, the salvo is dropped without any of these.
+
 While a launch is queued or a salvo runs, and for 0.6 s after, the run log writes a row on every loop.
 
 ## 4. Reject
@@ -243,7 +245,7 @@ These exist in the coordinator but no control reaches them in the competition op
 
 Every sample row of the run log carries the coordinator's state: setpoint, flywheel target, speed and ready flag; pusher state, angle, speed and current; intake mode; ramp target; CS1 to CS4 count and slots; launch state; number of warnings; overrides; pusher check status; flywheel power and current; pusher lock state; active hold power; intake current; CS5 total entries, held count, FULL flag, latest proximity and raw samples; launched tally. See [logging.md](logging.md).
 
-**Column names** (from `design/` or the PC tools, not checked against the code), in this order as far as it is recorded: `setpoint`, `fly_target`, `fly_vel`, `fly_ready`, `pusher_state`, `pusher_deg`, `pusher_vel`, `pusher_amps`, `intake_mode`, `ramp`, `count`, `slots`, `launch`, `warnings`, `overrides`, `check`, `fly_power`, `fly_amps`, `pusher_lock`, `pusher_hold`, `intake_amps`, `cs5_entries`, `cs5_held`, `cs5_full`, `cs5_prox`. **Not specified:** the names of the raw-samples and launched-tally columns, and where the later columns stand in the row.
+**Column names**, in order: `setpoint`, `fly_target`, `fly_vel`, `fly_ready`, `pusher_state`, `pusher_deg`, `pusher_vel`, `pusher_amps`, `intake_mode`, `ramp`, `count`, `slots`, `launch`, `warnings`, `overrides`, `check`, `fly_power`, `fly_amps`, `pusher_lock`, `pusher_hold`, `intake_amps`, `cs5_entries`, `cs5_held`, `cs5_full`, `cs5_prox`, `cs5f` (the raw samples), `launched_total`.
 
 ## 15. Status
 
@@ -280,7 +282,23 @@ The coordinator itself keeps five jobs: build the actuators that exist; read the
 | Warnings | the standing list and the notices | 11 |
 
 - **The order the parts run in each update is behavior.** It is written down from the code when the split is made and kept: a launch request and a reject in the same loop, or FULL and a salvo start in the same loop, must come out as they do today.
-- **The order is not yet written down, here or anywhere but the code**, so a rebuild cannot reproduce it. The rebuild of 2026-11-17 had to choose one: the counts, the speed, the launch, the reject, the pusher check, FULL and the lock, the intake, the ramp, the flywheel target, the actuators, the warnings; with every command acting at once, in the order the opmode calls them. Whether that is the code's order is not checked.
+- **The order as built** (read from the code, 2026-11-17). A command (launch, reject, a ramp move and the rest) acts at once when the opmode calls it, before the update. The update then runs:
+  1. the flywheel position safety net;
+  2. the slot count: one sensor read, then its warnings;
+  3. the entry count: the new entries, then full;
+  4. the counts' log lines (the baselines once, the empty-track line, a change of the count);
+  5. the target cell, the distance, the setpoint, the launch grid, the lost-encoder setpoint, and their warnings;
+  6. the ramp: a checked stow that has become due;
+  7. the pusher's events: a reject that has finished, then a salvo that has finished, then a fault;
+  8. the pusher check: wanted at the start; aborted or updated while it runs; started or skipped while it is wanted;
+  9. the queued launch: dropped on its timeout, otherwise started when its conditions hold;
+  10. the pusher lock;
+  11. burst logging;
+  12. the flywheel's target, with its stop after a salvo;
+  13. the intake's mode;
+  14. the actuators, in the order intake, flywheel, pusher;
+  15. the log of the warnings that appeared or cleared.
+- Two consequences to keep: a launch the opmode requests is tested in the same update, so a salvo can start in the loop it was requested in; and the end of a salvo or a reject is seen one update late, because the pusher is updated last.
 - A part never talks to an actuator or to another part. It gets what it needs in its snapshot and returns decisions; the coordinator carries them.
 - The per-opmode settings of section 1 stay one table, handed to the parts.
 - The log columns of section 14 and the event prefixes do not change, so the tools keep working and old logs replay through the new parts. **That replay is the acceptance test:** each part, fed the logged rows of the Hartland matches, must produce the logged decisions.

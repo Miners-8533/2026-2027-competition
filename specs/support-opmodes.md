@@ -24,7 +24,7 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 | Drive Characterization | Tuning | hidden | drivetest |
 | Auton Verify - Forward 48 and back, Lateral 48 and back | Auto verify | hidden | none |
 
-**Common rules.** No opmode uses Start or Back for a function. Anything that moves waits for a button. Opmodes that seed the pose need the robot on the start spot and still at INIT.
+**Common rules.** No opmode uses Start for a function. **Six support opmodes use Back,** which the match opmodes never do: Launch Tuner and Launch Grid Tuner (clear a pusher fault; held 1 s, reseed the pose), CS Pass Study (clear a pusher fault), Pit Check (stop everything and end), Pinpoint Push Test (apply the settings again and restart) and Color Sensors Test (clear the baseline). Anything that moves waits for a button. Opmodes that seed the pose need the robot on the start spot and still at INIT.
 
 ## 1. Pit Check
 
@@ -60,19 +60,21 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 
 **Output.** One log line per salvo (launch speed, lowest speed and dip, battery, flywheel current, distance, pose, lock error, trims), and a table line ready to paste into the launch map.
 
-**Controls** (from `design/opmodes.md`; not checked against the code).
+**Controls.**
 
 | Who | Control | Effect |
 |---|---|---|
-| Driver | right bumper | target lock on / off |
+| Driver | sticks; left trigger | drive as in the TeleOp; precision (30 percent) |
+| Driver | right bumper | target lock on / off (a toggle here; held in the TeleOp) |
 | Driver | D-pad up / down | speed trim, 20 ticks/s a step |
-| Driver | D-pad right / left | aim trim, 0.5 deg a step |
-| Driver | A | fire |
+| Driver | D-pad right / left | aim trim, 0.5 deg a step (right aims left, counterclockwise) |
+| Driver | A | fire. With the lock on it waits for aligned |
+| Driver | Back | clear a pusher fault; held 1 s, reseed the pose to the start |
 | Operator | left trigger | intake OUT |
-| Operator | D-pad | the TeleOp's landed low / high / left / right reports |
-| Operator | A / B | record / undo |
-| Operator | Y | fire |
-| Operator | left bumper | speed base: the points recorded this session |
+| Operator | D-pad | the TeleOp's landed low / high / left / right reports, with these steps |
+| Operator | A / B | record (it replaces a point within 1 in) / undo |
+| Operator | Y | fire, without waiting for the lock |
+| Operator | left bumper | speed base: the saved map / the points recorded this session |
 
 Log lines: `TUNER SALVO`, `TRIM`, `RECORD`, `UNDO`, `TUNER TABLE`.
 
@@ -88,7 +90,20 @@ Log lines: `TUNER SALVO`, `TRIM`, `RECORD`, `UNDO`, `TUNER TABLE`.
 
 **Output.** One line per spot (speed split into map and trim, aim heading split likewise, distance, salvos fired, pose; a good spot with no salvo is marked unverified), a line per salvo, and a table at the end. A PC tool turns the log into the generated grid table.
 
-**Controls** (from `design/opmodes.md`; not checked against the code). At INIT: NEAR is the audience cell, FAR the rear cell; the start is the usual audience-wall start. Hold the right trigger to drive to the next spot. D-pad left / right trims the angle by 0.5 deg, up / down the speed by 20 ticks/s. Y fires. A accepts the spot, B marks it as no shot, X goes back one spot. Log lines: `GRID POINT`, `FIRE`, `GRID TABLE`.
+**Controls** (gamepad 1). At INIT, D-pad left / right chooses NEAR (the rear cell) / FAR (the audience cell); the start is against the rear wall, at (-63.4, 16.5, 0 deg).
+
+| Control | Effect |
+|---|---|
+| Right trigger (hold) | drive to the next spot; letting go stops at once |
+| Sticks; right bumper | drive by hand, robot-oriented, while the trigger is not held; precision (30 percent) |
+| D-pad left / right | aim left / right by 0.5 deg; the robot turns by itself |
+| D-pad up / down | speed, 20 ticks/s a step |
+| Y | fire |
+| A / B / X | accept the spot / no shot is possible here / back one spot |
+| Left trigger (hold) | intake OUT |
+| Back | clear a pusher fault; held 1 s, reseed the pose to the start |
+
+Log lines: `GRID POINT`, `FIRE`, `GRID TABLE`.
 
 ### 2.3 Launcher Offset Finder
 
@@ -129,17 +144,21 @@ Not in the code. See "As built and target" in the [README](README.md).
 
 **Color Sensors Test** is an older tool that measures the empty baseline and scores the classification thresholds against hand-set labels; the Color Sensor Study replaced it for baselines.
 
-### 3.2 Procedure details of the studies
+### 3.2 Controls and details of the studies and checks
 
-(from `design/opmodes.md`; not checked against the code.)
+All on gamepad 1.
 
-| Study | Details |
+| Opmode | Details |
 |---|---|
-| Flywheel Step Study | Setpoints in ticks/s: 1350, 1650, 1350, 1450, 1350, 1375, 1325, 1650, 1450, 1650, 1325, the whole list repeated. The loop is padded to 28 ms, like the TeleOp's. A runs the sequence, B stops it; with it stopped the D-pad steps the setpoint by 100 or 25. One `STEP` line per change and a `STEP TABLE` at the end; a step that does not settle within its limit says `NEVER SETTLED`. **Not specified:** the settle time and the limit |
-| CS Pass Study | Intake IN throughout, flywheel at 500 ticks/s, loop padded to 28 ms. CS5 on its own thread every 20 ms, one 15-byte burst read per cycle. B = one element fed (a `FED n` line, the ground truth); Y salvo; X automatic clear; A mark; D-pad speed. A `CS5 THREAD` line every 5 s |
-| Color Sensor Study, Color Sensors Test | **Not specified:** the controls |
-
-Also **not specified:** the controls of the Launcher Offset Finder, the Pinpoint Push Test and the Pinpoint Offset Check, which buttons Pit Check uses for its four functions, and which button is the tuners' kill switch.
+| Flywheel Step Study | Setpoints in ticks/s: 1350, 1650, 1350, 1450, 1350, 1375, 1325, 1650, 1450, 1650, 1325; the list is run 2 times. The loop is padded to 28 ms, like the TeleOp's. A step has settled when the speed has stayed in the launch band 0.3 s; it ends 1.5 s after that, or after 8 s with `NEVER SETTLED`. A runs the sequence (again: restarts it); B stops it and the wheel. With it stopped, D-pad up / down steps the setpoint by 100 and right / left by 25; from off, any D-pad press spins up to 1350. One `STEP` line per change and a `STEP TABLE` at the end |
+| CS Pass Study | Intake IN throughout, flywheel at 500 ticks/s, loop padded to 28 ms. CS5 on its own thread every 20 ms, one 15-byte burst read per cycle; a `CS5 THREAD` line every 5 s. Sticks drive robot-oriented, right bumper precision. B = one element fed (a `FED n` line, the ground truth). Y salvo; X automatic clear on / off; A mark; D-pad up / down setpoint by 20; left trigger intake OUT; Back clears a pusher fault |
+| Color Sensor Study | A starts the step shown, and stops a running one. D-pad left / right goes to the previous / next step, between steps only. Right bumper logs a note. Holding X runs the intake IN to load pollen, between steps only. The baselines hold still about 8 s; the sweep and the slow reject turn the pusher backward one full turn, slowly. One sensor is read every 25 ms. The pusher must be at HOLD at INIT |
+| Color Sensors Test | A captures the empty baseline; Back clears it. B turns the sensor LEDs on / off. X switches between one sensor per loop and all four every loop. D-pad up / down selects a sensor and left / right sets its label; left bumper sets every label to NOTHING. Y starts / stops recording against the labels; right bumper clears the counts |
+| Launcher Offset Finder | At INIT, D-pad right / left chooses the BLUE / RED default start. Sticks drive as in the TeleOp; left bumper is precision. Right trigger: intake IN, even when full; left trigger: OUT. A launches. Y marks a good salvo; D-pad left / right marks one that landed left / right. X held 1 s reseeds. The speed is for the nearest of all four cells; the flywheel runs from Start; there is no speed trim |
+| Pinpoint Push Test | Three guided pushes with the drive motors floating: forward about 6 in (expect +x), left about 6 in (expect +y), counterclockwise about 45 deg (expect + heading). A skips a step; Back applies the settings again, zeroes the pose and restarts |
+| Pinpoint Offset Check | A starts or reruns the spin; B stops at once. The position is sampled at every half turn |
+| Pit Check | A runs a step, or says what was seen was right; B says it was wrong; X skips; Back stops everything and ends |
+| The tuners | B is the kill switch. Axial: (0, 0) and (48, 0) in turn. Lateral: (0, 0) and (0, 48). Heading: 0, 135, -135, 20, -20, 175, -175, 90, -90 deg in turn |
 
 ## 4. Drive and odometry
 
@@ -244,11 +263,56 @@ All are tunable values with these proposed numbers as defaults. They are to be s
 
 **Output.** A log row on every loop (section 1.5 of [logging.md](logging.md)). PC tools fit the drive model from it.
 
-**Controls** (from `design/opmodes.md`; not checked against the code). At INIT, D-pad right / left chooses the blue / red half and up / down the first test. The bumper to hold is the right one. X skips a test.
+**Controls.** At INIT, D-pad right / left chooses the blue / red half (nothing moves until one is chosen) and up / down the first test. The bumper to hold is the right one. X skips a test.
 
 **Events the tools read:** `DRIVE TEST <n> of 34: <name>; start ...`, `DRIVE TEST <n> segment <k> of <m>: ... -> robot powers forward <f>, left <l>, turn <t>`, `DRIVE TEST <n> GEOFENCE (<reason>)`.
 
-**Not specified:** the 34 tests themselves (each test's segments, powers and durations). They are in the code; the `DRIVE TEST` events of any `drivetest` log name them.
+**The area** (blue frame; a red robot's pose is rotated first). A lane along x at y = 46, from x = -54 to +54: a run starts at the end the robot is nearer and drives to the other, so one test ends where the next starts. Spot tests are at x = +40 or -40 on the lane, whichever is nearer.
+
+**A test:** drive to its start under position control (at most 0.6 power, to within 2 in and 2 deg), wait until the robot is still, then run its segments. A segment is one constant command, turned into robot-frame powers once, when it starts. On the lane the command is (along the lane, across it toward the alliance wall, turn toward the alliance wall); at a spot it is the robot's own (forward, left, turn). A segment ends after its time (3.0 s unless stated), or earlier on its own condition.
+
+**The geofence** stops a run at once when the footprint, or the robot where it would stop at 200 in/s², would cross a wall (68 in), the center line (y = 4), the hive (|x| under 22.5 with y under 28) or a flower stand grown by 3 in.
+
+**The 34 tests**, most important first. *Heading* is the robot's heading against the direction of travel: 0 front first, 180 rear first, 90 or -90 strafing. A single number is the power along the lane. *Until the stop needs N* means until the lane left, less 6 in, is the distance to stop at N in/s². *Stop* is zero power.
+
+| # | Test | Heading | Segments |
+|---|---|---|---|
+| 1 | stop: brake from 0.85, front first | 0 | 0.85 until the stop needs 250; stop 0.8 s |
+| 2 | stop: brake from 0.85, rear first | 180 | as test 1 |
+| 3 | stop: coast on 0.2 from 0.85 | 0 | 0.85 until the stop needs 80; 0.2 until slower than 12 in/s (0.1 to 2.0 s); stop 0.6 s |
+| 4 | stop: coast on 0.2 from 0.85, rear first | 180 | as test 3 |
+| 5 | stop: drop from 0.85 to 0.45 | 0 | 0.85 until the stop needs 55; 0.45 for 0.6 s; stop 0.6 s |
+| 6 | stop: reverse 0.4 from 0.85 | 0 | 0.85 until the stop needs 160; -0.4 until slower than 10 in/s (0.05 to 0.6 s); stop 0.6 s |
+| 7 | stop: brake from 0.85, strafing | -90 | as test 1 |
+| 8 | stop: coast on 0.2 from 0.85, strafing | -90 | as test 3 |
+| 9 | stop: brake from 0.6 | 0 | 0.6 until the stop needs 250; stop 0.8 s |
+| 10 | stop: coast on 0.2 from 0.6 | 180 | 0.6 until the stop needs 80; 0.2 until slower than 12 in/s (0.1 to 2.0 s); stop 0.6 s |
+| 11 | roll at 0.85 + turn 0.5 for 0.25 s | 0 | 0.85 for 80 in; (0.85, 0, -0.5) for 0.25 s; stop 0.8 s |
+| 12 | the same, rear first | 180 | as test 11 |
+| 13 | roll at 0.85 + turn 0.3 for 0.3 s | 0 | 0.85 for 80 in; (0.85, 0, -0.3) for 0.3 s; stop 0.8 s |
+| 14 | roll at 0.85, then zero power + turn 0.5 | 0 | 0.85 for 80 in; (0, 0, -0.5) for 0.4 s; stop 0.8 s |
+| 15 | roll at 0.85, then 50 deg toward the center line | 0 | 0.85 for 80 in; (0.55, -0.65, 0) for 0.3 s; stop 0.8 s |
+| 16 | the same, rear first | 180 | as test 15 |
+| 17 | roll at 0.85, then a dash corner | 0 | 0.85 for 80 in; (0.2, -0.3, -0.5) for 0.3 s; stop 0.8 s |
+| 18 | step forward 0.3 | 0 | 0.3 for at most 3.0 s; stop 0.6 s |
+| 19 | step forward 0.5 | 180 | 0.5 for at most 3.0 s; stop 0.6 s |
+| 20 | step forward 0.7 | 0 | 0.7 for at most 3.0 s; stop 0.6 s |
+| 21 | step forward 1.0 | 0 | 1.0 for at most 3.0 s; stop 0.8 s |
+| 22 | step strafe 0.4 | -90 | 0.4 for at most 3.0 s; stop 0.6 s |
+| 23 | step strafe 0.7 | 90 | 0.7 for at most 3.0 s; stop 0.6 s |
+| 24 | step strafe 1.0 | -90 | 1.0 for at most 3.0 s; stop 0.8 s |
+| 25 | step diagonal 0.7 | -45 | 0.7 for at most 0.8 s; stop 0.6 s |
+| 26 | spin 0.3 | spot | turn 0.3 until turned 300 deg, at most 2.0 s; stop 0.6 s |
+| 27 | spin 0.5 | spot | turn 0.5 until turned 400 deg, at most 1.5 s; stop 0.6 s |
+| 28 | spin -0.7 | spot | turn -0.7 until turned 450 deg, at most 1.2 s; stop 0.8 s |
+| 29 | spin 1.0 | spot | turn 1.0 until turned 500 deg, at most 1.0 s; stop 0.8 s |
+| 30 | creep forward 0.08 / 0.12 / 0.16 | 0 | each power for 0.7 s; stop 0.4 s |
+| 31 | creep strafe 0.08 / 0.12 / 0.16 | -90 | each power for 0.7 s; stop 0.4 s |
+| 32 | creep turn 0.05 / 0.08 / 0.12 | spot | each turn power for 0.7 s; stop 0.4 s |
+| 33 | random A | spot at x = +40 | 12 random commands of 0.25 s (along up to 0.5, across up to 0.3, turn up to 0.6 either way; random seed 11); stop 0.6 s |
+| 34 | random B | spot at x = +40 | the same with random seed 12 |
+
+In tests 11 to 17 each moving segment also ends when the stop needs 250, so a run cannot reach the lane's end.
 
 ## 5. Auto Waypoint Marker
 
@@ -256,13 +320,13 @@ All are tunable values with these proposed numbers as defaults. They are to be s
 
 **Procedure.** Choose a start at INIT, drive by hand, and press a button to **mark** the current pose. Each mark is logged and shown as a ready-to-paste pose with the ramp state. A second button logs a numbered **check** at a spot whose true position is known, to test the odometry. Two buttons deploy and stow the ramp; a held chord reseeds to the start. There is no undo.
 
-**Controls** (from `design/opmodes.md`; not checked against the code). At INIT: the blue start (rear wall, y +16) or the red start (audience wall, y -16). A marks (a `MARK <n>: x, y, heading, ramp` line with the pose ready to paste), B logs a `CHECK <n>`, X / Y deploy / stow the ramp, holding left bumper + right bumper reseeds.
+**Controls** (gamepad 1). At INIT, D-pad right / left chooses the blue start (rear wall, y +16) / the red start (audience wall, y -16); nothing drives until one is chosen. Right trigger is precision. A marks: `MARK <n>: x <x>, y <y>, heading <deg> deg, ramp <state> | <the pose as a line to paste>`. B logs a `CHECK <n>` the same way. X / Y deploy / stow the ramp. Left bumper + right bumper held 1 s reseeds to the start.
 
 ## 6. Telemetry Font Test
 
 **Purpose.** Find out what the Driver Station screen can display.
 
-**Procedure.** Pages of test patterns (sizes, headings, styles, colors, widths, line counts, and three mock-ups of the match screen) in each of the Driver Station's display formats (HTML, MONOSPACE, CLASSIC). No hardware is used. The D-pad changes the page and A the format (from `design/opmodes.md`; not checked against the code).
+**Procedure.** Pages of test patterns (sizes, headings, styles, colors, widths, line counts, and three mock-ups of the match screen) in each of the Driver Station's display formats (HTML, MONOSPACE, CLASSIC). No hardware is used. D-pad right / left changes the page and A the format.
 
 **Finding.** Only the HTML format formats text. Nested "big" and "small" tags change size; font-size attributes and background colors are ignored; about 15 to 16 lines of about 36 characters fit; longer lines wrap. The match screen is built on this ([teleop.md](teleop.md)).
 
