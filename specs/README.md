@@ -86,8 +86,8 @@ Collected from the pages; each is explained where it arises.
 | Open point | Answer |
 |---|---|
 | The drive-to-pose gains have never been tuned on this robot | Target T2 ([motion.md](motion.md), [support-opmodes.md](support-opmodes.md)); needs a tuning session |
-| Odometry drift across the field is allowed for in four separate places | Target T1 ([aiming.md](aiming.md)): drift is accepted and trimmed by the operator |
-| Two element counts with different rules for "full" | Target T3 ([element-counting.md](element-counting.md)): the CS5 entry count is the count |
+| Odometry drift across the field was allowed for in four separate places | Target T1 ([aiming.md](aiming.md)): drift is accepted and trimmed by the operator. Mostly built 2026-11-17, not run |
+| Two element counts with different rules for "full" | Target T3 ([element-counting.md](element-counting.md)): the CS5 entry count is the count. Built 2026-11-17, not run |
 | The present dashes are too slow to use and cut clearances fine | Target T9 ([dashes.md](dashes.md)); needs the grid routes' first robot run |
 | Several live settings are missing from the settings dump | Target T8 ([logging.md](logging.md)) |
 | The entry count and its FULL sequence, in their present form, have not run on the robot | no design change; needs a run ([element-counting.md](element-counting.md), [mechanisms.md](mechanisms.md)) |

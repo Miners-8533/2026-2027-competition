@@ -248,7 +248,7 @@ final class DuoKit {
         return launch(drive, mechanisms, cell, blue, label, trimDeg, 0.0);
     }
 
-    /** As above with the sideways aim extra: NaN = the far-cell extra of the cell on the opposite side from the alliance's start wall (TargetLock.farCellExtraLeftIn). */
+    /** As above with the sideways aim extra: NaN = the far-cell extra of the cell on the opposite side from the alliance's start wall (TargetLock.farCellExtraLeftIn). No auto passes NaN from 2026-11-17: each launch's trim holds its whole allowance. */
     Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, double extraLeftIn) {
         return new SequentialAction(
                 note("Aim and launch: " + label),
@@ -288,7 +288,7 @@ final class DuoKit {
                     if (!logged) {
                         logged = true;
                         RunLog.event(String.format(Locale.US, "AUTO jostle deadline reached at %.2f s into the auto: moving on with %d held", autoClock.seconds(),
-                                mechanisms.counter == null ? -1 : mechanisms.counter.count()));
+                                mechanisms.getHeldCount()));
                     }
                     return true;
                 }

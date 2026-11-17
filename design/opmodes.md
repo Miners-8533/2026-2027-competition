@@ -2,7 +2,9 @@
 
 All opmodes are in `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/`. The Driver Station lists only the **enabled** ones. A **disabled** opmode keeps its code with a `@Disabled` line; to use it again, delete that line and its import, then reinstall.
 
-## Enabled
+## Opmodes in use
+
+**Shown on the Driver Station as of 2026-11-17 (11):** TeleOp - Competition; Auton - Solo, Duo Daryl, Cybugs, Duo Garden Side; Launch Tuner; Launch Grid Tuner; Launch Salvo Speed Study; CS Pass Study; Flywheel Step Study; Drive Acceptance. Every other opmode in this table carries `@Disabled` and is hidden until that line is removed.
 
 | Opmode (Driver Station name) | Group | Use |
 |---|---|---|
@@ -21,6 +23,7 @@ All opmodes are in `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode
 | Pit Check (robot on blocks) | Bring-up | the one check opmode: configuration, ports and stray devices, battery, Pinpoint, color sensors, then flywheel, pusher, intake, ramp, each wheel ([pit-check.md](pit-check.md)) |
 | Tune - Axial (fwd/back 48in), Tune - Lateral (strafe 48in), Tune - Heading (turn pattern) | Tuning | the `DriveToPose` PID tuning (still to do) |
 | Drive Characterization | Tuning | the robot drives 34 open-loop drive tests BY ITSELF on one alliance's half (about 2.7 min of driving in the simulation) while the driver HOLDS the right bumper (letting go stops it at once; X skips a test; at INIT D-pad right / left = blue / red half, up / down = the first test); a geofence keeps it off the walls, the center line, the hive and the flowers; logs every loop to `drivetest.log` for fitting the drive model (`drive/DriveTestRoutine`, design/dash-planner-grid.md); **not yet run on the robot** |
+| Drive Acceptance | Tuning | (2026-11-17, **not yet run on the robot**) drives the acceptance test of DriveToPose by itself (48 in forward, 48 in strafe, 90 and 180 deg turns, a 12 in move and a 5 deg turn, 10 runs each) and logs a row and PASS / FAIL / INCOMPLETE per test, the result and the gains ready to paste; hold the right bumper to drive, X skips a test; details in specs/support-opmodes.md section 4.2.1 |
 | Auton Verify - Forward 48 and back, Auton Verify - Lateral 48 and back | Auto verify | check the tuned gains |
 | Launcher Offset Finder | Bring-up | no target lock: drive by hand, line up on a cell's centerline, launch, MARK good salvos; finds the launcher offset and any hive error ([launcher-offset-finder.md](launcher-offset-finder.md)); not yet run on the robot |
 | Telemetry Font Test | Bring-up | pages of test patterns (big / small, headings, font size, styles, colors, a status mock-up, width, line capacity) in the Driver Station's HTML, MONOSPACE and CLASSIC display formats, to photograph and see which tags the Driver Station honors; moves nothing, no hardware; D-pad = page, A = format |

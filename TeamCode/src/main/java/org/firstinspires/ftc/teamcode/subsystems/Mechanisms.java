@@ -121,6 +121,16 @@ public class Mechanisms {
     public static double FIFTH_RETRY_SEC = 2.0;
     /** Elements the track holds with the pusher at HOLD (pollen only): 4. */
     public static int ENTRY_CAPACITY = 4;
+    /**
+     * (2026-11-17, user: the CS5 entry count is the count the robot relies on; the counter on CS1 to CS4 undercounts, which is the worse error on this robot; specs/element-counting.md, target T3.)
+     * true: "full" for {@link #isFull()} (the autos' jostle ends on it), for the FULL warning, for the intake stop of the non-always-on mode and the number added to the launched total all come
+     * from the CS5 entry count ALONE. With CS5 missing or not answering the robot is never full by it (a jostle then ends on its deadline): there is no fall-back to the counter.
+     * false: those four use the counter on CS1 to CS4 as before (the switch back if the entry count misbehaves on the robot). The counter still tells the kinds, the opponent's nectar and
+     * whether the track reads empty for a pusher check, either way.
+     */
+    public static boolean COUNT_BY_ENTRIES = true;
+    /** The CS5 held count an AUTO starts with (2026-11-17): the 4 preloaded pollen of rule G304, which CS5 never saw come in. 0 = start empty (practice without a preload). */
+    public static int AUTO_PRELOAD_HELD = 4;
     /** CS5 can only say FULL when the counter on CS1 to CS4 also holds at least this many (a check against false peaks while the robot is nearly empty); 0 turns it off; ignored while the counter is not reading. */
     public static int ENTRY_FULL_MIN_COUNTER = 0;
     /** The entry count goes back to 0 when the counter has read 0 for this long, so false peaks never pile up into a phantom FULL. */
@@ -930,9 +940,19 @@ public class Mechanisms {
         return launchQueued || salvoActive;
     }
 
-    /** True while the element counter reports a full robot (CAPACITY elements, confirmed). False when the counter is overridden or not reading. */
+    /**
+     * True while the robot is full: by the CS5 entry count (COUNT_BY_ENTRIES, from 2026-11-17: ENTRY_CAPACITY entered since the track was last emptied; false while CS5 is missing or not answering),
+     * or, with that switch off, by the counter on CS1 to CS4 (CAPACITY elements, confirmed; false when it is overridden or not reading). Unlike {@link #isEntryFull()} it does not depend on the
+     * opmode acting on FULL: the autos end a jostle on it.
+     */
     public boolean isFull() {
         return fullNow;
+    }
+
+    /** How many elements the robot holds, by the count in use (COUNT_BY_ENTRIES: the CS5 entry count; else the counter on CS1 to CS4); -1 when that count is missing or not answering. For log lines. */
+    public int getHeldCount() {
+        if (COUNT_BY_ENTRIES) return getShownCount();
+        return counter == null || !counter.isValid() ? -1 : counter.count();
     }
 
     // ---- per-loop update ----
@@ -969,8 +989,10 @@ public class Mechanisms {
             } else if (!counter.isValid()) {
                 warn(WarningCode.COUNTER_NOT_READING, "ELEMENT COUNTER NOT READING: there is no 4-element stop (count by eye; hold the left trigger to push extras out)");
             } else {
-                full = counter.isFull();
-                if (full) warn(WarningCode.FULL, "FULL: " + counter.count() + " elements held");
+                if (!COUNT_BY_ENTRIES) {
+                    full = counter.isFull();
+                    if (full) warn(WarningCode.FULL, "FULL: " + counter.count() + " elements held");
+                }
                 int opponentAt = counter.opponentNectarAt(blueAlliance);
                 if (opponentAt > 0) warn(WarningCode.OPPONENT_NECTAR, "OPPONENT NECTAR at sensor " + opponentAt + " (CS" + opponentAt + "): reject (LB + B)");
             }
@@ -979,6 +1001,10 @@ public class Mechanisms {
         if (entries != null) {
             entries.touch();   // starts the thread on the first call (nothing is read in INIT) and keeps it alive
             updateEntries();
+        }
+        if (COUNT_BY_ENTRIES) {   // full by the CS5 entry count alone (after updateEntries, so this loop's entries are in)
+            full = entries != null && entries.isStarted() && entries.isHealthy() && heldByEntries >= ENTRY_CAPACITY;
+            if (full) warn(WarningCode.FULL, "FULL: " + heldByEntries + " elements held (CS5 entry count)");
         }
 
         if (counter != null && !baselinesLogged) {
@@ -1162,7 +1188,7 @@ public class Mechanisms {
                     salvoMinSpeed = flywheel.getVelocity();
                     long entriesNow = entries == null ? 0L : entries.entries();
                     int counterHeldNow = counter != null && counter.isValid() ? counter.count() : 0;
-                    int launchedNow = Math.min(ENTRY_CAPACITY, Math.max(heldByEntries, counterHeldNow));   // the entry count and the counter, whichever is higher, at most the capacity: both undercount, neither is trusted alone (2026-11-15)   // the counter's count when it reads (the entry count ran 3, 10, 6, 11 at salvos the counter saw 4, 4, 4, 3), else the entry count at most the capacity
+                    int launchedNow = Math.min(ENTRY_CAPACITY, COUNT_BY_ENTRIES ? heldByEntries : Math.max(heldByEntries, counterHeldNow));   // 2026-11-17: the entry count alone (COUNT_BY_ENTRIES); before, as the note says:   // the entry count and the counter, whichever is higher, at most the capacity: both undercount, neither is trusted alone (2026-11-15)   // the counter's count when it reads (the entry count ran 3, 10, 6, 11 at salvos the counter saw 4, 4, 4, 3), else the entry count at most the capacity
                     launchedTotal += launchedNow;
                     RunLog.event(String.format(Locale.US, "SALVO started: flywheel %.0f of %.0f ticks/s, %s | %s%s | LAUNCHED %d (the entry count %d, the counter %d): %d in all",
                             flywheel.getFilteredVelocity(), lastSetpoint, heldText(), pusher.getLastCommand(),
@@ -1200,7 +1226,7 @@ public class Mechanisms {
             if (stopForFull && intakeRequested && !intakeAlwaysOn) {
                 intakeRequested = false;
                 intakeStoppedByFull = true;
-                notice("Intake stopped: " + counter.count() + " elements held.");
+                notice("Intake stopped: " + getHeldCount() + " elements held.");
             }
             boolean wantIn = intakeRequested || (ramp != null && ramp.isDeployedTarget());
             Intake.Mode mode = Intake.Mode.OFF;
@@ -1489,6 +1515,26 @@ public class Mechanisms {
     /** Elements that have entered (CS5) since the track was last emptied. */
     public int getHeldByEntries() {
         return heldByEntries;
+    }
+
+    /** The held count for the hand-over to the next opmode (PoseStorage.saveHeld): the CS5 entry count, or -1 when CS5 is not in the configuration (there is no count to hand over). */
+    public int getHeldForHandOver() {
+        return entries == null ? -1 : heldByEntries;
+    }
+
+    /**
+     * Starts the CS5 held count from a known load instead of 0 (2026-11-17, user; specs/element-counting.md, target T3): an auto's preload, or the count the last opmode saved.
+     * CS5 only sees elements come in, so without this the count read low until the first salvo: an auto has 4 preloaded, a TeleOp after an auto holds what the last gather left.
+     * Call it before the first update. FULL is not set here: the next update declares it when the count is at the capacity. Ignored without CS5 or for a negative count.
+     */
+    public void setHeldByEntries(int count, String why) {
+        if (entries == null || count < 0) return;
+        RunLog.event(String.format(Locale.US, "ENTRY COUNT starts at %d (was %d): %s", count, heldByEntries, why));
+        heldByEntries = count;
+        if (count < ENTRY_CAPACITY && entryFull) {
+            entryFull = false;
+            entryFullStartNs = 0L;
+        }
     }
 
     /**

@@ -19,7 +19,8 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 | Pinpoint Offset Check | Bring-up | hidden | bringup |
 | Telemetry Font Test | Bring-up | hidden | none |
 | Auto Waypoint Marker | Auto build | hidden | waypoints |
-| Tune - Axial, Lateral, Heading | Tuning | hidden | none |
+| Drive Acceptance | Tuning | yes | bringup |
+| Tune - Axial, Lateral, Heading | Tuning | hidden | bringup |
 | Drive Characterization | Tuning | hidden | drivetest |
 | Auton Verify - Forward 48 and back, Lateral 48 and back | Auto verify | hidden | none |
 
@@ -126,28 +127,78 @@ For when a pod or the Pinpoint is moved or rewired.
 
 These have **not** been used to tune `ROBOT_1`; the drive-to-pose gains are still starting values.
 
-**Target T2: the opmodes report the acceptance numbers.** Not in the code. See "As built and target" in the [README](README.md).
+**Logging (built 2026-11-17, not run on the robot).** The three tuners write a run log, kind `bringup`: the gains at the start and again whenever a Dashboard edit has changed them (`TUNE gains` lines), every leg's `DRIVE` lines with its time, final error and overshoot, and a row every 50 ms with the pose and the command sent. The verify autos still write no log. They stay for what they are good at: comparing the Pinpoint's answer with a tape mark on the floor.
 
-*The weakness.* The tuners and the verify autos open no run log and show only the live error. A tuning session leaves nothing behind, and the numbers of the acceptance test ([motion.md](motion.md) section 2.1) cannot be read from anything.
+### 4.2.1 Drive Acceptance
 
-*Design.*
+**Status:** built 2026-11-17 for target T2 ([motion.md](motion.md) section 2.1). It compiles and has not run on the robot. It is shown on the Driver Station.
 
-- The tuners and the acceptance opmode write a run log (kind `drivetest`), so the settings dump records the gains in force for every run.
-- The two verify autos are replaced by one **Drive Acceptance** opmode that runs the whole test table by itself: each test 10 times, the driver holding a bumper throughout and a geofence ending a run, both as in Drive Characterization.
-- After each test it shows and logs one row:
+**Purpose.** Drive the acceptance test of *drive to pose* and report every number of it, so a tuning session ends with a verdict and a record. The tuners find the gains; this opmode judges them.
 
-| Column | Meaning |
+**Setup.** Any clear floor. The start is (0, 0, 0 deg) wherever the robot stands at INIT, and it must stand still from INIT to Start. It needs 48 in clear ahead and to its left, with a margin, and room to spin. No mechanism moves.
+
+**Tests.** Each is one move driven 10 times, out and back in turn. Every run is one leg with the static friction term on, and is measured.
+
+| # | Move | Time allowed |
+|---|---|---|
+| 1 | 48 in forward | 3.2 s (48 in at 22 in/s, plus 1.0 s) |
+| 2 | 48 in strafe, to the robot's left | 3.8 s (a strafe is taken as 0.78 of that speed) |
+| 3 | turn 90 deg | 1.75 s (at 120 deg/s, plus 1.0 s) |
+| 4 | turn 180 deg | 2.5 s |
+| 5 | 12 in forward (the stall case) | 1.5 s |
+| 6 | turn 5 deg (the stall case) | 1.5 s |
+
+**Controls (gamepad 1).**
+
+| Control | Effect |
 |---|---|
-| Settled / timed out | counts out of 10 |
-| Final error | worst and mean, position and heading |
-| Overshoot | worst, position and heading |
-| Time to settle | worst, and the allowance it is judged against |
-| Battery | lowest during the test |
-| Verdict | PASS or FAIL against the limits |
+| D-pad up / down, in INIT | the first test, to go on from an earlier run |
+| Hold right bumper | the robot drives only while it is held. Letting go stops it at once; the run in progress is void and is driven again |
+| X | skip the current test. It is reported as SKIPPED, never as a pass |
 
-- At the end: one result line, ALL PASS or FAILED with the failing rows, and one line of the gains in force, ready to paste into the code with the date and the log name.
-- The limits are tunable values with the proposed numbers as defaults, so the session can settle them and the log records what they were.
-- A run below the battery limit is marked and does not count.
+**Behavior.**
+
+- Before each run the robot rests 0.6 s and the battery is read at rest. A run below 12.0 V is driven and logged but **not counted**.
+- If the robot is not within tolerance of a run's start, an unmeasured leg takes it there first, so every run starts from the same place.
+- A leg's time cap is the larger of the default cap and its time allowed plus 1 s, so a slow leg is told apart from one that never settles.
+- **Fence:** a robot more than 15 in outside the rectangle between a test's two poses ends that test as a FAIL and is driven back to the start.
+
+**Verdict for each test.**
+
+| Verdict | When |
+|---|---|
+| PASS | 10 counted runs, all settled, and the worst final error, overshoot and time are inside the limits |
+| FAIL | any of those is outside its limit, or the fence ended the test. The reasons are listed |
+| INCOMPLETE | fewer than 10 runs counted (the battery) |
+| SKIPPED | the operator skipped it |
+
+**Output.**
+
+| Line | Content |
+|---|---|
+| `ACCEPT run` | one per run: settled or timed out, the time and its limit, the final error, the overshoot, the battery at rest |
+| `ACCEPT TEST` | one per test: the verdict and its reasons; settled and timed-out counts; worst and mean final error; worst overshoot; worst time against its limit; lowest battery at rest; runs not counted and void |
+| `ACCEPT RESULT` | ALL PASS, FAILED or INCOMPLETE, with the tests that are not a pass |
+| `ACCEPT GAINS` | the gains and limits of *drive to pose* in force, as one line ready to paste into the code, with the hub's date |
+
+The settings dump at Start records the gains and this opmode's limits. A row is written on every loop: the pose, the command sent, and the test, run and phase. The screen shows the current test and run, the last run's numbers and one line per finished test.
+
+| Name | Value |
+|---|---|
+| Runs per test | 10 |
+| Long move / short move / small turn | 48 in / 12 in / 5 deg |
+| Final error limit | 1.0 in, 2.0 deg |
+| Overshoot limit | 1.5 in, 5.0 deg |
+| Time allowed: travel speed / strafe ratio / turn rate / margin | 22 in/s / 0.78 / 120 deg/s / 1.0 s |
+| Time allowed, short tests | 1.5 s |
+| Battery at rest, at least | 12.0 V |
+| Rest before a run | 0.6 s |
+| Fence | 15 in |
+| Time cap of an unmeasured leg | 6.0 s |
+
+All are tunable values with these proposed numbers as defaults. They are to be settled at the tuning session, and every log records what they were.
+
+**Where it differs from the first proposal.** The log kind is `bringup`, not `drivetest`, because the drive model tools read the latest `drivetest` log. The verify autos are kept. The battery limit is Pit Check's 12.0 V at rest, not 12.5 V: a battery sags below 12.5 V within one session.
 
 ### 4.3 Drive Characterization
 

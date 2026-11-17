@@ -122,14 +122,14 @@ Rule numbers are from the BIOBUZZ competition manual.
 
 ## 7. Known inconsistency, and target T7: one field model
 
-**As built.** The ramp's "clear of a flower" check uses flower centers read from the manual's figures, (±68.6, ±24.0), while the route planner uses the CAD values above, (±68.45, ±23.4). The difference is under an inch and the ramp check is not used by any competition opmode.
+**As built.** The flower stands have one definition, the CAD values above: the ramp's "clear of a flower" check reads the route planner's (from 2026-11-17; before that it had its own copy from the manual's figures, (±68.6, ±24.0)). That check is not used by any competition opmode.
 
 Field data is also spread out, and some of it is repeated:
 
 | Data | Defined in |
 |---|---|
 | Hive cell points | with the mechanisms, though the aiming and dash code are their main users |
-| Flower stands | the route planner (CAD values) and the ramp (the manual's values) |
+| Flower stands | the route planner; the ramp reads them from there |
 | Helper point (36, 40) and its mirror | the Hive Dash, the Solo auto, and twice in the duo autos |
 | Hive-side park pose (26, 53.1) | the Solo auto and the duo autos |
 | Launch spots | the auto-launch zones hold the TeleOp's; each auto holds its own |
@@ -144,8 +144,7 @@ Field data is also spread out, and some of it is repeated:
 
 - One **field model**, pure data with no robot dependencies, holds sections 1 to 4 of this page: the frame and walls, the hive cells and supports, the flower stands, the garden and loading zone, the start poses, the launch spots, the park corners and the route points. It also holds the rotation for red.
 - A position used by more than one feature has one name and one value. Where two features need different points on purpose, both are named and the reason is stated: the Park Dash corner and the autos' park pose differ by 6.9 in because the autos stop with the front edge 8 in from the wall.
-- The flower stands have one geometry, the CAD values. The ramp's check reads it.
 - Each auto's poses are data in a form the PC checks compile directly. The duo path check keeps no copies, of poses or of the footprint.
 - Positions stay tunable values where they are today, so a spot can still be moved from the Dashboard. The grid route tables already refuse to run when a goal they were built for has moved; that rule covers every generated table.
 
-*What would behave differently.* The ramp's unused flower check moves by under an inch. Nothing else.
+*What would behave differently.* Nothing. (The ramp's unused flower check moved by under an inch when it took the planner's values.)

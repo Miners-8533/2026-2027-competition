@@ -93,6 +93,12 @@ public final class DriveToPose implements Action {
     private final ElapsedTime timeout = new ElapsedTime();
     private final ElapsedTime settle = new ElapsedTime();
     private boolean initialized = false;
+    // what the leg did, for the end-of-leg log line and for an opmode that judges it (opmodes/tuning/DriveAcceptance): see the getters at the end
+    private double travelUx = 0.0, travelUy = 0.0;   // the unit vector of the leg's line of travel, start to target (0, 0 for a turn in place)
+    private double turnSign = 0.0;                   // the direction the leg turns (0: no turn to speak of)
+    private double overshootIn = 0.0, overshootDeg = 0.0;
+    private boolean finished = false, settled = false;
+    private double elapsedSec = 0.0, finalErrIn = 0.0, finalErrHeadingDeg = 0.0;
 
     public DriveToPose(MecanumDrive drive, Pose2d target) {
         this.drive = drive;
@@ -168,6 +174,13 @@ public final class DriveToPose implements Action {
             yCtrl.reset();
             hCtrl.reset();
             Pose2d from = drive.getPose();
+            double travelIn = Math.hypot(target.position.x - from.position.x, target.position.y - from.position.y);
+            if (travelIn > 1.0) {
+                travelUx = (target.position.x - from.position.x) / travelIn;
+                travelUy = (target.position.y - from.position.y) / travelIn;
+            }
+            double turnRad = Rotation2d.normalize(target.heading.toDouble() - from.heading.toDouble());
+            if (Math.abs(turnRad) > Math.toRadians(1.0)) turnSign = Math.signum(turnRad);
             if (distanceTimeout) {
                 double dist = Math.hypot(target.position.x - from.position.x, target.position.y - from.position.y);
                 double turn = Math.abs(Rotation2d.normalize(target.heading.toDouble() - from.heading.toDouble()));
@@ -189,6 +202,10 @@ public final class DriveToPose implements Action {
         double errX = target.position.x - pose.position.x;                 // field frame
         double errY = target.position.y - pose.position.y;                 // field frame
         double errH = Rotation2d.normalize(target.heading.toDouble() - heading);
+
+        // overshoot: how far the robot has gone PAST the target along the leg's line of travel, and past the target heading in the direction it was turning
+        overshootIn = Math.max(overshootIn, -(errX * travelUx + errY * travelUy));
+        overshootDeg = Math.max(overshootDeg, -turnSign * Math.toDegrees(errH));
 
         double vxField = xCtrl.calculate(errX);
         double vyField = yCtrl.calculate(errY);
@@ -258,8 +275,13 @@ public final class DriveToPose implements Action {
 
         if (done) {
             drive.stop();
-            RunLog.event(String.format("DRIVE %s after %.2f s: error %.2f in (x %+.2f, y %+.2f), heading %+.1f deg",
-                    inTolerance ? "settled" : "TIMED OUT", timeout.seconds(), posError, errX, errY, Math.toDegrees(errH)));
+            finished = true;
+            settled = inTolerance;
+            elapsedSec = timeout.seconds();
+            finalErrIn = posError;
+            finalErrHeadingDeg = Math.toDegrees(errH);
+            RunLog.event(String.format("DRIVE %s after %.2f s: error %.2f in (x %+.2f, y %+.2f), heading %+.1f deg, overshoot %.2f in / %.1f deg",
+                    inTolerance ? "settled" : "TIMED OUT", elapsedSec, posError, errX, errY, finalErrHeadingDeg, overshootIn, overshootDeg));
         }
         return !done;
     }
@@ -269,6 +291,50 @@ public final class DriveToPose implements Action {
         if (Math.abs(c) < 1e-4) return c;
         double v = c + Math.signum(c) * (still ? ksStart : ks);
         return Math.max(-max, Math.min(max, v));
+    }
+
+    /** True once the leg has ended, settled or timed out. The getters below are final then. */
+    public boolean isFinished() {
+        return finished;
+    }
+
+    /** True if the leg ended inside its tolerance for the settle time; false if it ran to its time cap. */
+    public boolean isSettled() {
+        return settled;
+    }
+
+    /** Seconds from the leg's first loop to its end. */
+    public double getElapsedSec() {
+        return elapsedSec;
+    }
+
+    /** The position error, inches, when the leg ended. */
+    public double getFinalErrorIn() {
+        return finalErrIn;
+    }
+
+    /** The heading error, degrees (target minus heading), when the leg ended. */
+    public double getFinalHeadingErrorDeg() {
+        return finalErrHeadingDeg;
+    }
+
+    /** The furthest the robot went past the target along the leg's line of travel, inches (0 for a turn in place, or a leg that never passed it). */
+    public double getOvershootIn() {
+        return overshootIn;
+    }
+
+    /** The furthest the robot turned past the target heading, degrees (0 for a leg with no turn). */
+    public double getOvershootDeg() {
+        return overshootDeg;
+    }
+
+    /** The gains and limits in force, as one line ready to paste into this class (the tuners and Drive Acceptance log it: a Dashboard edit is lost when the app restarts). */
+    public static String gainsText() {
+        return String.format(java.util.Locale.US, "AXIAL_kP = %s, AXIAL_kI = %s, AXIAL_kD = %s; LATERAL_kP = %s, LATERAL_kI = %s, LATERAL_kD = %s; HEADING_kP = %s, HEADING_kI = %s, HEADING_kD = %s; "
+                        + "MAX_OUTPUT = %s; KS_FORWARD = %s, KS_STRAFE = %s, KS_TURN = %s; KS_FORWARD_START = %s, KS_STRAFE_START = %s, KS_TURN_START = %s; "
+                        + "POS_TOLERANCE_IN = %s, HEADING_TOLERANCE_DEG = %s, SETTLE_SEC = %s, TIMEOUT_SEC = %s",
+                AXIAL_kP, AXIAL_kI, AXIAL_kD, LATERAL_kP, LATERAL_kI, LATERAL_kD, HEADING_kP, HEADING_kI, HEADING_kD, MAX_OUTPUT,
+                KS_FORWARD, KS_STRAFE, KS_TURN, KS_FORWARD_START, KS_STRAFE_START, KS_TURN_START, POS_TOLERANCE_IN, HEADING_TOLERANCE_DEG, SETTLE_SEC, TIMEOUT_SEC);
     }
 
     private void applyGains() {

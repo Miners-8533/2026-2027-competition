@@ -104,14 +104,11 @@ The result is one of three modes, each with a one-line note for the INIT screen 
 - Autos save at their end. The TeleOp saves every loop, so a TeleOp restarted mid-match resumes where the robot is.
 - The TeleOp stops saving in backup mode, when the pose is no longer trusted.
 
-**Target additions** (not in the code; see "As built and target" in the [README](README.md)). Two more things are saved with the pose, on every loop, and used on the same freshness rule:
+**The CS5 held count travels the same way** (built 2026-11-17, not run on the robot). The autos and the TeleOp save it on every loop; it has its own save time, because the TeleOp stops saving the pose in backup mode and still knows its count. A TeleOp starts from it while it is no older than the pose may be. Discarding the saved pose in the TeleOp's INIT discards the count too. Details: [element-counting.md](element-counting.md) section 2.5.
 
-| Saved | Why | Target |
-|---|---|---|
-| The operator's remembered aim per cell | a restarted TeleOp adopts the drifted pose and needs the trims that go with it | T1, [aiming.md](aiming.md) section 5 |
-| The held count | the count must be right from the first loop, after an auto and after a restart | T3, [element-counting.md](element-counting.md) section 5 |
+**The operator's remembered aims travel too** (built 2026-11-17, not run on the robot). The TeleOp saves them on every loop beside the pose, and stops with the pose in backup mode. A TeleOp starts with them only when it adopts the device's pose, because they correct that pose's drift. An auto drops them: it has reseeded the Pinpoint. Details: [teleop.md](teleop.md) section 5.1.
 
-A driver reseed clears the remembered aims and leaves the held count. In backup mode the held count is still saved; only the pose and the aims stop.
+A driver reseed clears the remembered aims, and so the saved ones on the next loop, and leaves the held count.
 
 ## 6. Parameters
 

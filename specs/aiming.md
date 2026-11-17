@@ -12,7 +12,7 @@ The launcher's line is parallel to the robot's forward axis but offset sideways 
 - **offset** is the launcher's sideways position, positive to the robot's left, plus any extra for this cell. The ratio offset / distance is limited to ±0.9;
 - **angle offset** corrects a launcher whose line is not exactly forward (0 at present).
 
-**Far-cell extra.** An additional sideways offset is applied when aiming at the alliance's far cell (the audience cell for blue, the rear cell for red). It compensates for odometry drift that grows with distance from the start wall. It is a stopgap, not a property of the launcher. Target T1 (section 5) keeps it as the one starting allowance for the operator's trims.
+**Far-cell extra.** In the TeleOp, the dashes and the tuners (not in the autos, from 2026-11-17) an additional sideways offset is applied when aiming at the alliance's far cell (the audience cell for blue, the rear cell for red). It compensates for odometry drift that grows with distance from the start wall. It is a stopgap, not a property of the launcher. Target T1 (section 5) keeps it as the one starting allowance for the operator's trims.
 
 | Name | Value |
 |---|---|
@@ -151,9 +151,9 @@ Decided the same day:
 
 | Point | Decision |
 |---|---|
-| The autos' two opposing allowances | the far-cell extra is not applied in the autos; each trim is set to the net value |
-| The remembered aims in a TeleOp restart | saved, so a restart in a match keeps them |
-| The match screen | shows the aim trim of each of the alliance's cells |
+| The autos' two opposing allowances | the far-cell extra is not applied in the autos; each trim is set to the net value (built 2026-11-17, not run on the robot) |
+| The remembered aims in a TeleOp restart | saved, so a restart in a match keeps them (built 2026-11-17, not run on the robot) |
+| The match screen | shows the aim trim of each of the alliance's cells (built 2026-11-17, not run on the robot) |
 
 ### 5.3 Requirement
 
@@ -175,15 +175,7 @@ Decided the same day:
 | Nudge | the driver's turn stick | until the lock is released |
 
 - **The far cell's launch spot is worked out, not stored.** A launch spot is where the robot stands square to the wall with the launcher's line through the cell: the cell's y, shifted by the launcher offset and by the starting allowance. For the blue audience cell that is 12.75 - 2.5 - 3.0 = 7.25. In the code the spot is its own stored number, 7.5, set when the allowance was a little different, and the far-cell extra is another. Change the extra and the lock aims with the new value while the Hive Dash and the auto-launch zone still send the robot to the old spot, where it then has to stand slightly turned. With today's values the two differ by 0.25 in, which is under half a degree and harmless. The target removes the second number so they cannot drift apart: change the allowance and the spot and its zone move with it.
-- **The remembered aim is saved with the pose hand-over** ([drive.md](drive.md) section 5). A TeleOp that is restarted in a match adopts the drifted pose; it must get the trims that go with that pose. Today they are lost. A reseed clears both, as now.
-- **The match screen shows the aim trim of each of the alliance's two cells**, on one small line beside the speed trim, for example `AIM REAR +3  AUD -6`. The line is shown while either is not zero.
-- **Autos.** Each launch has one aim trim, and the starting allowance is not applied in any auto. The trims that are -8.0 deg today become the net value, **-2.5 deg**, so every auto aims where it aims today:
-
-  | Program | Launches | Today | Target |
-  |---|---|---|---|
-  | Solo | garden and flower pollen at the audience cell, from (50, 26.3) | -8.0 deg, plus the far-cell extra (about +5.5 deg) | -2.5 deg |
-  | Daryl, Cybugs, Primary | at the audience cell, from (50, 26.3) | the same | -2.5 deg |
-  | Every launch at the cell on the start side | | 0, no extra | 0 |
+- **Built (2026-11-17, not run on the robot):** the remembered aims are saved with the pose hand-over ([teleop.md](teleop.md) section 5.1); the match screen shows both cells' aim trims ([teleop.md](teleop.md) section 11); each auto launch has one trim and no far-cell extra, -2.5 deg where it was -8.0 ([autos.md](autos.md) section 8).
 - **After each event** the log tools report, per match and per cell, the remembered aim the operator ended on. A value that repeats becomes the next starting allowance. This is how the fixed part follows what actually happened without anyone guessing.
 
 **The accepted drift is a number: 4 in.** Features that use a position without aiming are checked against it:
@@ -198,15 +190,14 @@ Decided the same day:
 
 The driver's reseed ([teleop.md](teleop.md) section 9) remains the remedy when the pose is further out than that.
 
-### 5.5 What would behave differently
+### 5.5 What is left
 
 | Item | Change |
 |---|---|
-| Far cell's launch spot | y = 7.25 from today's values instead of the typed 7.5, and it follows the allowance from then on |
-| Autos | none: the same aim (to within 0.01 deg) from one number per launch, -2.5 deg where it was -8.0 |
-| A TeleOp restarted in a match | keeps the remembered aims |
-| Match screen | one small line with both cells' aim trims while either is not zero |
+| Far cell's launch spot | worked out from the allowance: y = 7.25 from today's values instead of the stored 7.5. **Held back:** the generated grid route tables are built for the stored spot and would have to be regenerated, for a quarter of an inch |
+| The aim built in one place | the TeleOp's lock, the dashes and the tuners each still add the far-cell extra themselves |
+| After each event | the log tool that reports the remembered aim per match and per cell |
 
 ### 5.6 Waits on
 
-Nothing on the robot. The conversion of the autos' trims is checked with one practice launch per program.
+One practice launch per auto program, to confirm the converted trims. The launch spot change waits on a regeneration of the grid route tables.

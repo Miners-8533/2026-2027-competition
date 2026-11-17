@@ -4,10 +4,10 @@ The robot counts what it holds in two independent ways.
 
 | Count | Sensors | Answers | Used for |
 |---|---|---|---|
-| **Slot count** | CS1 to CS4 along the track | which kind of element sits at each of four places | the pusher check, opponent-nectar warning, the log, part of the launched tally |
-| **Entry count** | CS5 at the entrance | how many elements have come in since the track was emptied | declaring FULL, the number on the driver screen |
+| **Slot count** | CS1 to CS4 along the track | which kind of element sits at each of four places | the pusher check (the track reads empty), the opponent-nectar warning, seeing the pusher arm, the log |
+| **Entry count** | CS5 at the entrance | how many elements have come in since the track was emptied | **how many are held, and full**: FULL and its sequence, the driver screen, the end of a flower jostle in the autos, the "Full" warning, the launched tally |
 
-Neither is trusted alone. The slot count misses elements between sensors or in a crowded track; the entry count undercounts touching elements. How the coordinator combines them is in [mechanisms.md](mechanisms.md).
+**The entry count is the count the robot relies on** (team decision, 2026-11-17; built 2026-11-17, not run on the robot). The slot count undercounts in a crowded track, which is the worse error on this robot, so it no longer says how many are held. One switch ("count by entries", on) returns the jostle end, the "Full" warning, the non-always-on intake stop and the launched tally to the slot count, in case the entry count misbehaves on the robot. With CS5 missing or not answering the robot is never full by it and there is no fall-back: a jostle ends on its deadline and the screen shows a question mark. How the coordinator uses the counts is in [mechanisms.md](mechanisms.md).
 
 Sensor physics and measured signatures: [robot_design/sensors.md](../robot_design/sensors.md).
 
@@ -140,6 +140,23 @@ It overcounted in real driving (a parked or rolling element makes several peaks)
 - The held count reaching 4 declares **FULL**.
 - The driver screen shows the held count, or a question mark when CS5 is missing or not answering.
 
+**The starting load (built 2026-11-17, not run on the robot).** CS5 only sees elements come in, so the held count does not start at 0 when the load is known:
+
+| Opmode | Held at the first loop |
+|---|---|
+| An auto | 4, the preload the rules require (a tunable value; 0 for practice without a preload) |
+| A TeleOp that follows an auto | the auto's last saved count |
+| A TeleOp restarted in a match | its own last saved count |
+| A TeleOp with nothing fresh saved | 0 |
+| Any other opmode | 0 |
+
+- The autos and the competition TeleOp **save the held count on every loop**, beside the pose ([drive.md](drive.md) section 5). The TeleOp keeps saving it in backup mode.
+- A saved count is used only while it is as fresh as a saved pose must be (300 s), and it is lost when the robot app restarts.
+- FULL is not saved. It follows from the count: an opmode that starts with 4 held declares FULL on its first update. Only the TeleOp in FULL AUTO acts on it.
+- Nothing can be counted while no opmode runs. An element that rolls in or out during the transition or a restart is missed, and the next salvo or reject puts the count right.
+- The TeleOp's INIT screen shows the count it will start with and how old the save is. D-pad up in INIT discards it, together with the saved pose ([teleop.md](teleop.md)).
+- With no CS5 in the configuration nothing is saved or restored.
+
 Two further guards exist and are switched off: requiring the slot count to agree before FULL is declared, and resetting the held count when the slot count has read 0 for a set time.
 
 ### 2.6 Parameters
@@ -174,101 +191,26 @@ The counting rule is one pure piece of logic with no robot dependencies, so reco
 
 ## 5. Target T3: the entry count is the count
 
-Not in the code. See "As built and target" in the [README](README.md).
+**Built 2026-11-17, not run on the robot.** This section records what the target was and what is left of it.
 
-### 5.1 The weakness
+**The weakness was** two counts with each consumer choosing its own: FULL and the screen used the entry count; the end of a flower jostle in the autos, the "Full" warning and the non-always-on intake stop used the slot count; the launched tally took the higher of the two. The robot could be full for one purpose and not for another in the same loop. And the entry count started at 0 in every opmode.
 
-There are two counts, and each consumer chose its own:
+**Decision (team, 2026-11-17).** The CS5 entry count is the count the robot relies on. The count is remembered from the auto to the TeleOp and through an unexpected TeleOp restart. With CS5 missing or not answering there is no fall-back to the slot count: the Hartland Qualifier was played with practically no count.
 
-| Consumer | Uses today |
+**What was built.**
+
+| Item | Where |
 |---|---|
-| FULL, the FULL sequence, arming the auto-launch | the entry count only |
-| The number on the driver screen | the entry count |
-| The end of a flower jostle in the autos | the slot count only |
-| The "Full" warning; the intake stop in the non-always-on mode | the slot count only |
-| The launched tally | the higher of the two |
-| Whether a pusher check may start | the slot count reading 0 |
+| Full, for every consumer, is the entry count reaching 4 | the top of this page; [mechanisms.md](mechanisms.md) |
+| The launched tally takes the entry count | [mechanisms.md](mechanisms.md) section 3 |
+| The count starts from the known load and is saved every loop | section 2.5 |
+| One switch back to the slot count for the four consumers that used it | the top of this page |
 
-So the robot can be full for one purpose and not for another in the same loop, and the rules are split between the two counters and the coordinator.
+**What is left.**
 
-A second gap shows once CS5 is relied on: **the entry count starts at 0 in every opmode.** An auto starts with 4 preloaded, and a TeleOp that follows an auto starts with whatever the last gather left aboard. In both the count reads low until the first salvo.
+- The two guards that sit switched off beside the count (slot agreement before FULL; a reset when the slots read 0) are still in the code. They go when the entry count has run in a match.
+- The slot count's own windows for "full" (section 1.3) are still computed. They are only used with the switch off.
+- **Touching elements count once**, so a clump can still put a fifth element in the robot (section 2.7). The answer to that is in the counting rule and in how the sensor is mounted, not in a second count.
+- The counter was characterized with pollen only; it needs a check with nectar.
 
-### 5.2 Decision (team, 2026-11-17)
-
-**The CS5 entry count is the count the robot relies on.** The slot count is being retired as a count: it undercounts, and on this robot an undercount is the worse error.
-
-Decided the same day:
-
-| Point | Decision |
-|---|---|
-| The count between opmodes | remembered from the auto to the TeleOp, and through an unexpected TeleOp restart |
-| CS5 missing or not answering | no fall-back to the slot count. The Hartland Qualifier was played with practically no count |
-
-### 5.3 Requirement
-
-1. "How many are held" and "is it full" have one answer, from the entry count. Every consumer uses it.
-2. The slot sensors keep the jobs CS5 cannot do: what kind of element sits where, whether the track reads empty, and seeing the pusher arm.
-3. The count is right from the first loop of an opmode, not from the first salvo.
-4. A missing or silent CS5 degrades the answer to "unknown". It never blocks collecting or launching ([architecture.md](architecture.md) section 4.8).
-
-### 5.4 Design
-
-**Held** is the entry held count of section 2.5. **Full** is held reaching 4.
-
-| Consumer | Uses |
-|---|---|
-| FULL, the FULL sequence, arming the auto-launch | held, as now |
-| The driver screen | held, as now |
-| The end of a flower jostle in the autos | full by held (the idea recorded in [autos.md](autos.md) section 10) |
-| The "Full" warning; the intake stop in the non-always-on mode | full by held |
-| The launched tally | held at the start of the salvo |
-
-**What the slot sensors still do.**
-
-| Job | Used by |
-|---|---|
-| The kind at each slot | the opponent-nectar warning; the log |
-| "The track reads empty" | whether a pusher check may start; the empty-reading health line |
-| Seeing the pusher arm at CS4 | the pusher check |
-
-They no longer produce a number that anything acts on. The windows of section 1.3 remain only as far as "reads empty" needs them, and the slot text stays in the log.
-
-**The starting load.** The held count is **saved on every loop** by the autos and the TeleOp, together with the pose ([drive.md](drive.md) section 5), and an opmode starts from what is known:
-
-| Opmode | Held at the first loop |
-|---|---|
-| An auto | 4, the preload the rules require |
-| A TeleOp that follows an auto | the auto's last saved count |
-| A TeleOp restarted in a match | its own last saved count |
-| A TeleOp with nothing fresh saved | 0, and the INIT screen says so |
-| A support opmode | 0 |
-
-- The saved count is used on the same terms as the saved pose: only while fresh, and lost when the robot app restarts.
-- FULL is not saved. It follows from the count: a TeleOp that starts with 4 held declares FULL on its first update.
-- Entries cannot be counted while no opmode runs. An element that rolls in or out during the transition or a restart is missed, and the next salvo or reject puts the count right.
-- The INIT screen of the TeleOp shows the count it will start with and where it came from.
-
-The INIT screens of the autos keep showing what the slot sensors see, as a check that the preload is in.
-
-**The resets,** all in one place, are those of section 2.5: a salvo starts or a reject finishes; the put-back after a salvo that did not complete; entries while the intake ran OUT are ignored.
-
-**When CS5 is missing or not answering:** held is unknown and the screen shows a question mark, as now. FULL is not declared, a jostle ends on its deadline, and the operator launches or rejects by eye. There is **no fall-back to the slot count**; that would keep the retired rule alive in the one situation where nobody is watching it.
-
-**The limits that stay** are those of section 2.7. Touching elements count once, so a clump can still put a fifth element in the robot. The answer to that is in the counting rule and in how the sensor is mounted, not in a second count.
-
-### 5.5 What would behave differently
-
-| Today | With the target |
-|---|---|
-| A flower jostle in an auto ends when the slot count reads 4, about 1.3 s after the fourth element is first seen | it ends when the fourth element enters |
-| The "Full" warning and FULL can disagree | they cannot |
-| The launched tally takes the higher of two counts | it takes held |
-| The count is 0 at the start of every opmode | it starts from the preload, the auto's count, or the count before a restart |
-| Two guards exist and are switched off (slot agreement before FULL; a reset when the slots read 0) | deleted |
-
-In COUNT ONLY mode nothing acts on FULL, as now.
-
-### 5.6 Waits on
-
-- The edge counter's first run on the robot. Nothing else rests on it until then.
-- A check with nectar. The counter was characterized with pollen only.
+**Waits on** the edge counter's first run on the robot. Until then the whole of this is unproven, and the switch is the way back.

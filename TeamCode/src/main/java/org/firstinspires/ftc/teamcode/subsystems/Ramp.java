@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
+import org.firstinspires.ftc.teamcode.drive.HiveRoute;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 
 /**
@@ -35,12 +36,13 @@ public class Ramp {
     /** Robot-center distance from a flower center beyond which the ramp is considered clear. Placeholder: set from the real ramp length. */
     public static double CLEAR_DISTANCE_IN = 24.0;
 
-    /** Flower centers {x, y}, field inches, read from the manual's figures (about +/-1 in); 3.4 in out from the wall is an estimate. */
+    /** Flower opening centers {x, y}, field inches: the route planner's values (HiveRoute, from the field CAD), so the field has one definition of them (2026-11-17; these were the manual's figures, 68.6 / 24.0). */
+    private static final double FLOWER_N = HiveRoute.FLOWER_NORMAL_IN, FLOWER_O = HiveRoute.FLOWER_OFFSET_IN;
     private static final double[][] FLOWERS = {
-            {-68.6, -24.0},   // rear wall
-            {-24.0, 68.6},    // Blue Wall
-            {24.0, -68.6},    // Red Wall
-            {68.6, 24.0},     // audience wall
+            {-FLOWER_N, -FLOWER_O},   // rear wall
+            {-FLOWER_O, FLOWER_N},    // Blue Wall
+            {FLOWER_O, -FLOWER_N},    // Red Wall
+            {FLOWER_N, FLOWER_O},     // audience wall
     };
 
     private final Servo left;

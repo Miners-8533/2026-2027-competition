@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.motion.Actions;
+import org.firstinspires.ftc.teamcode.util.RunLog;
 
 /**
  * Tune the HEADING PID. Turns in place through a varied pattern, forever, holding
@@ -28,6 +29,19 @@ public class HeadingTuner extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+        // a run log from 2026-11-17 (runlogs/bringup.log): the gains in force (CONFIG and TUNE lines), every leg's DRIVE lines with its time, final error and overshoot, and a row every 50 ms
+        RunLog.open(RunLog.Kind.BRINGUP, "Tune - Heading", hardwareMap);
+        try {
+            run();
+        } catch (Throwable t) {
+            RunLog.crash(t);
+            throw t;
+        } finally {
+            RunLog.close();
+        }
+    }
+
+    private void run() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         MecanumDrive drive = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
@@ -36,6 +50,8 @@ public class HeadingTuner extends LinearOpMode {
         telemetry.addLine("Give the robot room to spin. START to run, B to kill.");
         telemetry.update();
         waitForStart();
+        if (isStopRequested()) return;
+        RunLog.started();
 
         double[] headingsDeg = {0, 135, -135, 20, -20, 175, -175, 90, -90};
         Pose2d[] pattern = new Pose2d[headingsDeg.length];

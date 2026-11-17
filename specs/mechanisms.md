@@ -20,6 +20,7 @@ The one object every opmode talks to for the intake, flywheel, pusher, ramp and 
 | Jam retries | 2 | 1 | 2 |
 | Ramp commanded at INIT | no | yes | yes |
 | Flywheel position POLLEN commanded | at Start | at INIT | first update |
+| CS5 held count at the first loop | the last opmode's saved count, else 0 | 4, the preload | 0 |
 
 ## 2. Launch speed
 
@@ -56,7 +57,7 @@ The first time a queued launch waits on the band, a log line says whether the sp
 
 - The pusher lock is released (the salvo sweeps from the lock position).
 - The pusher starts its salvo.
-- The **launched tally** grows by the number taken to be in the robot: the higher of the CS5 entry count and the CS1 to CS4 count, at most 4. Both undercount and neither is trusted alone.
+- The **launched tally** grows by the number taken to be in the robot: the CS5 entry held count, at most 4 (built 2026-11-17, not run on the robot). With the "count by entries" switch off it is the higher of the entry count and the slot count, as before.
 - The CS5 entry count is reset to 0, which ends FULL.
 
 **The band is checked once.** A salvo that has started is never interrupted by the flywheel speed.
@@ -97,7 +98,7 @@ The intake mode is decided fresh each update. Later rules override earlier ones.
 **Without it (the default, used by some test opmodes).**
 
 1. IN if the intake was requested or the ramp is deployed.
-2. A full robot by the CS1 to CS4 count stops it, clears the request and raises a notice.
+2. A full robot stops it, clears the request and raises a notice. Full is by the CS5 entry count (by the slot count with the "count by entries" switch off).
 3. OUT while a reject runs or the manual outtake is held.
 4. OFF while the pusher is locked or locking.
 5. OFF during a calibration sweep.
@@ -201,7 +202,7 @@ Entered by the TeleOp when the pose cannot be trusted; one way until the opmode 
 |---|---|
 | Counter override | the element counter is being ignored |
 | Counter not reading | a sensor of CS1 to CS4 has stopped answering |
-| Full | 4 held by the CS1 to CS4 count |
+| Full | 4 held by the CS5 entry count (by the slot count with the "count by entries" switch off) |
 | Opponent nectar | the other alliance's nectar is at a named sensor; reject is the operator's decision |
 | Launch map empty | no speed source; the manual setpoint is in use |
 | Flywheel encoder lost | open loop at a fixed power |
@@ -229,6 +230,8 @@ These exist in the coordinator but no control reaches them in the competition op
 | Pusher check: wait / settle / count hold-off after | 2.0 s / 0.4 s / 0.8 s |
 | Arm near CS4: behind HOLD / ahead of HOLD | 70 deg / 70 deg |
 | Entry capacity | 4 |
+| Held count an auto starts with | 4 |
+| Count by entries (full, the Full warning, the intake stop, the tally) | on |
 | FULL: intake runs on / reverses | 0.1 s / 0.1 s |
 | Lock: release delay / maximum tries | 0.5 s / 2 |
 | Lock for a target lock or dash | off |
@@ -242,7 +245,7 @@ Every sample row of the run log carries the coordinator's state: setpoint, flywh
 
 ## 15. Status
 
-In the Hartland build: the queued launch with the launch band, reject, always-on intake, the pusher check, jam handling, the preload pre-position, backup mode. Added after Hartland: the CS5 entry count and FULL (the first version ran in practice; the present sequence and the edge counter have not run), the lock retry limit, the put-back after an incomplete salvo, stop all, the flywheel position hold, and the launch grid.
+In the Hartland build: the queued launch with the launch band, reject, always-on intake, the pusher check, jam handling, the preload pre-position, backup mode. Added 2026-11-17 and not run: the entry count as the only count for full and the tally, the held count carried between opmodes, stop all at the end of the autos. Added after Hartland: the CS5 entry count and FULL (the first version ran in practice; the present sequence and the edge counter have not run), the lock retry limit, the put-back after an incomplete salvo, stop all, the flywheel position hold, and the launch grid.
 
 ## 16. Target T4: a coordinator made of parts
 

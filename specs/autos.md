@@ -33,14 +33,18 @@ Every path is written for blue. Red is the same path rotated 180 degrees about t
 - The intake is set **always in** for the whole program.
 - The flywheel runs from Start and stays up between launches. Its speed follows the distance to the current target cell, so it is at speed on arrival at each launch spot.
 - Pusher jam retries are set to 1.
+- The remembered aims an earlier TeleOp saved are dropped: the auto has reseeded the Pinpoint and they belonged to the old pose.
+- The CS5 held count starts at 4, the preload ([element-counting.md](element-counting.md) section 2.5).
 - The pusher is moved to the lock angle while the flywheel spins up, so the preload salvo is shorter.
 - The program is one sequential action; the mechanisms update is the every-loop work.
 
 ### 1.4 At the end
 
 - Whether it finished or was stopped, the final pose and alliance are saved for the TeleOp.
+- The CS5 held count is saved on every loop of the program and after it, so the TeleOp starts with what the last gather left aboard.
 - Until the opmode is stopped, the pose keeps being read and saved and the mechanisms keep updating.
 - The flywheel is stopped as the last step of the sequence.
+- When the opmode is stopped: the drive is stopped, then all mechanisms at once, with no update after it (built 2026-11-17, not run on the robot).
 
 ### 1.5 Logging
 
@@ -81,7 +85,7 @@ Aim at the cell (with the launch's aim trim), then launch one salvo and wait for
 
 - **A salvo is always launched**, whatever any count says. A count that under-reads must never throw a salvo away.
 - The leg before a launch ends at a heading that already includes the aim and the trim, so the aim step only fine-tunes.
-- Launches at the far cell use the far-cell extra; launches at the cell on the robot's own start side use none.
+- **Each launch has one aim trim, which holds all of its allowance.** The far-cell extra of [aiming.md](aiming.md) is not applied in any auto (built 2026-11-17, not run on the robot; before that the far-cell launches got the extra and a -8.0 deg trim, which worked against each other).
 
 ### 2.3 Garden pickup
 
@@ -96,7 +100,7 @@ Aim at the cell (with the launch's aim trim), then launch one salvo and wait for
 2. Drive to the **pre-position**, facing the flower, and wait for the ramp to settle.
 3. Force the intake in.
 4. **Ram:** drive at a target 12 in beyond the flower at power 0.6 for 0.6 s.
-5. **Jostle** ([motion.md](motion.md)) until the robot is full by the slot count, or the jostle's deadline in seconds since Start passes, or its one cycle is done.
+5. **Jostle** ([motion.md](motion.md)) until the robot is full by the CS5 entry count (built 2026-11-17, not run on the robot; before, by the slot count), or the jostle's deadline in seconds since Start passes, or its one cycle is done.
 6. **Back out** straight, 9 in, before any turn. Turning at the flower catches the ramp on the stand.
 7. Stow the ramp: either at once after the back-out, or during the following turn as soon as the robot has turned 45 deg from the flower heading.
 
@@ -141,10 +145,10 @@ Start: rear wall, (-63.4, 16.0, 0 deg). Cells: rear, then audience.
 1. Launch the preload at the **rear** cell.
 2. Garden pickup.
 3. Set the target to the **audience** cell. Cross-field to the east helper, then to the audience launch spot.
-4. Launch the garden pollen (trim -8.0 deg).
+4. Launch the garden pollen (trim -2.5 deg).
 5. Audience-wall flower gather; jostle deadline 23 s.
 6. Back out, then to the audience launch spot, the ramp stowing during the turn.
-7. Launch the flower pollen (trim -8.0 deg).
+7. Launch the flower pollen (trim -2.5 deg).
 8. **Final gather:** deploy the ramp, cross to the east helper, gather the Blue Wall flower with jostle deadline 26.5 s, back out, stow.
 9. Park in the hive-side corner. The pollen from the final gather stay in the robot for the TeleOp.
 
@@ -156,10 +160,10 @@ Start: rear wall. Garden first; the partner gets a window in the middle.
 
 1. Launch the preload at the **rear** cell.
 2. Garden pickup.
-3. East helper, then the audience launch spot; launch the garden pollen at the **audience** cell (trim -8.0 deg, far-cell extra).
+3. East helper, then the audience launch spot; launch the garden pollen at the **audience** cell (trim -2.5 deg).
 4. East helper again, then the Blue Wall flower gather; jostle deadline 19 s.
 5. **Do not leave the flower before 15.6 s** (18 s less the 2.4 s drive back).
-6. East helper, the audience launch spot, wait for the ramp to stow, **wait until 18 s**, launch the flower pollen at the audience cell (trim -8.0 deg).
+6. East helper, the audience launch spot, wait for the ramp to stow, **wait until 18 s**, launch the flower pollen at the audience cell (trim -2.5 deg).
 7. Audience-wall flower gather, jostle deadline 26 s, **skipped if it would start after 22.5 s**. Its pollen stay for the TeleOp.
 8. Park in the hive-side corner.
 
@@ -180,7 +184,7 @@ Because the outtake counts as busy, the automatic pusher check after the last sa
 
 ## 6. Auton - Duo Garden Side and Duo Flower Side
 
-A matched pair for an alliance whose partner runs the other. Each robot launches only at the cell on its own start side, so neither uses the far-cell extra. The two take turns tipping the hive.
+A matched pair for an alliance whose partner runs the other. Each robot launches only at the cell on its own start side, so neither needs an allowance for the far cell. The two take turns tipping the hive.
 
 **Garden Side** (rear wall):
 
@@ -202,7 +206,7 @@ All aim trims are 0. The Garden Side as written does not fit 30 s if its wait is
 
 ## 7. Auton - Duo Primary
 
-Start: rear wall. Preload at the rear cell; Blue Wall flower gather (deadline 12 s); east helper to the audience launch spot, launch at the audience cell (trim -8.0 deg); audience-wall flower gather (deadline 21 s); east and west helpers to the rear launch spot, launch at the rear cell; garden pickup and a second launch from the rear spot, **skipped if it would start after 18 s**; west helper, park in the hive-side corner.
+Start: rear wall. Preload at the rear cell; Blue Wall flower gather (deadline 12 s); east helper to the audience launch spot, launch at the audience cell (trim -2.5 deg); audience-wall flower gather (deadline 21 s); east and west helpers to the rear launch spot, launch at the rear cell; garden pickup and a second launch from the rear spot, **skipped if it would start after 18 s**; west helper, park in the hive-side corner.
 
 With the garden it ran past 30 s and lost its park, hence the skip.
 
@@ -220,17 +224,17 @@ With the garden it ran past 30 s and lost its park, hence the skip.
 | Jostle time limit: Solo / duo programs | 9 s / 12 s |
 | Park: power / tolerance / time cap | 1.0 / 2.5 in, 5 deg / 3.0 s |
 | Solo: jostle deadline / final jostle deadline | 23.0 s / 26.5 s |
-| Solo: garden and flower aim trims | -8.0 deg / -8.0 deg |
+| Solo: garden and flower aim trims | -2.5 deg / -2.5 deg |
 | Daryl: second launch not before / return travel | 18.0 s / 2.4 s |
 | Daryl: wall jostle deadline / audience jostle deadline / audience flower latest start | 19.0 s / 26.0 s / 22.5 s |
-| Daryl and Cybugs: audience-cell trims | -8.0 deg |
+| Daryl, Cybugs and Primary: audience-cell trims | -2.5 deg |
 | Cybugs: wait before the last salvo / rear trim | 1.0 s / 0 deg |
 | Garden Side: second launch not before / jostle deadline | 25.0 s / 20.0 s |
 | Flower Side: first launch not before / jostle deadline | 7.2 s / 18.0 s |
 | Primary: wall jostle / audience jostle deadlines | 12.0 s / 21.0 s |
 | Primary: garden latest start / audience flower latest start | 18.0 s / never skipped |
 
-The -8.0 deg trims exist because launches at the far cell from (50, 26.3) kept landing left. They are a symptom of the odometry drift described in [robot_design/chassis.md](../robot_design/chassis.md). Each of these launches also gets the far-cell extra, which turns the robot the other way. Target T1 ([aiming.md](aiming.md) section 5) drops the extra in the autos and sets these trims to the net value, -2.5 deg.
+The -2.5 deg trims are the net of two older allowances at the far cell from (50, 26.3): a -8.0 deg trim, added because launches kept landing left, and the far-cell extra, which turned the robot about 5.5 deg the other way at that spot. Both are symptoms of the odometry drift described in [robot_design/chassis.md](../robot_design/chassis.md). The aim is the same as before at the spot itself (checked with the robot's own aiming code: 0.01 deg), and up to about half a degree different when a leg ends 2.5 in nearer to or further from the cell, because the extra's angle depended on the distance. Built 2026-11-17, not run on the robot.
 
 ## 9. Status
 
@@ -242,4 +246,4 @@ The -8.0 deg trims exist because launches at the far cell from (50, 26.3) kept l
 
 ## 10. Ideas recorded but not built
 
-Ending a gather when the fourth element enters by the CS5 count, instead of on a deadline; using the planner's grid routes for auto legs.
+Using the planner's grid routes for auto legs. (Ending a gather when the fourth element enters by the CS5 count was on this list and is built.)

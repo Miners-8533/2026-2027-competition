@@ -56,7 +56,7 @@ import java.util.Locale;
  *
  * INIT (gamepad 1):
  *   D-pad right / left   BLUE / RED alliance (only when there is no auto pose; an auto pose fixes the alliance)
- *   D-pad up             discard the auto pose and use the default start pose (then the D-pad picks the alliance)
+ *   D-pad up             discard what the last opmode saved: the auto pose (the default start pose is used, then the D-pad picks the alliance) and the CS5 held count (it starts at 0)
  *   X                    CS5 FULL: FULL AUTO <-> COUNT ONLY (default FULL AUTO; the INIT screen and the competition screen say which; COUNT ONLY shows and logs the count and acts on nothing, as at Hartland)
  *
  * Gamepad 1 (driver):
@@ -300,13 +300,47 @@ public class TeleOpCompetition extends LinearOpMode {
         // powered movement in the transition. It is stowed once, at Start. (The intake, flywheel and pusher constructors only set power 0.)
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE, false);
         mechanisms.setGridAllowed(true);   // the 2-D launch grid (Mechanisms.USE_LAUNCH_GRID, off by default, is the state it starts in; the operator's LB + A toggles it)
+        // The CS5 held count continues from the last opmode (2026-11-17, user: remember the count from the auto to the TeleOp and through an unexpected TeleOp restart). CS5 only sees elements
+        // come in, so a count that started at 0 read low until the first salvo. The autos and this TeleOp save it every loop (PoseStorage.saveHeld); it is used while it is as fresh as a saved pose
+        // must be. D-pad up in INIT discards it together with the saved pose. Nothing can be counted while no opmode runs: an element that rolled in or out since the save is missed.
+        // The operator's remembered aims continue too (2026-11-17, user), but only with the pose they corrected: when this TeleOp ADOPTED the device's pose (a restart in a match). After an auto
+        // there are none (the auto drops them when it reseeds), and a reseed or a discarded pose starts them at 0 as before.
+        boolean aimsRestored = false;
+        if (useAutoPose && loc.startMode == PinpointLocalizer.StartMode.ADOPTED && PoseStorage.isAimsFresh(AUTO_POSE_MAX_AGE_SEC)) {
+            double[] savedAims = PoseStorage.aims();
+            if (savedAims != null && savedAims.length == cellNudgeDeg.length) {
+                System.arraycopy(savedAims, 0, cellNudgeDeg, 0, cellNudgeDeg.length);
+                for (double a : cellNudgeDeg) aimsRestored |= Math.abs(a) > 1e-6;
+                RunLog.event(String.format(Locale.US, "REMEMBERED AIM continued from the last TeleOp (the pose was adopted): blue rear %+.1f, blue audience %+.1f, red rear %+.1f, red audience %+.1f deg",
+                        cellNudgeDeg[HiveTarget.BLUE_REAR.ordinal()], cellNudgeDeg[HiveTarget.BLUE_AUDIENCE.ordinal()], cellNudgeDeg[HiveTarget.RED_REAR.ordinal()], cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()]));
+            }
+        }
+        boolean hasCs5 = mechanisms.getHeldForHandOver() >= 0;
+        boolean heldSaved = hasCs5 && PoseStorage.isHeldFresh(AUTO_POSE_MAX_AGE_SEC);
+        if (heldSaved) {
+            mechanisms.setHeldByEntries(PoseStorage.held(), String.format(Locale.US, "saved by the last opmode %.1f s ago (limit %.0f s)", PoseStorage.heldAgeSec(), AUTO_POSE_MAX_AGE_SEC));
+        } else if (hasCs5) {
+            RunLog.event(PoseStorage.held() < 0 ? "ENTRY COUNT starts at 0: no count was saved by an earlier opmode"
+                    : String.format(Locale.US, "ENTRY COUNT starts at 0: the saved count (%d) is %.0f s old, limit %.0f s", PoseStorage.held(), PoseStorage.heldAgeSec(), AUTO_POSE_MAX_AGE_SEC));
+        }
 
         while (!isStarted() && !isStopRequested()) {
             if (gamepad1.xWasPressed()) FULL_AUTO = !FULL_AUTO;   // INIT only: FULL AUTO <-> COUNT ONLY
-            if (gamepad1.dpadUpWasPressed() && useAutoPose) {
-                useAutoPose = false;
+            if (gamepad1.dpadUpWasPressed() && (useAutoPose || heldSaved)) {   // discard what the last opmode saved: the pose and the CS5 held count
+                if (useAutoPose) {
+                    useAutoPose = false;
+                    blue = true;
+                    if (aimsRestored) {
+                        aimsRestored = false;
+                        Arrays.fill(cellNudgeDeg, 0.0);   // they corrected the pose that is being discarded
+                        RunLog.event("REMEMBERED AIM cleared: the saved pose was discarded in INIT");
+                    }
+                }
+                if (heldSaved) {
+                    heldSaved = false;
+                    mechanisms.setHeldByEntries(0, "the driver pressed D-pad up in INIT: the saved count is discarded");
+                }
                 PoseStorage.clear();
-                blue = true;
             }
             if (!useAutoPose) {
                 if (gamepad1.dpad_right) blue = true;
@@ -357,6 +391,13 @@ public class TeleOpCompetition extends LinearOpMode {
             if (mechanisms.rampPositionUnknown()) telemetry.addData("Ramp", "position unknown: not commanded in INIT, it stows when you press Start");
             telemetry.addData("CS5 FULL (gamepad 1 X toggles)", FULL_AUTO ? "FULL AUTO: a FULL (4 entered) stops the intake, locks the pusher, runs the intake OUT and arms the auto-launch"
                     : "COUNT ONLY: the count is shown, nothing acts on FULL (intake always IN, as at Hartland)");
+            if (aimsRestored) {
+                telemetry.addData("Remembered aim", "continued from the last TeleOp: rear %+.0f, audience %+.0f deg (D-pad up discards it with the pose)",
+                        cellNudgeDeg[(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_REAR).ordinal()], cellNudgeDeg[(blue ? HiveTarget.BLUE_AUDIENCE : HiveTarget.RED_AUDIENCE).ordinal()]);
+            }
+            telemetry.addData("CS5 held count", !hasCs5 ? "no CS5: no count"
+                    : heldSaved ? String.format(Locale.US, "starts at %d, saved by the last opmode %.0f s ago (D-pad up on gamepad 1 discards it)", mechanisms.getHeldByEntries(), PoseStorage.heldAgeSec())
+                    : "starts at 0 (nothing saved to continue from)");
             telemetry.addData("Flywheel position", mechanisms.flywheelPositionText());
             telemetry.addData("Element counter", mechanisms.counter == null ? "not configured"
                     : mechanisms.counter.isValid() ? "reading   " + mechanisms.counter.stackString()
@@ -461,7 +502,11 @@ public class TeleOpCompetition extends LinearOpMode {
                 }
             }
             Pose2d pose = drive.getPose();
-            if (!backupMode) PoseStorage.save(pose, blue);
+            if (!backupMode) {
+                PoseStorage.save(pose, blue);
+                PoseStorage.saveAims(cellNudgeDeg);   // the remembered aims go with the pose they correct
+            }
+            PoseStorage.saveHeld(mechanisms.getHeldForHandOver());   // the CS5 held count, for a TeleOp that has to be restarted (also in backup mode: the count does not need the pose)
             double heading = pose.heading.toDouble();
 
             // driver: stick up = away from the driver, stick right = the driver's right, both in field terms
@@ -817,6 +862,8 @@ public class TeleOpCompetition extends LinearOpMode {
                 screen.x = pose.position.x;
                 screen.y = pose.position.y;
                 screen.headingDeg = pose.heading.toDegrees();
+                screen.aimRearDeg = cellNudgeDeg[(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_REAR).ordinal()];   // the operator's remembered aim of each of the alliance's cells (2026-11-17, user)
+                screen.aimAudienceDeg = cellNudgeDeg[(blue ? HiveTarget.BLUE_AUDIENCE : HiveTarget.RED_AUDIENCE).ordinal()];
                 if (backupMode) screen.alert(CompetitionScreen.RED, "BACKUP MODE");
                 else if (pinpointBad) screen.alert(CompetitionScreen.RED, "PINPOINT FAULT");
                 String driveWarning = drive.getHealthWarning();   // a wheel drawing far less current than the others (DriveHealth)

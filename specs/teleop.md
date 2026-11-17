@@ -8,6 +8,8 @@ Building blocks: [drive.md](drive.md), [mechanisms.md](mechanisms.md), [aiming.m
 
 Everything is built during INIT. **Nothing is driven**: no motor, no servo. Only the Pinpoint and the slot count are read.
 
+The CS5 held count starts from the count the last opmode saved, when that is no more than 300 s old, and from 0 otherwise ([element-counting.md](element-counting.md) section 2.5). The TeleOp saves its count on every loop.
+
 ### 1.1 Start pose
 
 1. If a pose was saved in the last 300 s (by an auto, or by a TeleOp that was stopped), take the alliance from it and **adopt** the Pinpoint's own pose ([drive.md](drive.md)). The robot may be anywhere.
@@ -20,14 +22,14 @@ The x of the default start is computed from the wall position and the robot's or
 | Control | Effect |
 |---|---|
 | D-pad right / left | choose BLUE / RED. Only when no saved pose is in use; a saved pose fixes the alliance |
-| D-pad up | discard the saved pose and use the default start (the alliance choice then works) |
+| D-pad up | discard what the last opmode saved: the pose (the default start is used, and the alliance choice then works), the remembered aims that went with it, and the CS5 held count (it starts at 0) |
 | X | switch between **FULL AUTO** and **COUNT ONLY** (default FULL AUTO; kept until the app restarts) |
 
 Changing the alliance or discarding the saved pose re-seeds the position on the device at once, without recalibrating its IMU.
 
 ### 1.3 INIT screen
 
-It reports: where the start pose came from and how old a saved pose is; the Pinpoint pose and whether it is acceptable; which mechanisms were found; that the ramp position is unknown; what the flywheel position servo will do; the FULL mode; whether the slot count is reading; whether both gamepads are assigned; and a warning if no hub is registered.
+It reports: where the start pose came from and how old a saved pose is; the Pinpoint pose and whether it is acceptable; which mechanisms were found; the remembered aims, when they were continued; the CS5 held count it will start with and how old the save is; that the ramp position is unknown; what the flywheel position servo will do; the FULL mode; whether the slot count is reading; whether both gamepads are assigned; and a warning if no hub is registered.
 
 The pose is **acceptable** when, after an adoption, the device reports READY, or, after a seed, the pose is within 1.5 in and 3 deg of the start pose and the seed was confirmed. After an adoption, a difference of more than 3 in or 5 deg from the saved pose is flagged for the drivers to check.
 
@@ -122,7 +124,8 @@ After a salvo the operator can report where it landed, as seen from behind the r
 | Landed LOW | speed trim +10 ticks/s |
 | Landed HIGH | speed trim -10 ticks/s |
 
-- The remembered aim is kept per cell, limited to 10 deg either way, used by every later lock on that cell, and cleared for all cells by a driver reseed (it was correcting the drift of the old pose). This is the team's chosen answer to drift, which cannot be predicted in a match. Target T1 ([aiming.md](aiming.md) section 5) keeps the remembered aims through a TeleOp restart and shows both of the alliance's cells' trims on the match screen.
+- The remembered aim is kept per cell, limited to 10 deg either way, used by every later lock on that cell, and cleared for all cells by a driver reseed (it was correcting the drift of the old pose). This is the team's chosen answer to drift, which cannot be predicted in a match.
+- **The remembered aims are saved on every loop beside the pose** (built 2026-11-17, not run on the robot). A TeleOp that is restarted in a match and adopts the device's pose starts with them, because they correct that pose. They are not continued when the pose is reseeded or discarded, or after an auto, which drops them. They stop being saved in backup mode.
 - The speed trim is one value shared by all cells.
 - Every report is logged together with the aim line of the launch it refers to.
 
@@ -197,7 +200,7 @@ The match screen uses the Driver Station's HTML display mode, which is the only 
 | Activity | only when there is one (below) |
 | Target | `REAR 36 in` or `AUDIENCE 34 in`; `FIXED 42 in` in backup mode |
 | Pose | x, y, heading |
-| Small lines | `N SHOT`; `PUSHER LOCKED`; `COUNT ONLY`; the speed trim when not zero |
+| Small lines | `N SHOT`; `PUSHER LOCKED`; `COUNT ONLY`; the speed trim when not zero; `aim REAR +3  AUD -6 deg`, the remembered aim of each of the alliance's cells, while either is not zero (built 2026-11-17, not run on the robot) |
 
 - `READY` means the flywheel is in the launch band.
 - `N HELD` is the CS5 entry count, never the slot count.
@@ -212,7 +215,7 @@ The match screen uses the Driver Station's HTML display mode, which is the only 
 | Yellow | `BACKUP IN 0.6 s` and `RESEED IN 0.4 s` (hold countdowns), `DASH REFUSED`, `PARK DASH REFUSED`, `CS5 NOT ANSWERING`, `PUSHER ZERO?`, `OPPONENT NECTAR: REJECT`, `COUNTER NOT READING`, `LAUNCH MAP EMPTY`, `NO SHOT ZONE`, any current notice (cut to 26 characters), `CHECK ROBOT (verbose)` for a warning with no alert of its own |
 | Cyan | `DRIVE HELD`, the FULL sequence step, `AUTO-LAUNCH ARMED`, `LAUNCH GRID ON` |
 
-The alerts are chosen from the coordinator's warning **codes**, not their wording. Four warnings are deliberately not shown: full by the slot count, stow waiting, zero not verified yet, and the coordinator's own backup warning.
+The alerts are chosen from the coordinator's warning **codes**, not their wording. Four warnings are deliberately not shown: the Full warning (the count line already turns green), stow waiting, zero not verified yet, and the coordinator's own backup warning.
 
 The controllers have no rumble, so every signal to the drivers is on this screen.
 

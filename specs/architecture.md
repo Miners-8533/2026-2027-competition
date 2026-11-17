@@ -151,11 +151,13 @@ The team's words are pusher, ramp, launch, launcher, launch map, salvo, hive cel
 
 ## 5. State that outlives an opmode
 
-Three things are kept in memory for as long as the robot app runs, so that the TeleOp can continue from an auto. All are lost on an app restart.
+Five things are kept in memory for as long as the robot app runs, so that the TeleOp can continue from an auto. All are lost on an app restart.
 
 | State | Written by | Used by |
 |---|---|---|
 | Saved pose, alliance and its time | autos at their end; the TeleOp every loop | the TeleOp's INIT, if fresh |
+| The operator's remembered aims (built 2026-11-17, not run) | the TeleOp, every loop; an auto drops them | a TeleOp that adopts the device's pose |
+| CS5 held count and its time (built 2026-11-17, not run) | the autos and the TeleOp, every loop | the TeleOp's INIT, if fresh |
 | Pusher zero, and whether it has been verified | every opmode that builds the pusher; the pusher check | a TeleOp that continues from an auto |
 | Tunable values as edited in the Dashboard | the Dashboard | every opmode |
 
@@ -179,11 +181,11 @@ The opmode thread never waits on these. Results cross over through small thread-
 | INIT | Build everything. An auto resets and seeds the Pinpoint and commands the ramp stowed and the flywheel position. **The TeleOp moves nothing in INIT** (rule G403) and adopts the Pinpoint when it can. INIT screens verify the pose, the mechanisms found and the counts |
 | Start | The TeleOp makes its first servo commands here |
 | Run | The loop of section 3 |
-| End | The TeleOp stops the drive, then stops all mechanisms at once, without a final update. An auto saves its pose and keeps reading the pose and updating the mechanisms until it is stopped. Both close the log on every way out |
+| End | The TeleOp and the autos stop the drive, then stop all mechanisms at once, without a final update (the autos from 2026-11-17, not run). An auto saves its pose and keeps reading the pose and updating the mechanisms until it is stopped. Both close the log on every way out |
 
 ### 7.1 Target T10: one way out
 
-**The weakness.** Only the TeleOp stops the mechanisms when it ends. The autos leave it to the SDK, which cuts motor power when an opmode stops, and the support opmodes each stop what they used in their own way. It works, but "what is still commanded when an opmode ends" has a different answer per opmode.
+**The weakness.** The support opmodes each stop what they used in their own way, or leave it to the SDK, which cuts motor power when an opmode stops. It works, but "what is still commanded when an opmode ends" has a different answer per opmode. The TeleOp and, from 2026-11-17, the autos end the same way.
 
 **Requirement and design.** Every opmode ends through the same shutdown, in this order: stop the drive; stop all mechanisms (with no update after it); save the pose if the opmode saves one; close the log. It runs on every way out, a crash included. An auto whose sequence finishes early still keeps updating until it is stopped, as now; the shutdown is for the stop itself.
 
@@ -206,6 +208,12 @@ No behavior the drivers can see changes.
 | Pusher lock for a target lock or dash | built; off |
 | Drive-to-pose static friction term | added later; opt-in; not run |
 | Drive-to-pose gain tuning on this robot | never done |
+| CS5 held count carried between opmodes; an auto starts at 4 | built 2026-11-17; not run |
+| The entry count alone for full and the tally (jostle end, warning, intake stop) | built 2026-11-17; on; not run |
+| Autos: one aim trim per launch, no far-cell extra | built 2026-11-17; same aim by PC check; not run |
+| Remembered aims kept through a TeleOp restart; aim trims on the match screen | built 2026-11-17; not run |
+| Autos stop all mechanisms at their end | built 2026-11-17; not run |
+| Drive Acceptance opmode; overshoot in the drive log line; tuners write a log | built 2026-11-17; not run |
 
 "Tested build" means the build used at the Hartland Qualifier on 2026-11-07, which is the `main` branch. These specs describe the `integration` branch, which has all of the above.
 
@@ -215,16 +223,16 @@ Each weakness of the code as built has a target: what the software should do ins
 
 | # | Weakness as built | Target | Specified in | Changes behavior | Waits on |
 |---|---|---|---|---|---|
-| T1 | **Odometry drift** is allowed for in four unrelated places, two of which work against each other | Drift is accepted (team decision); the operator's trims are the answer; fixed allowances exist once | [aiming.md](aiming.md) section 5 | barely | nothing |
-| T2 | **The autos rest on untuned drive gains**, loose tolerances and time caps; the tuning opmodes leave no record | Drive to pose is tuned and passes an acceptance test whose numbers the opmode itself reports; a timed-out leg is a counted fault | [motion.md](motion.md) section 2.1, [support-opmodes.md](support-opmodes.md) section 4.2 | yes, after tuning | a tuning session on the robot |
-| T3 | **Two element counts** with different rules for "full"; the count starts at 0 in every opmode | The CS5 entry count is the count (team decision); the slot sensors keep kinds, "reads empty" and the arm; the count is remembered between opmodes | [element-counting.md](element-counting.md) section 5 | yes | the edge counter's first robot run |
+| T1 | **Odometry drift** was allowed for in four unrelated places, two of which worked against each other | Drift is accepted (team decision); the operator's trims are the answer; fixed allowances exist once | [aiming.md](aiming.md) section 5 | barely | **mostly built 2026-11-17, not run:** one trim per auto launch, the aims saved for a restart, the trims on the match screen. Left: the far launch spot worked out from the allowance (needs the route tables regenerated) |
+| T2 | **The autos rest on untuned drive gains**, loose tolerances and time caps; the tuning opmodes leave no record | Drive to pose is tuned and passes an acceptance test whose numbers the opmode itself reports; a timed-out leg is a counted fault | [motion.md](motion.md) section 2.1, [support-opmodes.md](support-opmodes.md) section 4.2 | yes, after tuning | a tuning session on the robot. The acceptance opmode and the logging are built (2026-11-17), not run |
+| T3 | **Two element counts** with different rules for "full"; the count started at 0 in every opmode | The CS5 entry count is the count (team decision); the slot sensors keep kinds, "reads empty" and the arm; the count is remembered between opmodes | [element-counting.md](element-counting.md) section 5 | yes | **built 2026-11-17, not run,** with a switch back to the slot count. Waits on the edge counter's first robot run |
 | T4 | **The coordinator is large**, mixes live and dormant features, and can only be exercised on the robot | The same single object for opmodes, made of pure-logic parts; nothing unreachable (the pusher lock for a target lock or dash is kept, switched off) | [mechanisms.md](mechanisms.md) section 16 | no | target T3 |
 | T5 | **Package dependencies are circular** | Packages in layers | section 2.1 | no | nothing |
 | T6 | **One study opmode is a fork** of the competition TeleOp and drifts from it | The match loop exists once; the fork is retired | [support-opmodes.md](support-opmodes.md) section 3.1 | no | nothing |
-| T7 | **Field constants are duplicated** (flower centers; the path check's copy of the auto poses) | One field model that the robot code and the PC checks both read | [field.md](field.md) section 7 | under an inch, in an unused check | nothing |
-| T8 | **The settings dump's class list is kept by hand** and is missing classes | The dump finds every tunable class itself | [logging.md](logging.md) section 2.1 | more lines in the log | nothing |
+| T7 | **Field constants are duplicated** (the path check's copy of the auto poses; helper points and park poses in several autos) | One field model that the robot code and the PC checks both read | [field.md](field.md) section 7 | no | nothing. The flower stands have one definition from 2026-11-17 |
+| T8 | **The settings dump's class list is kept by hand** and is missing classes | The dump finds every tunable class itself | [logging.md](logging.md) section 2.1 | more lines in the log | nothing. The three missing match classes were added by hand on 2026-11-17 |
 | T9 | **The dashes are too slow to use** (team judgement) and still cut clearances fine; their speed values were set by hand | A dash must beat hand driving and touch nothing, both proven before the drivers get it; the grid routes are the route source | [dashes.md](dashes.md) section 6.1 | yes | the grid routes' first robot run; the drivers' transit baseline |
-| T10 | **Only the TeleOp stops the mechanisms** when it ends | One shutdown for every opmode | section 7.1 | no | nothing |
+| T10 | **Opmodes end in different ways** | One shutdown for every opmode | section 7.1 | no | nothing. The autos end as the TeleOp does from 2026-11-17; the support opmodes are left |
 
 **Order.** T5, T7, T8, T10 and T6 are safe at any time and make the others easier. T2 comes before any rework of the autos. T3 comes before T4, which builds on it. T9 uses the accepted drift that T1 states.
 

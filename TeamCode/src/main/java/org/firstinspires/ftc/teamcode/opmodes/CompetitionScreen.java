@@ -37,6 +37,7 @@ public final class CompetitionScreen {
         boolean pusherLocked = false;
         boolean countOnly = false;    // the CS5 FULL actions are off (COUNT ONLY): the count is shown, nothing acts on FULL
         double speedTrim = 0.0;
+        double aimRearDeg = 0.0, aimAudienceDeg = 0.0;   // the operator's remembered aim of the alliance's two cells, degrees (+ = counterclockwise); shown while either is not zero
         int shot = 0;                 // elements launched since Start (the entry count / the counter at each salvo)
         final List<int[]> alertColors = new ArrayList<>();   // one {color} per alert, in the same order as alertTexts
         final List<String> alertTexts = new ArrayList<>();
@@ -88,6 +89,9 @@ public final class CompetitionScreen {
         if (s.pusherLocked) t.addLine("<small>" + colored(YELLOW, "PUSHER LOCKED") + "</small>");
         if (s.countOnly) t.addLine("<small>" + colored(YELLOW, "COUNT ONLY") + " (no automatic FULL actions)</small>");
         if (Math.abs(s.speedTrim) > 0.5) t.addLine(String.format(Locale.US, "<small>speed trim %+.0f</small>", s.speedTrim));
+        if (Math.abs(s.aimRearDeg) > 0.05 || Math.abs(s.aimAudienceDeg) > 0.05) {
+            t.addLine(String.format(Locale.US, "<small>aim REAR %+.0f  AUD %+.0f deg</small>", s.aimRearDeg, s.aimAudienceDeg));
+        }
     }
 
     /** The robot's own facts: the flywheel, the count, the target cell and the warnings that matter. */

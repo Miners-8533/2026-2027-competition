@@ -54,7 +54,7 @@ import java.util.Locale;
  *      (FINAL_PARK_X / Y); the intake is held IN from the ram to the park and the pollen stay for the TeleOp. Otherwise: the old park (straight from the launch spot; PARK_VIA_POINT can add a point level with it).
  *
  * The launch spot's heading is not snapped: it is the heading that points the launcher's line at the cell from there ({@link TargetLock#aimHeadingRad},
- * with the launcher offset and the far-cell extra), and {@link AimAtCell} takes out what is left before each launch. The straight run from the garden
+ * with the launcher offset; the far-cell extra is not used in the autos from 2026-11-17, each launch's trim holds its whole allowance), and {@link AimAtCell} takes out what is left before each launch. The straight run from the garden
  * to the launch spot has no intermediate point (assumed clear of the HIVE support; watch the first runs slowly).
  *
  * The final pose is saved for the TeleOp, which starts from it when it is fresh.
@@ -95,7 +95,10 @@ public class AutonSolo extends LinearOpMode {
      * the same for either alliance. If a salvo lands LEFT, make its trim negative. 2026-11-03: the garden salvo landed left (the aim step ended +2.2 to +2.3 deg, the robot already pointed to the
      * right of the aim) and the flower salvo went in (+0.9 deg). The AIM log line shows the trim.
      */
-    public static double GARDEN_AIM_TRIM_DEG = -8.0, FLOWER_AIM_TRIM_DEG = -8.0;   // 2 deg clockwise from 2026-11-03, 1 more on 2026-11-04 (the launch was still a little left), 1.5 more on 2026-11-07 (the red run's rear-cell salvos landed left), and 1.5 more later that day, then 2 more (-8.0) together with the aim breakaway, which removes the stall that left the robot about 1 deg short of the trimmed aim (the blue runs still landed left; the aim step stops about 1 deg short of the trimmed aim, so the real shift is about 1 deg less than the trim)
+    // 2026-11-17 (user): ONE trim per launch. The far-cell extra (TargetLock.FAR_CELL_EXTRA_LEFT_IN) is no longer applied in the autos: at this spot it turned the robot about +5.5 deg,
+    // against the -8.0 deg these trims then held. -2.5 is the net of the two, so the launches aim where they did (identical at the spot itself; up to about half a degree different when
+    // the leg ends 2.5 in off it, because the extra's angle depended on the distance). The history after the values is of the -8.0.
+    public static double GARDEN_AIM_TRIM_DEG = -2.5, FLOWER_AIM_TRIM_DEG = -2.5;   // 2 deg clockwise from 2026-11-03, 1 more on 2026-11-04 (the launch was still a little left), 1.5 more on 2026-11-07 (the red run's rear-cell salvos landed left), and 1.5 more later that day, then 2 more (-8.0) together with the aim breakaway, which removes the stall that left the robot about 1 deg short of the trimmed aim (the blue runs still landed left; the aim step stops about 1 deg short of the trimmed aim, so the real shift is about 1 deg less than the trim)
     /**
      * After the jostle the robot first backs STRAIGHT out (heading held 0) to FLOWER_AT_X - FLOWER_BACKOFF_IN (x 46.3, ending within BACKOUT_TOL_IN) and only then does the turn move to the launch spot (false, the default).
      * True goes straight to the launch spot turning as it backs: it caught the edge of the ramp on the flower on 2026-11-03 (the turn started at x 53.4, 4 in from the launch spot).
@@ -371,7 +374,7 @@ public class AutonSolo extends LinearOpMode {
                     if (!logged) {
                         logged = true;
                         RunLog.event(String.format(Locale.US, "AUTO jostle deadline (%.1f s) reached at %.2f s into the auto: moving on with %d held", deadlineSec, autoClock.seconds(),
-                                mechanisms.counter == null ? -1 : mechanisms.counter.count()));
+                                mechanisms.getHeldCount()));
                     }
                     return true;
                 }
@@ -384,7 +387,7 @@ public class AutonSolo extends LinearOpMode {
     private Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg) {
         return new SequentialAction(
                 note("Aim and launch: " + label),
-                timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg)),
+                timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg, 0.0)),   // 0.0: no far-cell extra in the autos (2026-11-17), the trim is the whole allowance
                 timed("launch (wait + salvo): " + label, mechanisms.launch()));
     }
 
@@ -482,10 +485,10 @@ public class AutonSolo extends LinearOpMode {
         Pose2d launchSpotBlueFrame = pose(LAUNCH_X, LAUNCH_Y, 0.0);
         Pose2d launchXY = forAlliance(launchSpotBlueFrame, isBlue);
         // the launch spots' headings include the salvo's standing aim trim (2026-11-07), so the leg arrives pointed at the trimmed aim and the aim step only fine-tunes (the trim is the same clockwise degrees for either alliance)
-        double launchHeading = TargetLock.aimHeadingRad(launchXY.position.x, launchXY.position.y, secondCell, TargetLock.farCellExtraLeftIn(secondCell, isBlue));
+        double launchHeading = TargetLock.aimHeadingRad(launchXY.position.x, launchXY.position.y, secondCell, 0.0);   // no far-cell extra in the autos (2026-11-17)
         Pose2d launchSpot = new Pose2d(launchXY.position.x, launchXY.position.y, launchHeading + Math.toRadians(GARDEN_AIM_TRIM_DEG));
         Pose2d launchSpotFlower = new Pose2d(launchXY.position.x, launchXY.position.y, launchHeading + Math.toRadians(FLOWER_AIM_TRIM_DEG));
-        double blueLaunchHeadingDeg = Math.toDegrees(TargetLock.aimHeadingRad(LAUNCH_X, LAUNCH_Y, HiveTarget.BLUE_AUDIENCE, TargetLock.farCellExtraLeftIn(HiveTarget.BLUE_AUDIENCE, true))) + GARDEN_AIM_TRIM_DEG;
+        double blueLaunchHeadingDeg = Math.toDegrees(TargetLock.aimHeadingRad(LAUNCH_X, LAUNCH_Y, HiveTarget.BLUE_AUDIENCE, 0.0)) + GARDEN_AIM_TRIM_DEG;
         Pose2d helper = forAlliance(pose(HELPER_X, HELPER_Y, blueLaunchHeadingDeg), isBlue);   // outside the support rails, at the launch spot's heading
         Pose2d flowerPre = forAlliance(pose(FLOWER_PRE_X, FLOWER_PRE_Y, FLOWER_HEADING_DEG), isBlue);
         Pose2d flowerBack = forAlliance(pose(FLOWER_AT_X - FLOWER_BACKOFF_IN, FLOWER_AT_Y, FLOWER_HEADING_DEG), isBlue);   // clear of the flower before the 180 deg turn
@@ -512,6 +515,8 @@ public class AutonSolo extends LinearOpMode {
         mechanisms.setIntakeAlwaysOn(true);   // the intake runs IN for the whole auto (user, 2026-11-07), whatever the count says; only a reject or an outtake runs it OUT
         mechanisms.setOpenCell(firstCell);
         mechanisms.setJamRetries(Pusher.JAM_RETRIES_AUTO);   // one jam back-off per pusher move: the autos are tight on time
+        PoseStorage.saveAims(null);   // this auto reset and seeded the Pinpoint: the remembered aims an earlier TeleOp saved corrected the old pose's drift
+        mechanisms.setHeldByEntries(Mechanisms.AUTO_PRELOAD_HELD, "the auto's preload");   // CS5 never saw the preload come in: the count starts at 4, not 0 (2026-11-17)
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel stays up between launches ...
         mechanisms.setSpinRequested(true);         // ... and spins from Start, so it is at speed on arrival at each launch spot
 
@@ -581,7 +586,10 @@ public class AutonSolo extends LinearOpMode {
                 new InstantAction(mechanisms::stopFlywheel)
         );
 
-        Actions.runBlocking(this, auto, () -> mechanisms.update(drive.getPose()));
+        Actions.runBlocking(this, auto, () -> {
+            mechanisms.update(drive.getPose());
+            PoseStorage.saveHeld(mechanisms.getHeldForHandOver());   // every loop, so a stopped or crashed auto still hands its count to the TeleOp
+        });
         RunLog.event(isStopRequested() ? "AUTO stopped before it finished" : "AUTO actions finished");
         RunLog.event(String.format(Locale.US, "AUTO TIMING total %.2f s into the auto; steps (s): %s", autoClock.seconds(), String.join("; ", timings)));
 
@@ -596,10 +604,14 @@ public class AutonSolo extends LinearOpMode {
             Pose2d p = drive.getPose();
             PoseStorage.save(p, isBlue);
             mechanisms.update(p);
+            PoseStorage.saveHeld(mechanisms.getHeldForHandOver());
             RunLog.tick();
             telemetry.addLine("Auto complete.");
             telemetry.addData("Final Pinpoint pose (in, in, deg)", "%.2f, %.2f, %.1f", p.position.x, p.position.y, p.heading.toDegrees());
             telemetry.update();
         }
+        // the one way out, as in the TeleOp (2026-11-17): the drive, then every mechanism off at once, with no update() after it
+        drive.stop();
+        mechanisms.stopAll();
     }
 }

@@ -28,7 +28,7 @@ The building blocks the autos (and a few TeleOp features) use to move the chassi
 - Each axis is clamped to a maximum power separately. Consequence: a diagonal move with both axes saturated starts as a 45 degree line, not a straight line to the target. Paths that must clear an obstacle add a via point.
 - The gains are re-read every loop, so Dashboard edits act at once.
 
-**Finish.** Done when position and heading have both been inside tolerance for the settle time, or when the time cap passes. The drive is stopped on finish and one log line says `settled` or `TIMED OUT` with the final error.
+**Finish.** Done when position and heading have both been inside tolerance for the settle time, or when the time cap passes. The drive is stopped on finish and one log line says `settled` or `TIMED OUT` with the time, the final error and the **overshoot**: the furthest the robot went past the target along its line of travel, and past the target heading in the direction it was turning. The same figures can be read from the leg by the opmode that ran it.
 
 **Options a leg may set.**
 
@@ -69,16 +69,16 @@ Not in the code. See "As built and target" in the [README](README.md).
 
 **The weakness.** Every auto leg is a drive to pose, and drive to pose does not reach its targets on this robot. The autos hide that with coarse tolerances and by letting legs run to their time caps, so their timing and their positions both depend on how a leg happens to stall.
 
-**What has been measured.** On the morning of the Hartland Qualifier (2026-11-07) the team ran Drive Characterization, not the tuners. That run measured the drive itself: speeds, braking, coasting and dead zones ([robot_design/chassis.md](../robot_design/chassis.md)). The simulator, the grid routes and the static friction values are built on it. The gains in the parameter table above are still the starting values of 2026-09-14, and the tuning and verify opmodes write no log, so no tuning session has left a record.
+**What has been measured.** On the morning of the Hartland Qualifier (2026-11-07) the team ran Drive Characterization, not the tuners. That run measured the drive itself: speeds, braking, coasting and dead zones ([robot_design/chassis.md](../robot_design/chassis.md)). The simulator, the grid routes and the static friction values are built on it. The gains in the parameter table above are still the starting values of 2026-09-14. Until 2026-11-17 the tuning opmodes wrote no log, so no tuning session could have left a record.
 
 **Requirement.**
 
 1. A leg that is meant to settle does settle. The time cap is a safety net.
 2. The control law in use is the one that was tuned: the static friction term is part of it, not an option.
 3. A tuned value is in the code, with the date and the log it came from.
-4. Every number in the acceptance test is measured and reported by the opmode that runs it. Nobody works them out by hand ([support-opmodes.md](support-opmodes.md) section 4.2).
+4. Every number in the acceptance test is measured and reported by the opmode that runs it. Nobody works them out by hand. **Built 2026-11-17, not run on the robot:** the Drive Acceptance opmode ([support-opmodes.md](support-opmodes.md) section 4.2.1).
 
-**Acceptance test** (on `ROBOT_1`, the tuning and verify opmodes of [support-opmodes.md](support-opmodes.md), a battery above 12.5 V). The values are proposed and are to be fixed at the tuning session.
+**Acceptance test** (on `ROBOT_1`, run by the Drive Acceptance opmode, [support-opmodes.md](support-opmodes.md) section 4.2.1, with the battery at least 12.0 V at rest). The values are proposed and are to be fixed at the tuning session.
 
 | Test, 10 runs each | Pass |
 |---|---|
@@ -92,7 +92,6 @@ Not in the code. See "As built and target" in the [README](README.md).
 
 **Design consequences.**
 
-- Drive to pose measures every leg, in every opmode: the time, settled or timed out, the final error, and the **overshoot** (the furthest the robot went past the target along its line of travel, and past the target heading). Its end-of-leg log line carries them. Today it has all but the overshoot.
 - The static friction term loses its switch once it has passed the test.
 - Every leg is declared as one of two kinds. A **settling** leg must end inside its tolerance. A **timed** leg ends on its clock by intent (the ram, the wall-squaring phases).
 - A `TIMED OUT` on a settling leg is a fault. It is logged as such and the event-day report counts them per run.
