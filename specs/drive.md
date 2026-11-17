@@ -19,7 +19,22 @@ Hardware: [robot_design/chassis.md](../robot_design/chassis.md). Frames: [field.
 
 Only `ROBOT_1` has ids registered, so rule 4 is in force for every other hub.
 
-**Not specified:** the values of the other two profiles the code carries, `PROTOTYPE` and `DRAFT_1` (only `ROBOT_1` is in [robot_design/](../robot_design/README.md)), and how the hub's hardware serial is read. A rebuild from these pages has `ROBOT_1` alone.
+**The profiles.** `PROTOTYPE` and `DRAFT_1` are earlier drive bases with no mechanisms tuned; they have no hub registered.
+
+| | `PROTOTYPE` | `DRAFT_1` | `ROBOT_1` |
+|---|---|---|---|
+| Hub ids | none | none | registered |
+| Drive motors, left / right | FORWARD / REVERSE | REVERSE / FORWARD | REVERSE / FORWARD |
+| X pod / Y pod direction | REVERSED / REVERSED | FORWARD / FORWARD | FORWARD / REVERSED |
+| Pod offsets, x / y (mm) | -55.0 / -75.6 | -55.0 / -75.6 (the prototype's, never tuned here) | -133.7 / 9.5 |
+| Footprint, depth x width (in) | 18 x 14 | 18 x 14 (assumed) | 17.48 x 13.70 |
+| Origin from the back edge | half the depth | half the depth | 7.598 in |
+| Intake / flywheel / pusher motor | REVERSE / REVERSE / FORWARD | REVERSE / REVERSE / FORWARD | FORWARD / REVERSE / FORWARD |
+| Ramp servo positions | not set | not set | set ([robot_design/](../robot_design/mechanisms.md)) |
+
+- The default profile of rule 3 is `DRAFT_1`.
+- The hub's hardware serial is the Android build serial, ignored when it is empty or reads `unknown`. The Android id is the system's secure Android id. Ids are compared without regard to case.
+- A profile still carries a direction for the second flywheel motor, which was removed from the robot.
 
 ## 2. Mecanum drive
 

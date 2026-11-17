@@ -136,7 +136,7 @@ The team's words are pusher, ramp, launch, launcher, launch map, salvo, hive cel
 
 ### 4.7 Operator interface rules
 
-- Start and Back are never bound (the Driver Station uses Start to assign gamepads).
+- Start and Back are never bound (the Driver Station uses Start to assign gamepads). This holds for the match opmodes; six support opmodes use Back ([support-opmodes.md](support-opmodes.md)).
 - The driver's stick buttons are never bound (too easy to press by accident).
 - Risky actions need a second button held, and some need a one-second hold.
 - The controllers have no rumble: every signal to the drivers goes on the screen.

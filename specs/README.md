@@ -97,24 +97,25 @@ Collected from the pages; each is explained where it arises.
 
 On 2026-11-17 the team's code was rebuilt from these pages and `robot_design/` alone, without the source (branch `from-specs`). Where a page was not enough, the rebuild had to choose. Each such gap is listed here.
 
-- **Filled** means the missing fact is now on the page. Where it was taken from `design/` or from the PC tools and not from the code, the page says so: it is to be checked against the code once.
-- **Open** means only the code can answer. The page says **Not specified** at that place.
+- **Filled** means the missing fact is now on the page. Every one was read from, or checked against, the code (`integration` at 995f197) on 2026-11-17.
+- **Proposal** means the pages did not agree with each other and the rebuild chose; the team has not decided.
 
 | Gap | Page | State |
 |---|---|---|
-| The layout of a log line: separator, the first two lines, the common column names, the end-of-run marker | [logging.md](logging.md) section 1.2 | filled, from the log tools |
-| The names of the sample columns | [logging.md](logging.md) section 1.5, [mechanisms.md](mechanisms.md) section 14 | mostly filled, from `design/run-logs.md`; a few names open |
-| The exact wording of the events the pull tool matches | [logging.md](logging.md) section 1.6 | filled, from the pull tool |
-| The order in which the coordinator's rules run | [mechanisms.md](mechanisms.md) section 16.3 | open |
-| The layout of the grid route tables | [dashes.md](dashes.md) section 5.1 | filled, from the generator; the numbering of states is open |
-| The corner speed table: this page and `design/dash-planner-grid.md` give different values | [dashes.md](dashes.md) section 5.1 | open |
-| The layout of the launch grid data | [aiming.md](aiming.md) section 4.1 | filled, from the table maker |
-| The `PROTOTYPE` and `DRAFT_1` chassis profiles; how the hub's serial is read | [drive.md](drive.md) section 1 | open |
-| The controls of the support opmodes | [support-opmodes.md](support-opmodes.md) | filled from `design/opmodes.md` for seven opmodes; open for the others |
-| The 34 tests of Drive Characterization | [support-opmodes.md](support-opmodes.md) section 4.3 | open |
-| Where the worked-out launch spot of target T1 lives, given the layers of target T5 | [aiming.md](aiming.md) section 5.4 | a proposal, for the team to confirm |
-| The lane walls on a leg that starts at the robot | [dashes.md](dashes.md) section 1.2 | the rule is made exact; one distance is open |
-| When the pusher counts as not calibrated | [pusher.md](pusher.md) section 1 | open |
-| The heading asked for at a pass-through point of an auto | [autos.md](autos.md) section 2.7 | open |
+| The layout of a log line: separator, the first two lines, the common column names, the start and end markers | [logging.md](logging.md) section 1.2 | filled |
+| The names and the order of the sample columns | [logging.md](logging.md) section 1.5, [mechanisms.md](mechanisms.md) section 14 | filled |
+| The exact wording of the events the pull tool matches | [logging.md](logging.md) section 1.6 | filled |
+| The order in which the coordinator's rules run | [mechanisms.md](mechanisms.md) section 16.3 | filled |
+| What an incomplete salvo does to the salvo counter | [mechanisms.md](mechanisms.md) section 3 | filled |
+| How a leg is checked: the swept rectangle, the lane walls, the goal | [dashes.md](dashes.md) section 1.2 | filled; the section is rewritten from the code |
+| The layout of the grid route tables and the numbering of their states | [dashes.md](dashes.md) section 5.1 | filled |
+| The corner speed table: this page and `design/dash-planner-grid.md` gave different values | [dashes.md](dashes.md) section 5.1 | settled: this page's values are the code's |
+| The layout of the launch grid data | [aiming.md](aiming.md) section 4.1 | filled |
+| The `PROTOTYPE` and `DRAFT_1` chassis profiles; how the hub's ids are read | [drive.md](drive.md) section 1 | filled |
+| The controls of the support opmodes | [support-opmodes.md](support-opmodes.md) | filled. Six of them use the Back button, which the page's own rule forbade |
+| The 34 tests of Drive Characterization | [support-opmodes.md](support-opmodes.md) section 4.3 | filled |
+| When the pusher counts as not calibrated | [pusher.md](pusher.md) section 1 | filled |
+| The heading asked for at a pass-through point of an auto | [autos.md](autos.md) section 2.7 | filled |
+| Where the worked-out launch spot of target T1 lives, given the layers of target T5 | [aiming.md](aiming.md) section 5.4 | proposal |
 
 The generated tables themselves (the grid routes and the launch grid data) are data, not text. A rebuild regenerates them with the PC tools; it cannot take them from these pages.

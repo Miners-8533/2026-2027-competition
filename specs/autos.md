@@ -138,7 +138,16 @@ The robot's front edge ends 8 in from the wall and about 4 in inside the loading
 | Rear spot at the start wall (-61.5, 15.25) | launches at the rear cell from beside the start |
 | Audience spot at the wall (61.5, 7.5) | launches at the audience cell from the audience-wall start |
 
-**Not specified:** the heading the robot is asked for at a helper or any other pass-through point. (The rebuild of 2026-11-17 asked for the heading of the pose that follows.)
+**The heading asked for at a pass-through point** (blue frame).
+
+| Point | Program | Heading |
+|---|---|---|
+| East helper | Solo, on the way to the audience launch spot | the heading of the launch spot that follows |
+| East helper | Solo, on the way to the final gather | 180 deg |
+| East helper | Daryl, Cybugs, Primary | 180 deg |
+| West helper | Primary | 180 deg |
+| West helper | Cybugs, Garden Side, on the way to the park | 90 deg, the park's |
+| (46, 32) | Flower Side | 90 deg, the park's |
 
 ## 3. Auton - Solo
 
