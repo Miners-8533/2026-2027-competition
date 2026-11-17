@@ -45,17 +45,12 @@ import java.util.Locale;
  * OUT. Back: clear a pusher fault; held 1 s, reseed the pose to the start.
  *
  * Settings read at INIT: START_INDEX, RETEST_SPOTS, EXTRA_SPOTS and CARRY_TRIMS, below.
- * Log lines: FIRE, GRID POINT and GRID TABLE, in the page's wording, and RE-AIM OK / RE-AIM STUCK.
- *
- * SPEC GAP, each a choice of this rebuild:
- *  - START_INDEX is taken as an index into the sweep that will be driven, so 0 is its first spot;
- *  - the GRID TABLE's speed is written only for a good spot (there is no scoring speed otherwise); x and y are the spot's;
- *  - a re-aim is given 2 s, and keeps the robot's position within the ordinary drive tolerance while it turns.
+ * Log lines: FIRE, GRID POINT, GRID TABLE and TRIM, in the page's wording, and RE-AIM OK / RE-AIM STUCK.
  */
 @Config
 @TeleOp(name = "Launch Grid Tuner", group = "2 Bring-up")
 public final class LaunchGridTuner extends TeamOpMode {
-    /** Start the sweep at this spot. */
+    /** Start the sweep at this position in the list of spots that will be visited, counted from 0; past the end means the last. The earlier spots stay in the list. */
     public static int START_INDEX = 0;
     /** Visit only these spots: a comma list of spot numbers with ranges, such as "8-10,22-30". Empty = every spot. The spots keep their numbers. */
     public static String RETEST_SPOTS = "";
@@ -65,7 +60,7 @@ public final class LaunchGridTuner extends TeamOpMode {
     public static boolean CARRY_TRIMS = false;
     public static double START_Y = 16.5;
     public static double DRIVE_POWER = 0.5, AT_SPOT_IN = 4.0, MAX_AIM_TRIM_DEG = 20.0;
-    public static double REAIM_POWER = 0.3, REAIM_TOL_DEG = 0.25, REAIM_STUCK_DEG = 0.4, REAIM_CAP_S = 2.0;
+    public static double REAIM_POWER = 0.3, REAIM_TOL_DEG = 0.25, REAIM_STUCK_DEG = 0.4, REAIM_CAP_S = 2.5, REAIM_HOLD_IN = 1.0;
     private static final double SPEED_STEP = 20, AIM_STEP_DEG = 0.5, PRECISION = 0.30, TRIGGER = 0.3, RESEED_HOLD_S = 1.0, HOP_STEP_IN = 0.5;
 
     @Override protected RunLog.Kind logKind() { return RunLog.Kind.BRINGUP; }
@@ -155,7 +150,6 @@ public final class LaunchGridTuner extends TeamOpMode {
         List<Integer> only = retest();
         List<Spot> sweep = new ArrayList<>();
         for (Spot s : all) if (only.isEmpty() || only.contains(s.number)) sweep.add(s);
-        for (int k = 0; k < START_INDEX && !sweep.isEmpty(); k++) sweep.remove(0);
         return sweep;
     }
 
@@ -176,6 +170,12 @@ public final class LaunchGridTuner extends TeamOpMode {
             }
         }
         return true;
+    }
+
+    /** The TRIM line, at every trim. */
+    private void logTrim(Spot s, Pose p) {
+        RunLog.eventf("TRIM spot %d: angle %+.1f deg, speed %+.0f ticks/s (aim heading %.1f deg)", s.number, s.aimTrimDeg, s.speedTrim,
+                Math.toDegrees(Aim.forCell(p.x, p.y, cell, s.aimTrimDeg, 0)));
     }
 
     private String pointLine(Spot s, int total, Pose p) {
@@ -212,7 +212,7 @@ public final class LaunchGridTuner extends TeamOpMode {
             }
             telemetry.addLine("Launch Grid Tuner, BLUE. D-pad left = NEAR (the rear cell), right = FAR (the audience cell): " + (cell.rear ? "NEAR" : "FAR"));
             telemetry.addLine("Start against the rear wall at " + start + ", still. Pose " + drive.pose() + (drive.localizer.seedConfirmed() ? "" : " SEED NOT CONFIRMED"));
-            telemetry.addLine(sweep.size() + " spots will be visited" + (sweep.isEmpty() ? "" : ", from spot " + sweep.get(0).number)
+            telemetry.addLine(sweep.size() + " spots will be visited" + (sweep.isEmpty() ? "" : ", starting at spot " + sweep.get(Math.max(0, Math.min(START_INDEX, sweep.size() - 1))).number)
                     + ". START_INDEX " + START_INDEX + ", RETEST_SPOTS \"" + RETEST_SPOTS + "\", CARRY_TRIMS " + CARRY_TRIMS);
             for (String s : leftOut) telemetry.addLine("extra spot left out: " + s);
             telemetry.addLine("Found: " + mech.found());
@@ -230,7 +230,7 @@ public final class LaunchGridTuner extends TeamOpMode {
         mech.setSpin(true);
         Edge aimL = new Edge(), aimR = new Edge(), up = new Edge(), down = new Edge(), fire = new Edge(), accept = new Edge(), noShot = new Edge(), backOne = new Edge(), back = new Edge();
         Hold reseed = new Hold();
-        int index = 0;
+        int index = Math.max(0, Math.min(START_INDEX, sweep.size() - 1));        // the earlier spots stay in the list: X can go back to them
         List<Pose> route = null;        // the poses still to pass on the way to the spot
         DriveToPose leg = null, reAim = null;
         double reAimFrom = 0, reAimTarget = 0;
@@ -304,8 +304,9 @@ public final class LaunchGridTuner extends TeamOpMode {
                     spot.aimTrimDeg = Angle.clamp(spot.aimTrimDeg + (lft ? AIM_STEP_DEG : -AIM_STEP_DEG), -MAX_AIM_TRIM_DEG, MAX_AIM_TRIM_DEG);    // left is counterclockwise
                     reAimFrom = p.h;
                     reAimTarget = Aim.forCell(p.x, p.y, cell, spot.aimTrimDeg, 0);
+                    logTrim(spot, p);
                     reAim = new DriveToPose(drive, "re-aim at grid spot " + spot.number, new Pose(p.x, p.y, reAimTarget))
-                            .maxPower(REAIM_POWER).tolerance(DriveToPose.POSITION_TOL_IN, REAIM_TOL_DEG).stiction(true).timeout(REAIM_CAP_S);
+                            .maxPower(REAIM_POWER).tolerance(REAIM_HOLD_IN, REAIM_TOL_DEG).stiction(true).timeout(REAIM_CAP_S);
                 }
                 if (reAim != null) {
                     if (!reAim.run(null)) {
@@ -324,8 +325,11 @@ public final class LaunchGridTuner extends TeamOpMode {
 
             // ---- The spot's buttons ----
             if (spot != null) {
-                if (up.pressed(gamepad1.dpad_up)) spot.speedTrim += SPEED_STEP;
-                if (down.pressed(gamepad1.dpad_down)) spot.speedTrim -= SPEED_STEP;
+                boolean faster = up.pressed(gamepad1.dpad_up), slower = down.pressed(gamepad1.dpad_down);
+                if (faster || slower) {
+                    spot.speedTrim += faster ? SPEED_STEP : -SPEED_STEP;
+                    logTrim(spot, p);
+                }
                 if (fire.pressed(gamepad1.y) && mech.requestLaunch("grid tuner")) {
                     spot.salvos++;
                     RunLog.eventf("FIRE spot %d salvo %d: pose (%.1f, %.1f, %.1f deg), aim heading %.1f deg (trim %+.1f), %.1f in from %s, setpoint %.0f (map %.0f, trim %+.0f)",
@@ -333,6 +337,12 @@ public final class LaunchGridTuner extends TeamOpMode {
                             spot.mapSpeed() + spot.speedTrim, spot.mapSpeed(), spot.speedTrim);
                 }
                 boolean ok = accept.pressed(gamepad1.a), no = noShot.pressed(gamepad1.b);
+                if (ok && !atSpot) {
+                    // Accept is ignored, with a notice, unless the robot is at the spot; "no shot" works from anywhere.
+                    ok = false;
+                    last = "A ignored: the robot is not at spot " + spot.number + " (hold the right trigger to drive there; B = no shot from here)";
+                    RunLog.event("GRID " + last);
+                }
                 if (ok || no) {
                     spot.status = ok ? 'G' : 'N';
                     spot.doneSpeed = ok ? spot.mapSpeed() + spot.speedTrim : Double.NaN;

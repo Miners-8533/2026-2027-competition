@@ -41,8 +41,10 @@ import java.util.Random;
  * run it must be still: slower than 2 in/s and 10 deg/s for 0.25 s, with the wait at most 1.5 s. A geofence stop ends
  * the test and the next one begins. The phase column is one of MOVE, REST, RUN, PAUSED, DONE.
  *
- * SPEC GAP: after a test's last segment, and after a geofence stop, this opmode waits at zero power until the robot
- * is still before it goes on (logged as REST); the page does not say what happens between two tests.
+ * Every test ends with a zero-power segment; when it is over the next test begins at once, with its own drive to the
+ * start and its own wait for stillness. A geofence stop jumps to that closing segment, which is still run and logged,
+ * and the test counts as stopped. Letting go of the bumper pauses; holding it again resumes a drive to the start, and
+ * restarts from its start a test that was resting or running.
  * Hidden: remove the @Disabled line to bring it back.
  */
 @Config
@@ -218,7 +220,7 @@ public final class DriveCharacterization extends TeamOpMode {
 
     // ---- The run ----
 
-    private enum Phase { IDLE, TO_START, SETTLE, RUN, AFTER, DONE }
+    private enum Phase { IDLE, TO_START, SETTLE, RUN, DONE }
 
     private Alliance alliance;
     private Footprint footprint;
@@ -226,15 +228,17 @@ public final class DriveCharacterization extends TeamOpMode {
 
     /** The phase column of the log: MOVE, REST, RUN, PAUSED or DONE. */
     private String phaseText() {
+        if (paused) return "PAUSED";
         switch (phase) {
-            case TO_START: return "MOVE";
-            case SETTLE:
-            case AFTER: return "REST";
+            case SETTLE: return "REST";
             case RUN: return "RUN";
             case DONE: return "DONE";
-            default: return "PAUSED";
+            default: return "MOVE";
         }
     }
+
+    /** The bumper was released: nothing moves until it is held again. */
+    private boolean paused;
     private int testIndex, segIndex;
     // Read once per loop, for the log row.
     private Pose pose = new Pose(0, 0, 0);
@@ -303,8 +307,11 @@ public final class DriveCharacterization extends TeamOpMode {
         DriveToPose leg = null;
         Pose startBlue = null;
         int dir = 1;                // lane tests: +1 travels toward +x, -1 toward -x
-        double stillSince = -1, segStart = 0, segTurned = 0, lastH = 0, afterSince = 0, settleAt = 0;
+        double stillSince = -1, segStart = 0, segTurned = 0, lastH = 0, settleAt = 0;
         double fwd = 0, lft = 0, trn = 0;
+        Phase pausedFrom = Phase.IDLE;
+        boolean fenced = false;
+        int finished = 0, stopped = 0;
         String last = "";
         while (opModeIsActive()) {
             double t = Clock.now();
@@ -340,21 +347,38 @@ public final class DriveCharacterization extends TeamOpMode {
             if (test != null && skip.pressed(gamepad1.x)) {
                 RunLog.eventf("DRIVE TEST %d SKIPPED by X: %s", testIndex + 1, test.name);
                 last = "test " + (testIndex + 1) + " skipped";
+                stopped++;
+                fenced = false;
+                paused = false;
                 testIndex++;
                 phase = Phase.IDLE;
                 leg = null;
                 drive.stop();
             } else if (test == null) {
-                if (phase != Phase.DONE) RunLog.event("DRIVE TEST all tests done");
+                if (phase != Phase.DONE) RunLog.eventf("DRIVE TEST all tests done: %d finished, %d stopped by the geofence or skipped", finished, stopped);
                 phase = Phase.DONE;
                 drive.stop();
             } else if (!hold) {
-                // Letting go zeroes the power at once. Holding again restarts the current test.
-                if (phase != Phase.IDLE) RunLog.eventf("DRIVE TEST %d released in phase %s: the test restarts when the bumper is held again", testIndex + 1, phase);
-                phase = Phase.IDLE;
+                // Letting go zeroes the power at once and pauses.
+                if (!paused) {
+                    paused = true;
+                    pausedFrom = phase;
+                    RunLog.eventf("DRIVE TEST %d paused (the bumper was released) in %s", testIndex + 1, pausedFrom);
+                }
                 leg = null;
                 drive.stop();
             } else {
+                if (paused) {
+                    paused = false;
+                    if (pausedFrom != Phase.IDLE) {
+                        // Holding again resumes a drive to the start; a test that was resting or running restarts from its start.
+                        RunLog.eventf("DRIVE TEST %d %s: %s", testIndex + 1, pausedFrom == Phase.TO_START ? "resumed" : "restarted from its start", test.name);
+                        leg = new DriveToPose(drive, "to the start of test " + (testIndex + 1), alliance.pose(startBlue))
+                                .maxPower(GOTO_POWER).tolerance(GOTO_TOL_IN, GOTO_TOL_DEG).distanceTimeout();
+                        fenced = false;
+                        phase = Phase.TO_START;
+                    }
+                }
                 switch (phase) {
                     case IDLE: {
                         // Where this test starts, from where the robot is now.
@@ -418,10 +442,14 @@ public final class DriveCharacterization extends TeamOpMode {
                             segIndex++;
                             if (segIndex >= test.segs.length) {
                                 drive.stop();
-                                RunLog.eventf("DRIVE TEST %d done: ended at %s (blue frame)", testIndex + 1, pb);
-                                last = "test " + (testIndex + 1) + " done";
-                                afterSince = t;
-                                phase = Phase.AFTER;
+                                if (fenced) stopped++;
+                                else finished++;
+                                RunLog.eventf("DRIVE TEST %d %s: ended at %s (blue frame)", testIndex + 1, fenced ? "stopped by the geofence" : "done", pb);
+                                last = "test " + (testIndex + 1) + (fenced ? " stopped by the geofence" : " done");
+                                fenced = false;
+                                // The closing zero-power segment is over: the next test begins at once.
+                                testIndex++;
+                                phase = Phase.IDLE;
                                 break;
                             }
                             seg = test.segs[segIndex];
@@ -446,25 +474,21 @@ public final class DriveCharacterization extends TeamOpMode {
                         double speed = Math.hypot(bvx, bvy), stopDist = speed * speed / (2 * FENCE_DECEL);
                         String why = outside(pb.x, pb.y, pb.h);
                         if (why == null && speed > 1e-3) why = outside(pb.x + bvx / speed * stopDist, pb.y + bvy / speed * stopDist, pb.h);
-                        if (why != null && seg.moving()) {
-                            drive.stop();
-                            RunLog.eventf("DRIVE TEST %d GEOFENCE (%s) at %s (blue frame), %.0f in/s, in segment %d", testIndex + 1, why, pb, speed, segIndex + 1);
+                        if (why != null && segIndex < test.segs.length - 1) {
+                            // Jump to the test's closing zero-power segment, which is still run and logged; the test counts as stopped.
+                            RunLog.eventf("DRIVE TEST %d GEOFENCE (%s) at %s (blue frame), %.0f in/s, in segment %d: zero power, the closing segment runs",
+                                    testIndex + 1, why, pb, speed, segIndex + 1);
                             last = "test " + (testIndex + 1) + " GEOFENCE: " + why;
-                            afterSince = t;
-                            phase = Phase.AFTER;
-                            break;
+                            fenced = true;
+                            segIndex = test.segs.length - 1;
+                            segStart = t;
+                            segTurned = 0;
+                            lastH = pose.h;
+                            fwd = lft = trn = 0;
                         }
                         drive.drive(fwd, lft, trn);
                         break;
                     }
-                    case AFTER:
-                        // Zero power until the robot is still, then the next test.
-                        drive.stop();
-                        if (t - afterSince >= STILL_FOR_S && Math.hypot(vx, vy) < STILL_IN_S && Math.abs(Math.toDegrees(omega)) < STILL_DEG_S) {
-                            testIndex++;
-                            phase = Phase.IDLE;
-                        }
-                        break;
                     default:
                         drive.stop();
                 }
