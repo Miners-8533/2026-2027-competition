@@ -1,0 +1,245 @@
+# Autonomous opmodes
+
+Six 30-second programs. All are built from the same pieces: drive legs, aim, launch, ramp moves, the garden pickup, the flower gather, and a park. This page specifies the pieces once, then each program as a sequence of them.
+
+Building blocks: [motion.md](motion.md), [mechanisms.md](mechanisms.md), [aiming.md](aiming.md). Positions and rules: [field.md](field.md).
+
+| Program | Start wall | Shown on the Driver Station | Intended use |
+|---|---|---|---|
+| Auton - Solo | rear | yes | the partner only parks |
+| Auton - Duo Daryl | rear | yes | garden first, leaves the partner a time window |
+| Auton - Cybugs | rear | yes | Daryl without the last flower; ends about 5 s early |
+| Auton - Duo Garden Side | rear | yes | one half of a matched pair |
+| Auton - Duo Flower Side | audience | hidden | the other half of the pair |
+| Auton - Duo Primary | rear | hidden | the longest program; does not fit 30 s with every step |
+
+A hidden program is complete code that is disabled from the Driver Station list.
+
+## 1. Common frame
+
+### 1.1 Alliance
+
+Every path is written for blue. Red is the same path rotated 180 degrees about the field center: (x, y, heading) becomes (-x, -y, heading + 180 deg). Cells are swapped the same way: blue rear corresponds to red audience, blue audience to red rear.
+
+### 1.2 INIT
+
+- Build the drive with *reset and seed* at the start pose (the robot must be in place and still) and the mechanisms with the pusher zero *assumed at HOLD*. The ramp is commanded stowed and the flywheel position to POLLEN.
+- Gamepad 1 D-pad right / left chooses BLUE / RED; a change re-seeds the pose.
+- Nothing moves. The slot count is read.
+- The INIT screen shows where to place the robot, whether the pose is OK (seed confirmed, and within 1.5 in and 3 deg of the start), which mechanisms were found, and how many elements the slot count sees (4 are expected).
+
+### 1.3 At Start
+
+- The intake is set **always in** for the whole program.
+- The flywheel runs from Start and stays up between launches. Its speed follows the distance to the current target cell, so it is at speed on arrival at each launch spot.
+- Pusher jam retries are set to 1.
+- The pusher is moved to the lock angle while the flywheel spins up, so the preload salvo is shorter.
+- The program is one sequential action; the mechanisms update is the every-loop work.
+
+### 1.4 At the end
+
+- Whether it finished or was stopped, the final pose and alliance are saved for the TeleOp.
+- Until the opmode is stopped, the pose keeps being read and saved and the mechanisms keep updating.
+- The flywheel is stopped as the last step of the sequence.
+
+### 1.5 Logging
+
+Kind AUTO. Each step writes an `AUTO TIMING` line with its duration and its start and end in seconds since Start; a final line lists every step. Each leg logs its start and whether it `settled` or `TIMED OUT`. Waits log `AUTO WAIT`, skipped steps `AUTO SKIP`. Sample rows carry the pose, the last drive command, the coordinator's columns and the wheel currents.
+
+## 2. Pieces
+
+### 2.1 Drive legs
+
+All are *drive to pose* with different options.
+
+| Leg | Power limit | Ends within | Time cap |
+|---|---|---|---|
+| Ordinary | the leg power | 1 in, 2 deg, after 0.2 s | from distance |
+| Pass-through | the leg power | 3 in, 10 deg, at once | from distance |
+| Launch spot | the leg power | 2.5 in, 6 deg | from distance |
+| Cross-field | the cross power | as pass-through or launch spot | from distance |
+| Slow (garden pickup) | 0.35 | 3 in, 10 deg | from distance at a slow speed |
+| Back-out | the leg power | 1.5 in (2.5 in at a wall flower), 10 deg | from distance |
+| Wall flower pre-position | the leg power | 2.5 in, 4 deg | from distance |
+| Ram | 0.6 | never reached | 0.6 s fixed |
+| Park | 1.0 | 2.5 in, 5 deg | 3.0 s fixed |
+
+**Time cap from distance:** max(1.5 s, 1.0 s + distance / speed), plus 0.5 s for a turn over 120 deg, at most 8 s. The speed is 22 in/s at 0.6 power and scales with the leg's power limit.
+
+**Leg and cross power.**
+
+| Program | Leg power | Cross power | Pass-through settle |
+|---|---|---|---|
+| Solo, Daryl, Cybugs, Primary | 0.85 | 1.0 | 0 s |
+| Garden Side, Flower Side | 0.6 (the drive's default) | 0.85 | 0.2 s |
+
+The launch spot tolerance is deliberately loose: the aim step that follows turns the robot onto the cell. The tight tolerance ran legs to their time caps because the drive stalls short of its target.
+
+### 2.2 Launch
+
+Aim at the cell (with the launch's aim trim), then launch one salvo and wait for it to complete or be dropped.
+
+- **A salvo is always launched**, whatever any count says. A count that under-reads must never throw a salvo away.
+- The leg before a launch ends at a heading that already includes the aim and the trim, so the aim step only fine-tunes.
+- Launches at the far cell use the far-cell extra; launches at the cell on the robot's own start side use none.
+
+### 2.3 Garden pickup
+
+1. **Pre-position** at (-59.8, 46.0), heading 105 deg: the intake mouth angled toward the rear wall so the pollen lying along the wall are caught, not plowed ahead.
+2. **Slow pickup** along the wall to (-59.8, 58.5) at the same heading, power limit 0.35.
+3. **Square approach:** turn to heading 90 deg, 3 in off the rear wall.
+4. **Square on the wall:** the side wall, then the front wall ([motion.md](motion.md)).
+
+### 2.4 Flower gather
+
+1. Deploy the ramp on the way.
+2. Drive to the **pre-position**, facing the flower, and wait for the ramp to settle.
+3. Force the intake in.
+4. **Ram:** drive at a target 12 in beyond the flower at power 0.6 for 0.6 s.
+5. **Jostle** ([motion.md](motion.md)) until the robot is full by the slot count, or the jostle's deadline in seconds since Start passes, or its one cycle is done.
+6. **Back out** straight, 9 in, before any turn. Turning at the flower catches the ramp on the stand.
+7. Stow the ramp: either at once after the back-out, or during the following turn as soon as the robot has turned 45 deg from the flower heading.
+
+| Flower | Pre-position | Flower pose | Facing |
+|---|---|---|---|
+| Audience wall | (38.0, 26.3) | (55.3, 26.3) | 0 deg |
+| Blue Wall | the audience-wall poses rotated 90 deg counterclockwise: (-26.3, 38.0) | (-26.3, 55.3) | 90 deg |
+
+The Blue Wall flower poses are a rotation of the tuned audience-wall numbers, not measured, and have a Dashboard nudge.
+
+### 2.5 Waits and skips
+
+- **Wait until** an absolute time since Start. A robot cannot see its partner, so coordination is by the clock. If the time has passed, the wait does nothing.
+- **Unless late:** a block of steps runs only if it starts no later than a given time; otherwise it is skipped so that the park keeps its time.
+
+### 2.6 Park
+
+Full power to the park pose, facing the Blue Wall, then make sure the ramp is stowed.
+
+| Corner | Pose |
+|---|---|
+| Hive side | (26, 53.1, 90 deg) |
+| Audience side | (40, 53.1, 90 deg) |
+
+The robot's front edge ends 8 in from the wall and about 4 in inside the loading zone.
+
+### 2.7 Route points
+
+| Point | Use |
+|---|---|
+| East helper (36, 40) | around the outside of the hive on the audience side |
+| West helper (-36, 40) | the same on the rear side |
+| Audience launch spot (50, 26.3) | launches at the audience cell; on the line of the audience flower, 31.6 in from the cell |
+| Rear launch spot (-50, 26.3) | its mirror, for the rear cell |
+| Rear spot at the start wall (-61.5, 15.25) | launches at the rear cell from beside the start |
+| Audience spot at the wall (61.5, 7.5) | launches at the audience cell from the audience-wall start |
+
+## 3. Auton - Solo
+
+Start: rear wall, (-63.4, 16.0, 0 deg). Cells: rear, then audience.
+
+1. Launch the preload at the **rear** cell.
+2. Garden pickup.
+3. Set the target to the **audience** cell. Cross-field to the east helper, then to the audience launch spot.
+4. Launch the garden pollen (trim -8.0 deg).
+5. Audience-wall flower gather; jostle deadline 23 s.
+6. Back out, then to the audience launch spot, the ramp stowing during the turn.
+7. Launch the flower pollen (trim -8.0 deg).
+8. **Final gather:** deploy the ramp, cross to the east helper, gather the Blue Wall flower with jostle deadline 26.5 s, back out, stow.
+9. Park in the hive-side corner. The pollen from the final gather stay in the robot for the TeleOp.
+
+Nominal duration about 29 s. A switch can replace steps 8 and 9 with a plain park at (51.1, 54.0, 180 deg).
+
+## 4. Auton - Duo Daryl
+
+Start: rear wall. Garden first; the partner gets a window in the middle.
+
+1. Launch the preload at the **rear** cell.
+2. Garden pickup.
+3. East helper, then the audience launch spot; launch the garden pollen at the **audience** cell (trim -8.0 deg, far-cell extra).
+4. East helper again, then the Blue Wall flower gather; jostle deadline 19 s.
+5. **Do not leave the flower before 15.6 s** (18 s less the 2.4 s drive back).
+6. East helper, the audience launch spot, wait for the ramp to stow, **wait until 18 s**, launch the flower pollen at the audience cell (trim -8.0 deg).
+7. Audience-wall flower gather, jostle deadline 26 s, **skipped if it would start after 22.5 s**. Its pollen stay for the TeleOp.
+8. Park in the hive-side corner.
+
+The 18 s is the partner's window: our preload ends at about 3 s, a tip takes 4 s, plus 2 s; the partner launches at about 9 s and is parked by about 18 s. Estimated duration about 28 to 30 s, so step 7 is skipped whenever anything runs late.
+
+## 5. Auton - Cybugs
+
+Start: rear wall. Daryl's first four steps, then a finish that stops collecting.
+
+1. to 4. As Daryl, without the partner wait.
+5. Set the target to the **rear** cell; drive to the rear spot at the start wall; wait for the ramp to stow; **wait 1.0 s** with the flywheel spinning; launch the flower pollen (trim 0).
+6. **Run the intake OUT for the rest of the program**, so nothing more is picked up on the way to the park.
+7. West helper, then park in the hive-side corner.
+
+Measured duration 24.9 to 25.9 s.
+
+Because the outtake counts as busy, the automatic pusher check after the last salvo is skipped; the TeleOp's start-up check covers it.
+
+## 6. Auton - Duo Garden Side and Duo Flower Side
+
+A matched pair for an alliance whose partner runs the other. Each robot launches only at the cell on its own start side, so neither uses the far-cell extra. The two take turns tipping the hive.
+
+**Garden Side** (rear wall):
+
+1. Launch the preload at the rear cell.
+2. Blue Wall flower gather; jostle deadline 20 s.
+3. Back out, to the rear spot at the start wall, the ramp stowing during the turn.
+4. **Wait until 25 s**, then launch the flower pollen.
+5. Garden pickup, back to the same spot, launch the garden pollen.
+6. West helper, park in the hive-side corner.
+
+**Flower Side** (audience wall, start (63.4, 7.5, 180 deg)):
+
+1. **Wait until 7.2 s** (the partner's preload salvo, the tip, a margin), then launch the preload at the audience cell.
+2. Audience-wall flower gather; jostle deadline 18 s.
+3. Back out, to the audience spot at the wall, the ramp stowing during the turn; launch the flower pollen.
+4. Through the point (46, 32), park in the audience-side corner.
+
+All aim trims are 0. The Garden Side as written does not fit 30 s if its wait is really 25 s; its waits were first guesses to be tuned from logged runs.
+
+## 7. Auton - Duo Primary
+
+Start: rear wall. Preload at the rear cell; Blue Wall flower gather (deadline 12 s); east helper to the audience launch spot, launch at the audience cell (trim -8.0 deg); audience-wall flower gather (deadline 21 s); east and west helpers to the rear launch spot, launch at the rear cell; garden pickup and a second launch from the rear spot, **skipped if it would start after 18 s**; west helper, park in the hive-side corner.
+
+With the garden it ran past 30 s and lost its park, hence the skip.
+
+## 8. Parameters
+
+| Name | Value |
+|---|---|
+| Rear-wall start y / audience-wall start y | 16.0 / 7.5 in |
+| Garden: pre-position / end / heading | (-59.8, 46.0) / (-59.8, 58.5) / 105 deg |
+| Garden pickup power limit | 0.35 |
+| Square gap from the wall | 3.0 in |
+| Flower ram: power / beyond the flower / time | 0.6 / 12 in / 0.6 s |
+| Flower back-out | 9 in |
+| Ramp stows after turning | 45 deg |
+| Jostle time limit: Solo / duo programs | 9 s / 12 s |
+| Park: power / tolerance / time cap | 1.0 / 2.5 in, 5 deg / 3.0 s |
+| Solo: jostle deadline / final jostle deadline | 23.0 s / 26.5 s |
+| Solo: garden and flower aim trims | -8.0 deg / -8.0 deg |
+| Daryl: second launch not before / return travel | 18.0 s / 2.4 s |
+| Daryl: wall jostle deadline / audience jostle deadline / audience flower latest start | 19.0 s / 26.0 s / 22.5 s |
+| Daryl and Cybugs: audience-cell trims | -8.0 deg |
+| Cybugs: wait before the last salvo / rear trim | 1.0 s / 0 deg |
+| Garden Side: second launch not before / jostle deadline | 25.0 s / 20.0 s |
+| Flower Side: first launch not before / jostle deadline | 7.2 s / 18.0 s |
+| Primary: wall jostle / audience jostle deadlines | 12.0 s / 21.0 s |
+| Primary: garden latest start / audience flower latest start | 18.0 s / never skipped |
+
+The -8.0 deg trims exist because launches at the far cell from (50, 26.3) kept landing left. They are a symptom of the odometry drift described in [robot_design/chassis.md](../robot_design/chassis.md).
+
+## 9. Status
+
+- Solo, Daryl and Cybugs ran at or just before Hartland and are in the tested build. In one Hartland match Daryl lost its park after colliding with the partner, and one Solo run started very late; neither is a reason to change the programs.
+- Garden Side is shown on the Driver Station but has no recorded match run in these notes.
+- Flower Side and Primary are hidden.
+- **The drive gains were never tuned on this robot**, so every program relies on loose tolerances, time caps and, at the wall, physical squaring. The autos are due a rework.
+- Path checks on a PC sweep the robot's footprint along the duo legs against the hive supports and flower stands; the paths clear them.
+
+## 10. Ideas recorded but not built
+
+Ending a gather when the fourth element enters by the CS5 count, instead of on a deadline; using the planner's grid routes for auto legs.
