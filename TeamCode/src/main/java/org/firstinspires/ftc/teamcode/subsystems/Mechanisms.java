@@ -132,6 +132,14 @@ public final class Mechanisms {
 
     public void setAlliance(Alliance a) { alliance = a; }
 
+    /** Before the first update: the CS5 held count to start with (the TeleOp's INIT can discard a saved count). */
+    public void setStartHeld(int n, String why) {
+        if (entry == null) return;
+        held.reset();
+        held.start(n);
+        RunLog.event("ENTRY COUNT starts at " + n + " (" + why + ")");
+    }
+
     /** For INIT: reads the slot count and nothing else. Nothing moves. */
     public void initLoop() {
         if (slots == null) return;
