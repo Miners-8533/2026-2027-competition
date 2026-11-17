@@ -113,7 +113,10 @@ public final class RoutePlanner {
                 if (o.kind == Kind.FLOWER && Geom.polyPoint(poly, a.x, a.y) < corner + MARGIN_IN && o.center.minus(a).dot(u) < 0) continue;
                 // The robot's own circle at the start, without margin. The lane walls and the flowers are not solid there.
                 if (o.kind == Kind.SUPPORT && Geom.polyPoint(o.poly, a.x, a.y) < corner) return false;
-                // Behind the start the robot is only moving away. A robot inside the lane may always leave it.
+                // A robot that starts inside the lane may always leave: its first leg ignores the virtual walls.
+                boolean inLane = Math.abs(a.y) < LANE_HALF_WIDTH_IN && Math.abs(a.x) < Field.BAR_HALF_X + corner;
+                if (o.kind == Kind.LANE_WALL && inLane) continue;
+                // Behind the start the robot is only moving away. The walls are only checked from a short distance along the leg.
                 double skip = o.kind == Kind.LANE_WALL ? LANE_WALL_SKIP_IN : 0;
                 poly = Geom.clip(poly, a.x + u.x * skip, a.y + u.y * skip, u.x, u.y);
                 if (poly.length == 0) continue;
