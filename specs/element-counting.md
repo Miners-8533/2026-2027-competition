@@ -5,7 +5,7 @@ The robot counts what it holds in two independent ways.
 | Count | Sensors | Answers | Used for |
 |---|---|---|---|
 | **Slot count** | CS1 to CS4 along the track | which kind of element sits at each of four places | the pusher check (the track reads empty), the opponent-nectar warning, seeing the pusher arm, the log |
-| **Entry count** | CS5 at the entrance | how many elements have come in since the track was emptied | **how many are held, and full**: FULL and its sequence, the driver screen, the end of a flower jostle in the autos, the "Full" warning, the launched tally |
+| **Entry count** | CS5 at the entrance | how many elements have come in since the track was emptied, and what each one is (section 2.8, built 2026-11-17, not run on the robot) | **how many are held, and full**: FULL and its sequence, the driver screen, the end of a flower jostle in the autos, the "Full" warning, the launched tally. The kinds make the **load order**, which is logged and not yet acted on |
 
 **The entry count is the count the robot relies on** (team decision, 2026-11-17; built 2026-11-17, not run on the robot). The slot count undercounts in a crowded track, which is the worse error on this robot, so it no longer says how many are held. One switch ("count by entries", on) returns the jostle end, the "Full" warning, the non-always-on intake stop and the launched tally to the slot count, in case the entry count misbehaves on the robot. With CS5 missing or not answering the robot is never full by it and there is no fall-back: a jostle ends on its deadline and the screen shows a question mark. How the coordinator uses the counts is in [mechanisms.md](mechanisms.md).
 
@@ -97,6 +97,7 @@ To catch a stale baseline, while the track reads empty the coordinator logs the 
 ### 2.1 Sampling
 
 - A **separate thread** reads CS5's raw proximity (one small read) every 25 ms and runs the counting rule on each sample. It starts with the first coordinator update, so nothing is read during INIT, and stops by itself when updates stop for 1.5 s.
+- Some of those reads are a **longer read that also returns the color** (section 2.8). It replaces the small read, it is not added to it, and the count gets the same proximity value from either.
 - The sensor is put into its fast proximity mode when the counter is built. If that fails the count is useless and the log says so.
 - The thread never writes the log. The main loop collects finished entries and the raw samples from it.
 - The counter is **healthy** while samples keep arriving; no sample for 0.5 s is reported as not answering.
@@ -134,7 +135,7 @@ It overcounted in real driving (a parked or rolling element makes several peaks)
 
 ### 2.5 What the coordinator does with entries
 
-- Each entry is logged with its height, the proximity value, and its time.
+- Each entry is logged with its height, the proximity value, and its time. Its kind is logged when it arrives (section 2.8).
 - An entry whose moment fell while the intake was running OUT, or within 0.4 s after, is **not** added to the held count: elements leaving pass the same sensor.
 - The **held count** restarts at 0 when a salvo starts or a reject finishes.
 - The held count reaching 4 declares **FULL**.
@@ -172,22 +173,93 @@ Two further guards exist and are switched off: requiring the slot count to agree
 | Peak rule: valley limit | off |
 | Thread stops after no update for | 1.5 s |
 | Thread statistics logged every | 15 s |
+| Kinds: in use | yes |
+| Kinds: a pass begins at / ends after | +2 counts / more than 2 samples below that |
+| Kinds: a pass is closed after its entry by | 0.5 s |
+| Kinds: color read with nothing in front | one read in 8 (every 200 ms) |
+| Kinds: empty color level | the median of the last 3 empty color samples |
+| Kinds: least rise that can be named | 60 counts (green + blue + red, summed over the pass) |
+| Kinds: red nectar / blue nectar | red share 0.55 or more / blue share 0.40 or more (**first guesses**) |
+| Kinds: pollen | green share 0.45 or more and blue share 0.20 or less |
 
 ### 2.7 Known limits
 
-- Characterized with pollen only.
+- The count was characterized with pollen only.
 - Elements fed from the floor in tight groups can undercount.
 - The signal level depends on how the sensor is mounted.
 - Whether the entry count alone is good enough to act on has not been proven in matches.
+- **No nectar has been recorded passing CS5 with its color.** The two nectar limits are guesses and the load order cannot be trusted for nectar until a run with nectar has set them.
+- Touching elements that count once get one kind, from the colors of both.
+- An element the robot did not see come in (a preload, or one carried from an opmode that had no kind for it) has no kind.
+
+### 2.8 The kind of each entry, and the load order
+
+**Built 2026-11-17, not run on the robot. Nothing acts on it: it is logged and shown on the verbose screen.**
+
+**Purpose.** The slot sensors name what sits at four places, and miss elements between them. To launch a mixed load of pollen and nectar the robot has to know what it holds **in order**. CS5 sees every element once, as it comes in, so the kinds it gives, in the order of the entries, are the load order.
+
+**Reading the color.**
+
+- The thread's read is the longer read (status, proximity and the infrared, green, blue and red channels in one transaction) in three cases: through the first second of a run; from the moment the proximity is 2 counts or more above the empty level until the pass is closed; and, with nothing in front, on one read in 8.
+- Every other read is the small proximity read, as before. In the recorded run about a fifth of the reads carried the color.
+- The sensor's color is set to produce a new 16-bit value every 25 ms when the counter is built.
+- A color value is used only when the sensor reports it as new since the last color read.
+- If the color setting fails, or three color reads in a row fail, the color is off for the rest of the run: the thread reads the proximity alone, the count is not affected, and every kind is unknown. The log says so.
+- The kinds need edge counting (section 2.3). With peak counting there are none.
+- One switch turns the kinds off and returns the thread to the small read alone.
+
+**The empty color level** is the median of the last 3 color values read with nothing in front (proximity under 2 counts above empty). It is fixed at the start of a pass.
+
+**A pass.**
+
+1. It begins when the proximity is 2 counts or more above the empty level. That is below the count's own threshold of 6, so the color is already being read when the entry is counted.
+2. On every new color value of the pass, the rise of each channel over the empty color level is added to that channel's sum.
+3. It ends when the proximity has been below 2 counts for more than 2 samples in a row. The color is an average over 25 ms and lags the proximity, so the samples just after the element has gone still carry it.
+4. A pass in which no entry was counted gives nothing.
+5. If the element is still in front 0.5 s after its entry, the pass is closed with what it has, and no more color is asked for until the element has gone.
+6. If a second entry is counted before the first one's pass has ended, the first is closed at that moment and a new pass begins for the second.
+
+**The kind rule.** A channel whose sum is negative counts as 0. The three sums' shares of their total are tested in this order:
+
+| Order | Test | Kind |
+|---|---|---|
+| 1 | no color value in the pass, or the total rise is under 60 counts | unknown |
+| 2 | red share 0.55 or more | red nectar |
+| 3 | blue share 0.40 or more | blue nectar |
+| 4 | green share 0.45 or more and blue share 0.20 or less | pollen |
+| 5 | anything else | unknown |
+
+- Pollen, measured (31 pollen, 2026-11-14): green 0.52 to 0.65, blue 0.00 to 0.13, red 0.31 to 0.46.
+- **The nectar limits are first guesses**, from the colors themselves. Every result is logged with its three shares, its total rise and its number of color values, so the limits can be set from the first run with nectar.
+
+**The load order** is a text of one letter per held element, in the order they came in: `P` pollen, `R` red nectar, `B` blue nectar, `?` unknown. The first letter is the element nearest the flywheel, the one a salvo launches first. Empty when nothing is held.
+
+- An entry that is added to the held count (section 2.5) is added to the load order as `?`. Its kind arrives when its pass closes, usually within about 0.25 s and at most 0.5 s after the entry, and replaces the `?`.
+- A kind whose entry is no longer in the load (it was not counted as held, or the track has been emptied since) is logged and dropped.
+- The load order is emptied whenever the held count restarts at 0.
+- A salvo that did not complete puts its elements back in front of whatever has entered since, as it puts the count back.
+- A count that starts from a known load (section 2.5) starts with the load order saved with it. A preload starts as `????`.
+- The autos and the competition TeleOp save the load order with the held count on every loop.
+
+**Where it shows.** The log: one line per kind, the load order on the line of a salvo's start and on the line of the count's start value, and a column in every sample row ([logging.md](logging.md), [mechanisms.md](mechanisms.md) section 14). The verbose screen and the TeleOp's INIT screen. Not the match screen.
+
+**What is left.**
+
+- A run with red and blue nectar fed through the intake, to set the two nectar limits.
+- A check of the main loop's time with the color reads on, against a run with them off.
+- Whatever is to act on the load order: where the pusher stops between elements, the flywheel position per element, the opponent-nectar warning from CS5 in place of the slot sensors. None of it is designed here.
 
 ## 3. Status
 
 - Slot count: used at Hartland.
 - Entry count: added after Hartland. Peak counting and a first version of the FULL actions ran in practice on 2026-11-14. Edge counting was validated only by replaying recorded runs; it has not run on the robot.
+- Kinds and the load order: built 2026-11-17 from the one recorded run that holds CS5's color (31 pollen). Not run on the robot, and never tried on nectar.
 
 ## 4. Verification by replay
 
 The counting rule is one pure piece of logic with no robot dependencies, so recorded proximity traces can be replayed through exactly the code the robot runs. A PC check does this against recorded runs with known answers (a hand-fed run of 31 elements, and TeleOp runs with known loads). Any change to the rule should be replayed before it goes on the robot.
+
+The kind rule and the pass logic are a second pure piece, checked the same way: the recorded pollen run is replayed with the color taken only on the reads where the robot would take it, at 20 ms and thinned to 25 ms (30 of its 31 entries are named pollen, the other is unknown, none is named nectar), and made-up signals cover the nectar kinds, a parked element, touching elements and a pass with no entry. The nectar cases are made up, so they check the logic and not the limits.
 
 ## 5. Target T3: the entry count is the count
 
@@ -211,6 +283,6 @@ The counting rule is one pure piece of logic with no robot dependencies, so reco
 - The two guards that sit switched off beside the count (slot agreement before FULL; a reset when the slots read 0) are still in the code. They go when the entry count has run in a match.
 - The slot count's own windows for "full" (section 1.3) are still computed. They are only used with the switch off.
 - **Touching elements count once**, so a clump can still put a fifth element in the robot (section 2.7). The answer to that is in the counting rule and in how the sensor is mounted, not in a second count.
-- The counter was characterized with pollen only; it needs a check with nectar.
+- The counter was characterized with pollen only; it needs a check with nectar. The kinds (section 2.8) need the same run.
 
 **Waits on** the edge counter's first run on the robot. Until then the whole of this is unproven, and the switch is the way back.

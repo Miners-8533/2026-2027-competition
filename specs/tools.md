@@ -27,7 +27,7 @@ The route planner, the dashes, the leg and grid followers, the target lock math,
 | Duo path check | every leg of the duo autos clears the hive supports and the flower stands, with the clearance of each. It holds copies of the default poses and of the robot's footprint, which must be changed together with the autos. Target T7 ([field.md](field.md) section 7) removes the copies |
 | Launch grid check | each tuning grid is non-empty, every spot obeys the rules, and every hop of the sweep is drivable |
 | Grid map check | every measured spot returns itself, the zones, the red rotation, the seed flag, continuity |
-| Entry counter check | recorded proximity runs replayed through the counting rule the robot uses, against known answers and a reference implementation |
+| Entry counter check | recorded proximity runs replayed through the counting rule the robot uses, against known answers and a reference implementation; then the recorded pollen run with its color, and made-up nectar, through the rule that names each entry's kind |
 
 ## 3. Dash simulator
 
@@ -42,6 +42,7 @@ The route planner, the dashes, the leg and grid followers, the target lock math,
   - **Hand trips** reads an event's labeled TeleOp logs and lists every trip the drivers made to a launch: where it started (pose and velocity), which cell was launched at, where the salvo was fired from, and how long the drive took. A trip in which a Hive Dash ran is marked and left out of the baseline.
   - **The speed gate** drives the real Hive Dash from the start of each hand-driven trip of 12 in or more to the launch spot of the same cell, from rest or with the logged velocity, and sets its time beside the drivers', trip by trip. It passes when the dash is at least as fast on the median trip and touches nothing on the way. Something the logged start pose already overlaps (the robot was against a flower stand) is listed apart and does not count as a contact of the dash.
   - **The safety gate** repeats the survey nine times: once as is, and eight times with the pose the robot believes shifted from the truth by the accepted drift, one direction each. The dash plans and drives on the believed pose; contacts are judged where the robot really is. It passes when nothing is touched in any of the nine.
+  - A trial option builds the four trees in memory with another drift margin and runs either gate on them, without writing the robot's tables.
   - Both gates run on today's planner or on the grid routes. The Park Dash is in the safety gate only: the logs hold no baseline for a drive to a park corner.
 
 Other tools in the same folder fit the drive model from logs and report a Drive Characterization run segment by segment.

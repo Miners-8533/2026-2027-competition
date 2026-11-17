@@ -29,7 +29,7 @@ Changing the alliance or discarding the saved pose re-seeds the position on the 
 
 ### 1.3 INIT screen
 
-It reports: where the start pose came from and how old a saved pose is; the Pinpoint pose and whether it is acceptable; which mechanisms were found; the remembered aims, when they were continued; the CS5 held count it will start with and how old the save is; that the ramp position is unknown; what the flywheel position servo will do; the FULL mode; whether the slot count is reading; whether both gamepads are assigned; and a warning if no hub is registered.
+It reports: where the start pose came from and how old a saved pose is; the Pinpoint pose and whether it is acceptable; which mechanisms were found; the remembered aims, when they were continued; the CS5 held count it will start with, its load order ([element-counting.md](element-counting.md) section 2.8) and how old the save is; that the ramp position is unknown; what the flywheel position servo will do; the FULL mode; whether the slot count is reading; whether both gamepads are assigned; and a warning if no hub is registered.
 
 The pose is **acceptable** when, after an adoption, the device reports READY, or, after a seed, the pose is within 1.5 in and 3 deg of the start pose and the seed was confirmed. After an adoption, a difference of more than 3 in or 5 deg from the saved pose is flagged for the drivers to check.
 

@@ -34,14 +34,14 @@ Every path is written for blue. Red is the same path rotated 180 degrees about t
 - The flywheel runs from Start and stays up between launches. Its speed follows the distance to the current target cell, so it is at speed on arrival at each launch spot.
 - Pusher jam retries are set to 1.
 - The remembered aims an earlier TeleOp saved are dropped: the auto has reseeded the Pinpoint and they belonged to the old pose.
-- The CS5 held count starts at 4, the preload ([element-counting.md](element-counting.md) section 2.5).
+- The CS5 held count starts at 4, the preload ([element-counting.md](element-counting.md) section 2.5). The preload's kinds are not known to the load order (`????`, section 2.8 there).
 - The pusher is moved to the lock angle while the flywheel spins up, so the preload salvo is shorter.
 - The program is one sequential action; the mechanisms update is the every-loop work.
 
 ### 1.4 At the end
 
 - Whether it finished or was stopped, the final pose and alliance are saved for the TeleOp.
-- The CS5 held count is saved on every loop of the program and after it, so the TeleOp starts with what the last gather left aboard.
+- The CS5 held count is saved on every loop of the program and after it, with its load order, so the TeleOp starts with what the last gather left aboard.
 - Until the opmode is stopped, the pose keeps being read and saved and the mechanisms keep updating.
 - The flywheel is stopped as the last step of the sequence.
 - When the opmode is stopped: the drive is stopped, then all mechanisms at once, with no update after it (built 2026-11-17, not run on the robot).
