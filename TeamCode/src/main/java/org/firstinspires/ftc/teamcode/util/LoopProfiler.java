@@ -1,169 +1,128 @@
 package org.firstinspires.ftc.teamcode.util;
 
-import com.acmerobotics.dashboard.config.Config;
-
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * Where the loop time goes. Named sections of the loop are timed with {@link #start()} / {@link #stop(String, long)}; {@link #endLoop()} (called once per
- * loop by {@link RunLog#tick()}) measures the loop itself. Every LOG_PERIOD_SEC the totals of the window are written to the run log as one
- * {@code LOOP PROFILE window ...} line, and once more for the whole run as {@code LOOP PROFILE RUN ...} when the log closes. Read them with
- * tools/logs/loop_profile.py.
- *
- * <pre>
- * LOOP PROFILE window 5.0 s 175 loops | slow 40 60 80: 31 4 0 | loop 28.6 74.2 | other 2.1 | pose 8.1 21.0 1.00 | mechanisms 9.7 40.1 1.00 | mech.counter 4.2 16.0 1.00 | ...
- * </pre>
- * After "loop" and "other" each section is: name, its average per LOOP (ms, total of the section over the loops, so a section that runs every 4th loop
- * is already spread), the longest single call (ms), and how many calls per loop. "other" is the loop time not inside any top-level section (the
- * opmode's own logic: inputs, the drive and lock math, and so on). A section started while another is running is NESTED (for example the sections inside
- * "mechanisms", or "pose" and "drive_write" inside an auto's "action"); nested sections are listed but not counted again in "other".
- *
- * It costs two System.nanoTime calls and a map lookup per section per loop (microseconds) and is meant to stay on. Opmode thread only.
+ * Where the loop time goes (specs/logging.md section 3). Named sections are timed, named counters count events,
+ * and the run log's tick ends each loop. One "LOOP PROFILE window" line every 5 s, one "LOOP PROFILE RUN" line at the end.
  */
-@Config
 public final class LoopProfiler {
+    private LoopProfiler() { }
 
-    /** Off switch (the timing calls then return at once). */
-    public static boolean ENABLED = true;
-    /** Seconds between the window lines. */
-    public static double LOG_PERIOD_SEC = 5.0;
+    public static final double WINDOW_S = 5.0;
 
-    private static final class Stat {
-        long winNs, winCalls, winMaxNs;
-        long runNs, runCalls, runMaxNs;
+    private static final class Sec {
+        long start;
+        boolean top;
+        double winSum, winMax, runSum, runMax;
+        long winCalls, runCalls;
+    }
 
-        void add(long ns) {
-            winNs += ns;
-            winCalls++;
-            if (ns > winMaxNs) winMaxNs = ns;
-            runNs += ns;
-            runCalls++;
-            if (ns > runMaxNs) runMaxNs = ns;
+    private static final class Stats {
+        long loops, over40, over60, over80;
+        double sum, max, outside;
+        long startNs = System.nanoTime();
+
+        void add(double ms, double topMs) {
+            loops++;
+            sum += ms;
+            if (ms > max) max = ms;
+            if (ms > 40) over40++;
+            if (ms > 60) over60++;
+            if (ms > 80) over80++;
+            outside += Math.max(0, ms - topMs);
         }
     }
 
-    private static final Map<String, Stat> stats = new LinkedHashMap<>();
-    private static final Map<String, long[]> counters = new LinkedHashMap<>();   // name -> {this window, the whole run}
-    private static int depth = 0;
-    private static long topWinNs, topRunNs;
-    private static long loopWinNs, loopRunNs, loopWinMaxNs, loopRunMaxNs;
-    private static long loopsWin, loopsRun;
-    private static final long[] slowWin = new long[3], slowRun = new long[3];   // loops over 40, 60 and 80 ms
-    private static final long[] SLOW_NS = {40_000_000L, 60_000_000L, 80_000_000L};
-    private static long lastLoopNs, windowStartNs, runStartNs;
+    private static final Map<String, Sec> sections = new LinkedHashMap<>();
+    private static final Map<String, long[]> counters = new LinkedHashMap<>();   // {window, run}
+    private static int depth;
+    private static double loopTopMs;
+    private static Stats win = new Stats(), run = new Stats();
 
-    private LoopProfiler() {}
-
-    /** Forgets everything: call at the start of a run. */
     public static void reset() {
-        stats.clear();
+        sections.clear();
         counters.clear();
         depth = 0;
-        topWinNs = topRunNs = 0L;
-        loopWinNs = loopRunNs = loopWinMaxNs = loopRunMaxNs = 0L;
-        loopsWin = loopsRun = 0L;
-        for (int i = 0; i < 3; i++) slowWin[i] = slowRun[i] = 0L;
-        lastLoopNs = 0L;
-        windowStartNs = runStartNs = System.nanoTime();
+        loopTopMs = 0;
+        win = new Stats();
+        run = new Stats();
     }
 
-    /** Starts timing a section. Pass the result to {@link #stop(String, long)}. */
-    public static long start() {
-        if (!ENABLED) return 0L;
-        depth++;
-        return System.nanoTime();
-    }
-
-    /** Ends a section started with {@link #start()}. */
-    public static void stop(String name, long startedAt) {
-        if (startedAt == 0L) return;
-        long dt = System.nanoTime() - startedAt;
-        if (depth > 0) depth--;
-        Stat s = stats.get(name);
+    public static void begin(String name) {
+        Sec s = sections.get(name);
         if (s == null) {
-            s = new Stat();
-            stats.put(name, s);
+            s = new Sec();
+            sections.put(name, s);
         }
-        s.add(dt);
-        if (depth == 0) {
-            topWinNs += dt;
-            topRunNs += dt;
-        }
+        s.top = depth == 0;
+        depth++;
+        s.start = System.nanoTime();
     }
 
-    /** Counts an event (for example a drive write sent or skipped). Shown per loop after the sections as {@code count <name> <per loop>}. */
-    public static void count(String name) {
-        if (!ENABLED) return;
+    public static void end(String name) {
+        Sec s = sections.get(name);
+        if (s == null) return;
+        double ms = (System.nanoTime() - s.start) / 1e6;
+        if (depth > 0) depth--;
+        s.winSum += ms;
+        s.runSum += ms;
+        s.winCalls++;
+        s.runCalls++;
+        if (ms > s.winMax) s.winMax = ms;
+        if (ms > s.runMax) s.runMax = ms;
+        if (s.top) loopTopMs += ms;   // a nested section is reported but not counted twice
+    }
+
+    public static void count(String name, int n) {
         long[] c = counters.get(name);
         if (c == null) {
             c = new long[2];
             counters.put(name, c);
         }
-        c[0]++;   // this window
-        c[1]++;   // the whole run
+        c[0] += n;
+        c[1] += n;
     }
 
-    /** Marks the end of a loop. Called by {@link RunLog#tick()}, once per loop. */
-    public static void endLoop() {
-        if (!ENABLED) return;
-        long now = System.nanoTime();
+    /** Called by the run log's tick with the length of the loop that just ended. */
+    static void endLoop(double loopMs) {
+        win.add(loopMs, loopTopMs);
+        run.add(loopMs, loopTopMs);
+        loopTopMs = 0;
         depth = 0;
-        if (windowStartNs == 0L) windowStartNs = runStartNs = now;
-        if (lastLoopNs != 0L) {
-            long dt = now - lastLoopNs;
-            loopWinNs += dt;
-            loopRunNs += dt;
-            if (dt > loopWinMaxNs) loopWinMaxNs = dt;
-            if (dt > loopRunMaxNs) loopRunMaxNs = dt;
-            loopsWin++;
-            loopsRun++;
-            for (int i = 0; i < 3; i++) {
-                if (dt > SLOW_NS[i]) {
-                    slowWin[i]++;
-                    slowRun[i]++;
-                }
+        if ((System.nanoTime() - win.startNs) / 1e9 >= WINDOW_S) {
+            RunLog.event(line("LOOP PROFILE window", win, true));
+            win = new Stats();
+            for (Sec s : sections.values()) {
+                s.winSum = 0;
+                s.winMax = 0;
+                s.winCalls = 0;
             }
-        }
-        lastLoopNs = now;
-        if ((now - windowStartNs) / 1e9 >= LOG_PERIOD_SEC && loopsWin > 0) {
-            RunLog.event(format("window", (now - windowStartNs) / 1e9, false));
-            for (Stat s : stats.values()) {
-                s.winNs = s.winCalls = s.winMaxNs = 0L;
-            }
-            for (long[] c : counters.values()) c[0] = 0L;
-            topWinNs = loopWinNs = loopWinMaxNs = loopsWin = 0L;
-            for (int i = 0; i < 3; i++) slowWin[i] = 0L;
-            windowStartNs = now;
+            for (long[] c : counters.values()) c[0] = 0;
         }
     }
 
-    /** Writes the whole-run line. Called when the log closes. */
-    public static void finish() {
-        if (!ENABLED || loopsRun == 0L) return;
-        RunLog.event(format("RUN", (System.nanoTime() - runStartNs) / 1e9, true));
+    static void runLine() {
+        if (run.loops > 0) RunLog.event(line("LOOP PROFILE RUN", run, false));
     }
 
-    private static String format(String kind, double seconds, boolean wholeRun) {
-        long loops = wholeRun ? loopsRun : loopsWin;
-        long loopNs = wholeRun ? loopRunNs : loopWinNs;
-        long loopMax = wholeRun ? loopRunMaxNs : loopWinMaxNs;
-        long topNs = wholeRun ? topRunNs : topWinNs;
-        long[] slow = wholeRun ? slowRun : slowWin;
-        StringBuilder sb = new StringBuilder(String.format(Locale.US, "LOOP PROFILE %s %.1f s %d loops | slow 40 60 80: %d %d %d | loop %.1f %.1f | other %.1f",
-                kind, seconds, loops, slow[0], slow[1], slow[2], loopNs / 1e6 / loops, loopMax / 1e6, (loopNs - topNs) / 1e6 / loops));
-        for (Map.Entry<String, Stat> e : stats.entrySet()) {
-            Stat s = e.getValue();
-            long ns = wholeRun ? s.runNs : s.winNs;
-            long calls = wholeRun ? s.runCalls : s.winCalls;
-            long max = wholeRun ? s.runMaxNs : s.winMaxNs;
-            if (calls == 0L) continue;
-            sb.append(String.format(Locale.US, " | %s %.1f %.1f %.2f", e.getKey(), ns / 1e6 / loops, max / 1e6, (double) calls / loops));
+    private static String line(String head, Stats st, boolean window) {
+        double n = Math.max(1, st.loops);
+        StringBuilder sb = new StringBuilder(head);
+        sb.append(String.format(Locale.US, " %.1f s, %d loops, over 40/60/80 ms: %d/%d/%d, avg %.1f ms, max %.1f ms, outside sections %.1f ms",
+                (System.nanoTime() - st.startNs) / 1e9, st.loops, st.over40, st.over60, st.over80, st.sum / n, st.max, st.outside / n));
+        for (Map.Entry<String, Sec> e : sections.entrySet()) {
+            Sec s = e.getValue();
+            double sum = window ? s.winSum : s.runSum, max = window ? s.winMax : s.runMax;
+            long calls = window ? s.winCalls : s.runCalls;
+            if (calls == 0) continue;
+            sb.append(String.format(Locale.US, " | %s avg %.2f max %.1f calls/loop %.2f", e.getKey(), sum / n, max, calls / n));
         }
         for (Map.Entry<String, long[]> e : counters.entrySet()) {
-            long n = wholeRun ? e.getValue()[1] : e.getValue()[0];
-            if (n > 0L) sb.append(String.format(Locale.US, " | count %s %.2f", e.getKey(), (double) n / loops));
+            long v = e.getValue()[window ? 0 : 1];
+            sb.append(String.format(Locale.US, " | #%s %.2f/loop", e.getKey(), v / n));
         }
         return sb.toString();
     }
