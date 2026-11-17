@@ -9,7 +9,6 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 | Pit Check (robot on blocks) | Bring-up | hidden | pitcheck |
 | Launch Tuner | Bring-up | yes | bringup |
 | Launch Grid Tuner | Bring-up | yes | bringup |
-| Launch Salvo Speed Study | Bring-up | yes | bringup |
 | CS Pass Study | Bring-up | yes | bringup |
 | Flywheel Step Study | Bring-up | yes | bringup |
 | Color Sensor Study | Bring-up | hidden | bringup |
@@ -136,28 +135,19 @@ Each study was built to answer one question from logged data.
 
 | Study | Question | Method | Result so far |
 |---|---|---|---|
-| Launch Salvo Speed Study | How fast should the pusher turn a salvo? | A copy of the competition TeleOp in which the driver's D-pad changes the pusher's power live | 0.37 turned a salvo in 1.0 s against 1.2 s at 0.30 with no change in flywheel dip; the team chose 0.30 |
+| Launch Salvo Speed Study (removed 2026-11-17) | How fast should the pusher turn a salvo? | A copy of the competition TeleOp in which the driver's D-pad changed the pusher's power live | 0.37 turned a salvo in 1.0 s against 1.2 s at 0.30 with no change in flywheel dip; the team chose 0.30 |
 | Flywheel Step Study | How fast does the flywheel follow a setpoint change? | The flywheel alone steps through a list of setpoints; each change is timed until the speed is in the launch band and has stayed there | not yet run on the robot |
 | CS Pass Study | Can CS5 count entering elements without slowing the loop? | The real mechanisms with the intake in; CS5 read on its own thread; the operator presses a button per element fed as ground truth | yes at a 20 to 25 ms period with a small read; this led to the entry counter |
 | Color Sensor Study | What do CS1 to CS4 read after the track or lighting changes? | Four guided steps: empty baseline, an empty pusher sweep, a full baseline with 4 pollen, a slow reject | prints the new empty readings to paste into the element counter |
 
-The Launch Salvo Speed Study is a **fork**: later changes to the competition TeleOp are not carried into it.
+### 3.1 The match loop exists once
 
-### 3.1 Target T6: the match loop exists once
+**The Launch Salvo Speed Study was removed on 2026-11-17** (target T6). It was a copy of the competition TeleOp, about 830 lines, made to change one number from the gamepad, and it had fallen behind the TeleOp: it lacked the FULL AUTO or COUNT ONLY choice, FULL arming the auto-launch, the launch grid switch, the flywheel position at Start and the stop of all mechanisms at the end. Its question is answered. The number it varied, the pusher's salvo power, is a live tunable value, so the same experiment is the competition TeleOp with that value edited in the Dashboard, and every run logs the value in force ([logging.md](logging.md)). The code is in the repository history.
 
-Not in the code. See "As built and target" in the [README](README.md).
+**The rule from here on.** The match loop is written once and no opmode copies it.
 
-**The weakness.** The study is a copy of the competition TeleOp, about 830 lines, made to change one number from the gamepad. The TeleOp has moved on since (the FULL AUTO or COUNT ONLY choice, FULL arming the auto-launch, the launch grid switch, the flywheel position at Start, stopping all mechanisms at the end), so the study no longer measures the robot that plays matches, and nothing says so when it runs.
-
-**Requirement.** The match loop is written once. No opmode copies it.
-
-**Design.**
-
-- **The Launch Salvo Speed Study is retired.** Its question is answered, and the number it varied, the pusher's salvo power, is a live tunable value: the same experiment is the competition TeleOp with that value edited in the Dashboard, and every run logs the value in force ([logging.md](logging.md)).
-- A later study that needs match behavior with a variation is the competition TeleOp started with a **study option** chosen at INIT. The option may add bindings only on controls the TeleOp leaves free, add log columns, and change tunable values. It may not change the loop. The log's `SETUP` line names the option, so no study run can be mistaken for a match run.
-- A study that needs only part of the robot (the Flywheel Step Study, the CS Pass Study, the Color Sensor Study) stays its own small opmode built on the subsystems, as now.
-
-**What would behave differently.** Nothing in a match. One opmode leaves the Driver Station list.
+- A study that needs match behavior with a variation is the competition TeleOp started with a **study option** chosen at INIT. The option may add bindings only on controls the TeleOp leaves free, add log columns, and change tunable values. It may not change the loop. The log's `SETUP` line names the option, so no study run can be mistaken for a match run. No study needs this today, so the option is not built.
+- A study that needs only part of the robot (the Flywheel Step Study, the CS Pass Study, the Color Sensor Study) stays its own small opmode built on the subsystems.
 
 **Color Sensors Test** is an older tool that measures the empty baseline and scores the classification thresholds against hand-set labels; the Color Sensor Study replaced it for baselines.
 
@@ -351,4 +341,4 @@ The random tests draw each command from Java's `Random` started with the seed, t
 
 ## 7. Removed opmodes
 
-Earlier bring-up opmodes for each actuator, a hardware check, a chassis info screen, a launch test and the pusher sensor tools were deleted once their job was done or absorbed by Pit Check. They are in the repository history, not in this specification.
+The Launch Salvo Speed Study (section 3.1), earlier bring-up opmodes for each actuator, a hardware check, a chassis info screen, a launch test and the pusher sensor tools were deleted once their job was done or absorbed by Pit Check. They are in the repository history, not in this specification.

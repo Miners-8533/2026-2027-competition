@@ -244,9 +244,10 @@ If the robot is more than 6 in from the leg it is driving, it brakes. Once it is
 
 ## 6. Status and known weaknesses
 
-- Hive Dash and Park Dash with the planner of section 1 were used at Hartland.
+- Hive Dash and Park Dash with the planner of section 1 were in the build at Hartland, and the drivers did not press either in a match: no dash is recorded in any of the event's TeleOp logs (83 trips to a launch, all driven by hand). The dashes the logs do hold are from practice.
 - **The team's judgement (2026-11-17): both dashes are too slow to be worth using in a match as they are, and need refinement before the drivers rely on them.**
-- In simulation on a model of the robot as it now drives (faster than when the corner and approach values were set), the present dashes touch a flower stand or a support from a noticeable share of starting positions, and the Park Dash, having no corner slow-down, is the worse of the two. The grid routes touch nothing in the same simulation. This is the reason the grid routes exist, and they still need their first robot run.
+- In simulation on a model of the robot as it now drives (faster than when the corner and approach values were set), the present dashes touch a flower stand or a support from a noticeable share of starting positions, and the Park Dash, having no corner slow-down, is the worse of the two. The grid routes touch nothing in the same simulation while the pose is true. This is the reason the grid routes exist, and they still need their first robot run.
+- **Both gates of target T9 were run in simulation on 2026-11-17** (section 6.2). The grid routes pass the speed gate by a small margin and fail the safety gate: with the pose out by 4 in they touch a support or a flower stand from a few percent of starts. Today's planner fails both.
 
 ### 6.1 Target T9: a dash that is worth pressing
 
@@ -276,4 +277,39 @@ Not in the code. See "As built and target" in the [README](README.md).
 
 **What would behave differently.** Both dashes take momentum-aware routes at the speeds the robot can hold. The Park Dash brakes for corners. The dashes come back to the drivers only when they pass both gates.
 
-**Waits on** the grid routes' first run on the robot, and the drivers' transit baseline from the logs.
+**Waits on** route tables that keep the accepted drift clear (section 6.2), then the grid routes' first run on the robot. The drivers' baseline and both gates exist (2026-11-17).
+
+### 6.2 The gates, run in simulation on 2026-11-17
+
+Built in the tools ([tools.md](tools.md) section 3), not on the robot. Everything here is simulated on the wheel model fitted on 2026-11-07; nothing ran on the robot. The grid routes were switched on in the simulator only; on the robot they stay off.
+
+**The baseline.** The Hartland logs hold 83 trips to a launch, none with a dash, and 71 of them of 12 in or more. The drivers took a median 2.43 s (mean 2.73 s, 90th percentile 4.92 s) over a median 60 in in a straight line, about 28 in/s. A trip runs from the last pickup that mattered to within 6 in of where the next salvo was fired.
+
+**The speed gate.** The real Hive Dash driven from the start of each of the 71 trips to the launch spot of the same cell:
+
+| Route source | Start | Dash, median | Dash minus drivers, trip by trip (25th / median / 75th) | Dash at least as fast | Touched on the way | Verdict |
+|---|---|---|---|---|---|---|
+| Today's planner | from rest | 1.89 s | -1.01 / -0.11 / +0.54 s | 40 of 71 | 9 trips | fail (contacts) |
+| Today's planner | logged velocity | 1.91 s | -1.07 / -0.11 / +0.51 s | 40 of 70, 1 did not arrive | 11 trips | fail (contacts) |
+| Grid routes | from rest | 1.92 s | -0.83 / -0.16 / +0.41 s | 40 of 71 | none | pass |
+| Grid routes | logged velocity | 1.98 s | -0.86 / -0.14 / +0.36 s | 40 of 71 | none | pass |
+
+How to read it:
+
+- The dash's time is to its arrival at its own launch spot, a median 65 in away. The drivers' time is to within 6 in of wherever they chose to fire, a median 60 in away. The dash's measure is the stricter one.
+- The margin is small. The dash is slower than the drivers in 31 of 71 trips. It wins clearly on long trips (100 in and more: 0.84 s sooner on the median, 11 of 13) and is about even below that. It loses where its launch spot is more than 10 in further than where the drivers fired (11 trips, 0.23 s later) and, of the four cells, on the blue rear cell (0.18 s later).
+- Two trips begin with the logged pose already overlapping the flower stand the robot was gathering from. They are listed apart and are not contacts of the dash.
+
+**The safety gate.** A start every 12 in at four headings (328 starts), blue alliance, to both launch spots and both park corners, with the believed pose true and then out by 4 in in eight directions:
+
+| Route source | Pose true | Pose out by 4 in, worst of the eight directions | Verdict |
+|---|---|---|---|
+| Today's planner | Hive Dash: a support from up to 27 starts, a flower stand from up to 40. Park Dash: a flower stand from up to 83, no arrival from 60 | Hive Dash: a support from up to 36, a flower stand from up to 49. Park Dash: a flower stand from up to 97, no arrival from up to 171 | fail, even with the pose true |
+| Grid routes | nothing touched, every dash arrives | Hive Dash: a support from up to 24 starts (7 percent), a flower stand from up to 16 (5 percent), every dash arrives. Park Dash: a support from up to 11, a flower stand from up to 11, and no arrival from up to 283 when the pose reads 4 in low in y | fail |
+
+**What the gates say.**
+
+- Today's planner is not a candidate: it touches things with a true pose.
+- The grid routes are fast enough and clean with a true pose, and they are not built for the accepted drift. Their tables allow 3.0 in off the route, which is less than the 4 in the pose may be out. The next step of this target is to generate the tables with the obstacles grown by the accepted drift and to run both gates again. Wider clearances make longer routes, and the speed margin is 0.14 s, so the speed gate may then fail. If both cannot pass, the choice is the team's: a dash offered only from the parts of the field where both pass, or a smaller accepted drift for dashes with the reseed as its condition.
+- The Park Dash needs an arrival rule that holds when the pose is out: with the pose reading 4 in low it pushes toward a corner it cannot reach and never reports arrival.
+- The red alliance was not surveyed. The simulator has that option; the field is symmetric, the logged trips are not.
