@@ -137,7 +137,7 @@ public final class ParkDash {
                             + ", but the grid follower is not built; using the route planner");
                 }
             }
-            p = RoutePlanner.plan(in.pose.vec(), goal, fp);
+            p = RoutePlanner.plan(in.pose, goal, fp);
             if (!p.ok()) why = p.refusal;
         }
         if (why != null) {

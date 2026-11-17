@@ -111,7 +111,8 @@ public final class CompetitionTeleOp extends TeamOpMode {
         boolean adopted = drive.localizer.mode() == Localizer.Mode.ADOPTED;
         int savedCount = Handover.freshCount(POSE_FRESH_S);
         double countAge = Handover.countAgeS();
-        mech = new Mechanisms(hardwareMap, profile, alliance, Mechanisms.Settings.teleop(Math.max(0, savedCount)));
+        // The load order (what each held element is) is saved and discarded with the count.
+        mech = new Mechanisms(hardwareMap, profile, alliance, Mechanisms.Settings.teleop(Math.max(0, savedCount), savedCount >= 0 ? Handover.loadOrder() : null));
         // The remembered aims continue only when the device's pose is adopted: they correct that pose's drift.
         double[] savedAims = Handover.aims();
         boolean aimsContinued = adopted && savedAims != null && savedAims.length == aims.length;
@@ -127,7 +128,7 @@ public final class CompetitionTeleOp extends TeamOpMode {
         });
         parkDash = new ParkDash(footprint);
         // Warm up the planner, so the first press does not pay for it.
-        for (Cell c : Cell.values()) RoutePlanner.plan(new Vec(0, 50), Aim.launchSpot(c), footprint);
+        for (Cell c : Cell.values()) RoutePlanner.plan(new Pose(0, 50, 0), Aim.launchSpot(c), footprint);
         RunLog.eventf("PINPOINT at INIT: %s; start pose from %s", drive.localizer.mode(), usingSaved
                 ? String.format(Locale.US, "a pose saved %.0f s ago", savedAge) : "the default start");
 
@@ -138,7 +139,7 @@ public final class CompetitionTeleOp extends TeamOpMode {
             mech.initLoop();
             boolean changed = false;
             if (dUp.pressed(gamepad1.dpad_up) && usingSaved) {
-                // Discard what the last opmode saved: the pose, the remembered aims that went with it, and the CS5 held count.
+                // Discard what the last opmode saved: the pose, the remembered aims that went with it, and the CS5 held count with its load order.
                 Handover.discard();
                 usingSaved = false;
                 aimsContinued = false;
@@ -222,7 +223,7 @@ public final class CompetitionTeleOp extends TeamOpMode {
                     Handover.saveAims(aims);
                 }
             }
-            Handover.saveCount(mech.heldCountForSave());     // the TeleOp keeps saving its count in backup mode
+            Handover.saveCount(mech.heldCountForSave(), mech.loadOrder());     // the TeleOp keeps saving its count in backup mode
             double vx = drive.localizer.vx(), vy = drive.localizer.vy(), omega = drive.localizer.omega(), speed = Math.hypot(vx, vy);
 
             // ---- 2. Read the driver's sticks ----
@@ -550,7 +551,8 @@ public final class CompetitionTeleOp extends TeamOpMode {
         sb.append("found: ").append(mech.found()).append("<br>");
         if (aimsContinued) sb.append("aims continued: ").append(aimsText()).append("<br>");
         sb.append(mech.entry == null ? "CS5 missing: no held count" : savedCount >= 0
-                ? String.format(Locale.US, "held count starts at %d (saved %.0f s ago)", savedCount, countAge) : "held count starts at 0").append("<br>");
+                ? String.format(Locale.US, "held count starts at %d, load order \"%s\" (saved %.0f s ago)", savedCount, mech.loadOrder(), countAge)
+                : "held count starts at 0").append("<br>");
         sb.append("ramp: position unknown until Start<br>");
         sb.append(mech.flyPos == null ? "fly_pos missing: not commanded" : "fly_pos: POLLEN at Start").append("<br>");
         sb.append("slot count: ").append(mech.slots == null ? "no sensors" : mech.slots.valid() ? mech.slots.count() + " (" + mech.slots.slots() + ")" : "NOT READING").append("<br>");
@@ -570,7 +572,8 @@ public final class CompetitionTeleOp extends TeamOpMode {
                 mech.flywheelText(), mech.flywheel.amps()));
         if (mech.pusher != null) sb.append(String.format(Locale.US, "pusher %s %.0f deg %.2f A lock %s check %s<br>", mech.pusher.state(), mech.pusher.angle(),
                 mech.pusher.amps(), mech.lockState(), mech.check == null ? "-" : mech.check.result()));
-        sb.append(String.format(Locale.US, "held %s, slots %s, tally %d, %s<br>", mech.heldText(), mech.slots == null ? "-" : mech.slots.slots(),
+        sb.append(String.format(Locale.US, "held %s, load order \"%s\"%s, slots %s, tally %d, %s<br>", mech.heldText(), mech.loadOrder(),
+                mech.kindsOff() ? " (kinds OFF)" : "", mech.slots == null ? "-" : mech.slots.slots(),
                 mech.launchedTally(), mech.fullStepText() == null ? "" : mech.fullStepText()));
         sb.append(String.format(Locale.US, "lock %s err %.1f, aims %s<br>", lockOn ? "on" : "off", lockErrorDeg, aimsText()));
         for (java.util.Map.Entry<org.firstinspires.ftc.teamcode.subsystems.Warnings.Code, String> e : mech.warnings().all().entrySet()) {

@@ -46,10 +46,10 @@ public final class GridRoutes {
     /**
      * The model text of this code: the motion values the tables must have been built with (top speed, planning
      * deceleration, grip, the tracking allowance on the route and at the goal and the distance over which it tapers,
-     * the corner cluster length, the corner safety factor). A table whose model text differs is reported in the log
+     * the corner cluster length, the corner safety factor, the drift margin). A table whose model text differs is reported in the log
      * and still used.
      */
-    public static String MODEL = "V_MAX 66.0, A_DEC 120.0, A_GRIP 150.0, E_MAX 3.00, E_GOAL 0.50, E_TAPER 24.0, CORNER_CLUSTER_IN 30.0, CORNER_SAFETY 0.75";
+    public static String MODEL = "V_MAX 66.0, A_DEC 120.0, A_GRIP 150.0, E_MAX 3.00, E_GOAL 0.50, E_TAPER 24.0, CORNER_CLUSTER_IN 30.0, CORNER_SAFETY 0.75, DRIFT_IN 3.00";
 
     /** The geometry text of this code, as the generated file writes it. */
     public static String geometry() {

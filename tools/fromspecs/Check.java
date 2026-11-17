@@ -15,6 +15,7 @@ import org.firstinspires.ftc.teamcode.navigation.ParkDash;
 import org.firstinspires.ftc.teamcode.navigation.Plan;
 import org.firstinspires.ftc.teamcode.navigation.RoutePlanner;
 import org.firstinspires.ftc.teamcode.robot.Footprint;
+import org.firstinspires.ftc.teamcode.subsystems.EntryKinds;
 import org.firstinspires.ftc.teamcode.subsystems.EntryRule;
 import org.firstinspires.ftc.teamcode.subsystems.HeldCount;
 import org.firstinspires.ftc.teamcode.subsystems.LaunchSequencer;
@@ -69,7 +70,7 @@ public class Check {
                         skipped++;
                         continue;
                     }
-                    Plan pl = RoutePlanner.plan(p.vec(), goals[g], fp);
+                    Plan pl = RoutePlanner.plan(p, goals[g], fp);
                     if (pl.ok()) {
                         ok++;
                         vias[pl.legs() - 1]++;
@@ -85,12 +86,12 @@ public class Check {
             if (refused > 0) System.out.println("     refused at:" + refusedAt);
         }
         for (double[] s : new double[][] {{-55, 15}, {-50, -50}, {0, 0}, {50, 50}, {-60, 60}, {60, -20}, {-30, 0}, {0, 40}}) {
-            Plan pl = RoutePlanner.plan(new Vec(s[0], s[1]), Aim.launchSpot(Cell.BLUE_AUDIENCE), fp);
+            Plan pl = RoutePlanner.plan(new Pose(s[0], s[1], 0), Aim.launchSpot(Cell.BLUE_AUDIENCE), fp);
             System.out.println("  from (" + s[0] + "," + s[1] + ") to the blue audience spot: " + pl.describe());
         }
-        System.out.println("  from (55,7) to park, hive side: " + RoutePlanner.plan(new Vec(55, 7), Field.parkDashCorner(false), fp).describe());
-        System.out.println("  from (-55,15) to park, audience side: " + RoutePlanner.plan(new Vec(-55, 15), Field.parkDashCorner(true), fp).describe());
-        System.out.println("  from (0,-50) to park, audience side: " + RoutePlanner.plan(new Vec(0, -50), Field.parkDashCorner(true), fp).describe());
+        System.out.println("  from (55,7) to park, hive side: " + RoutePlanner.plan(new Pose(55, 7, 0), Field.parkDashCorner(false), fp).describe());
+        System.out.println("  from (-55,15) to park, audience side: " + RoutePlanner.plan(new Pose(-55, 15, 0), Field.parkDashCorner(true), fp).describe());
+        System.out.println("  from (0,-50) to park, audience side: " + RoutePlanner.plan(new Pose(0, -50, 0), Field.parkDashCorner(true), fp).describe());
 
         System.out.println("== entry rule replay against the recorded runs");
         for (String f : new String[] {"2026-11-14_132704_cs5_proximity.csv", "2026-11-14_141611_teleop_cs5_proximity.csv", "2026-11-14_152200_teleop_cs5_proximity.csv"}) {
@@ -116,6 +117,8 @@ public class Check {
             }
         }
         EntryRule.EDGE_COUNTING = true;
+        kindChecks(a[0]);
+        routeChoiceChecks(goals);
 
         System.out.println("== launch grid lookup with a made-up 3x3 lattice (speed 1300+10i+5j, residual 2+i deg, spot (2,2) no shot)");
         List<double[]> rows = new ArrayList<>();
@@ -380,7 +383,7 @@ public class Check {
         expect(GridRoutes.unusable(new Vec(3, 2.5)) != null, "a goal that has moved more than 1 in has none: " + GridRoutes.unusable(new Vec(3, 2.5)));
         expect(GridRoutes.modelNote() != null, "a model text that differs is reported and the tables are still used: " + GridRoutes.modelNote());
         GridRoutes.setData(GridRoutes.geometry(), GridRoutes.MODEL, corner, goal, gx, gy, aim, nx, tm, sp);
-        expect(GridRoutes.modelNote() == null && GridRoutes.MODEL.startsWith("V_MAX 66.0, A_DEC 120.0, A_GRIP 150.0"), "the page's model text is this code's, and then nothing is reported");
+        expect(GridRoutes.modelNote() == null && GridRoutes.MODEL.startsWith("V_MAX 66.0, A_DEC 120.0, A_GRIP 150.0") && GridRoutes.MODEL.endsWith(", DRIFT_IN 3.00"), "the page's model text is this code's, and then nothing is reported");
         GridRoutes.Table t = GridRoutes.table(new Vec(3, 1));
         int start = GridRoutes.state(GridRoutes.node(0, 11), 0);
         List<Vec> route = t.trace(start);
@@ -409,11 +412,248 @@ public class Check {
         seq.queue(10);
         expect(seq.queuedStep(13.5, true, true, true, 1350, 1350) == LaunchSequencer.Event.DROPPED, "a queued launch is dropped on its timeout before its conditions are tested");
         HeldCount held = new HeldCount();
-        held.start(4);
+        held.start(4, null);
         int taken = held.salvoStarted(0);
         held.onEntry(5.0);
         held.salvoIncomplete();
         expect(taken == 4 && held.held() == 5 && held.tally() == 0, "an incomplete salvo puts back the count (4) plus what entered since (1), and the tally");
+    }
+
+    /** Choosing a route (specs/dashes.md section 1.3): the cost table, the route points, and the page's known limit. */
+    static void routeChoiceChecks(Vec[] goals) {
+        System.out.println("== choosing a route (specs/dashes.md 1.3)");
+        Vec o = new Vec(0, 0);
+        double eps = 1e-6;
+        expect(Math.abs(RoutePlanner.cost(new Vec[] {o, new Vec(60, 0)}, 0) - 60) < eps
+                && Math.abs(RoutePlanner.cost(new Vec[] {o, new Vec(60, 0)}, Math.PI) - 60) < eps,
+                "a long first leg along the robot's heading, front or rear first, costs its length");
+        expect(Math.abs(RoutePlanner.cost(new Vec[] {o, new Vec(60, 0)}, Math.PI / 2) - 69) < eps
+                && Math.abs(RoutePlanner.cost(new Vec[] {o, new Vec(60, 0)}, Math.toRadians(135)) - 64.5) < eps,
+                "a long first leg is charged the turn from the robot's own heading, folded to 0 to 90 deg (90 deg: +9 in, 135 deg: +4.5 in)");
+        expect(Math.abs(RoutePlanner.cost(new Vec[] {o, new Vec(50, 0), new Vec(50, 50)}, 0) - 109) < eps,
+                "a long leg right after a long leg is charged the turn between the two");
+        expect(Math.abs(RoutePlanner.cost(new Vec[] {o, new Vec(10, 0), new Vec(10, 50)}, 0) - (10 / 0.75 + 50)) < eps
+                && Math.abs(RoutePlanner.cost(new Vec[] {o, new Vec(10, 0), new Vec(10, 50)}, 1.0) - (10 / 0.75 + 50)) < eps,
+                "a short leg costs its length over 0.75 with no turn, and makes the turn onto the next long leg free");
+        expect(Math.abs(RoutePlanner.cost(new Vec[] {o, new Vec(50, 0), new Vec(50, 10), new Vec(100, 10)}, 0) - (100 + 10 / 0.75)) < eps,
+                "a short leg forgets the direction of travel");
+        boolean allUsable = true;
+        for (Vec p : Field.routePoints()) allUsable &= RoutePlanner.routePointUsable(p, fp, RoutePlanner.obstacles());
+        expect(allUsable, "none of the six route points lies within the far-corner radius plus the margin of an obstacle");
+
+        // The straight line is one candidate, not preferred: on the page's survey (a 6 in grid of starts, the eight goals)
+        // the planner takes a route point although the straight line is acceptable on 1.5 to 3.8 % of the routed trips.
+        double worst = 0, least = 1e9, most = 0;
+        boolean cheaper = true;
+        for (double hd : new double[] {0, 45, 90, 135}) {
+            int routed = 0, notStraight = 0;
+            double sumExtra = 0;
+            for (Vec goal : goals) {
+                for (double x = -60; x <= 60; x += 6) {
+                    for (double y = -60; y <= 60; y += 6) {
+                        Pose p = new Pose(x, y, Math.toRadians(hd));
+                        if (RoutePlanner.touchesSupport(p, fp)) continue;
+                        Plan pl = RoutePlanner.plan(p, goal, fp);
+                        if (!pl.ok()) continue;
+                        routed++;
+                        if (pl.legs() > 1 && RoutePlanner.legOk(p.vec(), goal, true, true, fp, RoutePlanner.obstacles())) {
+                            notStraight++;
+                            double extra = pl.length() - p.vec().dist(goal);
+                            sumExtra += extra;
+                            worst = Math.max(worst, extra);
+                            cheaper &= pl.cost < RoutePlanner.cost(new Vec[] {p.vec(), goal}, p.h);
+                        }
+                    }
+                }
+            }
+            double share = 100.0 * notStraight / routed;
+            least = Math.min(least, share);
+            most = Math.max(most, share);
+            System.out.printf("  heading %3.0f deg: %d routed trips, %d (%.1f %%) take a route point although the straight line is acceptable, %.1f in longer on average%n",
+                    hd, routed, notStraight, share, notStraight == 0 ? 0 : sumExtra / notStraight);
+        }
+        expect(most > 0 && cheaper, "the straight line is not preferred: a cheaper chain of route points is taken (the page's known limit)");
+        expect(least >= 1.0 && most <= 4.5 && worst <= 5.0, String.format(
+                "that happens on %.1f to %.1f %% of the routed trips, at most %.1f in longer (the page: 1.5 to 3.8 %%, 4.4 in at most)", least, most, worst));
+    }
+
+    /** Replays a recorded run with CS5's color through the counting rule and the kind rule; returns {entries, pollen, red, blue, unknown, color reads, reads}. */
+    static int[] replayKinds(List<double[]> rows, double periodS) {
+        EntryRule rule = new EntryRule();
+        EntryKinds kinds = new EntryKinds();
+        int[] out = new int[7];
+        boolean newColor = false;
+        double next = -1e9;
+        for (double[] q : rows) {
+            // The sensor's "new color value" flag stays up until a read that returns the status.
+            newColor |= (((int) q[2]) & 0x08) != 0;
+            if (periodS > 0) {
+                if (q[0] < next) continue;      // thinned: the first recorded sample at or after each tick
+                next = (next < -1e8 ? q[0] : next) + periodS;
+            }
+            double t = q[0];
+            int prox = (int) q[1];
+            int[] color = null;
+            out[6]++;
+            if (kinds.wantColor(t)) {
+                // The robot would take the longer read here: the color is used only when it is new since the last color read.
+                if (newColor) color = new int[] {(int) q[3], (int) q[4], (int) q[5]};
+                newColor = false;
+                out[5]++;
+            }
+            EntryRule.Entry e = rule.sample(t, prox);
+            if (e != null) out[0]++;
+            EntryKinds.Result k = kinds.sample(t, prox, rule.level(), e != null, color);
+            if (k != null) out[1 + k.kind.ordinal()]++;
+        }
+        return out;
+    }
+
+    /** A made-up signal at 25 ms: a quiet start, then what the caller appends. Rows are {t, prox, status, green, blue, red}. */
+    static final class Made {
+        final List<double[]> rows = new ArrayList<>();
+        double t;
+
+        Made() { empty(60); }
+
+        void add(int n, int prox, double g, double b, double r) {
+            for (int i = 0; i < n; i++) {
+                rows.add(new double[] {t, prox, 9, 2385 + g, 1450 + b, 1200 + r});
+                t += 0.025;
+            }
+        }
+
+        void empty(int n) { add(n, 65, 0, 0, 0); }
+
+        /** Feeds the rows to the two rules as the robot's thread would; returns the kinds' letters in the order they arrived. */
+        String run() {
+            EntryRule rule = new EntryRule();
+            EntryKinds kinds = new EntryKinds();
+            StringBuilder sb = new StringBuilder();
+            asked = 0;
+            for (double[] q : rows) {
+                boolean want = kinds.wantColor(q[0]);
+                if (want && q[0] > 1.5) asked++;
+                EntryRule.Entry e = rule.sample(q[0], (int) q[1]);
+                if (e != null) entries++;
+                EntryKinds.Result k = kinds.sample(q[0], (int) q[1], rule.level(), e != null, want ? new int[] {(int) q[3], (int) q[4], (int) q[5]} : null);
+                if (k != null) {
+                    sb.append(k.kind.letter);
+                    lastDelay = q[0] - k.entryT;
+                    lastValues = k.values;
+                }
+            }
+            return sb.toString();
+        }
+
+        int entries, asked, lastValues;
+        double lastDelay;
+    }
+
+    /** The kind of each entry and the load order (specs/element-counting.md section 2.8). */
+    static void kindChecks(String dataDir) throws Exception {
+        System.out.println("== CS5 kinds (specs/element-counting.md 2.8): the recorded pollen run with its color, then made-up signals");
+        List<double[]> rows = new ArrayList<>();
+        for (String line : lines(new File(dataDir, "2026-11-14_132704_cs5_color.csv"))) {
+            if (line.startsWith("#") || line.startsWith("t_sec") || line.trim().isEmpty()) continue;
+            String[] q = line.split(",");
+            double[] v = new double[q.length];
+            for (int i = 0; i < q.length; i++) v[i] = Double.parseDouble(q[i]);
+            rows.add(v);
+        }
+        for (double period : new double[] {0, 0.025}) {
+            int[] r = replayKinds(rows, period);
+            String how = period == 0 ? "at 20 ms as recorded" : "thinned to 25 ms";
+            System.out.printf("  %s: %d entries; pollen %d, red nectar %d, blue nectar %d, unknown %d; %d of %d reads carried the color (%.0f %%)%n",
+                    how, r[0], r[1], r[2], r[3], r[4], r[5], r[6], 100.0 * r[5] / r[6]);
+            expect(r[0] == 31 && r[2] == 0 && r[3] == 0 && r[1] + r[4] == 31, "31 pollen " + how + ": every entry gets a kind and none is named nectar");
+            expect(r[1] == 30 && r[4] == 1, "the page's result " + how + ": 30 named pollen, 1 unknown");
+        }
+
+        expect(EntryKinds.classify(0, 0, 0, 0) == EntryKinds.Kind.UNKNOWN && EntryKinds.classify(30, 2, 20, 4) == EntryKinds.Kind.UNKNOWN,
+                "no color value, or a total rise under 60 counts: unknown");
+        expect(EntryKinds.classify(45, 0, 55, 3) == EntryKinds.Kind.RED_NECTAR && EntryKinds.classify(46, 0, 54, 3) == EntryKinds.Kind.POLLEN,
+                "red share 0.55 or more is red nectar, just under it with the green of pollen is pollen");
+        expect(EntryKinds.classify(30, 40, 30, 3) == EntryKinds.Kind.BLUE_NECTAR && EntryKinds.classify(40, 30, 30, 3) == EntryKinds.Kind.UNKNOWN,
+                "blue share 0.40 or more is blue nectar; blue 0.30 is neither nectar nor pollen: unknown");
+        expect(EntryKinds.classify(58, 5, 37, 3) == EntryKinds.Kind.POLLEN && EntryKinds.classify(100, -20, 60, 3) == EntryKinds.Kind.POLLEN,
+                "the measured pollen shares are pollen, and a channel whose sum is negative counts as 0");
+        expect(EntryKinds.classify(10, 5, 85, 3) == EntryKinds.Kind.RED_NECTAR && EntryKinds.classify(10, 50, 60, 3) == EntryKinds.Kind.BLUE_NECTAR
+                && EntryKinds.classify(0, 42, 58, 3) == EntryKinds.Kind.RED_NECTAR, "the tests run in the page's order: red nectar first, then blue nectar");
+
+        Made m = new Made();
+        m.add(4, 110, 20, 5, 100);
+        m.empty(40);
+        m.add(4, 110, 20, 100, 10);
+        m.empty(40);
+        m.add(4, 110, 100, 5, 60);
+        m.empty(40);
+        String got = m.run();
+        expect(got.equals("RBP") && m.entries == 3, "made-up red nectar, blue nectar and pollen passing one after the other are named in order (" + got + ")");
+
+        m = new Made();
+        m.add(120, 110, 100, 5, 60);        // parked for 3 s
+        int askedParked;
+        String parked = m.run();
+        askedParked = m.asked;
+        expect(parked.equals("P") && Math.abs(m.lastDelay - 0.5) < 0.03, String.format(
+                "an element that stays in front is named once, %.3f s after its entry (0.5 s)", m.lastDelay));
+        expect(askedParked <= 23, "no more color is asked for while it stays (" + askedParked + " color reads in 3 s)");
+        m.empty(40);
+        m.add(4, 110, 20, 5, 100);
+        m.empty(40);
+        got = m.run();
+        expect(got.equals("PR"), "after it has gone the next element is named again (" + got + ")");
+
+        m = new Made();
+        m.add(4, 110, 100, 5, 60);
+        m.add(1, 66, 60, 20, 60);           // one sample back at the re-arm level: the two touch
+        m.add(4, 110, 20, 5, 100);
+        m.empty(40);
+        got = m.run();
+        expect(m.entries == 2 && got.equals("PR"), "touching elements that count twice get two kinds, the first closed when the second is counted (" + got + ")");
+
+        m = new Made();
+        m.add(6, 68, 100, 5, 60);           // above the pass level, below the count's threshold
+        m.empty(40);
+        got = m.run();
+        expect(m.entries == 0 && got.isEmpty(), "a pass in which no entry was counted gives nothing");
+
+        m = new Made();
+        m.add(4, 110, 100, 5, 60);
+        m.empty(40);
+        boolean was = EntryRule.EDGE_COUNTING;
+        EntryRule.EDGE_COUNTING = false;
+        EntryKinds off = new EntryKinds();
+        expect(!off.wantColor(0) && !off.wantColor(5), "with peak counting no color is read: there are no kinds");
+        EntryRule.EDGE_COUNTING = was;
+        EntryKinds.ENABLED = false;
+        expect(!new EntryKinds().wantColor(0), "the kinds' switch off returns the thread to the small read alone");
+        EntryKinds.ENABLED = true;
+
+        System.out.println("== the load order (specs/element-counting.md 2.8)");
+        HeldCount h = new HeldCount();
+        h.start(4, null);
+        expect(h.load().equals("????"), "a preload starts as ????");
+        h.salvoStarted(0);
+        expect(h.load().isEmpty(), "the load order is emptied when the held count restarts at 0");
+        h.onEntry(5.0);
+        expect(h.load().equals("?"), "an entry added to the held count is added as ?");
+        expect(h.onKind(5.0, 'P') && h.load().equals("P"), "its kind replaces the ? when its pass closes");
+        h.onEntry(6.0);
+        h.onEntry(7.0);
+        expect(h.onKind(7.0, 'B') && h.load().equals("P?B") && h.onKind(6.0, 'R') && h.load().equals("PRB"), "kinds go to their own entries, first in first");
+        expect(!h.onKind(9.0, 'P') && h.load().equals("PRB"), "a kind whose entry was not counted as held is dropped");
+        h.salvoStarted(0);
+        h.onEntry(8.0);
+        expect(!h.onKind(7.0, 'R'), "a kind whose entry left with the track's emptying is dropped");
+        h.salvoIncomplete();
+        expect(h.load().equals("PRB?") && h.held() == 4, "a salvo that did not complete puts its elements back in front of what has entered since (" + h.load() + ")");
+        expect(h.onKind(8.0, 'P') && h.load().equals("PRBP"), "and a later kind still finds its entry behind them");
+        h.reset();
+        expect(h.load().isEmpty() && h.held() == 0, "a finished reject empties the load order with the count");
+        h.start(2, "PR");
+        expect(h.load().equals("PR"), "a count that starts from a known load starts with the load order saved with it");
     }
 
     static List<String> lines(File f) throws Exception {
@@ -488,6 +728,6 @@ public class Check {
         String src = new String(Files.readAllBytes(new File("TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subsystems/Mechanisms.java").toPath()), StandardCharsets.UTF_8)
                 .replace("\"\n            + \"", "").replace("\"\r\n            + \"", "");
         expect(src.contains("\"setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,"
-                + "fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps,cs5_entries,cs5_held,cs5_full,cs5_prox,cs5f,launched_total\""), "the coordinator's 27 column names, in the page's order");
+                + "fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps,cs5_entries,cs5_held,cs5_full,cs5_prox,cs5f,launched_total,cs5_load\""), "the coordinator's 28 column names, in the page's order (cs5_load last)");
     }
 }

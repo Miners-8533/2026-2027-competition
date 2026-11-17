@@ -2,11 +2,11 @@
 rem PC check of the from-specs rebuild (needs a JDK on the PATH). Run from the repo root.
 rem Compiles the pure-logic packages of the robot code with two small stand-ins (the tunable-value marker and the build stamp)
 rem and runs: the aim math, the launch spots, the route planner over a grid of starts, the CS5 entry rule replayed on the
-rem recorded runs in tools\entry\data, the launch grid lookup, and both dashes on a crude model of the robot.
+rem recorded runs in tools\entry\data (and the kind of each entry on the run recorded with CS5's color), the launch grid lookup, and both dashes on a crude model of the robot.
 rem Checks with an expected answer (the leg check's exemptions, the grid route tables' reading, the launch sequencer and
 rem the held count, the run log's start and end markers) print ok or FAILED; any FAILED makes this script fail.
 set T=TeamCode\src\main\java\org\firstinspires\ftc\teamcode
 if exist build\fromspecs rmdir /s /q build\fromspecs
 mkdir build\fromspecs
-javac -nowarn -d build\fromspecs tools\fromspecs\stubs\com\acmerobotics\dashboard\config\Config.java tools\fromspecs\stubs\org\firstinspires\ftc\teamcode\util\BuildInfo.java %T%\math\*.java %T%\field\*.java %T%\robot\Footprint.java %T%\aiming\*.java %T%\navigation\*.java %T%\subsystems\EntryRule.java %T%\subsystems\MechParams.java %T%\subsystems\HeldCount.java %T%\subsystems\LaunchSequencer.java %T%\util\RunLog.java %T%\util\LoopProfiler.java %T%\util\Clock.java tools\fromspecs\Check.java || exit /b 1
+javac -nowarn -d build\fromspecs tools\fromspecs\stubs\com\acmerobotics\dashboard\config\Config.java tools\fromspecs\stubs\org\firstinspires\ftc\teamcode\util\BuildInfo.java %T%\math\*.java %T%\field\*.java %T%\robot\Footprint.java %T%\aiming\*.java %T%\navigation\*.java %T%\subsystems\EntryRule.java %T%\subsystems\EntryKinds.java %T%\subsystems\MechParams.java %T%\subsystems\HeldCount.java %T%\subsystems\LaunchSequencer.java %T%\util\RunLog.java %T%\util\LoopProfiler.java %T%\util\Clock.java tools\fromspecs\Check.java || exit /b 1
 java -cp build\fromspecs Check tools\entry\data

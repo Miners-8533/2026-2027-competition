@@ -206,50 +206,88 @@ public final class RoutePlanner {
         return true;
     }
 
-    private static double turnFolded(Vec a, Vec b, Vec c) {
-        double d = Math.toDegrees(c.minus(b).angle() - b.minus(a).angle());
-        d = Math.abs(((d + 540) % 360) - 180);      // 0 to 180
-        return d > 90 ? 180 - d : d;                // a leg can be driven front or rear first
+    /** The turn between two directions of travel, in degrees, folded to 0 to 90: a leg can be driven front or rear first. */
+    private static double turnFolded(double fromRad, double toRad) {
+        double d = Math.toDegrees(toRad - fromRad);
+        d = Math.abs(((d % 360 + 540) % 360) - 180);    // 0 to 180
+        return d > 90 ? 180 - d : d;
     }
 
-    private static double cost(Vec[] pts) {
+    /**
+     * The cost of a route (specs/dashes.md section 1.3): the sum over its legs, in order from the robot.
+     *
+     *   short leg (not aligned):            its length divided by the unaligned speed ratio; no turn is charged and
+     *                                       the direction of travel is forgotten;
+     *   long leg, the first of the route:   its length + the turn penalty for each degree between the robot's heading
+     *                                       when the route is planned and the leg;
+     *   long leg after another long leg:    its length + the turn penalty for each degree between the two legs;
+     *   long leg after a short leg:         its length; no turn is charged.
+     *
+     * The last row is the page's known limit: a short hop to a nearby route point can cost less than turning onto the
+     * straight line. It is kept, as the page says.
+     */
+    public static double cost(Vec[] pts, double headingRad) {
         double c = 0;
+        boolean haveDirection = true;       // the robot's own heading, before the first leg
+        double direction = headingRad;
         for (int i = 0; i + 1 < pts.length; i++) {
             double len = pts[i].dist(pts[i + 1]);
-            boolean aligned = len >= ALIGN_LENGTH_IN;
-            c += aligned ? len : len / UNALIGNED_SPEED_RATIO;
-            if (aligned && i + 2 < pts.length && pts[i + 1].dist(pts[i + 2]) >= ALIGN_LENGTH_IN) {
-                c += TURN_PENALTY_IN_PER_DEG * turnFolded(pts[i], pts[i + 1], pts[i + 2]);
+            if (len < ALIGN_LENGTH_IN) {
+                c += len / UNALIGNED_SPEED_RATIO;
+                haveDirection = false;
+                continue;
             }
+            double leg = pts[i + 1].minus(pts[i]).angle();
+            c += len;
+            if (haveDirection) c += TURN_PENALTY_IN_PER_DEG * turnFolded(direction, leg);
+            haveDirection = true;
+            direction = leg;
         }
         return c;
     }
 
-    private static Plan make(Vec[] pts) {
+    private static Plan make(Vec[] pts, double headingRad) {
         boolean[] aligned = new boolean[pts.length - 1];
         for (int i = 0; i < aligned.length; i++) aligned[i] = pts[i].dist(pts[i + 1]) >= ALIGN_LENGTH_IN;
-        return new Plan(pts, aligned, cost(pts));
+        return new Plan(pts, aligned, cost(pts, headingRad));
     }
 
-    /** Plans from the robot's position to a goal. */
-    public static Plan plan(Vec start, Vec goal, Footprint fp) {
+    /** Whether a route point may be used: not within the far-corner radius plus the margin of an obstacle. */
+    public static boolean routePointUsable(Vec p, Footprint fp, List<Obstacle> obstacles) {
+        for (Obstacle o : obstacles) {
+            if (circleTouches(o.poly, p, fp.farCorner() + MARGIN_IN)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Plans from the robot's pose to a goal (specs/dashes.md section 1.3). The candidates are the straight line, when it
+     * is acceptable, and every chain of at most MAX_VIA different route points over acceptable legs; the cheapest is the
+     * route. The straight line is not preferred: it is tried first, so it wins a tie and nothing more.
+     */
+    public static Plan plan(Pose robot, Vec goal, Footprint fp) {
+        Vec start = robot.vec();
         List<Obstacle> obs = obstacles();
-        if (legOk(start, goal, true, true, fp, obs)) return make(new Vec[] {start, goal});
+        Vec[] best = null;
+        double bestCost = Double.MAX_VALUE;
+        if (legOk(start, goal, true, true, fp, obs)) {
+            best = new Vec[] {start, goal};
+            bestCost = cost(best, robot.h);
+        }
 
         Vec[] via = Field.routePoints();
         int n = via.length;
-        boolean[] fromStart = new boolean[n], toGoal = new boolean[n];
+        boolean[] usable = new boolean[n], fromStart = new boolean[n], toGoal = new boolean[n];
         boolean[][] between = new boolean[n][n];
+        for (int i = 0; i < n; i++) usable[i] = routePointUsable(via[i], fp, obs);
         for (int i = 0; i < n; i++) {
+            if (!usable[i]) continue;
             fromStart[i] = legOk(start, via[i], true, false, fp, obs);
             toGoal[i] = legOk(via[i], goal, false, true, fp, obs);
 
-            for (int j = 0; j < n; j++) between[i][j] = i != j && legOk(via[i], via[j], false, false, fp, obs);
+            for (int j = 0; j < n; j++) between[i][j] = i != j && usable[j] && legOk(via[i], via[j], false, false, fp, obs);
         }
-        Vec[] best = null;
-        double bestCost = Double.MAX_VALUE;
         int[] chain = new int[Math.max(1, MAX_VIA)];
-        // Chains of at most MAX_VIA route points over acceptable legs; take the cheapest.
         List<int[]> stack = new ArrayList<>();
         for (int i = 0; i < n; i++) if (fromStart[i]) stack.add(new int[] {i});
         while (!stack.isEmpty()) {
@@ -260,7 +298,7 @@ public final class RoutePlanner {
                 pts[0] = start;
                 for (int k = 0; k < c.length; k++) pts[k + 1] = via[c[k]];
                 pts[pts.length - 1] = goal;
-                double cst = cost(pts);
+                double cst = cost(pts, robot.h);
                 if (cst < bestCost) {
                     bestCost = cst;
                     best = pts;
@@ -279,6 +317,6 @@ public final class RoutePlanner {
             }
         }
         if (best == null) return new Plan("no clear route from " + start + " to " + goal);
-        return make(best);
+        return make(best, robot.h);
     }
 }

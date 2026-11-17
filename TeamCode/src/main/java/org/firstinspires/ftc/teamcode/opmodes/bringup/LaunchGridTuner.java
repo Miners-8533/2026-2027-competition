@@ -260,7 +260,7 @@ public final class LaunchGridTuner extends TeamOpMode {
                 if (!wasHeld) {
                     // Planned again each time the trigger is pulled, from where the robot is. The robot arrives already pointed at the cell.
                     double h = Angle.wrap(spot.geometricRad + Math.toRadians(spot.aimTrimDeg));
-                    Plan plan = RoutePlanner.plan(p.vec(), new Vec(spot.x, spot.y), footprint);
+                    Plan plan = RoutePlanner.plan(p, new Vec(spot.x, spot.y), footprint);
                     route = new ArrayList<>();
                     if (plan.ok()) {
                         for (int k = 1; k < plan.points.length; k++) route.add(new Pose(plan.points[k].x, plan.points[k].y, h));

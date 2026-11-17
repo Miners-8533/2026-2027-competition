@@ -96,8 +96,8 @@ public abstract class AutoBase extends TeamOpMode {
         Handover.dropAims();            // the auto has reseeded the Pinpoint: the remembered aims belonged to the old pose
         mech.setSpin(true);             // the flywheel runs from Start and stays up between launches
         mech.prePositionPreload();      // to the lock angle while the flywheel spins up, so the preload salvo is shorter
-        RunLog.eventf("SETUP profile %s, alliance %s, start pose default %s, driver forward %.0f deg; %s, mechanisms: %s, held count starts at %s",
-                profile.name, alliance, drive.pose(), Math.toDegrees(alliance.driverForwardRad()), drive.localizer.seedConfirmed() ? "seed confirmed" : "SEED NOT CONFIRMED", mech.found(), mech.heldText());
+        RunLog.eventf("SETUP profile %s, alliance %s, start pose default %s, driver forward %.0f deg; %s, mechanisms: %s, held count starts at %s, load order \"%s\"",
+                profile.name, alliance, drive.pose(), Math.toDegrees(alliance.driverForwardRad()), drive.localizer.seedConfirmed() ? "seed confirmed" : "SEED NOT CONFIRMED", mech.found(), mech.heldText(), mech.loadOrder());
         RunLog.sampler("x,y,hdg_deg," + MecanumDrive.LOG_COLUMNS.replace(",a_lf,a_lb,a_rb,a_rf", "") + "," + Mechanisms.LOG_COLUMNS
                 + ",a_lf,a_lb,a_rb,a_rf", RunLog.NORMAL_PERIOD_S, new RunLog.Sampler() {
                     @Override public String row() {
@@ -123,7 +123,7 @@ public abstract class AutoBase extends TeamOpMode {
             @Override public void run() {
                 mech.update(drive.pose(), true);
                 Handover.savePose(drive.pose(), alliance.isRed());
-                Handover.saveCount(mech.heldCountForSave());
+                Handover.saveCount(mech.heldCountForSave(), mech.loadOrder());
             }
         };
         ActionRunner.run(this, drive, all, everyLoop);
@@ -142,8 +142,8 @@ public abstract class AutoBase extends TeamOpMode {
     protected void saveAtEnd() {
         if (drive == null || startedAt < 0) return;
         Handover.savePose(drive.pose(), alliance.isRed());
-        if (mech != null) Handover.saveCount(mech.heldCountForSave());
-        RunLog.eventf("PINPOINT hand-over: saved %s for %s, held count %s", drive.pose(), alliance, mech == null ? "-" : mech.heldText());
+        if (mech != null) Handover.saveCount(mech.heldCountForSave(), mech.loadOrder());
+        RunLog.eventf("PINPOINT hand-over: saved %s for %s, held count %s, load order \"%s\"", drive.pose(), alliance, mech == null ? "-" : mech.heldText(), mech == null ? "" : mech.loadOrder());
     }
 
     private void initScreen() {

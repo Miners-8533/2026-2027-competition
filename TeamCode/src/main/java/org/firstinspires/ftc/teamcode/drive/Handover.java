@@ -16,6 +16,7 @@ public final class Handover {
     private static boolean red;
     private static long poseAt;
     private static int heldCount = -1;
+    private static String loadOrder;
     private static long countAt;
     private static double[] aims;
 
@@ -38,10 +39,14 @@ public final class Handover {
     public static synchronized double poseAgeS() { return pose == null ? Double.NaN : ageS(poseAt); }
 
     // ---- CS5 held count: its own save time, because the TeleOp keeps saving it in backup mode ----
-    public static synchronized void saveCount(int held) {
+    public static synchronized void saveCount(int held, String load) {
         heldCount = held;
+        loadOrder = load;
         countAt = System.nanoTime();
     }
+
+    /** The load order saved with the held count (what each held element is, first in first), or null. */
+    public static synchronized String loadOrder() { return heldCount >= 0 ? loadOrder : null; }
 
     /** The saved held count if fresh, else -1. */
     public static synchronized int freshCount(double maxAgeS) {
@@ -58,10 +63,11 @@ public final class Handover {
     /** An auto drops them: it has reseeded the Pinpoint. */
     public static synchronized void dropAims() { aims = null; }
 
-    /** Discards everything the last opmode saved: the pose, the aims that went with it, and the held count. */
+    /** Discards everything the last opmode saved: the pose, the aims that went with it, and the held count with its load order. */
     public static synchronized void discard() {
         pose = null;
         aims = null;
         heldCount = -1;
+        loadOrder = null;
     }
 }
