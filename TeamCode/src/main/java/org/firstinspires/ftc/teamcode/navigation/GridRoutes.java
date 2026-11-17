@@ -10,7 +10,7 @@ import java.util.Locale;
  * Grid routes (specs/dashes.md section 5): precomputed, time-optimal routes that know about momentum.
  *
  * This class is the reading of the generated tables (section 5.1) and the checks that decide whether they may be
- * used. The tables themselves are generated data (GridRouteData); none exist on this branch yet, so every goal
+ * used. The tables themselves are generated data (GridTables); none exist on this branch yet, so every goal
  * answers "not usable, and why", and the dash logs the reason and uses the route planner.
  *
  * NOT BUILT: picking a start (5.2), the follower (5.3) and the off-route guard (5.4). Until they are, a dash uses
@@ -39,15 +39,17 @@ public final class GridRoutes {
     public static final int[][] STEP = {
             {1, 0}, {2, 1}, {1, 1}, {1, 2}, {0, 1}, {-1, 2}, {-1, 1}, {-2, 1},
             {-1, 0}, {-2, -1}, {-1, -1}, {-1, -2}, {0, -1}, {1, -2}, {1, -1}, {2, -1}};
-    /** A table's goal counts as the goal asked for when it is this close. SPEC GAP: "a goal has moved" has no tolerance on the page. */
-    public static final double GOAL_MOVED_IN = 0.05;
+    /** A goal has a table when a table's goal is within this of it. Farther than that, the goal has moved. */
+    public static final double GOAL_MOVED_IN = 1.0;
+    /** The corner angles, in degrees, that the corner speed table has an entry for. */
+    public static final double[] CORNER_DEG = {0, 10, 20, 30, 45, 60, 75, 90, 120, 150, 180};
     /**
-     * The model text this code expects. SPEC GAP: the page says what the text lists (top speed, planning deceleration,
-     * grip, the tracking allowances and their taper, the corner cluster length, the corner safety factor) but not its
-     * wording, nor the values of grip, taper, cluster length and safety factor. So there is nothing to compare with:
-     * while this is empty the tables' model text is reported in the log as it is, and the tables are still used.
+     * The model text of this code: the motion values the tables must have been built with (top speed, planning
+     * deceleration, grip, the tracking allowance on the route and at the goal and the distance over which it tapers,
+     * the corner cluster length, the corner safety factor). A table whose model text differs is reported in the log
+     * and still used.
      */
-    public static String MODEL = "";
+    public static String MODEL = "V_MAX 66.0, A_DEC 120.0, A_GRIP 150.0, E_MAX 3.00, E_GOAL 0.50, E_TAPER 24.0, CORNER_CLUSTER_IN 30.0, CORNER_SAFETY 0.75";
 
     /** The geometry text of this code, as the generated file writes it. */
     public static String geometry() {
@@ -141,39 +143,41 @@ public final class GridRoutes {
     private static Table[] tables = new Table[0];
     private static double[][] cornerSpeed = new double[0][];
 
-    /** Reads GridRouteData once. */
+    /** Reads GridTables once. */
     private static synchronized void load() {
         if (loaded) return;
         loaded = true;
-        problem = read(GridRouteData.GEOMETRY, GridRouteData.MODEL, GridRouteData.CORNER_SPEED, GridRouteData.GOAL, GridRouteData.GOAL_POSE,
-                GridRouteData.NEXT, GridRouteData.TIME_MS, GridRouteData.END_SPEED);
+        problem = read(GridTables.GEOMETRY, GridTables.MODEL, GridTables.CORNER_SPEED, GridTables.NAMES, GridTables.GOAL_X, GridTables.GOAL_Y,
+                GridTables.AIM, GridTables.NEXT, GridTables.COST, GridTables.SPEED);
     }
 
     /** For a PC check: read tables from somewhere other than the generated file. Returns the problem, or null. */
-    public static synchronized String setData(String geometryText, String modelText, double[][] corner, String[] goal, double[][] goalPose,
-                                              String[] next, String[] timeMs, String[] endSpeed) {
+    public static synchronized String setData(String geometryText, String modelText, double[] cornerSpeeds, String[] goal, double[] goalX, double[] goalY,
+                                              double[] aim, String[] next, String[] timeMs, String[] endSpeed) {
         loaded = true;
-        problem = read(geometryText, modelText, corner, goal, goalPose, next, timeMs, endSpeed);
+        problem = read(geometryText, modelText, cornerSpeeds, goal, goalX, goalY, aim, next, timeMs, endSpeed);
         return problem;
     }
 
-    private static String read(String geometryText, String modelText, double[][] corner, String[] goal, double[][] goalPose,
-                               String[] next, String[] timeMs, String[] endSpeed) {
+    private static String read(String geometryText, String modelText, double[] cornerSpeeds, String[] goal, double[] goalX, double[] goalY,
+                               double[] aim, String[] next, String[] timeMs, String[] endSpeed) {
         tables = new Table[0];
         cornerSpeed = new double[0][];
         modelNote = null;
         if (geometryText == null || geometryText.isEmpty() || goal == null || goal.length == 0) {
-            return "no grid route tables in this build (they are generated by the dash simulator; see GridRouteData)";
+            return "no grid route tables in this build (they are generated by the dash simulator; see GridTables)";
         }
         // A table whose geometry text differs from the code's is not used.
         if (!geometryText.equals(geometry())) {
             return "the tables were built on another lattice (\"" + geometryText + "\"; this code has \"" + geometry() + "\")";
         }
-        if (corner == null || corner.length == 0) return "the tables have no corner speed table";
-        for (int k = 0; k < corner.length; k++) {
-            if (corner[k].length < 2 || (k > 0 && corner[k][0] <= corner[k - 1][0])) return "the corner speed table is not a list of rising angles";
+        if (cornerSpeeds == null || cornerSpeeds.length != CORNER_DEG.length) {
+            return "the corner speed table does not have an entry for each of the " + CORNER_DEG.length + " corner angles";
         }
-        if (goalPose.length != goal.length || next.length != goal.length || timeMs.length != goal.length || endSpeed.length != goal.length) {
+        double[][] corner = new double[CORNER_DEG.length][];
+        for (int k = 0; k < corner.length; k++) corner[k] = new double[] {CORNER_DEG[k], cornerSpeeds[k]};
+        if (goalX == null || goalY == null || aim == null || goalX.length != goal.length || goalY.length != goal.length || aim.length != goal.length
+                || next.length != goal.length || timeMs.length != goal.length || endSpeed.length != goal.length) {
             return "the tables do not hold the same number of goals in every part";
         }
         Table[] out = new Table[goal.length];
@@ -184,15 +188,13 @@ public final class GridRoutes {
                 return String.format(Locale.US, "the table for %s has %d / %d / %d states (next / time / speed); this code's lattice has %d",
                         goal[g], n.length / 2, t.length / 2, s.length, STATES);
             }
-            if (goalPose[g].length < 3) return "the table for " + goal[g] + " has no goal pose";
-            out[g] = new Table(goal[g], goalPose[g][0], goalPose[g][1], goalPose[g][2], n, t, s);
+            out[g] = new Table(goal[g], goalX[g], goalY[g], aim[g], n, t, s);
         }
         tables = out;
         cornerSpeed = corner;
         // A model text that differs is reported in the log and the tables are still used.
         String m = modelText == null ? "" : modelText;
-        if (MODEL.isEmpty()) modelNote = "the tables were built with: " + m;
-        else if (!MODEL.equals(m)) modelNote = "the tables' model differs from this code's (tables: \"" + m + "\"; code: \"" + MODEL + "\"); the tables are still used";
+        if (!MODEL.equals(m)) modelNote = "the tables' model differs from this code's (tables: \"" + m + "\"; code: \"" + MODEL + "\"); the tables are still used";
         return null;
     }
 

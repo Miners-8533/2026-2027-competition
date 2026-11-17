@@ -306,24 +306,32 @@ public class Check {
                 return RoutePlanner.bodyClear(new Pose(x, y, heading), fp, RoutePlanner.MARGIN_IN);
             }
 
-            @Override public boolean insideWalls(double x, double y, double heading, double inset) {
+            @Override public double[] overWalls(double x, double y, double heading, double inset) {
+                double ox = 0, oy = 0, limit = Field.HALF_IN - inset;
                 for (double[] c : fp.corners(x, y, heading)) {
-                    if (Math.abs(c[0]) > Field.HALF_IN - inset || Math.abs(c[1]) > Field.HALF_IN - inset) return false;
+                    ox = Math.max(ox, Math.abs(c[0]) - limit);
+                    oy = Math.max(oy, Math.abs(c[1]) - limit);
                 }
-                return true;
+                return new double[] {ox, oy};
             }
         };
         for (Cell c : new Cell[] {Cell.BLUE_REAR, Cell.BLUE_AUDIENCE}) {
-            List<Vec> spots = LaunchGridSpots.spots(c, fit);
+            List<LaunchGridSpots.Spot> spots = LaunchGridSpots.spots(c, fit, -63.4, 16.5);
             int slid = 0;
-            boolean allRules = true;
+            boolean allRules = true, fits = true;
             StringBuilder sb = new StringBuilder();
-            for (Vec v : spots) {
-                if (Math.abs(v.x % 12) > 1e-6 || Math.abs(v.y % 12) > 1e-6) slid++;
+            for (LaunchGridSpots.Spot v : spots) {
+                if (v.slid) slid++;
                 allRules &= (v.x - c.x()) * c.openSign() > 0 && Aim.distance(v.x, v.y, c) >= 12
                         && Math.abs(Math.toDegrees(Angle.diff(Aim.bearing(v.x, v.y, c), c.faceHeading()))) <= 75;
-                if (sb.length() < 150) sb.append(' ').append(v);
+                double[] over = fit.overWalls(v.x, v.y, LaunchGridSpots.aimAt(v.x, v.y, c), 3.0);
+                fits &= over[0] <= 1e-6 && over[1] <= 1e-6;
+                if (sb.length() < 150) sb.append(String.format(java.util.Locale.US, " (%.1f, %.1f)%s", v.x, v.y, v.slid ? "*" : ""));
             }
+            expect(fits, c + ": every spot, slid or not, fits inside the walls less 3 in at its aim heading");
+            double nearest = Double.MAX_VALUE;
+            for (LaunchGridSpots.Spot v : spots) nearest = Math.min(nearest, Math.abs(v.x - -63.4));
+            expect(!spots.isEmpty() && Math.abs(spots.get(0).x - -63.4) <= nearest + 8.1, c + ": the sweep begins in the column nearest the start");
             System.out.println("  " + c + ": " + spots.size() + " spots, " + slid + " slid off a wall; first:" + sb);
             expect(spots.size() >= 20 && spots.size() <= 40 && allRules, c + ": every spot is on the open side, at least 12 in from the cell and within 75 deg of the opening's normal");
         }
@@ -356,18 +364,23 @@ public class Check {
             time[2 * s + 1] = (byte) ms;
             speed[s] = (byte) (i < 11 ? 131 : 0);
         }
-        double[][] corner = {{0, 66}, {10, 60}, {20, 44}, {30, 36}, {45, 24}, {60, 20}, {75, 20}, {90, 20}, {120, 20}, {150, 20}, {180, 20}};
+        double[] corner = {66, 60, 44, 36, 24, 20, 20, 20, 20, 20, 20};
         String[] goal = {"LEFT"}, nx = {b64(next)}, tm = {b64(time)}, sp = {b64(speed)};
-        double[][] pose = {{3, 1, Double.NaN}};
-        String wrong = GridRoutes.setData("pitch 4.0 in, half span 66.0 in, 16 directions", "model A", corner, goal, pose, nx, tm, sp);
+        double[] gx = {3}, gy = {1}, aim = {Double.NaN};
+        String wrong = GridRoutes.setData("pitch 4.0 in, half span 66.0 in, 16 directions", "model A", corner, goal, gx, gy, aim, nx, tm, sp);
         expect(wrong != null, "a table built on another lattice is not used: " + wrong);
-        String shortTable = GridRoutes.setData(GridRoutes.geometry(), "model A", corner, goal, pose, new String[] {b64(new byte[100])}, tm, sp);
+        String shortTable = GridRoutes.setData(GridRoutes.geometry(), "model A", corner, goal, gx, gy, aim, new String[] {b64(new byte[100])}, tm, sp);
         expect(shortTable != null, "a table of the wrong size is not used: " + shortTable);
-        String good = GridRoutes.setData(GridRoutes.geometry(), "model A", corner, goal, pose, nx, tm, sp);
+        String fewCorners = GridRoutes.setData(GridRoutes.geometry(), "model A", new double[] {66, 60, 44}, goal, gx, gy, aim, nx, tm, sp);
+        expect(fewCorners != null, "a corner speed table without the eleven angles is not used: " + fewCorners);
+        String good = GridRoutes.setData(GridRoutes.geometry(), "model A", corner, goal, gx, gy, aim, nx, tm, sp);
         expect(good == null, "a table with this code's geometry text (\"" + GridRoutes.geometry() + "\") is read");
         expect(GridRoutes.unusable(new Vec(3, 1)) == null, "its goal at (3, 1) can be used");
-        expect(GridRoutes.unusable(new Vec(3, 2)) != null, "a goal that has moved cannot: " + GridRoutes.unusable(new Vec(3, 2)));
-        expect(GridRoutes.modelNote() != null, "the model text is reported and the tables are still used: " + GridRoutes.modelNote());
+        expect(GridRoutes.unusable(new Vec(3, 1.9)) == null, "a goal within 1 in of the table's still has its table");
+        expect(GridRoutes.unusable(new Vec(3, 2.5)) != null, "a goal that has moved more than 1 in has none: " + GridRoutes.unusable(new Vec(3, 2.5)));
+        expect(GridRoutes.modelNote() != null, "a model text that differs is reported and the tables are still used: " + GridRoutes.modelNote());
+        GridRoutes.setData(GridRoutes.geometry(), GridRoutes.MODEL, corner, goal, gx, gy, aim, nx, tm, sp);
+        expect(GridRoutes.modelNote() == null && GridRoutes.MODEL.startsWith("V_MAX 66.0, A_DEC 120.0, A_GRIP 150.0"), "the page's model text is this code's, and then nothing is reported");
         GridRoutes.Table t = GridRoutes.table(new Vec(3, 1));
         int start = GridRoutes.state(GridRoutes.node(0, 11), 0);
         List<Vec> route = t.trace(start);
@@ -377,7 +390,7 @@ public class Check {
         expect(t.trace(GridRoutes.state(GridRoutes.node(0, 0), 0)) == null && Double.isNaN(t.seconds(0)), "an unreachable state (0xFFFF) has no route and no time");
         expect(Math.abs(GridRoutes.cornerSpeed(25) - 40) < 1e-9 && GridRoutes.cornerSpeed(0) == 66 && GridRoutes.cornerSpeed(170) == 20,
                 "corner speed: 66 at 0 deg, 40 at 25 deg (between 44 and 36), 20 from 60 deg on");
-        GridRoutes.setData("", "", null, null, null, null, null, null);
+        GridRoutes.setData("", "", null, null, null, null, null, null, null, null);
     }
 
     /** The launch sequencer and the held count as specs/mechanisms.md sections 3 and 16.3 now give them. */

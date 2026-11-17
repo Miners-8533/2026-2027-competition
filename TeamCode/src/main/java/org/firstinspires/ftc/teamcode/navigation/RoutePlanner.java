@@ -110,6 +110,23 @@ public final class RoutePlanner {
         return true;
     }
 
+    /**
+     * Whether the robot's rectangle at a pose, grown by a margin, touches no hive support and no flower stand. The stands
+     * are taken as they stand, not grown by the planner's clearance. Used for the Launch Grid Tuner's short straight hop
+     * (specs/support-opmodes.md section 2.2).
+     */
+    public static boolean standsClear(Pose pose, Footprint fp, double margin) {
+        double[][] body = fp.corners(pose.x, pose.y, pose.h);
+        for (Obstacle o : supports()) {
+            if (Geom.polyPoly(body, o.poly) <= margin) return false;
+        }
+        for (int i = 0; i < 4; i++) {
+            double[] r = Field.flowerRect(i);
+            if (Geom.polyPoly(body, Geom.rect(r[0], r[1], r[2], r[3])) <= margin) return false;
+        }
+        return true;
+    }
+
     /** The rectangle laid along a leg from a to b: it starts "behind" before a, ends "ahead" past b, and reaches halfWidth to each side. */
     private static double[][] swept(Vec a, Vec u, double len, double behind, double ahead, double halfWidth) {
         return Geom.band(a.x - u.x * behind, a.y - u.y * behind, a.x + u.x * (len + ahead), a.y + u.y * (len + ahead), halfWidth);

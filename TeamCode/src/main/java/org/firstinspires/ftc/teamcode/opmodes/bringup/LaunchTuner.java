@@ -40,8 +40,8 @@ import java.util.Locale;
  *             left bumper = speed base: the saved map / the points recorded this session.
  * Log lines: TUNER SALVO, TRIM, RECORD, UNDO, TUNER TABLE.
  *
- * SPEC GAP: how the alliance is chosen is not on the page; D-pad right / left at INIT chooses BLUE / RED, as in the
- * TeleOp, and the start is the alliance's default start.
+ * The alliance is assumed blue: the start is the blue default start against the rear wall, and the cell is the
+ * closer of blue's two.
  */
 @TeleOp(name = "Launch Tuner", group = "2 Bring-up")
 public final class LaunchTuner extends TeamOpMode {
@@ -84,7 +84,7 @@ public final class LaunchTuner extends TeamOpMode {
     @Override
     protected void body() throws InterruptedException {
         profile = ChassisProfile.get();
-        Alliance alliance = Alliance.BLUE;
+        final Alliance alliance = Alliance.BLUE;      // assumed
         drive = MecanumDrive.resetAndSeed(hardwareMap, profile, alliance.pose(Field.startRear(profile.originToBack)));
         Mechanisms.Settings s = new Mechanisms.Settings();
         s.intakeAlwaysOn = true;
@@ -92,17 +92,10 @@ public final class LaunchTuner extends TeamOpMode {
         s.targetFollowsPose = true;
         s.flyPosAtInit = true;
         mech = new Mechanisms(hardwareMap, profile, alliance, s);
-        Edge right = new Edge(), left = new Edge();
         while (opModeInInit()) {
             drive.updatePose();
             mech.initLoop();
-            boolean r = right.pressed(gamepad1.dpad_right), l = left.pressed(gamepad1.dpad_left);
-            if (r || l) {
-                alliance = r ? Alliance.BLUE : Alliance.RED;
-                mech.setAlliance(alliance);
-                drive.localizer.seed(alliance.pose(Field.startRear(profile.originToBack)));
-            }
-            telemetry.addLine("Launch Tuner, " + alliance + " (D-pad right/left). Back against the wall at the default start.");
+            telemetry.addLine("Launch Tuner, BLUE (assumed). Back against the rear wall at the blue default start.");
             telemetry.addLine("Pose " + drive.pose() + ", found: " + mech.found());
             telemetry.update();
             idle();

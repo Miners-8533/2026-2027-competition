@@ -24,14 +24,13 @@ import java.util.Locale;
  * Controls (gamepad 1): A skips a step; Back applies the settings again, zeroes the pose and restarts (one of the six
  * support opmodes that use Back).
  *
- * SPEC GAP: how far a push must read before it is judged is not given ("about 6 in", "about 45 deg"); a step is judged
- * at 5 in or 35 deg, so a push a little short of the mark still counts.
+ * A step is judged once the push reads 6 in, or the turn 45 deg.
  * Hidden: remove the @Disabled line to bring it back.
  */
 @Disabled
 @TeleOp(name = "Pinpoint Push Test", group = "2 Bring-up")
 public final class PinpointPushTest extends TeamOpMode {
-    private static final double JUDGE_IN = 5.0, JUDGE_DEG = 35.0;
+    private static final double JUDGE_IN = 6.0, JUDGE_DEG = 45.0;
     private static final String[] ASK = {
             "1. Push FORWARD about 6 in (toward the intake): expect +x",
             "2. Push to the robot's LEFT about 6 in: expect +y",

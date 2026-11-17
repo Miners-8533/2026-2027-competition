@@ -30,8 +30,9 @@ import java.util.Locale;
  * Y marks a good salvo; D-pad left / right marks one that landed left / right. X held 1 s reseeds.
  * The speed is for the nearest of all four cells; the flywheel runs from Start; there is no speed trim.
  *
- * SPEC GAP: the wording of the launch and mark lines is not on the page (a PC tool reads them). Here:
- * "OFFSET LAUNCH n: ..." with the pose at the launch, and "OFFSET MARK n: GOOD | LEFT | RIGHT, launch n ...".
+ * Log lines: each launch writes a LAUNCH line with the pose, the nearest cell, the distance, the bearing and how far
+ * to the left of the robot's front line the cell's center sits. A mark writes MARK good, MARK landed LEFT or
+ * MARK landed RIGHT, then " | AT THE LAST LAUNCH: <that launch line> | NOW: <the same for the present pose>".
  * Hidden: remove the @Disabled line to bring it back.
  */
 @Disabled
@@ -85,7 +86,7 @@ public final class LauncherOffsetFinder extends TeamOpMode {
         int launches = 0, marks = 0;
         Pose launchPose = null;
         Cell launchCell = null;
-        String last = "";
+        String last = "", lastLaunch = "";
         while (opModeIsActive()) {
             double t = Clock.now();
             drive.updatePose();
@@ -99,9 +100,8 @@ public final class LauncherOffsetFinder extends TeamOpMode {
                 launches++;
                 launchPose = p;
                 launchCell = cell;
-                RunLog.eventf("OFFSET LAUNCH %d: pose %s, nearest cell %s %s at (%.1f, %.1f), distance %.1f in, bearing %.1f deg, setpoint %.0f",
-                        launches, p, cell.alliance, cell.label(), cell.x(), cell.y(), Aim.distance(p.x, p.y, cell),
-                        Math.toDegrees(Aim.bearing(p.x, p.y, cell)), mech.setpoint());
+                lastLaunch = "LAUNCH " + describe(p, cell);
+                RunLog.event(lastLaunch);
             }
             boolean g = good.pressed(gamepad1.y), l = markL.pressed(gamepad1.dpad_left), r = markR.pressed(gamepad1.dpad_right);
             if (g || l || r) {
@@ -109,9 +109,7 @@ public final class LauncherOffsetFinder extends TeamOpMode {
                     last = "no launch to mark yet";
                 } else {
                     marks++;
-                    last = String.format(Locale.US, "OFFSET MARK %d: %s, launch %d from pose %s at cell %s %s (%.1f, %.1f), distance %.1f in", marks,
-                            g ? "GOOD" : l ? "LEFT" : "RIGHT", launches, launchPose, launchCell.alliance, launchCell.label(), launchCell.x(), launchCell.y(),
-                            Aim.distance(launchPose.x, launchPose.y, launchCell));
+                    last = "MARK " + (g ? "good" : l ? "landed LEFT" : "landed RIGHT") + " | AT THE LAST LAUNCH: " + lastLaunch + " | NOW: " + describe(p, cell);
                     RunLog.event(last);
                 }
             }
@@ -131,5 +129,12 @@ public final class LauncherOffsetFinder extends TeamOpMode {
             telemetry.addLine(last);
             telemetry.update();
         }
+    }
+
+    /** A pose against a cell: the pose, the cell, the distance, the bearing, and how far to the left of the robot's front line the cell's center sits. */
+    private static String describe(Pose p, Cell cell) {
+        double left = -(cell.x() - p.x) * Math.sin(p.h) + (cell.y() - p.y) * Math.cos(p.h);
+        return String.format(Locale.US, "pose (%.2f, %.2f, %.1f deg), nearest cell %s, distance %.1f in, bearing %.1f deg, the cell's center %.2f in left of the front line",
+                p.x, p.y, p.headingDeg(), cell, Aim.distance(p.x, p.y, cell), Math.toDegrees(Aim.bearing(p.x, p.y, cell)), left);
     }
 }

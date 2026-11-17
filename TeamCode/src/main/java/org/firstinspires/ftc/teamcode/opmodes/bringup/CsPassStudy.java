@@ -33,14 +33,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Y salvo; X automatic clear on / off; A mark; D-pad up / down setpoint by 20; left trigger intake OUT; Back clears a
  * pusher fault (one of the six support opmodes that use Back).
  *
- * SPEC GAP: "automatic clear" is not explained on the page. Here: while it is on, a salvo starts by itself when the
- * thread has counted 4 entries since the last salvo, so the track is emptied without a button.
+ * Automatic clear: while it is on, a salvo fires by itself when the slot count reads 4 or more, and not within 2 s
+ * of the last salvo.
  */
 @Config
 @TeleOp(name = "CS Pass Study", group = "2 Bring-up")
 public final class CsPassStudy extends TeamOpMode {
     public static double LOOP_MS = 28.0, THREAD_PERIOD_MS = 20.0, FLYWHEEL_SPEED = 500.0, SPEED_STEP = 20.0, THREAD_LINE_S = 5.0;
     public static int BURST_BYTES = 15, CLEAR_AT = 4;
+    public static double CLEAR_PAUSE_S = 2.0;
     private static final double PRECISION = 0.30, TRIGGER = 0.3;
 
     @Override protected RunLog.Kind logKind() { return RunLog.Kind.BRINGUP; }
@@ -136,6 +137,7 @@ public final class CsPassStudy extends TeamOpMode {
         LoopPad pad = new LoopPad();
         double setpoint = FLYWHEEL_SPEED, lastThreadLine = Clock.now();
         boolean autoClear = false, wasSalvo = false;
+        double lastSalvoAt = -1e9;
         int entriesAtSalvo = 0, lastEntries = 0, salvos = 0;
         long lastSamples = 0;
         try {
@@ -166,10 +168,12 @@ public final class CsPassStudy extends TeamOpMode {
                     RunLog.eventf("CS5 ENTRY counted %d (fed %d), proximity %d", n, counts[0], latest);
                     lastEntries = n;
                 }
-                boolean want = salvo.pressed(gamepad1.y) || (autoClear && n - entriesAtSalvo >= CLEAR_AT);
+                boolean want = salvo.pressed(gamepad1.y)
+                        || (autoClear && slots != null && slots.valid() && slots.count() >= CLEAR_AT && t - lastSalvoAt >= CLEAR_PAUSE_S);
                 if (want && pusher != null && pusher.stopped()) {
                     pusher.salvo();
                     entriesAtSalvo = n;
+                    lastSalvoAt = t;
                     salvos++;
                     RunLog.eventf("SALVO started (study) %d: fed %d, counted %d, flywheel %.0f", salvos, counts[0], n, fly == null ? 0 : fly.filtered());
                 }

@@ -474,7 +474,7 @@ public final class Mechanisms {
                     RunLog.eventf("SALVO dropped (the pusher faulted): count put back to %d, tally %d", held.held(), held.tally());
                 }
                 if (reject != Reject.IDLE) {
-                    // SPEC GAP: what a fault does to a running reject is not stated; it is dropped, so the intake does not run OUT for good.
+                    // A fault drops a running reject in the same way as a salvo.
                     reject = Reject.IDLE;
                     RunLog.event("REJECT dropped (the pusher faulted)");
                 }

@@ -12,8 +12,8 @@ import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
  * Three profiles: ROBOT_1, the competition robot, and two earlier drive bases with no mechanisms tuned and no hub
  * registered, PROTOTYPE and DRAFT_1.
  *
- * SPEC GAP: the page says a profile still carries a direction for the second flywheel motor, which was removed from
- * the robot, and gives no value for it. Nothing here drives that motor, so the profiles do not carry it.
+ * A profile still carries a direction for the second flywheel motor, which was removed from the robot: FORWARD in
+ * all three. Nothing drives that motor.
  */
 public final class ChassisProfile {
     // Hub configuration names (robot_design/hub-configuration.md). The pusher and ramp keep their older names.
@@ -29,6 +29,8 @@ public final class ChassisProfile {
     public final String[] hubIds;
     /** true = the motor is configured REVERSE. */
     public final boolean leftReversed, rightReversed, intakeReversed, flywheelReversed, pusherReversed;
+    /** The second flywheel motor, removed from the robot: FORWARD in every profile. */
+    public final boolean secondFlywheelReversed = false;
     /** Pinpoint pods: offsets in millimetres, and whether each counts reversed. */
     public final double xPodOffsetMm, yPodOffsetMm;
     public final boolean xPodReversed, yPodReversed;

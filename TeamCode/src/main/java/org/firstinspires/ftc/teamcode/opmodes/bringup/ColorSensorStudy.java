@@ -21,18 +21,16 @@ import java.util.Locale;
  *
  * Controls (gamepad 1): A starts the step shown, and stops a running one. D-pad left / right goes to the previous /
  * next step, between steps only. Right bumper logs a note. Holding X runs the intake IN to load pollen, between steps
- * only. The baselines hold still about 8 s; the sweep and the slow reject turn the pusher backward one full turn,
- * slowly. One sensor is read every 25 ms. The pusher must be at HOLD at INIT.
- *
- * SPEC GAP: the power of "slowly" is not given; the pusher check's sweep power (0.15) is used. The intake runs OUT
- * during the slow reject, as in a reject, so the elements can leave.
+ * only. The baselines hold still about 8 s; the sweep and the slow reject turn the pusher backward one full turn at
+ * 0.15 power, open loop, and are given up after 25 s, or after 2 s if the arm has not moved 5 deg. One sensor is read
+ * every 25 ms. The pusher must be at HOLD at INIT. The intake runs OUT during the slow reject, so the elements can leave.
  * Hidden: remove the @Disabled line to bring it back.
  */
 @Config
 @Disabled
 @TeleOp(name = "Color Sensor Study", group = "2 Bring-up")
 public final class ColorSensorStudy extends TeamOpMode {
-    public static double BASELINE_S = 8.0, READ_PERIOD_MS = 25.0, SLOW_POWER = 0.15, TURN_LIMIT_S = 20.0;
+    public static double BASELINE_S = 8.0, READ_PERIOD_MS = 25.0, SLOW_POWER = 0.15, TURN_LIMIT_S = 25.0, NO_MOVE_S = 2.0, NO_MOVE_DEG = 5.0;
     private static final String[] STEPS = {
             "1. EMPTY BASELINE: track empty, hands off (about 8 s)",
             "2. EMPTY SWEEP: track empty; the pusher turns backward one full turn, slowly",
@@ -71,7 +69,7 @@ public final class ColorSensorStudy extends TeamOpMode {
         LoopPad pad = new LoopPad();
         ColorReader.Mean[] mean = new ColorReader.Mean[4];
         int[] present = new int[4], arm = new int[4], reads = new int[4];
-        double startedAt = 0;
+        double startedAt = 0, turnFrom = 0;
         String result = "";
         try {
             while (opModeIsActive()) {
@@ -92,7 +90,10 @@ public final class ColorSensorStudy extends TeamOpMode {
                             mean[i] = new ColorReader.Mean();
                             present[i] = arm[i] = reads[i] = 0;
                         }
-                        if (turnStep) pusher.seek(pusher.angle() - 360.0, SLOW_POWER);
+                        if (turnStep) {
+                            turnFrom = pusher.angle();
+                            pusher.jog(-SLOW_POWER);        // backward, open loop
+                        }
                         RunLog.eventf("STUDY step %s started%s", STEPS[step], pusher == null ? "" : String.format(Locale.US, ", pusher at %.0f deg", pusher.angle()));
                         result = "";
                     }
@@ -116,8 +117,13 @@ public final class ColorSensorStudy extends TeamOpMode {
                     if (k == SlotCounter.Kind.PUSHER_ARM) arm[sensor]++;
                 }
                 if (running) {
-                    boolean done = turnStep ? (pusher.stopped() && t - startedAt > 0.5) || t - startedAt > TURN_LIMIT_S : t - startedAt >= BASELINE_S;
+                    double turnedDeg = turnStep ? turnFrom - pusher.angle() : 0;
+                    String givenUp = !turnStep ? null : t - startedAt > TURN_LIMIT_S ? "not done after " + TURN_LIMIT_S + " s"
+                            : (t - startedAt >= NO_MOVE_S && turnedDeg < NO_MOVE_DEG) ? "the arm has not moved " + NO_MOVE_DEG + " deg in " + NO_MOVE_S + " s" : null;
+                    boolean done = turnStep ? turnedDeg >= 360.0 || givenUp != null : t - startedAt >= BASELINE_S;
                     if (done) {
+                        if (turnStep) pusher.jog(0);
+                        if (givenUp != null) RunLog.eventf("STUDY step %s GIVEN UP after %.0f deg: %s", STEPS[step], turnedDeg, givenUp);
                         running = false;
                         result = finish(mean, present, arm, reads);
                     }

@@ -235,7 +235,7 @@ public final class RunLog {
     /**
      * How the latest run of a kind ended, read from its events: "RUN ENDED" is the end marker, and a run with the
      * marker and neither "RUN STARTED" nor "CRASH:" is an INIT that was stopped before Start.
-     * SPEC GAP: the file named after CRASHED is not stated; it is the name the run has once this open has shifted it.
+     * The file named after CRASHED is <kind>_prev.log: the name the crashed run has once this open has shifted it.
      */
     private static String previousEnd(File f, Kind k) {
         if (!f.exists()) return "none";

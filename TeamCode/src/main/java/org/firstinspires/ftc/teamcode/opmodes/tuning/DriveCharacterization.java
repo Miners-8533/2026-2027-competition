@@ -37,14 +37,12 @@ import java.util.Random;
  * wall); at a spot it is the robot's own (forward, left, turn). It is turned into robot-frame powers once, when the
  * segment starts.
  *
- * SPEC GAP, each a choice of this rebuild:
- *  - where the robot is seeded: the alliance's default start, back on the rear wall (blue), as the other opmodes;
- *  - the heading at a spot: 0 deg in the blue frame;
- *  - "for at most 3.0 s" (tests 18 to 25) names no other end: here the segment also ends at the lane's end (when the
- *    stop needs 250 in/s2), as the page says for tests 11 to 17, so the stop that follows is driven and logged;
- *  - the random tests: the generator and the order of its draws are not given, so these 12 commands are not the old ones;
- *  - "still" before a run: under 1 in/s and 5 deg/s for 0.3 s; the values of the phase column; after a geofence the
- *    opmode goes on to the next test.
+ * The robot is seeded at the TeleOp's default start of the chosen half. At a spot it faces along the lane. Before a
+ * run it must be still: slower than 2 in/s and 10 deg/s for 0.25 s, with the wait at most 1.5 s. A geofence stop ends
+ * the test and the next one begins. The phase column is one of MOVE, REST, RUN, PAUSED, DONE.
+ *
+ * SPEC GAP: after a test's last segment, and after a geofence stop, this opmode waits at zero power until the robot
+ * is still before it goes on (logged as REST); the page does not say what happens between two tests.
  * Hidden: remove the @Disabled line to bring it back.
  */
 @Config
@@ -53,7 +51,7 @@ import java.util.Random;
 public final class DriveCharacterization extends TeamOpMode {
     public static double LANE_Y = 46.0, LANE_END_X = 54.0, SPOT_X = 40.0, LANE_MARGIN_IN = 6.0;
     public static double GOTO_POWER = 0.6, GOTO_TOL_IN = 2.0, GOTO_TOL_DEG = 2.0;
-    public static double STILL_IN_S = 1.0, STILL_DEG_S = 5.0, STILL_FOR_S = 0.3;
+    public static double STILL_IN_S = 2.0, STILL_DEG_S = 10.0, STILL_FOR_S = 0.25, STILL_MAX_S = 1.5;
     public static double FENCE_WALL_IN = 68.0, FENCE_CENTER_Y = 4.0, FENCE_HIVE_X = 22.5, FENCE_HIVE_Y = 28.0, FENCE_FLOWER_IN = 3.0, FENCE_DECEL = 200.0;
     public static double LANE_END_DECEL = 250.0, SEGMENT_S = 3.0;
 
@@ -173,7 +171,7 @@ public final class DriveCharacterization extends TeamOpMode {
     private static Seg[] random(long seed) {
         Random r = new Random(seed);
         Seg[] s = new Seg[13];
-        for (int i = 0; i < 12; i++) s[i] = forTime((2 * r.nextDouble() - 1) * 0.5, (2 * r.nextDouble() - 1) * 0.3, (2 * r.nextDouble() - 1) * 0.6, 0.25);
+        for (int i = 0; i < 12; i++) s[i] = forTime(r.nextDouble() - 0.5, 0.6 * (r.nextDouble() - 0.5), 1.2 * (r.nextDouble() - 0.5), 0.25);
         s[12] = stop(0.6);
         return s;
     }
@@ -210,8 +208,8 @@ public final class DriveCharacterization extends TeamOpMode {
         t.add(spot("spin 0.5", Double.NaN, spin(0.5, 400, 1.5), stop(0.6)));
         t.add(spot("spin -0.7", Double.NaN, spin(-0.7, 450, 1.2), stop(0.8)));
         t.add(spot("spin 1.0", Double.NaN, spin(1.0, 500, 1.0), stop(0.8)));
-        t.add(lane("creep forward 0.08 / 0.12 / 0.16", 0, forTime(0.08, 0, 0, 0.7), forTime(0.12, 0, 0, 0.7), forTime(0.16, 0, 0, 0.7), stop(0.4)));
-        t.add(lane("creep strafe 0.08 / 0.12 / 0.16", -90, forTime(0.08, 0, 0, 0.7), forTime(0.12, 0, 0, 0.7), forTime(0.16, 0, 0, 0.7), stop(0.4)));
+        t.add(lane("creep forward 0.08 / 0.12 / 0.16", 0, laneEnd(forTime(0.08, 0, 0, 0.7)), laneEnd(forTime(0.12, 0, 0, 0.7)), laneEnd(forTime(0.16, 0, 0, 0.7)), stop(0.4)));
+        t.add(lane("creep strafe 0.08 / 0.12 / 0.16", -90, laneEnd(forTime(0.08, 0, 0, 0.7)), laneEnd(forTime(0.12, 0, 0, 0.7)), laneEnd(forTime(0.16, 0, 0, 0.7)), stop(0.4)));
         t.add(spot("creep turn 0.05 / 0.08 / 0.12", Double.NaN, forTime(0, 0, 0.05, 0.7), forTime(0, 0, 0.08, 0.7), forTime(0, 0, 0.12, 0.7), stop(0.4)));
         t.add(spot("random A", SPOT_X, random(11)));
         t.add(spot("random B", SPOT_X, random(12)));
@@ -225,6 +223,18 @@ public final class DriveCharacterization extends TeamOpMode {
     private Alliance alliance;
     private Footprint footprint;
     private Phase phase = Phase.IDLE;
+
+    /** The phase column of the log: MOVE, REST, RUN, PAUSED or DONE. */
+    private String phaseText() {
+        switch (phase) {
+            case TO_START: return "MOVE";
+            case SETTLE:
+            case AFTER: return "REST";
+            case RUN: return "RUN";
+            case DONE: return "DONE";
+            default: return "PAUSED";
+        }
+    }
     private int testIndex, segIndex;
     // Read once per loop, for the log row.
     private Pose pose = new Pose(0, 0, 0);
@@ -283,7 +293,7 @@ public final class DriveCharacterization extends TeamOpMode {
                 return String.format(Locale.US, "%.2f,%.2f,%.2f,%.1f,%.1f,%.1f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%s",
                         pose.x, pose.y, pose.headingDeg(), vx, vy, Math.toDegrees(omega), drive.cmdForward(), drive.cmdLeft(), drive.cmdTurn(),
                         drive.wheelPower(0), drive.wheelPower(1), drive.wheelPower(2), drive.wheelPower(3), vbat, amps[0], amps[1], amps[2], amps[3],
-                        testIndex + 1, phase == Phase.RUN ? segIndex + 1 : 0, phase.toString().toLowerCase(Locale.US));
+                        testIndex + 1, phase == Phase.RUN ? segIndex + 1 : 0, phaseText());
             }
         });
         RunLog.burst(true);     // a row on every loop
@@ -293,7 +303,7 @@ public final class DriveCharacterization extends TeamOpMode {
         DriveToPose leg = null;
         Pose startBlue = null;
         int dir = 1;                // lane tests: +1 travels toward +x, -1 toward -x
-        double stillSince = -1, segStart = 0, segTurned = 0, lastH = 0, afterSince = 0;
+        double stillSince = -1, segStart = 0, segTurned = 0, lastH = 0, afterSince = 0, settleAt = 0;
         double fwd = 0, lft = 0, trn = 0;
         String last = "";
         while (opModeIsActive()) {
@@ -370,6 +380,7 @@ public final class DriveCharacterization extends TeamOpMode {
                             stillSince = -1;
                             // A leg that timed out short of the start is driven again: a test must not run from the wrong place.
                             phase = there ? Phase.SETTLE : Phase.IDLE;
+                            settleAt = t;
                         }
                         break;
                     case SETTLE: {
@@ -377,7 +388,8 @@ public final class DriveCharacterization extends TeamOpMode {
                         boolean still = Math.hypot(vx, vy) < STILL_IN_S && Math.abs(Math.toDegrees(omega)) < STILL_DEG_S;
                         if (!still) stillSince = -1;
                         else if (stillSince < 0) stillSince = t;
-                        if (stillSince >= 0 && t - stillSince >= STILL_FOR_S) {
+                        // Still for long enough, or the wait has reached its limit.
+                        if ((stillSince >= 0 && t - stillSince >= STILL_FOR_S) || t - settleAt >= STILL_MAX_S) {
                             segIndex = -1;
                             phase = Phase.RUN;
                         }

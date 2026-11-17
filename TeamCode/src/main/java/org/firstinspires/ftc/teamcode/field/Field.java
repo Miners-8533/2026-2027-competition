@@ -31,7 +31,7 @@ public final class Field {
 
     // ---- 3. Flowers, garden, loading zone ----
     public static final double FLOWER_OUT = 68.45, FLOWER_SIDE = 23.4;
-    /** A stand is this long along its wall and reaches this far out from it. */
+    /** A stand is this long along its wall and this far across, centered on its opening center. */
     public static final double FLOWER_ALONG = 5.8, FLOWER_DEPTH = 4.8;
 
     /** Opening centers: audience wall, Blue Wall, rear wall, Red Wall. Blue's are the first two. */
@@ -41,16 +41,13 @@ public final class Field {
                 new Vec(-FLOWER_OUT, -FLOWER_SIDE), new Vec(FLOWER_SIDE, -FLOWER_OUT)};
     }
 
-    /** A flower stand as a rectangle {xMin, yMin, xMax, yMax}, against its wall. */
+    /** A flower stand as a rectangle {xMin, yMin, xMax, yMax}, centered on its opening center. */
     public static double[] flowerRect(int i) {
         Vec c = flowerCenters()[i];
-        double a = FLOWER_ALONG / 2;
-        if (Math.abs(c.x) > Math.abs(c.y)) {
-            double wall = Math.signum(c.x) * HALF_IN, inner = wall - Math.signum(c.x) * FLOWER_DEPTH;
-            return new double[] {Math.min(wall, inner), c.y - a, Math.max(wall, inner), c.y + a};
-        }
-        double wall = Math.signum(c.y) * HALF_IN, inner = wall - Math.signum(c.y) * FLOWER_DEPTH;
-        return new double[] {c.x - a, Math.min(wall, inner), c.x + a, Math.max(wall, inner)};
+        double a = FLOWER_ALONG / 2, d = FLOWER_DEPTH / 2;
+        // Centered on the opening center, not flush against the wall: the audience-wall stand is x 66.05 to 70.85, y 20.5 to 26.3.
+        if (Math.abs(c.x) > Math.abs(c.y)) return new double[] {c.x - d, c.y - a, c.x + d, c.y + a};
+        return new double[] {c.x - a, c.y - d, c.x + a, c.y + d};
     }
 
     /** Blue garden: against the rear wall. */
