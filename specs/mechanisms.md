@@ -71,7 +71,7 @@ The first time a queued launch waits on the band, a log line says whether the sp
 
 **A salvo that did not complete** (the pusher gave up on a jam or the timeout, or faulted): the entry count and the launched tally are put back as if nothing left the robot, plus whatever entered since. A robot that shows too many is launched or rejected again; that is safer than one that shows 0 while jammed and keeps collecting.
 
-When the pusher **gave up**, the salvo still ends as a salvo: the salvo counter increases, the pusher check is asked for (and then skipped, because the pusher gave up) and the flywheel's stop is scheduled. When the pusher **faulted**, the salvo is dropped without any of these.
+When the pusher **gave up**, the salvo still ends as a salvo: the salvo counter increases, the pusher check is asked for (and then skipped, because the pusher gave up) and the flywheel's stop is scheduled. When the pusher **faulted**, the salvo is dropped without any of these. A fault drops a running reject in the same way.
 
 While a launch is queued or a salvo runs, and for 0.6 s after, the run log writes a row on every loop.
 

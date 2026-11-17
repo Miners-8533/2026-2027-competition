@@ -34,7 +34,7 @@ Only `ROBOT_1` has ids registered, so rule 4 is in force for every other hub.
 
 - The default profile of rule 3 is `DRAFT_1`.
 - The hub's hardware serial is the Android build serial, ignored when it is empty or reads `unknown`. The Android id is the system's secure Android id. Ids are compared without regard to case.
-- A profile still carries a direction for the second flywheel motor, which was removed from the robot.
+- A profile still carries a direction for the second flywheel motor, which was removed from the robot. It is FORWARD in all three.
 
 ## 2. Mecanum drive
 

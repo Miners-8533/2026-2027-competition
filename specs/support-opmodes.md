@@ -78,6 +78,8 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 
 Log lines: `TUNER SALVO`, `TRIM`, `RECORD`, `UNDO`, `TUNER TABLE`.
 
+The alliance is assumed blue: the start is the blue default start against the rear wall, and the cell is the closer of blue's two.
+
 ### 2.2 Launch Grid Tuner
 
 **Purpose.** Collect the data for the two-dimensional launch grid ([aiming.md](aiming.md)): aim and speed per field position for one hive cell.
@@ -103,7 +105,19 @@ Log lines: `TUNER SALVO`, `TRIM`, `RECORD`, `UNDO`, `TUNER TABLE`.
 | Left trigger (hold) | intake OUT |
 | Back | clear a pusher fault; held 1 s, reseed the pose to the start |
 
-Log lines: `GRID POINT`, `FIRE`, `GRID TABLE`.
+**Settings read at INIT.** `START_INDEX`: start the sweep at this spot. `RETEST_SPOTS`: visit only these spots, a comma list of spot numbers with ranges, such as `8-10,22-30`; the spots keep their numbers. `EXTRA_SPOTS`: extra positions as `x,y;x,y`, visited last and numbered from 101; each must pass the grid's rules. `CARRY_TRIMS` (off): start a spot with the previous spot's trims; otherwise they start at 0.
+
+**Visiting order.** A serpentine over the columns (x), the column nearest the start first. Inside a column the spots are taken along y, beginning at the end nearer to where the column before finished.
+
+**Driving.** At most 0.5 power to a spot. A spot driven to by hand counts as reached within 4 in. An angle trim is limited to 20 deg either way. A re-aim turns at no more than 0.3 power to within 0.25 deg and reports `RE-AIM OK` or `RE-AIM STUCK` (more than 0.4 deg left), with the degrees asked, turned and left.
+
+**The short straight hop** is clear when the robot's rectangle, grown by the planner's margin and turning steadily from its present heading to the spot's, touches no support and no flower stand (the stands not grown) at any half inch of the line, and stays inside the walls less 3 in.
+
+**Log lines.**
+
+- `FIRE spot <n> salvo <k>: pose (<x>, <y>, <deg> deg), aim heading <deg> deg (trim <t>), <d> in from <cell>, setpoint <s> (map <m>, trim <t>)`
+- `GRID POINT <n> of <N>: spot (<x>, <y>)[ slid], <d> in, GOOD: speed <s> ticks/s (map <m> <t> trim), aim heading <deg> deg (geometric <g> <t> trim), <k> salvo(s) fired[ (UNVERIFIED)], pose (...)`, or with `NO SHOT possible` in place of the `GOOD: ...` part
+- `GRID TABLE (x, y, distance in, speed ticks/s, angle trim deg, status G good / N no shot / - not done, salvos fired): {<x>, <y>, <d>, <speed>, <trim>, '<status>', <k>}, ...`
 
 ### 2.3 Launcher Offset Finder
 
@@ -150,13 +164,13 @@ All on gamepad 1.
 
 | Opmode | Details |
 |---|---|
-| Flywheel Step Study | Setpoints in ticks/s: 1350, 1650, 1350, 1450, 1350, 1375, 1325, 1650, 1450, 1650, 1325; the list is run 2 times. The loop is padded to 28 ms, like the TeleOp's. A step has settled when the speed has stayed in the launch band 0.3 s; it ends 1.5 s after that, or after 8 s with `NEVER SETTLED`. A runs the sequence (again: restarts it); B stops it and the wheel. With it stopped, D-pad up / down steps the setpoint by 100 and right / left by 25; from off, any D-pad press spins up to 1350. One `STEP` line per change and a `STEP TABLE` at the end |
-| CS Pass Study | Intake IN throughout, flywheel at 500 ticks/s, loop padded to 28 ms. CS5 on its own thread every 20 ms, one 15-byte burst read per cycle; a `CS5 THREAD` line every 5 s. Sticks drive robot-oriented, right bumper precision. B = one element fed (a `FED n` line, the ground truth). Y salvo; X automatic clear on / off; A mark; D-pad up / down setpoint by 20; left trigger intake OUT; Back clears a pusher fault |
-| Color Sensor Study | A starts the step shown, and stops a running one. D-pad left / right goes to the previous / next step, between steps only. Right bumper logs a note. Holding X runs the intake IN to load pollen, between steps only. The baselines hold still about 8 s; the sweep and the slow reject turn the pusher backward one full turn, slowly. One sensor is read every 25 ms. The pusher must be at HOLD at INIT |
+| Flywheel Step Study | Setpoints in ticks/s: 1350, 1650, 1350, 1450, 1350, 1375, 1325, 1650, 1450, 1650, 1325; the list is run 2 times. The loop is padded to 28 ms, about the length of the TeleOp's loop (the TeleOp itself is not padded). A step has settled when the speed has stayed in the launch band 0.3 s; it ends 1.5 s after that, or after 8 s with `NEVER SETTLED`. A runs the sequence (again: restarts it); B stops it and the wheel. With it stopped, D-pad up / down steps the setpoint by 100 and right / left by 25; from off, any D-pad press spins up to 1350. One `STEP` line per change and a `STEP TABLE` at the end |
+| CS Pass Study | Intake IN throughout, flywheel at 500 ticks/s, loop padded to 28 ms. CS5 on its own thread every 20 ms, one 15-byte burst read per cycle; a `CS5 THREAD` line every 5 s. Sticks drive robot-oriented, right bumper precision. B = one element fed (a `FED n` line, the ground truth). Y salvo; X automatic clear on / off (while on, a salvo fires by itself when the slot count reads 4 or more, and not within 2 s of the last salvo); A mark; D-pad up / down setpoint by 20; left trigger intake OUT; Back clears a pusher fault |
+| Color Sensor Study | A starts the step shown, and stops a running one. D-pad left / right goes to the previous / next step, between steps only. Right bumper logs a note. Holding X runs the intake IN to load pollen, between steps only. The baselines hold still about 8 s; the sweep and the slow reject turn the pusher backward one full turn at 0.15 power, open loop, and are given up after 25 s, or after 2 s if the arm has not moved 5 deg. One sensor is read every 25 ms. The pusher must be at HOLD at INIT |
 | Color Sensors Test | A captures the empty baseline; Back clears it. B turns the sensor LEDs on / off. X switches between one sensor per loop and all four every loop. D-pad up / down selects a sensor and left / right sets its label; left bumper sets every label to NOTHING. Y starts / stops recording against the labels; right bumper clears the counts |
-| Launcher Offset Finder | At INIT, D-pad right / left chooses the BLUE / RED default start. Sticks drive as in the TeleOp; left bumper is precision. Right trigger: intake IN, even when full; left trigger: OUT. A launches. Y marks a good salvo; D-pad left / right marks one that landed left / right. X held 1 s reseeds. The speed is for the nearest of all four cells; the flywheel runs from Start; there is no speed trim |
-| Pinpoint Push Test | Three guided pushes with the drive motors floating: forward about 6 in (expect +x), left about 6 in (expect +y), counterclockwise about 45 deg (expect + heading). A skips a step; Back applies the settings again, zeroes the pose and restarts |
-| Pinpoint Offset Check | A starts or reruns the spin; B stops at once. The position is sampled at every half turn |
+| Launcher Offset Finder | At INIT, D-pad right / left chooses the BLUE / RED default start. Sticks drive as in the TeleOp; left bumper is precision. Right trigger: intake IN, even when full; left trigger: OUT. A launches. Y marks a good salvo; D-pad left / right marks one that landed left / right. X held 1 s reseeds. The speed is for the nearest of all four cells; the flywheel runs from Start; there is no speed trim. Each launch logs a `LAUNCH` line with the pose, the nearest cell, the distance, the bearing and how far to the left of the robot's front line the cell's center sits. A mark logs `MARK good`, `MARK landed LEFT` or `MARK landed RIGHT`, then ` | AT THE LAST LAUNCH: <that launch line> | NOW: <the same for the present pose>` |
+| Pinpoint Push Test | Three guided pushes with the drive motors floating: forward about 6 in (expect +x), left about 6 in (expect +y), counterclockwise about 45 deg (expect + heading). A step is judged once the push reads 6 in, or the turn 45 deg. A skips a step; Back applies the settings again, zeroes the pose and restarts |
+| Pinpoint Offset Check | A starts or reruns the spin; B stops at once. The robot spins 3 turns at 0.25 turn power (45 s at most) and the position is sampled at every half turn. Each sample taken half a turn into a revolution, less the mean of the samples before and after it (which removes a steady drift), is the far point of the offset error's circle, (-2 ey, 2 ex): ex is the error along the forward axis, which follows the x offset, and ey along the strafe axis, which follows the y offset. The net drift per full turn is reported apart. The sign of the correction has not been verified on hardware |
 | Pit Check | A runs a step, or says what was seen was right; B says it was wrong; X skips; Back stops everything and ends |
 | The tuners | B is the kill switch. Axial: (0, 0) and (48, 0) in turn. Lateral: (0, 0) and (0, 48). Heading: 0, 135, -135, 20, -20, 175, -175, 90, -90 deg in turn |
 
@@ -269,7 +283,7 @@ All are tunable values with these proposed numbers as defaults. They are to be s
 
 **The area** (blue frame; a red robot's pose is rotated first). A lane along x at y = 46, from x = -54 to +54: a run starts at the end the robot is nearer and drives to the other, so one test ends where the next starts. Spot tests are at x = +40 or -40 on the lane, whichever is nearer.
 
-**A test:** drive to its start under position control (at most 0.6 power, to within 2 in and 2 deg), wait until the robot is still, then run its segments. A segment is one constant command, turned into robot-frame powers once, when it starts. On the lane the command is (along the lane, across it toward the alliance wall, turn toward the alliance wall); at a spot it is the robot's own (forward, left, turn). A segment ends after its time (3.0 s unless stated), or earlier on its own condition.
+**A test:** drive to its start under position control (at most 0.6 power, to within 2 in and 2 deg), wait until the robot is still (slower than 2 in/s and 10 deg/s for 0.25 s; the wait is at most 1.5 s), then run its segments. The robot is seeded at the TeleOp's default start of the chosen half. At a spot it faces along the lane. A geofence stop ends the test and the next one begins. The `phase` column is one of `MOVE`, `REST`, `RUN`, `PAUSED`, `DONE`. A segment is one constant command, turned into robot-frame powers once, when it starts. On the lane the command is (along the lane, across it toward the alliance wall, turn toward the alliance wall); at a spot it is the robot's own (forward, left, turn). A segment ends after its time (3.0 s unless stated), or earlier on its own condition.
 
 **The geofence** stops a run at once when the footprint, or the robot where it would stop at 200 in/s², would cross a wall (68 in), the center line (y = 4), the hive (|x| under 22.5 with y under 28) or a flower stand grown by 3 in.
 
@@ -312,7 +326,9 @@ All are tunable values with these proposed numbers as defaults. They are to be s
 | 33 | random A | spot at x = +40 | 12 random commands of 0.25 s (along up to 0.5, across up to 0.3, turn up to 0.6 either way; random seed 11); stop 0.6 s |
 | 34 | random B | spot at x = +40 | the same with random seed 12 |
 
-In tests 11 to 17 each moving segment also ends when the stop needs 250, so a run cannot reach the lane's end.
+In tests 11 to 25, 30 and 31 each moving segment also ends when the stop needs 250, so a run cannot reach the lane's end.
+
+The random tests draw each command from Java's `Random` started with the seed, three uniform draws from 0 to 1 per command in the order along, across, turn: along = draw - 0.5, across = 0.6 x (draw - 0.5), turn = 1.2 x (draw - 0.5).
 
 ## 5. Auto Waypoint Marker
 

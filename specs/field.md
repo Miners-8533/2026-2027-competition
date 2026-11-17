@@ -45,7 +45,7 @@ Two hive cells per alliance are aimed at. Each is a point the launcher's line is
 
 ## 3. Flowers, gardens and the loading zone
 
-**Flower stands** (four, one on each wall). Opening center 68.45 in from the field center along the wall's normal and 23.4 in to one side of the wall's midpoint. Each is an obstacle 5.8 in along the wall by 4.8 in out from it, with nothing passable underneath.
+**Flower stands** (four, one on each wall). Opening center 68.45 in from the field center along the wall's normal and 23.4 in to one side of the wall's midpoint. Each is an obstacle 5.8 in along the wall by 4.8 in across, **centered on the opening center** and not flush against the wall: the audience-wall stand reaches from x = 66.05 to 70.85 and from y = 20.5 to 26.3. Nothing is passable underneath.
 
 | Flower | Opening center |
 |---|---|
