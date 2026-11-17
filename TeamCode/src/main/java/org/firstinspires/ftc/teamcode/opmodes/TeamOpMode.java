@@ -85,7 +85,7 @@ public abstract class TeamOpMode extends LinearOpMode {
     }
 
     /** A button that reports only the moment it is pressed. */
-    protected static final class Edge {
+    public static final class Edge {
         private boolean last;
 
         public boolean pressed(boolean now) {
@@ -96,7 +96,7 @@ public abstract class TeamOpMode extends LinearOpMode {
     }
 
     /** A chord that must be held for a time; fires once per hold. */
-    protected static final class Hold {
+    public static final class Hold {
         private double since = -1;
         private boolean fired;
 
