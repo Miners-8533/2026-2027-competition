@@ -42,10 +42,24 @@ The virtual lane walls are rectangles too: each fills the space from the lane ha
 
 ### 1.3 Choosing a route
 
-1. If the straight line from the robot to the goal is acceptable, use it.
-2. Otherwise search the chains of at most 3 route points (the four helper corners and the two lane gates) over acceptable legs, and take the cheapest.
-3. Cost of a leg = its length, divided by the unaligned speed ratio if it is not aligned, plus a turn penalty for each degree turned between aligned legs. A leg can be driven front or rear first, so a turn is folded to between 0 and 90 deg.
-4. If nothing is found, the plan is a refusal with a reason.
+1. The candidates are the straight line from the robot to the goal, when it is acceptable, and every chain of at most 3 different route points (the four helper corners and the two lane gates) over acceptable legs.
+2. The cheapest candidate is the route. **The straight line is not preferred**: it is one candidate among the others, and it wins a tie because it is tried first.
+3. If there is no candidate, the plan is a refusal with a reason.
+
+A route point that lies within the far-corner radius plus the margin of an obstacle is not used. None of the six does with the values of section 1.4.
+
+**Cost of a route** = the sum over its legs, in order from the robot:
+
+| Leg | Cost |
+|---|---|
+| Short (not aligned) | its length divided by the unaligned speed ratio. No turn is charged, and the direction of travel is forgotten |
+| Long (aligned), the first leg of the route | its length + the turn penalty for each degree between **the robot's heading when the route is planned** and the leg |
+| Long, right after another long leg | its length + the turn penalty for each degree between the two legs |
+| Long, right after a short leg | its length. No turn is charged |
+
+A leg can be driven front or rear first, so every turn is folded to between 0 and 90 deg.
+
+**Known limit (found 2026-11-17 by comparing this planner with the one rebuilt from these pages).** The last row makes the turn onto a long leg free when a short leg comes before it, although the robot still has to make that turn. So a short hop to a nearby route point can cost less than turning onto the straight line, and the planner then takes the route point although the straight line is acceptable. On a 6 in grid of starts and the eight goals of the dashes this happens on 1.5 to 3.8 % of the routed trips, depending on the start heading. Those routes are about 1 in longer (4.4 in at most) and have one more point to pass. Not changed: the grid routes of section 6 are to replace this planner.
 
 The route is planned once, when the D-pad is pressed, and kept for that dash.
 
