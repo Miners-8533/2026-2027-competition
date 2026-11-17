@@ -408,6 +408,8 @@ public final class DashSim {
         final double delaySec, noiseIn, noiseRad, noiseVel;
         final Random rnd;
         final List<double[]> hist = new ArrayList<>();   // t, x, y, h, vx, vy, w
+        /** Odometry drift: the pose the robot BELIEVES is the true pose plus this (inches, field frame). The contacts are judged on the true track. */
+        double driftX = 0.0, driftY = 0.0;
 
         Pinpoint(double delaySec, double noiseIn, long seed) {
             this.delaySec = delaySec;
@@ -430,7 +432,7 @@ public final class DashSim {
                     break;
                 }
             }
-            return new double[]{s[1] + noiseIn * rnd.nextGaussian(), s[2] + noiseIn * rnd.nextGaussian(), s[3] + noiseRad * rnd.nextGaussian(),
+            return new double[]{s[1] + driftX + noiseIn * rnd.nextGaussian(), s[2] + driftY + noiseIn * rnd.nextGaussian(), s[3] + noiseRad * rnd.nextGaussian(),
                     s[4] + noiseVel * rnd.nextGaussian(), s[5] + noiseVel * rnd.nextGaussian(), s[6] + noiseRad * 10.0 * rnd.nextGaussian()};
         }
     }
@@ -964,6 +966,10 @@ public final class DashSim {
         }
         /** survey: the red alliance (the same starts turned 180 deg, the red cells and corners). */
         boolean red = false;
+        /** --drift dx dy: the Pinpoint reads the true pose plus this (specs/dashes.md, target T9: the safety gate is run with the pose out by the accepted drift). */
+        double driftX = 0.0, driftY = 0.0;
+        /** trips: start each dash with the robot's logged velocity instead of from rest. */
+        boolean moving = false;
     }
 
     static final class Result {
@@ -1046,6 +1052,8 @@ public final class DashSim {
         Plant plant = v0 == null ? newPlant(o, c.sx, c.sy, c.sh, c.v0f, c.v0l, c.v0w) : newPlant(o, c.sx, c.sy, c.sh, v0[0], v0[1], v0[2]);
         plant.setWalls();
         Pinpoint pin = new Pinpoint(o.delayMs / 1000.0, o.noiseIn, o.seed);
+        pin.driftX = o.driftX;
+        pin.driftY = o.driftY;
         pin.record(-1.0, plant);
         pin.record(0.0, plant);
         boolean blue = c.blue();
@@ -1549,9 +1557,11 @@ public final class DashSim {
         Plant plant = newPlant(o, c.sx, c.sy, c.sh, 0.0, 0.0, 0.0);
         plant.setWalls();
         Pinpoint pin = new Pinpoint(o.delayMs / 1000.0, o.noiseIn, o.seed);
+        pin.driftX = o.driftX;
+        pin.driftY = o.driftY;
         pin.record(-1.0, plant);
         pin.record(0.0, plant);
-        GridRoutes.Route route = GridRoutes.pick(table, c.sx, c.sy, c.sh);
+        GridRoutes.Route route = GridRoutes.pick(table, c.sx + o.driftX, c.sy + o.driftY, c.sh);   // picked from the pose the robot believes
         if (route == null) {
             res.refused = "no grid node near the robot reaches the goal";
             return res;
@@ -1796,6 +1806,9 @@ public final class DashSim {
         return maxDev(tr, w, t);
     }
 
+    /** One row per target of the last survey: target, starts, refused, no arrival, median time, touched a support, touched a flower (driftsurvey reads it). */
+    static final List<Object[]> SURVEY_SUMMARY = new ArrayList<>();
+
     static void survey(Options o, double pitch, Path csv) throws Exception {
         survey(o, pitch, csv, false);
     }
@@ -1881,12 +1894,144 @@ public final class DashSim {
                 System.out.printf(Locale.US, "%-14s %4d starts: %3d refused, %3d no arrival; time median %.2f s, 90th %.2f s, max %.2f s; touched a support %3d (%.0f%%), a flower %3d (%.0f%%)%n",
                         target, starts, refused, noArrival, median(times), percentile(times, 90), times.isEmpty() ? Double.NaN : java.util.Collections.max(times),
                         hitSupport, 100.0 * hitSupport / Math.max(1, starts - refused), hitFlower, 100.0 * hitFlower / Math.max(1, starts - refused));
+                SURVEY_SUMMARY.add(new Object[]{target, starts, refused, noArrival, median(times), hitSupport, hitFlower});
                 if (o.grid) System.out.printf(Locale.US, "               off-route guard tripped in %d, a new route in %d; not on a grid route %d (fell back %d)%n", offRoute, newRoute, notGrid, fellBack);
                 worstKey.sort((a, b) -> Double.compare(b[0], a[0]));
                 for (int i = 0; i < Math.min(5, worstKey.size()); i++) System.out.println("      " + worst.get((int) worstKey.get(i)[1]));
             }
         }
         System.out.println("CSV: " + csv);
+    }
+
+    /**
+     * The SAFETY GATE of specs/dashes.md (target T9): the survey of the real dashes (today's planner, or the generated grid tables with --grid) repeated with the pose the robot
+     * believes shifted from the truth by the accepted drift, in eight directions, and once with none. The dashes plan and drive on the believed pose; the contacts are judged on
+     * where the robot really is. A dash is safe at that drift only when nothing is touched in any row.
+     */
+    static void driftSurvey(Options o, double pitch, double driftIn) throws Exception {
+        double d = driftIn, k = driftIn / Math.sqrt(2.0);
+        double[][] shifts = {{0, 0}, {d, 0}, {-d, 0}, {0, d}, {0, -d}, {k, k}, {k, -k}, {-k, k}, {-k, -k}};
+        List<String> lines = new ArrayList<>();
+        int[] worstSupport = new int[4], worstFlower = new int[4], worstNoArrival = new int[4];
+        String[] names = new String[4];
+        java.io.PrintStream out = System.out;
+        for (double[] sh : shifts) {
+            o.driftX = sh[0];
+            o.driftY = sh[1];
+            SURVEY_SUMMARY.clear();
+            System.setOut(new java.io.PrintStream(new java.io.ByteArrayOutputStream()));   // the survey's own report is not wanted nine times
+            try {
+                survey(o, pitch, Paths.get("build", "dashsim", String.format(Locale.US, "drift_%s_%+.1f_%+.1f.csv", o.grid ? "grid" : "current", sh[0], sh[1])));
+            } finally {
+                System.setOut(out);
+            }
+            StringBuilder b = new StringBuilder(String.format(Locale.US, "(%+5.1f, %+5.1f)", sh[0], sh[1]));
+            for (int i = 0; i < SURVEY_SUMMARY.size() && i < 4; i++) {
+                Object[] r = SURVEY_SUMMARY.get(i);
+                int starts = (Integer) r[1], refused = (Integer) r[2], noArr = (Integer) r[3], sup = (Integer) r[5], fl = (Integer) r[6];
+                names[i] = (String) r[0];
+                worstSupport[i] = Math.max(worstSupport[i], sup);
+                worstFlower[i] = Math.max(worstFlower[i], fl);
+                worstNoArrival[i] = Math.max(worstNoArrival[i], noArr);
+                b.append(String.format(Locale.US, " | %4d/%4d/%4d/%4d %5.2f", sup, fl, noArr, refused, (Double) r[4]));
+                if (i == 0) b.append(String.format(Locale.US, " of %d", starts));
+            }
+            lines.add(b.toString());
+            out.println(b);
+        }
+        o.driftX = 0.0;
+        o.driftY = 0.0;
+        out.println();
+        out.println((o.grid ? "the real dashes with the GRID tables" : "TODAY'S planner") + "; " + o.describe() + "; starts every " + pitch + " in, 4 headings; drift " + driftIn + " in");
+        out.println("each cell: touched a support / touched a flower / no arrival / refused, then the median time (s); columns: " + String.join(", ", names));
+        boolean safe = true;
+        for (int i = 0; i < 4; i++) {
+            if (names[i] == null) continue;
+            out.printf(Locale.US, "  %-14s worst over the nine: a support from %d starts, a flower from %d, no arrival from %d%n", names[i], worstSupport[i], worstFlower[i], worstNoArrival[i]);
+            if (worstSupport[i] > 0 || worstFlower[i] > 0) safe = false;
+        }
+        out.println(safe ? "SAFETY GATE: PASS (nothing touched with the pose out by " + driftIn + " in)" : "SAFETY GATE: FAIL (contacts above)");
+    }
+
+    /**
+     * The SPEED GATE of specs/dashes.md (target T9): the real Hive Dash driven from the start of every hand-driven trip the drivers made in the logged matches
+     * (tools/dash/hand_trips.py writes them), to the launch spot of the cell they launched at, and its time beside theirs. The dash goes to ITS spot; the drivers fired from
+     * wherever they chose, so both distances are printed. With --moving the robot starts with the velocity it had in the log; without, from rest.
+     */
+    static void trips(Options o, Path csvIn) throws Exception {
+        List<String> rows = Files.readAllLines(csvIn, StandardCharsets.UTF_8);
+        String[] head = rows.get(0).split(",");
+        Map<String, Integer> col = new HashMap<>();
+        for (int i = 0; i < head.length; i++) col.put(head[i].trim(), i);
+        o.force = false;
+        List<Double> hand = new ArrayList<>(), dash = new ArrayList<>(), diff = new ArrayList<>(), handDist = new ArrayList<>(), dashDist = new ArrayList<>();
+        int n = 0, refused = 0, noArrival = 0, touched = 0, beganTouching = 0, faster = 0;
+        Path csvOut = Paths.get("build", "dashsim", "trips_" + (o.grid ? "grid" : "current") + (o.moving ? "_moving" : "_rest") + ".csv");
+        Files.createDirectories(csvOut.toAbsolutePath().getParent());
+        try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(csvOut))) {
+            w.println("match,t,x,y,hdg_deg,cell,hand_s,hand_in,dash_s,dash_in,result,route,touched,began_touching");
+            for (int i = 1; i < rows.size(); i++) {
+                String[] f = rows.get(i).split(",");
+                if (f.length < head.length || !f[col.get("dash")].trim().equals("0")) continue;
+                double handIn = Double.parseDouble(f[col.get("dist_in")]), handSec = Double.parseDouble(f[col.get("find_s")]);
+                if (handIn < 12.0) continue;   // the robot was already at its launch place
+                double x = Double.parseDouble(f[col.get("x")]), y = Double.parseDouble(f[col.get("y")]), hd = Double.parseDouble(f[col.get("hdg_deg")]);
+                String cell = f[col.get("cell")].trim();
+                restoreDefaults();
+                Case c = freeCase(x, y, hd, cell, cell.startsWith("RED"));
+                if (o.moving) {
+                    double vx = Double.parseDouble(f[col.get("vx")]), vy = Double.parseDouble(f[col.get("vy")]), h = Math.toRadians(hd);
+                    c.v0f = vx * Math.cos(h) + vy * Math.sin(h);
+                    c.v0l = -vx * Math.sin(h) + vy * Math.cos(h);
+                }
+                Result r = simulate(c, o, false);
+                n++;
+                double goIn = Math.hypot(c.gx - x, c.gy - y);
+                String result, touch = "", began = "";
+                if (r.refused != null) {
+                    refused++;
+                    result = "refused";
+                } else {
+                    // The logged start pose can already overlap what the robot was gathering from (it was against the flower, and the pose is out by the drift):
+                    // such a thing is not a contact the dash made, so it is listed apart and does not fail the gate. Anything first touched after the start does.
+                    Contacts con = contacts(r.track, 0.0, r.track.get(r.track.size() - 1)[0]);
+                    TreeSet<String> onTheWay = new TreeSet<>(), atStart = new TreeSet<>();
+                    for (Map.Entry<String, Double> e : con.firstHit.entrySet()) (e.getValue() <= 0.05 ? atStart : onTheWay).add(e.getKey());
+                    if (!onTheWay.isEmpty()) {
+                        touched++;
+                        touch = String.join(" ", onTheWay);
+                    }
+                    if (!atStart.isEmpty()) {
+                        beganTouching++;
+                        began = String.join(" ", atStart);
+                    }
+                    if (Double.isNaN(r.tArrive)) {
+                        noArrival++;
+                        result = "no arrival";
+                    } else {
+                        result = "arrived";
+                        hand.add(handSec);
+                        dash.add(r.tArrive);
+                        diff.add(r.tArrive - handSec);
+                        handDist.add(handIn);
+                        dashDist.add(goIn);
+                        if (r.tArrive <= handSec) faster++;
+                    }
+                }
+                w.printf(Locale.US, "%s,%s,%.1f,%.1f,%.1f,%s,%.2f,%.1f,%s,%.1f,%s,%s,%s,%s%n", f[col.get("match")], f[col.get("t")], x, y, hd, cell, handSec, handIn,
+                        Double.isNaN(r.tArrive) ? "" : String.format(Locale.US, "%.2f", r.tArrive), goIn, result, r.plannedDesc.replace(',', ' '), touch, began);
+            }
+        }
+        System.out.println((o.grid ? "the real Hive Dash with the GRID tables" : "TODAY'S Hive Dash") + (o.moving ? ", starting with the logged velocity" : ", starting from rest") + "; " + o.describe());
+        System.out.printf(Locale.US, "%d hand-driven trips of 12 in or more: the dash arrived in %d, was refused in %d, did not arrive in %d; it touched something on the way in %d (and began already touching something in %d)%n", n, dash.size(), refused, noArrival, touched, beganTouching);
+        System.out.printf(Locale.US, "  the drivers: median %.2f s over a median %.0f in straight line (to where they fired)%n", median(hand), median(handDist));
+        System.out.printf(Locale.US, "  the dash:    median %.2f s over a median %.0f in straight line (to its launch spot)%n", median(dash), median(dashDist));
+        System.out.printf(Locale.US, "  dash minus drivers, trip by trip: median %+.2f s, 25th %+.2f s, 75th %+.2f s; the dash was at least as fast in %d of %d (%.0f%%)%n",
+                median(diff), percentile(diff, 25), percentile(diff, 75), faster, dash.size(), 100.0 * faster / Math.max(1, dash.size()));
+        boolean pass = !dash.isEmpty() && median(diff) <= 0.0 && touched == 0;
+        System.out.println(pass ? "SPEED GATE: PASS (the dash is at least as fast as the drivers on the median trip, and touched nothing)"
+                : "SPEED GATE: FAIL" + (median(diff) > 0.0 ? " (slower than the drivers on the median trip)" : "") + (touched > 0 ? " (contacts)" : ""));
+        System.out.println("CSV: " + csvOut);
     }
 
     /** One dash from a pose at rest with today's values (Phase 2 and later). */
@@ -2119,6 +2264,8 @@ public final class DashSim {
                 case "--seed": o.seed = Long.parseLong(args[++i]); break;
                 case "--red": red = true; o.red = true; break;
                 case "--grid": o.grid = true; break;
+                case "--drift": o.driftX = Double.parseDouble(args[++i]); o.driftY = Double.parseDouble(args[++i]); break;
+                case "--moving": o.moving = true; break;
                 case "--set": {
                     String[] kv = args[++i].split("=");
                     String[] cf = kv[0].split("[.]");
@@ -2142,6 +2289,12 @@ public final class DashSim {
                 break;
             case "survey":
                 survey(o, rest.size() > 1 ? Double.parseDouble(rest.get(1)) : 12.0, Paths.get("build", "dashsim", "survey_current.csv"));
+                break;
+            case "driftsurvey":   // driftsurvey [pitch] [drift in]: the safety gate
+                driftSurvey(o, rest.size() > 1 ? Double.parseDouble(rest.get(1)) : 12.0, rest.size() > 2 ? Double.parseDouble(rest.get(2)) : 4.0);
+                break;
+            case "trips":   // trips [hand_trips.csv]: the speed gate
+                trips(o, Paths.get(rest.size() > 1 ? rest.get(1) : "build/dashsim/hand_trips.csv"));
                 break;
             case "gridrun": {
                 // one grid dash with its route and a trace: gridrun x y deg TARGET
