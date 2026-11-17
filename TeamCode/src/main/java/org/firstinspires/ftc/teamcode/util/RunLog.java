@@ -16,8 +16,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * The run log (specs/logging.md section 1). One text file per run, on the Control Hub, written by a background thread.
  *
- * Lines: "#" comment, "H" column names, "S" sample row, "E" event. Fields are separated by commas.
- * SPEC GAP: the specs do not state the field separator or the exact layout of a line; commas are this rebuild's choice.
+ * Lines: "#" comment, "H" column names, "S" sample row, "E" event. Fields are separated by commas, with no quoting.
+ * The layout is part of the interface: the PC tools read it (specs/logging.md section 1.2).
  *
  * Every call does nothing while no log is open, so any code may log freely. Only the opmode thread calls this class.
  */
@@ -109,7 +109,7 @@ public final class RunLog {
             queue = q;
             LoopProfiler.reset();
             String now = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date());
-            line("# " + opmode + " | " + now + " (hub clock) | previous " + k.file + " run: " + prev);
+            line("# " + opmode + ", opened " + now + " (hub clock); the previous " + k.file + " run: " + prev);
             line("# Build: " + BuildInfo.summary());
         } catch (Throwable e) {
             queue = null;   // the opmode runs without a log
@@ -128,7 +128,7 @@ public final class RunLog {
         if (queue == null) return;
         sampler = s;
         period = periodS;
-        line("H,t,loop_ms,loop_max_ms,battery," + columns);
+        line("H,t,loop_ms,loop_max_ms,volt," + columns);
     }
 
     public static void volts(Volts v) { volts = v; }
@@ -192,7 +192,9 @@ public final class RunLog {
     public static void close() {
         if (queue == null) return;
         LoopProfiler.runLine();
-        line("# END " + (crashed ? "crash" : "normal"));
+        // A run that ends normally says so in its last event; a crashed run has its CRASH: event and no RUN ENDED.
+        if (crashed) line("# crashed");
+        else event("RUN ENDED normally");
         BlockingQueue<String> q = queue;
         queue = null;
         q.offer(STOP);
@@ -247,8 +249,8 @@ public final class RunLog {
             for (int i = lines.length - 1; i >= 0; i--) {
                 String s = lines[i].trim();
                 if (s.isEmpty()) continue;
-                if (s.startsWith("# END crash")) return "ended with a crash";
-                if (s.startsWith("# END")) return "ended normally";
+                if (s.startsWith("# crashed")) return "ended with a crash";
+                if (s.startsWith("E,") && s.contains(",RUN ENDED")) return "ended normally";
                 break;
             }
         } catch (Throwable ignored) { }

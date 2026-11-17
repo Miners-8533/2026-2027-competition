@@ -41,7 +41,7 @@ public abstract class DriveTuner extends TeamOpMode {
         markStarted();
         String gains = DriveToPose.gainsLine();
         RunLog.event("TUNE gains " + gains);
-        RunLog.sampler("x,y,heading,cmd_f,cmd_l,cmd_t", 0.050, new RunLog.Sampler() {
+        RunLog.sampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn", 0.050, new RunLog.Sampler() {
             @Override public String row() {
                 Pose p = drive.pose();
                 return String.format(Locale.US, "%.2f,%.2f,%.2f,%.2f,%.2f,%.2f", p.x, p.y, p.headingDeg(), drive.cmdForward(), drive.cmdLeft(), drive.cmdTurn());

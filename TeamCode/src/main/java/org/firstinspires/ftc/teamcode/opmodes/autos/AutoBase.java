@@ -96,10 +96,10 @@ public abstract class AutoBase extends TeamOpMode {
         Handover.dropAims();            // the auto has reseeded the Pinpoint: the remembered aims belonged to the old pose
         mech.setSpin(true);             // the flywheel runs from Start and stays up between launches
         mech.prePositionPreload();      // to the lock angle while the flywheel spins up, so the preload salvo is shorter
-        RunLog.eventf("SETUP profile %s, alliance %s, start pose %s (%s), mechanisms: %s, held count starts at %s",
+        RunLog.eventf("SETUP profile %s, alliance %s, start pose default %s (%s), mechanisms: %s, held count starts at %s",
                 profile.name, alliance, drive.pose(), drive.localizer.seedConfirmed() ? "seed confirmed" : "SEED NOT CONFIRMED", mech.found(), mech.heldText());
-        RunLog.sampler("x,y,heading," + MecanumDrive.LOG_COLUMNS.replace(",amps_lf,amps_lb,amps_rb,amps_rf", "") + "," + Mechanisms.LOG_COLUMNS
-                + ",amps_lf,amps_lb,amps_rb,amps_rf", RunLog.NORMAL_PERIOD_S, new RunLog.Sampler() {
+        RunLog.sampler("x,y,hdg_deg," + MecanumDrive.LOG_COLUMNS.replace(",a_lf,a_lb,a_rb,a_rf", "") + "," + Mechanisms.LOG_COLUMNS
+                + ",a_lf,a_lb,a_rb,a_rf", RunLog.NORMAL_PERIOD_S, new RunLog.Sampler() {
                     @Override public String row() {
                         Pose p = drive.pose();
                         return String.format(Locale.US, "%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%s,%.1f,%.1f,%.1f,%.1f", p.x, p.y, p.headingDeg(),

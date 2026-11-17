@@ -152,7 +152,7 @@ public final class MecanumDrive {
         }
     }
 
-    public static final String LOG_COLUMNS = "cmd_f,cmd_l,cmd_t,amps_lf,amps_lb,amps_rb,amps_rf";
+    public static final String LOG_COLUMNS = "cmd_fwd,cmd_left,cmd_turn,a_lf,a_lb,a_rb,a_rf";
 
     /** The last drive command and the four wheel currents, as log columns. */
     public String logRow() {

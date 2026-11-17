@@ -714,9 +714,9 @@ public final class Mechanisms {
 
     // ================= Log columns (specs/mechanisms.md section 14) =================
 
-    public static final String LOG_COLUMNS = "setpoint,fly_target,fly_speed,fly_ready,pusher_state,pusher_deg,pusher_speed,pusher_amps,"
-            + "intake,ramp,slot_count,slots,launch,warnings,overrides,check,fly_power,fly_amps,lock,hold_power,intake_amps,"
-            + "cs5_entries,cs5_held,full,cs5_prox,cs5_raw,tally";
+    public static final String LOG_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,"
+            + "intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps,"
+            + "cs5_entries,cs5_held,cs5_full,cs5_prox,cs5_raw,tally";
 
     public String logRow() {
         String overrides = (backup ? "B" : "") + (forceInOperator ? "F" : "") + (forceInAuto ? "A" : "") + (outtakeHeld ? "O" : "");

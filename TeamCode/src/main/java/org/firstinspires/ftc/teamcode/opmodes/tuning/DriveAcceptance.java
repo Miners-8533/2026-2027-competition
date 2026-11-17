@@ -93,7 +93,7 @@ public final class DriveAcceptance extends TeamOpMode {
         if (isStopRequested()) return;
         markStarted();
         RunLog.event("ACCEPT GAINS at start: " + DriveToPose.gainsLine());
-        RunLog.sampler("x,y,heading,cmd_f,cmd_l,cmd_t,test,run,phase", 0, new RunLog.Sampler() {
+        RunLog.sampler("x,y,hdg_deg,cmd_fwd,cmd_left,cmd_turn,test,run,phase", 0, new RunLog.Sampler() {
             @Override public String row() {
                 Pose p = drive.pose();
                 return String.format(Locale.US, "%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%s", p.x, p.y, p.headingDeg(),

@@ -181,13 +181,13 @@ public final class CompetitionTeleOp extends TeamOpMode {
         mech.setSpin(true);
         mech.settings.fullActions = fullAuto;
         mech.settings.launchGridAllowed = true;
-        RunLog.eventf("SETUP profile %s%s, alliance %s, start pose %s (%s), mechanisms: %s, %s, gamepads: driver %s, operator %s",
-                profile.name, ChassisProfile.noHubRegistered() ? " (NO HUB REGISTERED)" : "", alliance, pose, drive.localizer.mode(),
+        RunLog.eventf("SETUP profile %s%s, alliance %s, start pose %s %s (%s), mechanisms: %s, %s, gamepads: driver %s, operator %s",
+                profile.name, ChassisProfile.noHubRegistered() ? " (NO HUB REGISTERED)" : "", alliance, usingSaved ? "from the AUTO" : "default", pose, drive.localizer.mode(),
                 mech.found(), fullAuto ? "FULL AUTO" : "COUNT ONLY", assigned(gamepad1) ? "assigned" : "NOT ASSIGNED",
                 assigned(gamepad2) ? "assigned" : "NOT ASSIGNED");
         RunLog.eventf("PINPOINT at Start: %s, pose %s, %s", drive.localizer.statusText(), pose, seededOk ? "acceptable" : "NOT ACCEPTABLE");
-        RunLog.sampler("x,y,heading,stick_up,stick_right," + MecanumDrive.LOG_COLUMNS.replace(",amps_lf,amps_lb,amps_rb,amps_rf", "")
-                + ",drive_mode,lock_err," + Mechanisms.LOG_COLUMNS + ",amps_lf,amps_lb,amps_rb,amps_rf,grid_zone,grid_speed,grid_residual",
+        RunLog.sampler("x,y,hdg_deg,stick_up,stick_right," + MecanumDrive.LOG_COLUMNS.replace(",a_lf,a_lb,a_rb,a_rf", "")
+                + ",drive_mode,lock_err," + Mechanisms.LOG_COLUMNS + ",a_lf,a_lb,a_rb,a_rf,grid_zone,grid_speed,grid_resid_deg",
                 SAMPLE_PERIOD_S, new RunLog.Sampler() {
                     @Override public String row() { return sampleRow(); }
                 });
@@ -488,7 +488,7 @@ public final class CompetitionTeleOp extends TeamOpMode {
     private void enterBackup(String why) {
         if (backup) return;
         backup = true;
-        RunLog.event("BACKUP MODE entered: " + why);
+        RunLog.event("BACKUP MODE ENTERED: " + why);
         mech.enterBackup(BACKUP_DISTANCE_IN);
         mech.setDash(null, null, 0);
         lock.release();

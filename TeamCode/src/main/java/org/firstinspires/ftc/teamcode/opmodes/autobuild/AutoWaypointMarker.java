@@ -71,11 +71,11 @@ public final class AutoWaypointMarker extends TeamOpMode {
             if (mark.pressed(gamepad1.a)) {
                 marks++;
                 last = String.format(Locale.US, "Pose.deg(%.1f, %.1f, %.0f)  // mark %d, ramp %s", blue.x, blue.y, blue.headingDeg(), marks, rampState);
-                RunLog.eventf("WAYPOINT mark %d: field %s, blue frame %s", marks, p, last);
+                RunLog.eventf("MARK %d: field %s, blue frame %s", marks, p, last);
             }
             if (check.pressed(gamepad1.b)) {
                 checks++;
-                RunLog.eventf("WAYPOINT check %d: the Pinpoint reads %s", checks, p);
+                RunLog.eventf("CHECK %d: the Pinpoint reads %s", checks, p);
                 last = "check " + checks + " at " + p;
             }
             if (ramp != null && deploy.pressed(gamepad1.x)) ramp.deploy();
