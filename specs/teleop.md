@@ -260,4 +260,4 @@ Kind TELEOP ([logging.md](logging.md)). Sample columns: pose; the driver's stick
 
 ## 15. Status
 
-Used at Hartland: field-oriented drive, the lock on the right bumper, launch waiting for aligned, the dashes, the operator's auto-launch, the reports, hold position, backup mode, reseed, the match screen, the Pinpoint adoption. Added after Hartland: the drive hold during the sweep (run in practice, not at speed), FULL AUTO with its auto-launch arming (the present sequence has not run), COUNT ONLY, the launch grid switch.
+Used at Hartland: field-oriented drive, the lock on the right bumper, launch waiting for aligned, the operator's auto-launch, the reports, hold position, backup mode, reseed, the match screen, the Pinpoint adoption. In the build at Hartland but not pressed in any match there: the dashes (no dash is in the event's TeleOp logs). Added after Hartland: the drive hold during the sweep (run in practice, not at speed), FULL AUTO with its auto-launch arming (the present sequence has not run), COUNT ONLY, the launch grid switch.
