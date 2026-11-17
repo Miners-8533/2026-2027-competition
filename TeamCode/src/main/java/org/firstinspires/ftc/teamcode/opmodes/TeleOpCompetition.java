@@ -318,7 +318,7 @@ public class TeleOpCompetition extends LinearOpMode {
         boolean hasCs5 = mechanisms.getHeldForHandOver() >= 0;
         boolean heldSaved = hasCs5 && PoseStorage.isHeldFresh(AUTO_POSE_MAX_AGE_SEC);
         if (heldSaved) {
-            mechanisms.setHeldByEntries(PoseStorage.held(), String.format(Locale.US, "saved by the last opmode %.1f s ago (limit %.0f s)", PoseStorage.heldAgeSec(), AUTO_POSE_MAX_AGE_SEC));
+            mechanisms.setHeldByEntries(PoseStorage.held(), PoseStorage.heldOrder(), String.format(Locale.US, "saved by the last opmode %.1f s ago (limit %.0f s)", PoseStorage.heldAgeSec(), AUTO_POSE_MAX_AGE_SEC));
         } else if (hasCs5) {
             RunLog.event(PoseStorage.held() < 0 ? "ENTRY COUNT starts at 0: no count was saved by an earlier opmode"
                     : String.format(Locale.US, "ENTRY COUNT starts at 0: the saved count (%d) is %.0f s old, limit %.0f s", PoseStorage.held(), PoseStorage.heldAgeSec(), AUTO_POSE_MAX_AGE_SEC));
@@ -396,7 +396,7 @@ public class TeleOpCompetition extends LinearOpMode {
                         cellNudgeDeg[(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_REAR).ordinal()], cellNudgeDeg[(blue ? HiveTarget.BLUE_AUDIENCE : HiveTarget.RED_AUDIENCE).ordinal()]);
             }
             telemetry.addData("CS5 held count", !hasCs5 ? "no CS5: no count"
-                    : heldSaved ? String.format(Locale.US, "starts at %d, saved by the last opmode %.0f s ago (D-pad up on gamepad 1 discards it)", mechanisms.getHeldByEntries(), PoseStorage.heldAgeSec())
+                    : heldSaved ? String.format(Locale.US, "starts at %d (load order %s), saved by the last opmode %.0f s ago (D-pad up on gamepad 1 discards it)", mechanisms.getHeldByEntries(), mechanisms.getLoadOrder().isEmpty() ? "-" : mechanisms.getLoadOrder(), PoseStorage.heldAgeSec())
                     : "starts at 0 (nothing saved to continue from)");
             telemetry.addData("Flywheel position", mechanisms.flywheelPositionText());
             telemetry.addData("Element counter", mechanisms.counter == null ? "not configured"
@@ -506,7 +506,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 PoseStorage.save(pose, blue);
                 PoseStorage.saveAims(cellNudgeDeg);   // the remembered aims go with the pose they correct
             }
-            PoseStorage.saveHeld(mechanisms.getHeldForHandOver());   // the CS5 held count, for a TeleOp that has to be restarted (also in backup mode: the count does not need the pose)
+            PoseStorage.saveHeld(mechanisms.getHeldForHandOver(), mechanisms.getLoadOrder());   // the CS5 held count, for a TeleOp that has to be restarted (also in backup mode: the count does not need the pose)
             double heading = pose.heading.toDouble();
 
             // driver: stick up = away from the driver, stick right = the driver's right, both in field terms

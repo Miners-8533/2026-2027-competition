@@ -121,7 +121,7 @@ The result is one of three modes, each with a one-line note for the INIT screen 
 - Autos save at their end. The TeleOp saves every loop, so a TeleOp restarted mid-match resumes where the robot is.
 - The TeleOp stops saving in backup mode, when the pose is no longer trusted.
 
-**The CS5 held count travels the same way** (built 2026-11-17, not run on the robot). The autos and the TeleOp save it on every loop; it has its own save time, because the TeleOp stops saving the pose in backup mode and still knows its count. A TeleOp starts from it while it is no older than the pose may be. Discarding the saved pose in the TeleOp's INIT discards the count too. Details: [element-counting.md](element-counting.md) section 2.5.
+**The CS5 held count travels the same way** (built 2026-11-17, not run on the robot). The autos and the TeleOp save it on every loop; it has its own save time, because the TeleOp stops saving the pose in backup mode and still knows its count. A TeleOp starts from it while it is no older than the pose may be. Discarding the saved pose in the TeleOp's INIT discards the count too. The load order (what each held element is, [element-counting.md](element-counting.md) section 2.8) is saved and discarded with the count. Details: [element-counting.md](element-counting.md) section 2.5.
 
 **The operator's remembered aims travel too** (built 2026-11-17, not run on the robot). The TeleOp saves them on every loop beside the pose, and stops with the pose in backup mode. A TeleOp starts with them only when it adopts the device's pose, because they correct that pose's drift. An auto drops them: it has reseeded the Pinpoint. Details: [teleop.md](teleop.md) section 5.1.
 

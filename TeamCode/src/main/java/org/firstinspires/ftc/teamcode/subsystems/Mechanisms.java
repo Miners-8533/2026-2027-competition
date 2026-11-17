@@ -252,7 +252,10 @@ public class Mechanisms {
     private long fifthArmEmptyStartNs = 0L;
     private long fifthDwellStartNs = 0L, fifthClearStartNs = 0L, fifthClearOkStartNs = 0L, fifthRetryUntilNs = 0L;
     private int launchedTotal = 0;                  // elements launched since the opmode started (the entry count, or the counter's, at each salvo start)
-    private int heldByEntries = 0;                 // CS5 entries since the track was last emptied (a salvo, a reject, or the counter reading 0 for ENTRY_ZERO_RESET_SEC)
+    private final ArrayList<long[]> load = new ArrayList<>();             // the load order: {entry number (0 = not seen coming in by CS5 in this opmode), kind letter} per held element, the first one in first
+    private final ArrayList<long[]> loadBeforeSalvo = new ArrayList<>();  // the load a salvo started with, put back by salvoNotCompleted
+    private String entriesColorFaultLogged = "";
+    private int heldByEntries = 0;               // CS5 entries since the track was last emptied (a salvo, a reject, or the counter reading 0 for ENTRY_ZERO_RESET_SEC)
     private int heldBeforeSalvo = 0, launchedBySalvo = 0;   // what the last salvo's start took off the entry count and added to launchedTotal (put back if the pusher gives up on it)
     private int entriesRestartsLogged = 0;
     private boolean entryFull = false;
@@ -1193,9 +1196,12 @@ public class Mechanisms {
                     RunLog.event(String.format(Locale.US, "SALVO started: flywheel %.0f of %.0f ticks/s, %s | %s%s | LAUNCHED %d (the entry count %d, the counter %d): %d in all",
                             flywheel.getFilteredVelocity(), lastSetpoint, heldText(), pusher.getLastCommand(),
                             entries == null ? "" : String.format(Locale.US, " | CS5 shadow count: %d entries since the last salvo started (%d in all, %d peaks rejected by the valley rule)", entriesNow - entriesAtLastSalvo, entriesNow, entries.rejected()),
-                            launchedNow, heldByEntries, counterHeldNow, launchedTotal));
+                            launchedNow, heldByEntries, counterHeldNow, launchedTotal)
+                            + (entries == null ? "" : " | load order " + loadOrderText() + " (the first letter leaves first)"));
                     entriesAtLastSalvo = entriesNow;
                     heldBeforeSalvo = heldByEntries;   // put back by salvoNotCompleted if the pusher gives up on this salvo
+                    loadBeforeSalvo.clear();
+                    loadBeforeSalvo.addAll(load);
                     launchedBySalvo = launchedNow;
                     resetEntryHeld("a salvo started");
                     launchQueued = false;
@@ -1317,7 +1323,8 @@ public class Mechanisms {
             entriesStartLogged = true;
             entriesStatsTimer.reset();
             entriesStartedClock.reset();
-            RunLog.event(String.format(Locale.US, "CS5 ENTRY COUNTER started (it counts; TeleOp - Competition acts on FULL = " + ENTRY_CAPACITY + " entered since the last salvo: ENTRY_FULL_ACTIONS " + ENTRY_FULL_ACTIONS + "): a 2-byte proximity read every %.0f ms, peaks of at least %.0f counts, smoothing %d, a group with a peak of +%.0f or more within %.1f s counts once; %s", EntryCounter.PERIOD_MS, EntryCounter.PROMINENCE, EntryCounter.SMOOTH, EntryCounter.MERGE_HEIGHT, EntryCounter.MERGE_GAP_SEC, entries.presetNote));
+            RunLog.event(String.format(Locale.US, "CS5 ENTRY COUNTER started (it counts; TeleOp - Competition acts on FULL = " + ENTRY_CAPACITY + " entered since the last salvo: ENTRY_FULL_ACTIONS " + ENTRY_FULL_ACTIONS + "): a 2-byte proximity read every %.0f ms, peaks of at least %.0f counts, smoothing %d, a group with a peak of +%.0f or more within %.1f s counts once; %s; the kind of each entry (load order): %s, %s", EntryCounter.PERIOD_MS, EntryCounter.PROMINENCE, EntryCounter.SMOOTH, EntryCounter.MERGE_HEIGHT, EntryCounter.MERGE_GAP_SEC, entries.presetNote,
+                    entries.isClassifying() ? "ON (a color burst read while an element passes; logged only, nothing acts on it)" : "OFF (EntryCounter.CLASSIFY " + EntryCounter.CLASSIFY + ", edge counting " + EntryCounter.USE_EDGE + ")", entries.colorNote));
         }
         if (!entries.baselineNote().equals(entriesNoteLogged)) {
             entriesNoteLogged = entries.baselineNote();
@@ -1329,9 +1336,29 @@ public class Mechanisms {
             double agoMs = (System.nanoTime() - e.peakNanos) / 1e6;
             boolean outNow = intakeWasOutAt(e.peakNanos);   // an element going OUT past the sensor is not an entry; judged by when the PEAK happened (an entry is confirmed up to 1.5 s later)
             counterZeroClock.reset();   // an element has just come in: the counter cannot have seen it yet, so its 0 means nothing for ENTRY_ZERO_RESET_SEC
-            if (!outNow) heldByEntries++;
+            if (!outNow) {
+                heldByEntries++;
+                load.add(new long[]{e.number, EntryClassifier.Kind.UNKNOWN.letter});   // its kind comes when it has passed the sensor (CS5 KIND below)
+            }
             RunLog.event(String.format(Locale.US, "CS5 ENTRY %d: a peak of +%.0f counts (prox %d) at %.2f s of the thread, %.0f ms before this line%s | %s | held by the entry count: %d%s", e.number, e.height, e.proxAtPeak, e.timeSec, agoMs,
                     e.merged() ? " | MERGED " + e.peaks + " peaks: " + e.detail : "", heldText(), heldByEntries, outNow ? " (the intake was OUT at its peak: not counted)" : ""));
+        }
+        // the kind of an entry (2026-11-17, not run on the robot): it comes after the entry, when the element has passed CS5, and is written into the load order at that entry's place
+        EntryClassifier.Result k;
+        while ((k = entries.pollKind()) != null) {
+            boolean placed = false;
+            for (long[] l : load) {
+                if (l[0] == k.entry) {
+                    l[1] = k.kind.letter;
+                    placed = true;
+                }
+            }
+            RunLog.event(String.format(Locale.US, "CS5 KIND %d: %s | %s", k.entry, k.text(),
+                    placed ? "load order " + loadOrderText() : "not in the load (it was not counted as held, or the track has been emptied since)"));
+        }
+        if (!entries.colorFault().equals(entriesColorFaultLogged)) {
+            entriesColorFaultLogged = entries.colorFault();
+            RunLog.event("CS5 KIND OFF: " + entriesColorFaultLogged);
         }
         boolean counterReads = counter != null && counter.isValid() && !counterOverride && !counter.isFrozen();
         if (!counterReads || counter.count() > 0) counterZeroClock.reset();
@@ -1377,10 +1404,26 @@ public class Mechanisms {
     private void resetEntryHeld(String why) {
         if (heldByEntries != 0 || entryFull) RunLog.event(String.format(Locale.US, "ENTRY COUNT reset from %d%s: %s", heldByEntries, entryFull ? " (FULL, the intake goes back IN)" : "", why));
         heldByEntries = 0;
+        load.clear();
         entryFull = false;
         entryFullStartNs = 0L;
         lockRefusalLogged = "";
         lockFailures = 0;   // a salvo or a reject moved the stack: the lock may be tried again
+    }
+
+    /**
+     * THE LOAD ORDER (2026-11-17, not run on the robot; specs/element-counting.md section 2.8): one letter per element counted into the held count, in the order they came in, so the FIRST letter is the
+     * element nearest the flywheel, which a salvo launches first: P pollen, R red nectar, B blue nectar, ? not known (its kind has not come yet, the color could not name it, or CS5 did not see it come in
+     * in this opmode: a preload). "" when nothing is held. Nothing acts on it yet: it is logged and shown on the verbose screen.
+     */
+    public String getLoadOrder() {
+        StringBuilder sb = new StringBuilder();
+        for (long[] l : load) sb.append((char) l[1]);
+        return sb.toString();
+    }
+
+    private String loadOrderText() {
+        return load.isEmpty() ? "-" : getLoadOrder();
     }
 
     /**
@@ -1393,6 +1436,8 @@ public class Mechanisms {
         if (heldBeforeSalvo == 0 && launchedBySalvo == 0) return;
         int enteredSince = heldByEntries;
         heldByEntries += heldBeforeSalvo;
+        load.addAll(0, loadBeforeSalvo);   // the salvo's elements are still ahead of what has entered since
+        loadBeforeSalvo.clear();
         launchedTotal = Math.max(0, launchedTotal - launchedBySalvo);
         RunLog.event(String.format(Locale.US, "SALVO NOT COMPLETED (%s): the entry count is put back to %d (%d before the salvo + %d entered since), launched total back to %d (less %d); all of the salvo's elements are taken to be still held | %s",
                 why, heldByEntries, heldBeforeSalvo, enteredSince, launchedTotal, launchedBySalvo, pusher.getLastResult()));
@@ -1528,8 +1573,17 @@ public class Mechanisms {
      * Call it before the first update. FULL is not set here: the next update declares it when the count is at the capacity. Ignored without CS5 or for a negative count.
      */
     public void setHeldByEntries(int count, String why) {
+        setHeldByEntries(count, null, why);
+    }
+
+    /** As above, with the load order the last opmode saved (one letter per element, the first one in first); null or too short leaves the rest not known. */
+    public void setHeldByEntries(int count, String order, String why) {
         if (entries == null || count < 0) return;
-        RunLog.event(String.format(Locale.US, "ENTRY COUNT starts at %d (was %d): %s", count, heldByEntries, why));
+        load.clear();
+        for (int i = 0; i < count; i++) {
+            load.add(new long[]{0L, order != null && i < order.length() ? EntryClassifier.Kind.ofLetter(order.charAt(i)).letter : EntryClassifier.Kind.UNKNOWN.letter});
+        }
+        RunLog.event(String.format(Locale.US, "ENTRY COUNT starts at %d (was %d), load order %s: %s", count, heldByEntries, loadOrderText(), why));
         heldByEntries = count;
         if (count < ENTRY_CAPACITY && entryFull) {
             entryFull = false;
@@ -1574,12 +1628,12 @@ public class Mechanisms {
     }
 
     /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
-    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps,cs5_entries,cs5_held,cs5_full,cs5_prox,cs5f,launched_total";
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps,cs5_entries,cs5_held,cs5_full,cs5_prox,cs5f,launched_total,cs5_load";
 
     /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
     public String sampleRow() {
         String launch = launchQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
-        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d",
+        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s",
                 lastSetpoint,
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getVelocity()),
@@ -1603,7 +1657,8 @@ public class Mechanisms {
                 entries == null || !entries.isStarted() ? "" : (entryFull ? "1" : "0"),
                 entries == null || !entries.isStarted() ? "" : String.valueOf(entries.latestProx()),
                 entries == null || !entries.isStarted() ? "" : entries.drainSamples(),
-                launchedTotal);
+                launchedTotal,
+                entries == null || !entries.isStarted() ? "" : getLoadOrder());
     }
 
     public void log(Telemetry telemetry) {
@@ -1617,6 +1672,7 @@ public class Mechanisms {
         telemetry.addData("Reject", rejectActive ? "running" : "idle");
         telemetry.addData("Launched (elements)", launchedTotal);
         if (entries != null) {
+            telemetry.addData("CS5 load order", "%s   (first in = first out; P pollen, R red nectar, B blue nectar, ? not known; kinds %s)", loadOrderText(), entries.isClassifying() ? "on" : "OFF");
             telemetry.addData("CS5 entries", "%d counted, %d held by the count%s, %s", entries.entries(), heldByEntries, entryFull ? " FULL" + (clearingFifth ? ": clearing a 5th (intake OUT)" : ": intake stopped") : "", entries.isStarted() ? (entries.isHealthy() ? "answering, prox " + entries.latestProx() : "NOT ANSWERING") : "not started");
         }
         if (intake != null) intake.log(telemetry);

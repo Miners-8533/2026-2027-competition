@@ -27,6 +27,12 @@ import java.util.concurrent.locks.LockSupport;
  * (10 Hz), so {@link #presetOk} says whether it worked.
  *
  * The main loop reads {@link #entries()} and drains {@link #pollEntry()} for the log (the log is not written from the thread).
+ *
+ * THE KIND OF EACH ENTRY (2026-11-17, not run on the robot; {@link EntryClassifier}, CLASSIFY): while an element is in front of the sensor the thread's read is the 15-byte BURST from MAIN_STATUS
+ * (status, proximity, IR, green, blue, red in one transaction, the CS Pass Study's read: 6.8 ms against the 2-byte read's 5.6 to 6.4 ms in the 2026-11-14 logs) in place of the 2-byte one, so the
+ * count gets the same proximity value and no transaction is added. With nothing in front, one read in IDLE_COLOR_EVERY is a burst (the empty color level the rise is measured from) and every read
+ * of the first BASELINE_SEC is. The sensor's color is put on 25 ms / 16-bit when this is built; if that fails, or three bursts in a row fail, the color is off for the run, the thread reads the
+ * 2 bytes as before and every entry's kind is UNKNOWN. Edge counting only. The main loop drains {@link #pollKind()}.
  */
 @Config
 public final class EntryCounter {
@@ -70,6 +76,32 @@ public final class EntryCounter {
     public static double STATS_SEC = 15.0;
     /** False: never start the thread (an opmode that reads CS5 itself, the CS Pass Study). */
     public static boolean ENABLED = true;
+    /**
+     * (2026-11-17, not run on the robot) True: the thread reads CS5's color while an element passes and says what each entry is (EntryClassifier). False: the 2-byte proximity read only, exactly as before,
+     * and every kind is UNKNOWN. Read live.
+     */
+    public static boolean CLASSIFY = true;
+    /** With nothing in front of the sensor, one read in this many carries the color (the empty color level; 8 = every 200 ms). 1 = every read (the most hub time: 6.8 ms a read against about 6). Read live. */
+    public static int IDLE_COLOR_EVERY = 8;
+    /** A pass begins at this many proximity counts above the empty level (under EDGE_HI, so the color read is on when the entry is counted). Read when the thread starts, as the next eight. */
+    public static double CLASS_NEAR = 2.0;
+    /** A pass ends when the proximity has been under CLASS_NEAR for more than this many samples (the color is a 25 ms average and lags the proximity). */
+    public static int CLASS_TAIL_SAMPLES = 2;
+    /** An element still in front this long after it was counted is classified with what there is, and the color reads stop until it has gone. */
+    public static double CLASS_MAX_SEC = 0.5;
+    /** The empty color level is the median of this many of the latest color samples taken with nothing in front. */
+    public static int CLASS_REF_SAMPLES = 3;
+    /** Under this summed rise (green + blue + red, counts) the kind is UNKNOWN. The weakest of the 31 pollen of 2026-11-14 gave 121 at 20 ms. */
+    public static double CLASS_MIN_SIGNAL = 60.0;
+    /** Red's share of the rise at this or more: RED NECTAR. A FIRST GUESS (no nectar has been recorded at CS5; pollen's red share was 0.31 to 0.46). */
+    public static double CLASS_RED_MIN = 0.55;
+    /** Blue's share of the rise at this or more: BLUE NECTAR. A FIRST GUESS (pollen's blue share was 0.00 to 0.13). */
+    public static double CLASS_BLUE_MIN = 0.40;
+    /** POLLEN: green's share at CLASS_POLLEN_GREEN_MIN or more (measured 0.52 to 0.65) and blue's at CLASS_POLLEN_BLUE_MAX or less. */
+    public static double CLASS_POLLEN_GREEN_MIN = 0.45;
+    public static double CLASS_POLLEN_BLUE_MAX = 0.20;
+    /** Burst read: MAIN_STATUS (0x07) through LS_DATA_RED's third byte (0x15), 15 bytes. */
+    private static final int BURST_BYTES = 15;
 
     /** One counted element. */
     public static final class Entry {
@@ -99,7 +131,16 @@ public final class EntryCounter {
     private final RevColorSensorV3 sensor;
     public final String presetNote;
     public final boolean presetOk;
+    /** What the color preset did (for the log). */
+    public final String colorNote;
+    private final boolean colorPresetOk;
     private final ConcurrentLinkedQueue<Entry> queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<EntryClassifier.Result> kinds = new ConcurrentLinkedQueue<>();
+    private EntryClassifier classifier;   // used only by the counter thread, kept across a restart like the pipeline
+    private volatile boolean colorOff = false;
+    private volatile String colorFault = "";
+    private volatile long colorReads = 0L, colorErrors = 0L;
+    private volatile String colorReference = "";
     // the raw samples for the log (drained by Mechanisms.sampleRow): the nanoTime and the proximity of each
     private static final int RING = 2048;
     private final long[] ringT = new long[RING];
@@ -147,6 +188,24 @@ public final class EntryCounter {
         }
         this.presetNote = note;
         this.presetOk = ok;
+        String cNote;
+        boolean cOk;
+        try {
+            Method ls = BroadcomColorSensorImpl.class.getDeclaredMethod("setLSRateAndRes", BroadcomColorSensor.LSResolution.class, BroadcomColorSensor.LSMeasurementRate.class);
+            ls.setAccessible(true);
+            ls.invoke(sensor, BroadcomColorSensor.LSResolution.R16BIT, BroadcomColorSensor.LSMeasurementRate.R25ms);
+            cNote = "color preset applied (16-bit, a new value every 25 ms)";
+            cOk = true;
+        } catch (Exception e) {
+            cNote = "COLOR PRESET FAILED (" + e + "): the kind of an entry will be UNKNOWN";
+            cOk = false;
+        }
+        this.colorNote = cNote;
+        this.colorPresetOk = cOk;
+    }
+
+    private static int u16(byte[] d, int i) {
+        return (d[i] & 0xFF) | ((d[i + 1] & 0xFF) << 8);
     }
 
     /** The counter on the configuration's "CS5", or null when there is none (the robot runs without it). */
@@ -179,6 +238,9 @@ public final class EntryCounter {
         originNs = System.nanoTime();
         pipe = USE_EDGE ? EntryPipeline.edge(EDGE_HI, EDGE_LO, EDGE_CONFIRM, BASELINE_SEC)
                 : new EntryPipeline(PROMINENCE, SMOOTH, MIN_SEPARATION_SEC, MERGE_HEIGHT, MERGE_GAP_SEC, VALLEY_MAX, BASELINE_SEC);
+        // the kinds need the edge rule: its entry is counted while the element is still in front of the sensor (a peak is counted after it has gone)
+        classifier = USE_EDGE && colorPresetOk ? new EntryClassifier(CLASS_NEAR, CLASS_TAIL_SAMPLES, CLASS_MAX_SEC, CLASS_REF_SAMPLES,
+                new EntryClassifier.Limits(CLASS_MIN_SIGNAL, CLASS_RED_MIN, CLASS_BLUE_MIN, CLASS_POLLEN_GREEN_MIN, CLASS_POLLEN_BLUE_MAX)) : null;
         thread = new Thread(this::run, "CS5 entry counter");
         thread.setDaemon(true);
         thread.start();
@@ -219,13 +281,43 @@ public final class EntryCounter {
     private void run() {
         final EntryPipeline pipe = this.pipe;   // made in start(), kept across a restart
         long next = System.nanoTime();
+        final EntryClassifier classifier = this.classifier;
         long lastStart = 0L;
         int consecutiveErrors = 0;
+        int colorFailsInARow = 0, idleReads = 0;
         while (running) {
             long t0 = System.nanoTime();
             if ((t0 - lastTouchNs) / 1e9 > IDLE_EXIT_SEC) break;   // the opmode is over
             try {
-                int v = sensor.rawOptical();
+                // the color rides on the same transaction as the proximity (a burst in place of the 2-byte read): while an element is in front, through the first second (the empty color level), and
+                // one read in IDLE_COLOR_EVERY with nothing in front
+                boolean wantColor = classifier != null && CLASSIFY && !colorOff
+                        && (classifier.wantsColor() || !pipe.baselineDone() || idleReads + 1 >= Math.max(1, IDLE_COLOR_EVERY));
+                int v = -1, green = 0, blue = 0, red = 0;
+                boolean color = false;
+                if (wantColor) {
+                    try {
+                        byte[] d = sensor.read(BroadcomColorSensor.Register.MAIN_STATUS, BURST_BYTES);
+                        if (d == null || d.length < BURST_BYTES) throw new IllegalStateException("a burst of " + (d == null ? 0 : d.length) + " bytes");
+                        v = u16(d, 1) & 0x7FF;
+                        green = u16(d, 6);
+                        blue = u16(d, 9);
+                        red = u16(d, 12);
+                        color = (d[0] & 0x08) != 0;   // MAIN_STATUS bit 3: a new color value since the status was last read
+                        colorFailsInARow = 0;
+                        colorReads++;
+                        idleReads = 0;
+                    } catch (Throwable ce) {
+                        colorErrors++;
+                        if (++colorFailsInARow >= 3) {
+                            colorOff = true;
+                            colorFault = "three color reads in a row failed (" + ce + "): the color is off for this run, every kind is UNKNOWN";
+                        }
+                    }
+                } else {
+                    idleReads++;
+                }
+                if (v < 0) v = sensor.rawOptical();
                 long t1 = System.nanoTime();
                 consecutiveErrors = 0;
                 lastProx = v;
@@ -257,10 +349,18 @@ public final class EntryCounter {
                     }
                 }
                 lastStart = t0;
+                long counted = 0L;
                 for (EntryGrouper.Entry g : pipe.push(tSec, v)) {
                     long n = entries + 1;
                     queue.add(new Entry(n, g.time, g.height, v, g.peaks, g.detail, originNs + (long) (g.time * 1e9)));
                     entries = n;
+                    counted = n;
+                }
+                if (classifier != null && CLASSIFY && !colorOff) {
+                    double above = pipe.baselineDone() && !Double.isInfinite(pipe.emptyLevel()) ? v - pipe.emptyLevel() : Double.NaN;
+                    EntryClassifier.Result kind = classifier.push(tSec, above, counted, color, green, blue, red);
+                    if (kind != null) kinds.add(kind);
+                    if (color) colorReference = classifier.referenceText();
                 }
                 rejected = pipe.rejected();
                 baseline = pipe.emptyLevel();
@@ -297,6 +397,21 @@ public final class EntryCounter {
     /** The next counted element for the log, or null (drain this from the main loop). */
     public Entry pollEntry() {
         return queue.poll();
+    }
+
+    /** The next classified entry (its number and kind), or null (drain this from the main loop). It comes after its entry: when the element has passed, at most CLASS_MAX_SEC later. */
+    public EntryClassifier.Result pollKind() {
+        return kinds.poll();
+    }
+
+    /** True while the thread reads the color and names the kinds: the switch is on, the edge rule is in use, the color preset worked and the color reads have not failed. */
+    public boolean isClassifying() {
+        return CLASSIFY && classifier != null && !colorOff;
+    }
+
+    /** Why the color was switched off in this run, or "". */
+    public String colorFault() {
+        return colorFault;
     }
 
     public int latestProx() {
@@ -376,7 +491,9 @@ public final class EntryCounter {
     private String format(long n, long over, double sumMs, double maxMs, double readMs, double readMax) {
         if (n == 0) return "no samples";
         double mean = sumMs / n;
-        return String.format(Locale.US, "%d samples, interval mean %.1f ms (asked %.0f), max %.0f ms, %d late; read %.1f ms mean (max %.0f), %.0f%% of the hub; %d entries, %d rejected (valley), empty level %.0f, %d errors",
-                n, mean, PERIOD_MS, maxMs, over, readMs / n, readMax, 100.0 * readMs / Math.max(sumMs, 1e-9), entries, rejected, baseline, errors);
+        return String.format(Locale.US, "%d samples, interval mean %.1f ms (asked %.0f), max %.0f ms, %d late; read %.1f ms mean (max %.0f), %.0f%% of the hub; %d entries, %d rejected (valley), empty level %.0f, %d errors; color: %s",
+                n, mean, PERIOD_MS, maxMs, over, readMs / n, readMax, 100.0 * readMs / Math.max(sumMs, 1e-9), entries, rejected, baseline, errors,
+                classifier == null ? "not read" : String.format(Locale.US, "%d reads in all, %d failed, empty level %s%s", colorReads, colorErrors, colorReference.isEmpty() ? "-" : colorReference,
+                        colorOff ? ", OFF" : CLASSIFY ? "" : ", switched off"));
     }
 }

@@ -588,7 +588,7 @@ public class AutonSolo extends LinearOpMode {
 
         Actions.runBlocking(this, auto, () -> {
             mechanisms.update(drive.getPose());
-            PoseStorage.saveHeld(mechanisms.getHeldForHandOver());   // every loop, so a stopped or crashed auto still hands its count to the TeleOp
+            PoseStorage.saveHeld(mechanisms.getHeldForHandOver(), mechanisms.getLoadOrder());   // every loop, so a stopped or crashed auto still hands its count to the TeleOp
         });
         RunLog.event(isStopRequested() ? "AUTO stopped before it finished" : "AUTO actions finished");
         RunLog.event(String.format(Locale.US, "AUTO TIMING total %.2f s into the auto; steps (s): %s", autoClock.seconds(), String.join("; ", timings)));
@@ -604,7 +604,7 @@ public class AutonSolo extends LinearOpMode {
             Pose2d p = drive.getPose();
             PoseStorage.save(p, isBlue);
             mechanisms.update(p);
-            PoseStorage.saveHeld(mechanisms.getHeldForHandOver());
+            PoseStorage.saveHeld(mechanisms.getHeldForHandOver(), mechanisms.getLoadOrder());
             RunLog.tick();
             telemetry.addLine("Auto complete.");
             telemetry.addData("Final Pinpoint pose (in, in, deg)", "%.2f, %.2f, %.1f", p.position.x, p.position.y, p.heading.toDegrees());

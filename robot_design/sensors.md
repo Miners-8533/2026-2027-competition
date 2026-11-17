@@ -69,7 +69,7 @@ A dim blue nectar at CS4 is close to the arm's color; the arm is told apart by i
 
 ## The entrance sensor: CS5
 
-A fifth REV Color Sensor V3 at the intake entrance, ahead of `CS1`. Only its **proximity** is used.
+A fifth REV Color Sensor V3 at the intake entrance, ahead of `CS1`. Its **proximity** counts the elements. Its **color** names each one (from 2026-11-17, not run on the robot; the color table is below).
 
 | Quantity | Value |
 |---|---|
@@ -80,6 +80,19 @@ A fifth REV Color Sensor V3 at the intake entrance, ahead of `CS1`. Only its **p
 | Hard arrivals in real driving | up to about 160 counts above empty, with ringing |
 | Touching elements in a clump | the dips between them are only 2 to 4 counts above empty |
 
+**CS5's color** (the raw 16-bit green, blue and red channels, without the SDK's channel factors; one run, 2026-11-14 13:27, 31 pollen, the robot standing still):
+
+| Quantity | Value |
+|---|---|
+| Sensor setting | 16-bit, a new value every 25 ms |
+| Read cost | one 15-byte read that also returns the proximity: 6.8 ms measured, against 5.6 to 6.4 ms for the 2-byte read in a match loop |
+| Empty reading | green about 2385, blue about 1450, red about 1200; each wanders by about 15 counts within a run |
+| One pollen passing | green rises 60 to 140 counts, red 40 to 90, blue under 20 |
+| Pollen: shares of the rise | green 0.52 to 0.65, blue 0.00 to 0.13, red 0.31 to 0.46 |
+| Timing against the proximity | the color starts to rise one or two samples before the proximity reaches the count's threshold, and takes two or three samples longer to fall back |
+| Red nectar, blue nectar | **not measured** |
+
+- The empty color level in a moving robot (other light, the field wall or a flower stand in view) has not been measured.
 - `CS5` does **not** see the pusher arm: its reading stays at the empty level through salvos and rejects.
 - An element parked under the sensor holds the reading up for as long as it stays.
 - Only pollen has been characterized. Nectar may reflect differently.

@@ -27,7 +27,7 @@ The route planner, the dashes, the leg and grid followers, the target lock math,
 | Duo path check | every leg of the duo autos clears the hive supports and the flower stands, with the clearance of each. It holds copies of the default poses and of the robot's footprint, which must be changed together with the autos. Target T7 ([field.md](field.md) section 7) removes the copies |
 | Launch grid check | each tuning grid is non-empty, every spot obeys the rules, and every hop of the sweep is drivable |
 | Grid map check | every measured spot returns itself, the zones, the red rotation, the seed flag, continuity |
-| Entry counter check | recorded proximity runs replayed through the counting rule the robot uses, against known answers and a reference implementation |
+| Entry counter check | recorded proximity runs replayed through the counting rule the robot uses, against known answers and a reference implementation; then the recorded pollen run with its color, and made-up nectar, through the rule that names each entry's kind |
 
 ## 3. Dash simulator
 

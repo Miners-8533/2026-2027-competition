@@ -21,6 +21,7 @@ public final class PoseStorage {
     private static boolean blue = true;
     private static long savedAtNanos = 0L;
     private static int held = -1;                 // the CS5 held count, -1 = none saved (no CS5 in the configuration, or nothing saved yet)
+    private static String heldOrder = "";         // the load order that goes with the held count, "" = none
     private static long heldSavedAtNanos = 0L;
     private static double[] aims = null;          // the operator's remembered aim per cell, degrees, by HiveTarget ordinal; null = none saved
     private static long aimsSavedAtNanos = 0L;
@@ -55,6 +56,7 @@ public final class PoseStorage {
     public static void clear() {
         pose = null;
         held = -1;
+        heldOrder = "";
         aims = null;
     }
 
@@ -79,8 +81,22 @@ public final class PoseStorage {
 
     /** Saves the CS5 held count (elements entered since the track was last emptied); a negative count means there is none to hand over and clears the saved one. */
     public static void saveHeld(int count) {
+        saveHeld(count, "");
+    }
+
+    /**
+     * Saves the CS5 held count with its load order (2026-11-17: one letter per held element, the first one in first; P pollen, R red nectar, B blue nectar, ? not known; Mechanisms.getLoadOrder),
+     * so the next opmode knows what the elements it starts with are.
+     */
+    public static void saveHeld(int count, String order) {
         held = count < 0 ? -1 : count;
+        heldOrder = count < 0 || order == null ? "" : order;
         heldSavedAtNanos = System.nanoTime();
+    }
+
+    /** The load order saved with the held count, or "" if none is saved. */
+    public static String heldOrder() {
+        return heldOrder;
     }
 
     /** True if a held count was saved no more than {@code maxAgeSec} seconds ago. */
