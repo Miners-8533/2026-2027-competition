@@ -231,4 +231,35 @@ If the robot is more than 6 in from the leg it is driving, it brakes. Once it is
 ## 6. Status and known weaknesses
 
 - Hive Dash and Park Dash with the planner of section 1 were used at Hartland.
+- **The team's judgement (2026-11-17): both dashes are too slow to be worth using in a match as they are, and need refinement before the drivers rely on them.**
 - In simulation on a model of the robot as it now drives (faster than when the corner and approach values were set), the present dashes touch a flower stand or a support from a noticeable share of starting positions, and the Park Dash, having no corner slow-down, is the worse of the two. The grid routes touch nothing in the same simulation. This is the reason the grid routes exist, and they still need their first robot run.
+
+### 6.1 Target T9: a dash that is worth pressing
+
+Not in the code. See "As built and target" in the [README](README.md).
+
+**The weakness.**
+
+- **Too slow.** The Hive Dash's corner and approach limits were set by hand for a slower robot and are cautious everywhere: the approach is capped within 32 in of the goal, and every corner is slowed by a fixed rule. A driver gets there sooner by hand.
+- **And still not safe at speed.** In simulation the same dashes touch a support or a flower stand from a noticeable share of starts. The Park Dash has no corner slow-down at all. The planner checks the geometry of the legs, not where momentum carries the robot.
+- So the hand-set values are wrong in both directions. Tuning them further by hand trades one fault for the other.
+
+**Requirement.**
+
+1. **Worth pressing.** A dash reaches its goal at least as fast as a practiced driver does by hand over the same trip. A dash that does not is not offered to the drivers.
+2. **Safe at that speed.** No contact with a support, a flower stand or a wall from any start, with the pose out by the accepted drift of 4 in (target T1, [aiming.md](aiming.md) section 5).
+3. **No hand-set speed values.** Speeds come from the measured drive.
+4. Both dashes obey the same rules. They differ only in the goal and in what happens on arrival.
+
+**Design.**
+
+- **The grid routes are the route source** (section 5). They are built for exactly this: each route is the fastest one for the measured robot, and the follower brakes only as much as the next corner needs, at up to 66 in/s. The planner of section 1 stays only as the fallback for the cases section 5.1 names.
+- **One follower contract** for both dashes: the speed for every corner from the corner speed table, a stop on a speed profile, arrival only below a speed. The Park Dash is no longer a special case.
+- **The speed gate.** The baseline is the drivers' own transit time, from the cycle times tool ([tools.md](tools.md)) over the logged matches, per trip (which side of the field to which launch spot or park corner). The simulator's survey gives the dash's time for the same trips. The dash must not be slower.
+- **The safety gate.** The same survey, run with the pose shifted by the accepted drift in each direction, must show no contact. The 3 in flower clearance of the planner is smaller than that drift, which is one reason the present dashes touch.
+- **The model is kept true.** It is re-fitted from a Drive Characterization run after any change to the drive, the tables are regenerated, and both gates are run again.
+- The simulator reproduces about 70 percent of logged dashes within its limits today. A clean survey therefore ranks options and does not prove a small clearance: the first robot runs of a new route source are a dry run, then low power, then full power, and the robot's logged times replace the simulated ones in the speed gate.
+
+**What would behave differently.** Both dashes take momentum-aware routes at the speeds the robot can hold. The Park Dash brakes for corners. The dashes come back to the drivers only when they pass both gates.
+
+**Waits on** the grid routes' first run on the robot, and the drivers' transit baseline from the logs.

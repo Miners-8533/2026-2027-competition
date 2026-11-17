@@ -122,7 +122,7 @@ After a salvo the operator can report where it landed, as seen from behind the r
 | Landed LOW | speed trim +10 ticks/s |
 | Landed HIGH | speed trim -10 ticks/s |
 
-- The remembered aim is kept per cell, limited to 10 deg either way, used by every later lock on that cell, and cleared for all cells by a driver reseed (it was correcting the drift of the old pose).
+- The remembered aim is kept per cell, limited to 10 deg either way, used by every later lock on that cell, and cleared for all cells by a driver reseed (it was correcting the drift of the old pose). This is the team's chosen answer to drift, which cannot be predicted in a match. Target T1 ([aiming.md](aiming.md) section 5) keeps the remembered aims through a TeleOp restart and shows both of the alliance's cells' trims on the match screen.
 - The speed trim is one value shared by all cells.
 - Every report is logged together with the aim line of the launch it refers to.
 

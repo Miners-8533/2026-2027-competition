@@ -63,6 +63,43 @@ The building blocks the autos (and a few TeleOp features) use to move the chassi
 
 **Known limit.** These gains were never tuned on `ROBOT_1` with the tuning opmodes. Without the stiction term a leg stalls 1.5 to 3 in short of its target, so the autos use coarse tolerances and time caps to move on.
 
+### 2.1 Target T2: tuned, and proven before anything is built on it
+
+Not in the code. See "As built and target" in the [README](README.md).
+
+**The weakness.** Every auto leg is a drive to pose, and drive to pose does not reach its targets on this robot. The autos hide that with coarse tolerances and by letting legs run to their time caps, so their timing and their positions both depend on how a leg happens to stall.
+
+**What has been measured.** On the morning of the Hartland Qualifier (2026-11-07) the team ran Drive Characterization, not the tuners. That run measured the drive itself: speeds, braking, coasting and dead zones ([robot_design/chassis.md](../robot_design/chassis.md)). The simulator, the grid routes and the static friction values are built on it. The gains in the parameter table above are still the starting values of 2026-09-14, and the tuning and verify opmodes write no log, so no tuning session has left a record.
+
+**Requirement.**
+
+1. A leg that is meant to settle does settle. The time cap is a safety net.
+2. The control law in use is the one that was tuned: the static friction term is part of it, not an option.
+3. A tuned value is in the code, with the date and the log it came from.
+4. Every number in the acceptance test is measured and reported by the opmode that runs it. Nobody works them out by hand ([support-opmodes.md](support-opmodes.md) section 4.2).
+
+**Acceptance test** (on `ROBOT_1`, the tuning and verify opmodes of [support-opmodes.md](support-opmodes.md), a battery above 12.5 V). The values are proposed and are to be fixed at the tuning session.
+
+| Test, 10 runs each | Pass |
+|---|---|
+| 48 in forward and back | every run `settled`, none `TIMED OUT` |
+| 48 in strafe and back | the same |
+| A 90 deg and a 180 deg turn in place | the same |
+| Final error of every run | within 1.0 in and 2.0 deg (the ordinary tolerance) |
+| Overshoot | at most 1.5 in and 5 deg |
+| Time to settle | at most 1.0 s more than the distance at the leg's speed |
+| A 12 in move and a 5 deg turn (the stall case) | settled within 1.5 s |
+
+**Design consequences.**
+
+- Drive to pose measures every leg, in every opmode: the time, settled or timed out, the final error, and the **overshoot** (the furthest the robot went past the target along its line of travel, and past the target heading). Its end-of-leg log line carries them. Today it has all but the overshoot.
+- The static friction term loses its switch once it has passed the test.
+- Every leg is declared as one of two kinds. A **settling** leg must end inside its tolerance. A **timed** leg ends on its clock by intent (the ram, the wall-squaring phases).
+- A `TIMED OUT` on a settling leg is a fault. It is logged as such and the event-day report counts them per run.
+- The distance-based time cap keeps its formula, with its speed taken from the measured drive performance in [robot_design/chassis.md](../robot_design/chassis.md), not from an estimate.
+
+**Waits on** a tuning session on the robot. Nothing in the autos is reworked before it passes ([autos.md](autos.md) section 9).
+
 ## 3. Aim at a cell
 
 **Purpose.** In an auto, turn in place onto a hive cell just before a launch. The leg before it already ends at the aim heading; this removes the last degree or two.

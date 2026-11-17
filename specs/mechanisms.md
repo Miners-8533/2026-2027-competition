@@ -243,3 +243,65 @@ Every sample row of the run log carries the coordinator's state: setpoint, flywh
 ## 15. Status
 
 In the Hartland build: the queued launch with the launch band, reject, always-on intake, the pusher check, jam handling, the preload pre-position, backup mode. Added after Hartland: the CS5 entry count and FULL (the first version ran in practice; the present sequence and the edge counter have not run), the lock retry limit, the put-back after an incomplete salvo, stop all, the flywheel position hold, and the launch grid.
+
+## 16. Target T4: a coordinator made of parts
+
+Not in the code. See "As built and target" in the [README](README.md).
+
+### 16.1 The weakness
+
+One class holds every rule of this page, about 1,700 lines, with live rules, switched-off variants and unreachable features side by side. None of it can be exercised without the robot, unlike the dashes and the counting rule, so every change to a rule is first tested in a practice session.
+
+### 16.2 Requirement
+
+1. Opmodes still talk to one object, with the same commands and the same single update. **Sections 2 to 11 do not change.**
+2. Each group of rules is its own part and is pure logic: a snapshot in, decisions out. Each can be checked on a PC from recorded log rows.
+3. Nothing unreachable, and no switched-off variant without an end date.
+
+### 16.3 Design
+
+The coordinator itself keeps five jobs: build the actuators that exist; read them once; run the parts in a fixed order; apply their decisions to the actuators; log.
+
+| Part | Decides | Section |
+|---|---|---|
+| Held count | how many are held, full, the starting load (target T3) | [element-counting.md](element-counting.md) section 5 |
+| Speed selector | the target cell, the distance, the flywheel setpoint, whether the flywheel runs | 2 |
+| Launch sequencer | queued, started, ended or dropped; the put-back; burst logging | 3 |
+| Reject sequencer | unlock first, cancel a launch, run, finish | 4 |
+| Pusher check scheduler | wanted, started, skipped, aborted | 6 |
+| FULL sequence and lock | the steps of the sequence; the lock states | 7 |
+| Intake arbiter | the intake mode, from the ordered rules | 5 |
+| Ramp | deploy, stow, checked stow | 8 |
+| Warnings | the standing list and the notices | 11 |
+
+- **The order the parts run in each update is behavior.** It is written down from the code when the split is made and kept: a launch request and a reject in the same loop, or FULL and a salvo start in the same loop, must come out as they do today.
+- A part never talks to an actuator or to another part. It gets what it needs in its snapshot and returns decisions; the coordinator carries them.
+- The per-opmode settings of section 1 stay one table, handed to the parts.
+- The log columns of section 14 and the event prefixes do not change, so the tools keep working and old logs replay through the new parts. **That replay is the acceptance test:** each part, fed the logged rows of the Hartland matches, must produce the logged decisions.
+
+### 16.4 What is deleted
+
+**Unreachable: nothing in any opmode calls them.**
+
+| Feature | Note |
+|---|---|
+| Counter override toggle | and the "counter override" warning with it |
+| Pose override as a separate toggle | backup mode stays |
+| Flywheel open-loop toggle | the automatic open loop on a lost encoder stays |
+| Intake toggle, spin toggle | |
+| Checked stow as a direct command | the action form stays only if an auto uses it |
+
+**Not deleted, although no competition opmode uses them:** the manual setpoint and clearing a pusher stall. The tuner and study opmodes call them.
+
+**Switched-off variants.** Each is kept until what replaced it has run in a match, then removed. The repository history keeps it.
+
+| Variant | Kept until |
+|---|---|
+| Peak counting ([element-counting.md](element-counting.md)) | edge counting has run in a match |
+| The fifth-element watch | the FULL sequence with the intake OUT has run in a match |
+| The non-always-on intake rules | no opmode uses them; today some support opmodes do |
+| Lock for a target lock or a dash | **kept for now** (team decision, 2026-11-17). It was built and never run, and the always-on intake works against it; it stays switched off and is carried into the lock part of section 16.3 until the team decides otherwise |
+
+### 16.5 Waits on
+
+Target T3, and the team's go-ahead for the unreachable features listed above. The switched-off variants follow their own "kept until" rows. No robot run is needed for the split itself; the replay proves it.

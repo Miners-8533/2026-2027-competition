@@ -29,7 +29,40 @@ foundation   math (pose, vector, rotation) · PID · run log · loop profiler ·
 
 **Packages.** `math`, `motion` (actions and closed-loop moves), `drive` (drive base and the features that plan or aim), `subsystems` (mechanisms and counts), `opmodes`, `util` (logging and profiling).
 
-**Dependencies as they are.** Only `math` is independent. `drive`, `motion`, `subsystems` and `util` refer to each other: the hive cell positions live with the mechanisms but are used by the aiming code; actions use both the drive and the mechanisms; the settings dump lists classes from every package including two opmodes. The diagram is the intended reading order, not an enforced rule. A rebuild could separate these more cleanly without changing behavior.
+**Dependencies as they are.** Only `math` is independent. `drive`, `motion`, `subsystems` and `util` refer to each other: the hive cell positions live with the mechanisms but are used by the aiming code; actions use both the drive and the mechanisms; the settings dump lists classes from every package including two opmodes. The diagram is the intended reading order, not an enforced rule.
+
+### 2.1 Target T5: packages in layers
+
+**The weakness.** The four packages above `math` form one cycle. It comes from six misplacements, not from the design:
+
+| What | Lives in | Needed by |
+|---|---|---|
+| Hive cell positions | `subsystems` | the aiming and dash code in `drive`, and `motion` |
+| Chassis profile | `drive` | every actuator in `subsystems` |
+| Action framework | `motion`, beside the moves that need the drive | the actuators' own actions in `subsystems` |
+| PID controller | `motion` | hold position in `drive` |
+| Launch grid lookup | `drive` | the coordinator in `subsystems` |
+| Settings dump's class list | `util` | names classes in every package, opmodes included |
+
+**Requirement.** A package refers only to packages above it in the table below. No cycles. No behavior changes.
+
+**Design.**
+
+| Package | Holds | May use |
+|---|---|---|
+| `math` | pose, vector, rotation, PID controller | nothing |
+| `util` | run log, loop profiler, settings dump (which discovers its classes, T8) | nothing |
+| `field` | the field model (T7): frame, walls, hive cells and supports, flowers, zones, start poses, launch spots, park corners, route points | `math` |
+| `robot` | the chassis profile: which robot, its device names, its dimensions | `math` |
+| `actions` | the action framework: action, sequence, parallel, wait, instant | `util` |
+| `drive` | mecanum drive, localizer, pose hand-over, wheel check | `math`, `util`, `robot` |
+| `aiming` | aim heading, target lock, auto-launch zones, launch grid | `math`, `util`, `field` |
+| `navigation` | route planner, followers, Hive Dash, Park Dash, grid routes, hold position | `math`, `util`, `field`, `robot` |
+| `subsystems` | actuators, counts, launch map, coordinator | `math`, `util`, `field`, `robot`, `actions`, `aiming` |
+| `motion` | the action runner; drive to pose, aim at a cell, square on a wall, jostle | everything above |
+| `opmodes` | the opmodes and the match screen | everything above |
+
+`field`, `aiming` and `navigation` are then pure-logic packages as a whole: apart from the log and the tunable-value marker they touch nothing from the SDK, so the PC checks ([tools.md](tools.md)) compile whole packages instead of hand-picked classes.
 
 | Page | Covers |
 |---|---|
@@ -148,6 +181,14 @@ The opmode thread never waits on these. Results cross over through small thread-
 | Run | The loop of section 3 |
 | End | The TeleOp stops the drive, then stops all mechanisms at once, without a final update. An auto saves its pose and keeps reading the pose and updating the mechanisms until it is stopped. Both close the log on every way out |
 
+### 7.1 Target T10: one way out
+
+**The weakness.** Only the TeleOp stops the mechanisms when it ends. The autos leave it to the SDK, which cuts motor power when an opmode stops, and the support opmodes each stop what they used in their own way. It works, but "what is still commanded when an opmode ends" has a different answer per opmode.
+
+**Requirement and design.** Every opmode ends through the same shutdown, in this order: stop the drive; stop all mechanisms (with no update after it); save the pose if the opmode saves one; close the log. It runs on every way out, a crash included. An auto whose sequence finishes early still keeps updating until it is stopped, as now; the shutdown is for the stop itself.
+
+No behavior the drivers can see changes.
+
 ## 8. Feature status at a glance
 
 | Area | State |
@@ -155,7 +196,7 @@ The opmode thread never waits on these. Results cross over through small thread-
 | Drive, localization, adoption, hand-over | in the tested build |
 | Queued launch, launch band, reject, pusher check, jam handling | in the tested build |
 | Target lock, auto-launch, hold position, reports, backup mode | in the tested build |
-| Hive Dash and Park Dash (hand-placed route points) | in the tested build; known to cut clearances fine at present speeds |
+| Hive Dash and Park Dash (hand-placed route points) | in the tested build; judged too slow to use as they are, and known to cut clearances fine at present speeds |
 | Solo, Daryl, Cybugs autos | in the tested build |
 | CS5 entry count, FULL sequence, COUNT ONLY choice | added later; the first version ran in practice, the present one has not |
 | Drive hold during a salvo | added later; ran in practice, not at speed |
@@ -168,14 +209,23 @@ The opmode thread never waits on these. Results cross over through small thread-
 
 "Tested build" means the build used at the Hartland Qualifier on 2026-11-07, which is the `main` branch. These specs describe the `integration` branch, which has all of the above.
 
-## 9. Known structural weaknesses
+## 9. Known weaknesses and their targets
 
-Recorded so a rebuild can choose to fix them.
+Each weakness of the code as built has a target: what the software should do instead. The target text is on the page of the component it belongs to. None of it is in the code (see "As built and target" in the [README](README.md)).
 
-1. **Odometry drift** across the field is compensated in three unrelated places: the far-cell extra, the autos' -8 degree trims, and the operator's remembered aim.
-2. **The autos rest on untuned drive gains**, loose tolerances and time caps.
-3. **Two element counts** that disagree, with rules spread between the counter classes and the coordinator.
-4. **The coordinator is large** and carries dormant features (overrides, the toggle intake, manual setpoint) beside live ones.
-5. **Package dependencies are circular** (section 2).
-6. **One study opmode is a fork** of the competition TeleOp and drifts from it.
-7. **Field constants are duplicated** in a few places (flower centers; the duo path check's copy of the auto poses).
+| # | Weakness as built | Target | Specified in | Changes behavior | Waits on |
+|---|---|---|---|---|---|
+| T1 | **Odometry drift** is allowed for in four unrelated places, two of which work against each other | Drift is accepted (team decision); the operator's trims are the answer; fixed allowances exist once | [aiming.md](aiming.md) section 5 | barely | nothing |
+| T2 | **The autos rest on untuned drive gains**, loose tolerances and time caps; the tuning opmodes leave no record | Drive to pose is tuned and passes an acceptance test whose numbers the opmode itself reports; a timed-out leg is a counted fault | [motion.md](motion.md) section 2.1, [support-opmodes.md](support-opmodes.md) section 4.2 | yes, after tuning | a tuning session on the robot |
+| T3 | **Two element counts** with different rules for "full"; the count starts at 0 in every opmode | The CS5 entry count is the count (team decision); the slot sensors keep kinds, "reads empty" and the arm; the count is remembered between opmodes | [element-counting.md](element-counting.md) section 5 | yes | the edge counter's first robot run |
+| T4 | **The coordinator is large**, mixes live and dormant features, and can only be exercised on the robot | The same single object for opmodes, made of pure-logic parts; nothing unreachable (the pusher lock for a target lock or dash is kept, switched off) | [mechanisms.md](mechanisms.md) section 16 | no | target T3 |
+| T5 | **Package dependencies are circular** | Packages in layers | section 2.1 | no | nothing |
+| T6 | **One study opmode is a fork** of the competition TeleOp and drifts from it | The match loop exists once; the fork is retired | [support-opmodes.md](support-opmodes.md) section 3.1 | no | nothing |
+| T7 | **Field constants are duplicated** (flower centers; the path check's copy of the auto poses) | One field model that the robot code and the PC checks both read | [field.md](field.md) section 7 | under an inch, in an unused check | nothing |
+| T8 | **The settings dump's class list is kept by hand** and is missing classes | The dump finds every tunable class itself | [logging.md](logging.md) section 2.1 | more lines in the log | nothing |
+| T9 | **The dashes are too slow to use** (team judgement) and still cut clearances fine; their speed values were set by hand | A dash must beat hand driving and touch nothing, both proven before the drivers get it; the grid routes are the route source | [dashes.md](dashes.md) section 6.1 | yes | the grid routes' first robot run; the drivers' transit baseline |
+| T10 | **Only the TeleOp stops the mechanisms** when it ends | One shutdown for every opmode | section 7.1 | no | nothing |
+
+**Order.** T5, T7, T8, T10 and T6 are safe at any time and make the others easier. T2 comes before any rework of the autos. T3 comes before T4, which builds on it. T9 uses the accepted drift that T1 states.
+
+**Not targets, because no design change answers them:** the entry count and the FULL sequence need their first robot run; the launch grid needs data for the other cells; the duo programs' waits need tuning from logged runs.

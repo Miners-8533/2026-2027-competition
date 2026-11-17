@@ -24,7 +24,7 @@ The route planner, the dashes, the leg and grid followers, the target lock math,
 | Check | Verifies |
 |---|---|
 | Route check | the planner over a grid of starts to every goal: no unsafe route, how many starts have no route, the lane is kept centered; regression cases for past failures |
-| Duo path check | every leg of the duo autos clears the hive supports and the flower stands, with the clearance of each. It holds copies of the default poses, which must be changed together with the autos |
+| Duo path check | every leg of the duo autos clears the hive supports and the flower stands, with the clearance of each. It holds copies of the default poses and of the robot's footprint, which must be changed together with the autos. Target T7 ([field.md](field.md) section 7) removes the copies |
 | Launch grid check | each tuning grid is non-empty, every spot obeys the rules, and every hop of the sweep is drivable |
 | Grid map check | every measured spot returns itself, the zones, the red rotation, the seed flag, continuity |
 | Entry counter check | recorded proximity runs replayed through the counting rule the robot uses, against known answers and a reference implementation |
@@ -49,7 +49,7 @@ Other tools in the same folder fit the drive model from logs and report a Drive 
 | Event day | labels runs with match numbers; writes a report per match and a day summary |
 | Loop profile | tables of the loop profiler lines |
 | Config changes | which settings changed between runs; the history of one setting |
-| Check config list | lists tunable classes missing from the settings dump |
+| Check config list | lists tunable classes missing from the settings dump. Not needed once target T8 ([logging.md](logging.md) section 2.1) is done |
 | Baseline health | per color sensor, whether its stored empty reading still fits the logged empty-track readings |
 | Sensor study | prints the Color Sensor Study's steps and the baseline lines to paste |
 | Launch stability | flywheel speed at the start of every salvo; the source of the launch band |

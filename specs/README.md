@@ -38,6 +38,17 @@ The physical robot (devices, wiring, dimensions, measured constants) is in [robo
 
 What is deliberately left out: line-by-line logic, class and method names where a plain name will do, the history of how a value was reached, and procedures for testing. History and procedures are in `design/`.
 
+## As built and target
+
+These pages hold two kinds of text and keep them apart.
+
+- **As built** is everything not marked otherwise: what the `integration` branch does today.
+- **Target** blocks, headed "Target T1" to "Target T10", say what the software should do instead where the code has a known weakness. **Nothing in a target block is in the code.**
+
+A rebuild follows the targets and takes everything else from the as-built text. Each target gives the weakness, the requirement, the design, what would behave differently, and what must be measured or decided before it is real. The full list is in [architecture.md](architecture.md) section 9.
+
+Some targets only move things around and change nothing the robot does in a match (T5, T6, T7, T8, T10), and T1 changes very little. The others change what the robot does (T2, T3, T9) or remove code (T4), and each names the run on the robot or the decision it waits on. T1, T3 and T9 record decisions the team made on 2026-11-17.
+
 ## Conventions
 
 - Lengths are inches, angles degrees, times seconds, unless marked. Flywheel speed is encoder ticks per second. Motor powers are fractions from -1 to 1.
@@ -54,6 +65,7 @@ What is deliberately left out: line-by-line logic, class and method names where 
 | Not run on the robot | builds and passes any PC checks, but has never run on the robot |
 | Off, or switched off | present in the code but disabled by a setting |
 | Hidden | an opmode that is complete but not shown on the Driver Station |
+| Target | specified here, not in the code |
 
 Being in the tested build does not prove every path of a feature was exercised. Where a specific part is known to be untried, the page says so.
 
@@ -65,14 +77,18 @@ The specs are only useful while they are true.
 - A change of a tuned value updates its row in the page's parameter table.
 - A change to a device, a wire or a measured dimension belongs in `robot_design/`.
 - When a feature first runs on the robot, update its status here and in the table in [architecture.md](architecture.md).
+- When a target is implemented, fold its text into the as-built description, delete the target block, and strike its row in [architecture.md](architecture.md) section 9.
 
 ## Known open points
 
 Collected from the pages; each is explained where it arises.
 
-1. The drive-to-pose gains have never been tuned on this robot ([motion.md](motion.md), [autos.md](autos.md)).
-2. Odometry drift across the field is compensated in three separate places ([architecture.md](architecture.md)).
-3. The entry count and its FULL sequence, in their present form, have not run on the robot ([element-counting.md](element-counting.md), [mechanisms.md](mechanisms.md)).
-4. The present dashes cut clearances fine at the robot's present speed; the grid routes that address this have not run ([dashes.md](dashes.md)).
-5. The launch grid has data for one cell from one run ([aiming.md](aiming.md)).
-6. Several live settings are missing from the settings dump ([logging.md](logging.md)).
+| Open point | Answer |
+|---|---|
+| The drive-to-pose gains have never been tuned on this robot | Target T2 ([motion.md](motion.md), [support-opmodes.md](support-opmodes.md)); needs a tuning session |
+| Odometry drift across the field is allowed for in four separate places | Target T1 ([aiming.md](aiming.md)): drift is accepted and trimmed by the operator |
+| Two element counts with different rules for "full" | Target T3 ([element-counting.md](element-counting.md)): the CS5 entry count is the count |
+| The present dashes are too slow to use and cut clearances fine | Target T9 ([dashes.md](dashes.md)); needs the grid routes' first robot run |
+| Several live settings are missing from the settings dump | Target T8 ([logging.md](logging.md)) |
+| The entry count and its FULL sequence, in their present form, have not run on the robot | no design change; needs a run ([element-counting.md](element-counting.md), [mechanisms.md](mechanisms.md)) |
+| The launch grid has data for one cell from one run | no design change; needs data ([aiming.md](aiming.md)) |

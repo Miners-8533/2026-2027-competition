@@ -230,14 +230,14 @@ With the garden it ran past 30 s and lost its park, hence the skip.
 | Primary: wall jostle / audience jostle deadlines | 12.0 s / 21.0 s |
 | Primary: garden latest start / audience flower latest start | 18.0 s / never skipped |
 
-The -8.0 deg trims exist because launches at the far cell from (50, 26.3) kept landing left. They are a symptom of the odometry drift described in [robot_design/chassis.md](../robot_design/chassis.md).
+The -8.0 deg trims exist because launches at the far cell from (50, 26.3) kept landing left. They are a symptom of the odometry drift described in [robot_design/chassis.md](../robot_design/chassis.md). Each of these launches also gets the far-cell extra, which turns the robot the other way. Target T1 ([aiming.md](aiming.md) section 5) drops the extra in the autos and sets these trims to the net value, -2.5 deg.
 
 ## 9. Status
 
 - Solo, Daryl and Cybugs ran at or just before Hartland and are in the tested build. In one Hartland match Daryl lost its park after colliding with the partner, and one Solo run started very late; neither is a reason to change the programs.
 - Garden Side is shown on the Driver Station but has no recorded match run in these notes.
 - Flower Side and Primary are hidden.
-- **The drive gains were never tuned on this robot**, so every program relies on loose tolerances, time caps and, at the wall, physical squaring. The autos are due a rework.
+- **The drive gains were never tuned on this robot**, so every program relies on loose tolerances, time caps and, at the wall, physical squaring. The autos are due a rework. Target T2 ([motion.md](motion.md) section 2.1) comes first: the rework is built on a drive that passes its acceptance test, and the leg table of section 2.1 is then revised so that each coarse tolerance states its purpose. "The drive stalls short" stops being one.
 - Path checks on a PC sweep the robot's footprint along the duo legs against the hive supports and flower stands; the paths clear them.
 
 ## 10. Ideas recorded but not built

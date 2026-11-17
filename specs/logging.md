@@ -107,7 +107,24 @@ Team vocabulary is fixed: logs say launch, launcher, pusher and ramp. Logs from 
 
 The list of classes is maintained by hand, and a PC tool reports any tunable class missing from it.
 
-**Known gap.** The list does not include the entry counter, the flywheel position servo, the drive wheel check, the grid route tables or the launch grid, so their live values are not recorded.
+**Known gap.** The list does not include the entry counter, the flywheel position servo or the drive wheel check, so their live values are not recorded. Nor does it include the tunable values of the support opmodes (the tuners, the studies, Pit Check, Drive Characterization).
+
+### 2.1 Target T8: the dump finds its own classes
+
+Not in the code. See "As built and target" in the [README](README.md).
+
+**The weakness.** A new tunable class is logged only if someone remembers to add it to the list. Three that run in matches were forgotten. The list also makes the logging package name classes in every other package, opmodes included, which is part of the package cycle ([architecture.md](architecture.md) section 2.1).
+
+**Requirement.** Every tunable class in the team's code is dumped, with no list to keep.
+
+**Design.**
+
+- The set of classes is found, not written: every class of the team's code that carries the tunable-value marker. It is found once, when the app starts, or generated at build time; either way it costs nothing at the start of a run.
+- Every opmode dumps every class, so a support opmode's own values are on record with the run they shaped.
+- The line format and the `CONFIG CHANGED` lines are unchanged, so the log tools keep working.
+- The PC tool that looks for missing classes is no longer needed.
+
+**What would behave differently.** More `CONFIG` lines at the start of each log: 43 classes carry the marker today and 25 are listed. Nothing on the robot.
 
 ## 3. Loop profiler
 
