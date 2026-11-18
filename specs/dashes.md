@@ -275,6 +275,50 @@ If the robot is more than 6 in from the leg it is driving, it brakes. Once it is
 | Last leg: top speed / deceleration / arrival below | 40 in/s / 100 in/s² / 10 in/s |
 | Off route / re-pick below / re-picks | 6 in / 6 in/s / 2 |
 
+### 5.6 Smooth paths (prototype, switched off, simulation only)
+
+Built 2026-11-17 behind `GridDash.SMOOTH` (off). With it on, a grid route is driven as one smooth path when a clear one exists, and leg by leg (sections 5.3 and 5.4) when none does. The class comment of `SmoothFollower` describes the path, the heading plans and the clearance check; this section says only what is looked up and what is worked out.
+
+- **Worked out offline, by the generator** (`tools/dash/SmoothGen.java`): for each goal and each start (every 3 in of the field at 16 headings) the quickest clear plan, found by a search that tries a few hundred plans. The result is one **plan code** per start: the kind of heading plan, which goal heading, which cruise heading, and where the turns start and end. A start with no smooth path holds 0. Also the **clearance map**: per inch of the field, the distance to the nearest support or flower stand.
+- **Looked up on the robot** (`SmoothFollower.build`): the plan code of the start nearest the robot. That one plan is built and checked at the robot's exact pose, with the values in force. When it is not clear from there, a few near variants of it and the plans of the neighbouring starts are tried, 10 in all at most. When none is clear, the dash drives leg by leg.
+- **Never trusted blind.** A plan from the table is always checked at the real pose before it is driven, so a table cannot make a dash unsafe; it can only fail to offer a smooth path.
+- The generated file is `SmoothTables.java` (about 440 KB). The dash's start line in the log says how long the planning took (`planned in N ms`).
+
+Measured on a PC (2026-11-17): the search took a mean 13 ms and at most 46 ms per dash; the lookup takes a mean 0.12 ms and at most 1.1 ms, less than picking the grid route. Not measured on the Control Hub. In the simulation the lookup gives the same speed gate figures as the search and passes the safety gate.
+
+### 5.7 When to regenerate the dash tables
+
+Two generated files hold everything the dashes look up: `GridTables.java` (the route trees and the corner speeds, section 5.1) and `SmoothTables.java` (the plan codes and the clearance map, section 5.6). One command writes both, the trees first because the plans are made for them:
+
+```
+tools\dash\run-sim.cmd gentables        about 2.5 minutes
+tools\dash\run-sim.cmd checktables      about a second; add "full" to build the plan tables again and compare (about 2.5 minutes)
+```
+
+`checktables` builds the route trees again in memory, with the corner speeds calibrated on today's drive models, and compares them state by state with `GridTables.java`. It compares the plan tables and the clearance map by the inputs they record. It prints what is stale and ends with exit code 1 when anything is. **Run it before committing any change to `drive/`, `tools/dash/` or the field and robot dimensions.**
+
+| What changed | Stale | Found by |
+|---|---|---|
+| The drive (a refit of the simulator's drive models after a Drive Characterization run) | route trees, then plan tables | `checktables` only. The robot has no drive model and cannot tell |
+| A support or flower stand (the dimensions in `HiveRoute`), the robot height | route trees, plan tables, clearance map | `checktables`; on the robot the plan tables and the map by their recorded inputs |
+| The robot's footprint (`RouteGen` and the defaults of `HiveRoute.Params`: both must be changed) | route trees, plan tables | `checktables`; on the robot the plan tables |
+| A launch spot or a park corner moved | route trees, plan tables | on the robot: the dash says the goal has no table and uses the planner of section 1; `checktables` |
+| The aim at a cell (the launcher offsets of the target lock) | route trees, plan tables | `checktables` only |
+| A motion value of `GridRoutes` (top speed, braking, grip, allowances, drift margin, corner values) | route trees, plan tables | on the robot at init: the trees are reported and still used (section 5.1). The plan tables are not used when the value is one they read themselves (top speed, drift margin, goal allowance and its taper, start turn margin); `checktables` |
+| The lattice (pitch, span, directions) | route trees | on the robot: the trees are not used |
+| A planning value of `SmoothFollower` (margins, tolerances, turn zones, arc and braking values, the speed model) | plan tables | on the robot at init and again whenever a value changes; `checktables` |
+| The planning code of `SmoothFollower` or `RouteGen`, with no value changed | plan tables or route trees | `checktables full` (plans), `checktables` (trees). After a change to the planning, raise `SmoothFollower.PLAN_LOGIC` so the robot sees it too |
+| A value used only while following (speed feedback, sideways correction, arc feedforward, lookahead) | nothing | no regeneration; run both gates again |
+
+**What the robot does with a stale table.**
+
+- The inputs each plan table and the clearance map were made from are written into `SmoothTables.java`. `SmoothFollower` compares them with the values in force when the dashes are created and again whenever one of the values changes (a Dashboard edit).
+- Stale plan tables are **not used**: every dash is driven leg by leg. The log says `the smooth plan tables are STALE (name: was X, now Y): regenerate with tools\dash\run-sim.cmd gentables`, once at init and in each dash's `no smooth path` line.
+- A stale clearance map is not used either. The checks then go obstacle by obstacle: slower, the same answers.
+- The route trees keep the rules of section 5.1.
+
+**After regenerating:** build the app, run `checktables`, and run both gates again (section 6.2). Tables that changed mean routes that changed.
+
 ## 6. Status and known weaknesses
 
 - Hive Dash and Park Dash with the planner of section 1 were in the build at Hartland, and the drivers did not press either in a match: no dash is recorded in any of the event's TeleOp logs (83 trips to a launch, all driven by hand). The dashes the logs do hold are from practice.

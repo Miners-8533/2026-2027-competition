@@ -9,6 +9,7 @@ import org.firstinspires.ftc.teamcode.drive.HiveDash;
 import org.firstinspires.ftc.teamcode.drive.HiveRoute;
 import org.firstinspires.ftc.teamcode.drive.HoldPosition;
 import org.firstinspires.ftc.teamcode.drive.ParkDash;
+import org.firstinspires.ftc.teamcode.drive.SmoothFollower;
 import org.firstinspires.ftc.teamcode.drive.TargetLock;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
@@ -668,6 +669,33 @@ public final class DashSim {
 
     static final Pattern START = Pattern.compile("^(HIVE|PARK) DASH start \\((\\w+)(?: corner)?\\): from \\((-?[\\d.]+), (-?[\\d.]+), (-?[\\d.]+) deg\\) to (?:the launch spot )?\\((-?[\\d.]+), (-?[\\d.]+)\\), ([^;]*);");
     static final Pattern ARRIVED = Pattern.compile("^(?:HIVE DASH arrived|PARK DASH parked) after ([\\d.]+) s at \\((-?[\\d.]+), (-?[\\d.]+), (-?[\\d.]+) deg\\)");
+    static final Pattern FOLLOWED = Pattern.compile("smooth path followed within ([\\d.]+) in");
+    /** The smooth paths' "followed within" figures of the survey or the speed gate in hand (in). */
+    static final List<Double> FOLLOWED_IN = new ArrayList<>();
+
+    static final List<String[]> FOLLOWED_TEXT = new ArrayList<>();
+
+    static void noteFollowed(Result r) {
+        for (RunLog.Event e : r.events) {
+            Matcher m = FOLLOWED.matcher(e.text);
+            if (m.find()) {
+                FOLLOWED_IN.add(Double.parseDouble(m.group(1)));
+                FOLLOWED_TEXT.add(new String[]{m.group(1), e.text});
+            }
+        }
+    }
+
+    static void printFollowed(java.io.PrintStream out) {
+        if (FOLLOWED_IN.isEmpty()) return;
+        out.printf(Locale.US, "  smooth paths followed within: median %.1f in, 95th %.1f in, 99th %.1f in, most %.1f in (%d dashes; the tracking allowance is %.1f in)%n", median(FOLLOWED_IN),
+                percentile(FOLLOWED_IN, 95), percentile(FOLLOWED_IN, 99), java.util.Collections.max(FOLLOWED_IN), FOLLOWED_IN.size(), SmoothFollower.TRACK_IN);
+        FOLLOWED_TEXT.sort((a, b) -> Double.compare(Double.parseDouble(b[0]), Double.parseDouble(a[0])));
+        int arc = 0;
+        for (String[] t : FOLLOWED_TEXT) if (t[1].contains("on an arc")) arc++;
+        out.printf(Locale.US, "    the most was on an arc in %d of them; the worst:%n", arc);
+        for (int i = 0; i < Math.min(6, FOLLOWED_TEXT.size()); i++) out.println("    " + FOLLOWED_TEXT.get(i)[1]);
+    }
+
     static final Pattern POINT = Pattern.compile("\\((-?[\\d.]+), (-?[\\d.]+)\\)");
 
     static final class Case {
@@ -844,7 +872,7 @@ public final class DashSim {
 
     // ================================================================ the Dashboard values of a run
 
-    static final Class<?>[] CONFIG_CLASSES = {HiveDash.class, ParkDash.class, AutoLaunch.class, TargetLock.class, HoldPosition.class, GridDash.class, GridFollower.class};
+    static final Class<?>[] CONFIG_CLASSES = {HiveDash.class, ParkDash.class, AutoLaunch.class, TargetLock.class, HoldPosition.class, GridDash.class, GridFollower.class, SmoothFollower.class};
     static final Map<Field, Object> DEFAULTS = new HashMap<>();
 
     static {
@@ -970,6 +998,8 @@ public final class DashSim {
         double driftX = 0.0, driftY = 0.0;
         /** trips: start each dash with the robot's logged velocity instead of from rest. */
         boolean moving = false;
+        /** --smooth: the grid routes driven as smooth paths (GridDash.SMOOTH, the 2026-11-17 prototype); the CSV names carry it. */
+        boolean smooth = false;
     }
 
     static final class Result {
@@ -1115,7 +1145,11 @@ public final class DashSim {
                 res.plannedDesc = describeRoute(planned);
                 res.planned = planned;
                 boolean gridRoute = field(d.getClass(), "grid").get(d) != null;
-                if (gridRoute) res.plannedDesc = "grid " + res.plannedDesc;
+                if (gridRoute) {
+                    boolean sm = false;
+                    for (RunLog.Event e : RunLog.EVENTS) if (e.text.contains(" DASH start") && e.text.contains("SMOOTH path")) sm = true;
+                    res.plannedDesc = (sm ? "grid smooth " : "grid ") + res.plannedDesc;
+                }
                 if (!res.routeMatched && o.force && c.log != null && !gridRoute) {
                     forceRoute(d, c.hive ? dashIn : parkIn, c.hive ? dash : park, logged, pose.heading.toDouble());
                     res.forced = true;
@@ -1836,7 +1870,7 @@ public final class DashSim {
             w.println("target,x,y,heading_deg,result,route,time_s,support_clear_in,flower_clear_in,touched");
             for (String target : targets) {
                 List<Double> times = new ArrayList<>();
-                int starts = 0, refused = 0, noArrival = 0, hitSupport = 0, hitFlower = 0, offRoute = 0, newRoute = 0, fellBack = 0, notGrid = 0;
+                int starts = 0, refused = 0, noArrival = 0, hitSupport = 0, hitFlower = 0, offRoute = 0, newRoute = 0, fellBack = 0, notGrid = 0, smoothN = 0;
                 List<String> worst = new ArrayList<>();
                 List<double[]> worstKey = new ArrayList<>();
                 for (double x = -66; x <= 66.01; x += pitch) {
@@ -1852,6 +1886,7 @@ public final class DashSim {
                             String tg = !o.red ? target : target.equals("BLUE_REAR") ? "RED_AUDIENCE" : target.equals("BLUE_AUDIENCE") ? "RED_REAR" : target;
                             Case c = o.red ? freeCase(-x, -y, hd + 180.0, tg, true) : freeCase(x, y, hd, target, false);
                             Result r = grid ? simulateGrid(c, o, tables.get(target)) : simulate(c, o, false);
+                            noteFollowed(r);
                             boolean off = false, again = false, movedClear = false;
                             for (RunLog.Event e : r.events) {
                                 if (e.text.contains("MOVES CLEAR")) movedClear = true;
@@ -1862,6 +1897,7 @@ public final class DashSim {
                             if (off) offRoute++;
                             if (again) newRoute++;
                             if (o.grid && r.refused == null && !r.plannedDesc.startsWith("grid")) notGrid++;
+                            if (r.refused == null && r.plannedDesc.startsWith("grid smooth")) smoothN++;
                             String result;
                             Contacts con = null;
                             if (r.refused != null) {
@@ -1896,11 +1932,13 @@ public final class DashSim {
                         target, starts, refused, noArrival, median(times), percentile(times, 90), times.isEmpty() ? Double.NaN : java.util.Collections.max(times),
                         hitSupport, 100.0 * hitSupport / Math.max(1, starts - refused), hitFlower, 100.0 * hitFlower / Math.max(1, starts - refused));
                 SURVEY_SUMMARY.add(new Object[]{target, starts, refused, noArrival, median(times), hitSupport, hitFlower});
-                if (o.grid) System.out.printf(Locale.US, "               off-route guard tripped in %d, a new route in %d; not on a grid route %d (fell back %d)%n", offRoute, newRoute, notGrid, fellBack);
+                if (o.grid) System.out.printf(Locale.US, "               off-route guard tripped in %d, a new route in %d; not on a grid route %d (fell back %d)%s%n", offRoute, newRoute, notGrid, fellBack,
+                        o.smooth ? "; a smooth path in " + smoothN : "");
                 worstKey.sort((a, b) -> Double.compare(b[0], a[0]));
                 for (int i = 0; i < Math.min(5, worstKey.size()); i++) System.out.println("      " + worst.get((int) worstKey.get(i)[1]));
             }
         }
+        printFollowed(System.out);
         System.out.println("CSV: " + csv);
     }
 
@@ -1922,7 +1960,7 @@ public final class DashSim {
             SURVEY_SUMMARY.clear();
             System.setOut(new java.io.PrintStream(new java.io.ByteArrayOutputStream()));   // the survey's own report is not wanted nine times
             try {
-                survey(o, pitch, Paths.get("build", "dashsim", String.format(Locale.US, "drift_%s_%+.1f_%+.1f.csv", o.grid ? "grid" : "current", sh[0], sh[1])));
+                survey(o, pitch, Paths.get("build", "dashsim", String.format(Locale.US, "drift_%s_%+.1f_%+.1f.csv", o.smooth ? "smooth" : o.grid ? "grid" : "current", sh[0], sh[1])));
             } finally {
                 System.setOut(out);
             }
@@ -1951,6 +1989,7 @@ public final class DashSim {
             out.printf(Locale.US, "  %-14s worst over the nine: a support from %d starts, a flower from %d, no arrival from %d%n", names[i], worstSupport[i], worstFlower[i], worstNoArrival[i]);
             if (worstSupport[i] > 0 || worstFlower[i] > 0) safe = false;
         }
+        printFollowed(out);
         out.println(safe ? "SAFETY GATE: PASS (nothing touched with the pose out by " + driftIn + " in)" : "SAFETY GATE: FAIL (contacts above)");
     }
 
@@ -1966,11 +2005,12 @@ public final class DashSim {
         for (int i = 0; i < head.length; i++) col.put(head[i].trim(), i);
         o.force = false;
         List<Double> hand = new ArrayList<>(), dash = new ArrayList<>(), diff = new ArrayList<>(), handDist = new ArrayList<>(), dashDist = new ArrayList<>();
-        int n = 0, refused = 0, noArrival = 0, touched = 0, beganTouching = 0, faster = 0;
-        Path csvOut = Paths.get("build", "dashsim", "trips_" + (o.grid ? "grid" : "current") + (o.moving ? "_moving" : "_rest") + ".csv");
+        int n = 0, refused = 0, noArrival = 0, touched = 0, beganTouching = 0, faster = 0, smoothN = 0, noLaunch = 0;
+        List<Double> launch = new ArrayList<>(), launchDiff = new ArrayList<>();
+        Path csvOut = Paths.get("build", "dashsim", "trips_" + (o.smooth ? "smooth" : o.grid ? "grid" : "current") + (o.moving ? "_moving" : "_rest") + ".csv");
         Files.createDirectories(csvOut.toAbsolutePath().getParent());
         try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(csvOut))) {
-            w.println("match,t,x,y,hdg_deg,cell,hand_s,hand_in,dash_s,dash_in,result,route,touched,began_touching");
+            w.println("match,t,x,y,hdg_deg,cell,hand_s,hand_in,dash_s,dash_in,result,route,touched,began_touching,hand_aim_s,dash_launch_s");
             for (int i = 1; i < rows.size(); i++) {
                 String[] f = rows.get(i).split(",");
                 if (f.length < head.length || !f[col.get("dash")].trim().equals("0")) continue;
@@ -1986,9 +2026,15 @@ public final class DashSim {
                     c.v0l = -vx * Math.sin(h) + vy * Math.cos(h);
                 }
                 Result r = simulate(c, o, false);
+                noteFollowed(r);
                 n++;
+                if (r.refused == null && r.plannedDesc.startsWith("grid smooth")) smoothN++;
                 double goIn = Math.hypot(c.gx - x, c.gy - y);
                 String result, touch = "", began = "";
+                // the launch request (aligned and stopped), when it comes within the window the simulation runs on after the arrival
+                double tLaunch = Double.NaN;
+                for (RunLog.Event e : r.events) if (Double.isNaN(tLaunch) && e.text.startsWith("HIVE DASH launching")) tLaunch = e.t;
+                double handAim = col.containsKey("aim_s") ? Double.parseDouble(f[col.get("aim_s")]) : Double.NaN;
                 if (r.refused != null) {
                     refused++;
                     result = "refused";
@@ -2017,18 +2063,28 @@ public final class DashSim {
                         handDist.add(handIn);
                         dashDist.add(goIn);
                         if (r.tArrive <= handSec) faster++;
+                        if (Double.isNaN(tLaunch)) noLaunch++;
+                        else {
+                            launch.add(tLaunch);
+                            if (!Double.isNaN(handAim)) launchDiff.add(tLaunch - (handSec + handAim));
+                        }
                     }
                 }
                 w.printf(Locale.US, "%s,%s,%.1f,%.1f,%.1f,%s,%.2f,%.1f,%s,%.1f,%s,%s,%s,%s%n", f[col.get("match")], f[col.get("t")], x, y, hd, cell, handSec, handIn,
-                        Double.isNaN(r.tArrive) ? "" : String.format(Locale.US, "%.2f", r.tArrive), goIn, result, r.plannedDesc.replace(',', ' '), touch, began);
+                        Double.isNaN(r.tArrive) ? "" : String.format(Locale.US, "%.2f", r.tArrive), goIn, result, r.plannedDesc.replace(',', ' '), touch, began
+                        + String.format(Locale.US, ",%s,%s", Double.isNaN(handAim) ? "" : String.format(Locale.US, "%.2f", handAim), Double.isNaN(tLaunch) ? "" : String.format(Locale.US, "%.2f", tLaunch)));
             }
         }
         System.out.println((o.grid ? "the real Hive Dash with the GRID tables" : "TODAY'S Hive Dash") + (o.moving ? ", starting with the logged velocity" : ", starting from rest") + "; " + o.describe());
         System.out.printf(Locale.US, "%d hand-driven trips of 12 in or more: the dash arrived in %d, was refused in %d, did not arrive in %d; it touched something on the way in %d (and began already touching something in %d)%n", n, dash.size(), refused, noArrival, touched, beganTouching);
+        if (o.smooth) System.out.printf(Locale.US, "  a smooth path in %d of %d (the rest leg by leg)%n", smoothN, n);
+        printFollowed(System.out);
         System.out.printf(Locale.US, "  the drivers: median %.2f s over a median %.0f in straight line (to where they fired)%n", median(hand), median(handDist));
         System.out.printf(Locale.US, "  the dash:    median %.2f s over a median %.0f in straight line (to its launch spot)%n", median(dash), median(dashDist));
         System.out.printf(Locale.US, "  dash minus drivers, trip by trip: median %+.2f s, 25th %+.2f s, 75th %+.2f s; the dash was at least as fast in %d of %d (%.0f%%)%n",
                 median(diff), percentile(diff, 25), percentile(diff, 75), faster, dash.size(), 100.0 * faster / Math.max(1, dash.size()));
+        System.out.printf(Locale.US, "  to the launch request (aligned and stopped): the dash median %.2f s in %d trips, none within %.1f s of arriving in %d; dash minus drivers (their trip plus their aim): median %+.2f s, 25th %+.2f s, 75th %+.2f s%n",
+                median(launch), launch.size(), COAST_WINDOW_SEC, noLaunch, median(launchDiff), percentile(launchDiff, 25), percentile(launchDiff, 75));
         boolean pass = !dash.isEmpty() && median(diff) <= 0.0 && touched == 0;
         System.out.println(pass ? "SPEED GATE: PASS (the dash is at least as fast as the drivers on the median trip, and touched nothing)"
                 : "SPEED GATE: FAIL" + (median(diff) > 0.0 ? " (slower than the drivers on the median trip)" : "") + (touched > 0 ? " (contacts)" : ""));
@@ -2198,6 +2254,78 @@ public final class DashSim {
     /** The wheel plant: the turn uses YAW_GRIP |aw| kw of the translation limit (0.3: the dash replay and the drive test fit both prefer it to 0). */
     static double YAW_GRIP = 0.3;
 
+    static final Path SMOOTH_TABLES = Paths.get("TeamCode/src/main/java/org/firstinspires/ftc/teamcode/drive/SmoothTables.java");
+
+    /** A number as GridTables.java holds it (RouteGen.javaDouble). */
+    static double sixDecimals(double v) {
+        return Double.isNaN(v) ? v : Double.parseDouble(String.format(Locale.US, "%.6f", v));
+    }
+
+    static void writeSmoothTables() throws IOException {
+        SmoothGen.Result r = SmoothGen.generate();
+        System.out.println(SmoothGen.describe(r));
+        SmoothGen.write(r, SMOOTH_TABLES, "tools/dash/run-sim.cmd gentables on " + java.time.LocalDate.now());
+        System.out.println("wrote " + SMOOTH_TABLES + " (" + Files.size(SMOOTH_TABLES) + " bytes); run the simulation again (it recompiles) to use it, e.g. trips ... --smooth");
+    }
+
+    /**
+     * THE CHECK of specs/dashes.md ("When to regenerate the dash tables"): true when every generated table is the one a generation would write now.
+     * The route trees are built again in memory (with the corner speeds calibrated on today's drive models) and compared state by state with GridTables; the
+     * smooth plan tables and the clearance map are compared by their recorded inputs, and with "full" built again and compared too (a minute or two).
+     */
+    static boolean checkTables(Options o, boolean full) throws IOException {
+        List<String> stale = new ArrayList<>();
+        GridRoutes.Table[] have = GridRoutes.tables();
+        if (have == null) stale.add("the route trees cannot be used: " + GridRoutes.tablesProblem());
+        java.io.PrintStream out = System.out;
+        System.setOut(new java.io.PrintStream(new java.io.ByteArrayOutputStream()));   // the calibration's own report is not wanted here
+        List<RouteGen.Result> rs;
+        try {
+            calibrateAll(o);
+            rs = RouteGen.buildAll();
+        } finally {
+            System.setOut(out);
+        }
+        for (RouteGen.Result g : rs) {
+            GridRoutes.Table now = RouteGen.quantize(g.table), was = null;
+            if (have != null) for (GridRoutes.Table t : have) if (t.name.equals(now.name)) was = t;
+            if (was == null) {
+                stale.add("the route trees have no table named " + now.name);
+                continue;
+            }
+            int differ = 0;
+            for (int i = 0; i < now.next.length; i++) if (now.next[i] != was.next[i] || now.cost[i] != was.cost[i] || now.endSpeed[i] != was.endSpeed[i]) differ++;
+            boolean goal = Math.hypot(now.goalX - was.goalX, now.goalY - was.goalY) > 1e-3
+                    || (Double.isNaN(now.aimHeading) != Double.isNaN(was.aimHeading)) || (!Double.isNaN(now.aimHeading) && Math.abs(now.aimHeading - was.aimHeading) > 1e-4);
+            if (goal) stale.add(String.format(Locale.US, "the route tree %s is STALE: its goal or aim is now (%.2f, %.2f) %.2f deg, the table's (%.2f, %.2f) %.2f deg", now.name, now.goalX, now.goalY,
+                    Math.toDegrees(now.aimHeading), was.goalX, was.goalY, Math.toDegrees(was.aimHeading)));
+            else if (differ > 0) stale.add(String.format(Locale.US, "the route tree %s is STALE: a generation now gives %d of %d states another route, time or speed", now.name, differ, now.next.length));
+        }
+        StringBuilder cs = new StringBuilder();
+        for (double v : GridRoutes.CORNER_SPEED) cs.append(cs.length() == 0 ? "" : ", ").append((int) v);
+        System.out.println("corner speeds calibrated on today's drive models: " + cs);
+        String warm = GridDash.warm();
+        if (warm != null) stale.add(warm);
+        if (full && SmoothFollower.tablesProblem() == null) {
+            SmoothGen.Result r = SmoothGen.generate();
+            for (int t = 0; t < r.names.size(); t++) {
+                short[] was = SmoothFollower.tablePlans(r.names.get(t)), now = r.plans.get(t);
+                int differ = 0;
+                if (was != null) for (int i = 0; i < now.length; i++) if (now[i] != was[i]) differ++;
+                if (was == null || was.length != now.length) stale.add("the smooth plan tables have no table for " + r.names.get(t));
+                else if (differ > 0) stale.add(String.format(Locale.US, "the smooth plan table %s is STALE: a generation now gives %d of %d starts another plan (a change the recorded inputs do not show: "
+                        + "raise SmoothFollower.PLAN_LOGIC with a change to the planning)", r.names.get(t), differ, now.length));
+            }
+            byte[] map = SmoothFollower.tableMap();
+            if (map == null || !Arrays.equals(map, r.field)) stale.add("the clearance map is STALE: a generation now gives another map");
+            System.out.printf(Locale.US, "smooth plan tables and clearance map built again and compared (%.0f s)%n", r.seconds);
+        }
+        for (String p : stale) System.out.println("  " + p);
+        System.out.println(stale.isEmpty() ? "TABLES: UP TO DATE" + (full ? "" : " (the smooth plan tables by their recorded inputs; add full to build them again and compare)")
+                : "TABLES: STALE (" + stale.size() + " found): run tools\\dash\\run-sim.cmd gentables, then build and run the checks again");
+        return stale.isEmpty();
+    }
+
     public static void main(String[] args) throws Exception {
         Options o = new Options();
         String modelArg = "dash";
@@ -2267,6 +2395,13 @@ public final class DashSim {
                 case "--grid": o.grid = true; break;
                 case "--drift": o.driftX = Double.parseDouble(args[++i]); o.driftY = Double.parseDouble(args[++i]); break;
                 case "--moving": o.moving = true; break;
+                case "--smooth": o.grid = true; o.smooth = true; OVERRIDES.add(new String[]{"GridDash", "SMOOTH", "true"}); break;
+                case "--smooth-search":   // the smooth paths found by the full search on the spot (what the plan tables are generated with), not looked up
+                    o.grid = true;
+                    o.smooth = true;
+                    OVERRIDES.add(new String[]{"GridDash", "SMOOTH", "true"});
+                    OVERRIDES.add(new String[]{"GridDash", "SMOOTH_SEARCH", "true"});
+                    break;
                 case "--route-drift": {
                     // a trial of the drift margin without writing the robot's tables: the four trees are built in memory with it (with the tables' corner speeds)
                     // and put in place of GridTables; the hop and the start turn use it too
@@ -2290,6 +2425,11 @@ public final class DashSim {
         }
         o.model = Model.of(modelArg);
         String mode = rest.isEmpty() ? "replay" : rest.get(0);
+        if (o.smooth && !mode.startsWith("gen") && !mode.equals("checktables")) {
+            restoreDefaults();
+            String stale = GridDash.SMOOTH_SEARCH ? null : SmoothFollower.tablesProblem();
+            if (stale != null) System.out.println("WARNING: " + stale + " (until then every dash is driven leg by leg; --smooth-search finds the paths on the spot)");
+        }
         switch (mode) {
             case "replay":
                 replay(o);
@@ -2301,7 +2441,7 @@ public final class DashSim {
                 driveTest(o);
                 break;
             case "survey":
-                survey(o, rest.size() > 1 ? Double.parseDouble(rest.get(1)) : 12.0, Paths.get("build", "dashsim", "survey_current.csv"));
+                survey(o, rest.size() > 1 ? Double.parseDouble(rest.get(1)) : 12.0, Paths.get("build", "dashsim", o.smooth ? "survey_smooth.csv" : "survey_current.csv"));
                 break;
             case "driftsurvey":   // driftsurvey [pitch] [drift in]: the safety gate
                 driftSurvey(o, rest.size() > 1 ? Double.parseDouble(rest.get(1)) : 12.0, rest.size() > 2 ? Double.parseDouble(rest.get(2)) : 4.0);
@@ -2364,8 +2504,24 @@ public final class DashSim {
                 RouteGen.writeSource(rs, out, "tools/dash/run-sim.cmd gentables on " + java.time.LocalDate.now() + " (corner speeds: the slowest per angle of the tuned plant and the wheel plant at "
                         + Arrays.toString(GEN_WHEEL_VOLTS) + " V rest)");
                 System.out.println("wrote " + out + " (" + Files.size(out) + " bytes); run the simulation again (it recompiles) to use it, e.g. survey 12 --grid");
+                // the smooth plan tables and the clearance map are made for these trees, as the robot will have them (packed and unpacked)
+                List<GridRoutes.Table> packed = new ArrayList<>();
+                for (RouteGen.Result g : rs) {
+                    // the goal and the aim too as the file holds them (six decimals): an aim that differs in the seventh gave a few starts another plan
+                    GridRoutes.Table q = RouteGen.quantize(g.table);
+                    packed.add(new GridRoutes.Table(q.name, sixDecimals(q.goalX), sixDecimals(q.goalY), sixDecimals(q.aimHeading), q.next, q.cost, q.endSpeed));
+                }
+                GridRoutes.useTables(packed.toArray(new GridRoutes.Table[0]));
+                writeSmoothTables();
                 break;
             }
+            case "gensmooth":
+                // the smooth plan tables and the clearance map alone, for the route trees as they are in GridTables.java
+                writeSmoothTables();
+                break;
+            case "checktables":
+                System.exit(checkTables(o, rest.contains("full")) ? 0 : 1);
+                break;
             case "calibrate":
                 calibrate(o, true);
                 break;
