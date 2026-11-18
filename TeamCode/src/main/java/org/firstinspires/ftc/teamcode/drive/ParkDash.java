@@ -42,8 +42,8 @@ public final class ParkDash {
     public static double REFUSED_SHOWN_SEC = 3.0;
     /** True: plan and log but do not drive. */
     public static boolean DRY_RUN = false;
-    /** True: the GRID PLANNER (see HiveDash.GRID_ROUTES; its own switch so the two can be tried apart). Off until the robot has run it (2026-11-07). */
-    public static boolean GRID_ROUTES = false;
+    /** True: the GRID PLANNER (see HiveDash.GRID_ROUTES; its own switch so the two can be tried apart). ON since 2026-11-18, in simulation only: NOT YET RUN ON THE ROBOT. */
+    public static boolean GRID_ROUTES = true;
 
     public enum Corner { NONE, LEFT, RIGHT }
 

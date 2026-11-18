@@ -197,9 +197,11 @@ Up is the corner on the driver's left, down the corner on the driver's right.
 | Goal tolerance / pass tolerance | 2.0 in / 3.0 in |
 | Other follower values | as the Hive Dash |
 
-## 5. Grid routes (built, switched off, never run on the robot)
+## 5. Grid routes (built, switched on 2026-11-18, never run on the robot)
 
 **Purpose.** Replace the hand-placed route points with precomputed, time-optimal routes that know about momentum, so the robot does not swing wide at corners or slide past its goal.
+
+**Switched on for both dashes on 2026-11-18 (the team's decision), together with the smooth paths of section 5.6, before any robot run.** The competition TeleOp therefore drives both dashes this way: `HiveDash.GRID_ROUTES`, `ParkDash.GRID_ROUTES` and `GridDash.SMOOTH` are true in the code. Each can be set false on the Dashboard to go back: a `GRID_ROUTES` switch to the planner of section 1 for that dash, `SMOOTH` to leg by leg for both. The simulator keeps its own switches (`--grid`, `--smooth`), so its earlier figures can be reproduced; `--smooth` is what the robot does.
 
 Each dash has its own switch. With a switch off, everything in sections 1 to 4 applies. With it on, only the route and how it is driven change; arrival, aiming, launching, parking, refusals and the overlay stay the dash's own.
 
@@ -275,9 +277,9 @@ If the robot is more than 6 in from the leg it is driving, it brakes. Once it is
 | Last leg: top speed / deceleration / arrival below | 40 in/s / 100 in/s² / 10 in/s |
 | Off route / re-pick below / re-picks | 6 in / 6 in/s / 2 |
 
-### 5.6 Smooth paths (prototype, switched off, simulation only)
+### 5.6 Smooth paths (switched on 2026-11-18, simulation only, never run on the robot)
 
-Built 2026-11-17 behind `GridDash.SMOOTH` (off). With it on, a grid route is driven as one smooth path when a clear one exists, and leg by leg (sections 5.3 and 5.4) when none does. The class comment of `SmoothFollower` describes the path, the heading plans and the clearance check; this section says only what is looked up and what is worked out.
+Built 2026-11-17 behind `GridDash.SMOOTH`, which is on since 2026-11-18. With it on, a grid route is driven as one smooth path when a clear one exists, and leg by leg (sections 5.3 and 5.4) when none does. The class comment of `SmoothFollower` describes the path, the heading plans and the clearance check; this section says only what is looked up and what is worked out.
 
 - **Worked out offline, by the generator** (`tools/dash/SmoothGen.java`): for each goal and each start (every 3 in of the field at 16 headings) the quickest clear plan, found by a search that tries a few hundred plans. The result is one **plan code** per start: the kind of heading plan, which goal heading, which cruise heading, and where the turns start and end. A start with no smooth path holds 0. Also the **clearance map**: per inch of the field, the distance to the nearest support or flower stand.
 - **Looked up on the robot** (`SmoothFollower.build`): the plan code of the start nearest the robot. That one plan is built and checked at the robot's exact pose, with the values in force. When it is not clear from there, a few near variants of it and the plans of the neighbouring starts are tried, 10 in all at most. When none is clear, the dash drives leg by leg.
@@ -323,6 +325,7 @@ tools\dash\run-sim.cmd checktables      about a second; add "full" to build the 
 
 - Hive Dash and Park Dash with the planner of section 1 were in the build at Hartland, and the drivers did not press either in a match: no dash is recorded in any of the event's TeleOp logs (83 trips to a launch, all driven by hand). The dashes the logs do hold are from practice.
 - **The team's judgement (2026-11-17): both dashes are too slow to be worth using in a match as they are, and need refinement before the drivers rely on them.**
+- **Since 2026-11-18 the competition TeleOp drives both dashes on the grid routes as smooth paths** (sections 5 and 5.6; the three switches are true in the code). Not run on the robot. In simulation on the 71 Hartland hand trips, starting with the logged velocity: the planner of section 1 has a median of 1.91 s and touches something in 11 trips; the grid routes as smooth paths have a median of 2.29 s (0.09 s behind the drivers) and touch nothing, and they pass the safety gate. The first robot runs should be a dry run (`DRY_RUN`), then low power.
 - In simulation on a model of the robot as it now drives (faster than when the corner and approach values were set), the present dashes touch a flower stand or a support from a noticeable share of starting positions, and the Park Dash, having no corner slow-down, is the worse of the two. The grid routes touch nothing in the same simulation while the pose is true. This is the reason the grid routes exist, and they still need their first robot run.
 - **Both gates of target T9 were run in simulation on 2026-11-17** (section 6.2). Today's planner fails both. The grid routes as first built passed the speed gate by a small margin and failed the safety gate. With the drift margin, a gentler last approach and a brake on arrival, all added the same day, **the grid routes pass the safety gate**: nothing is touched with the pose out by 4 in, and with the move-clear leg no dash is refused. They are then 0.26 s slower than the drivers on the median trip to a launch spot, so the speed gate fails.
 
@@ -358,7 +361,7 @@ Not in the code. See "As built and target" in the [README](README.md).
 
 ### 6.2 The gates, run in simulation on 2026-11-17
 
-Built in the tools ([tools.md](tools.md) section 3), not on the robot. Everything here is simulated on the wheel model fitted on 2026-11-07; nothing ran on the robot. The grid routes were switched on in the simulator only; on the robot they stay off.
+Built in the tools ([tools.md](tools.md) section 3), not on the robot. Everything here is simulated on the wheel model fitted on 2026-11-07; nothing ran on the robot. When these figures were taken the grid routes were switched on in the simulator only. On the robot they are on since 2026-11-18 (section 5), still without a robot run.
 
 **The baseline.** The Hartland logs hold 83 trips to a launch, none with a dash, and 71 of them of 12 in or more. The drivers took a median 2.43 s (mean 2.73 s, 90th percentile 4.92 s) over a median 60 in in a straight line, about 28 in/s. A trip runs from the last pickup that mattered to within 6 in of where the next salvo was fired.
 
@@ -416,6 +419,6 @@ So both gates still read "fail", for new and smaller reasons:
 - **Where the dash still wins and loses.** It is 0.33 s sooner on trips of 100 in and more. It is 0.41 s later where its launch spot is more than 10 in further than where the drivers fired (11 trips).
 - The survey starts no nearer than 1 in to anything with a true pose, so the move-clear leg was exercised only by poses shifted into a support, and by the one logged trip that began in a corner of the field. Starts hard against a flower stand or a wall were not surveyed.
 
-**What is next for this target.** The time. The dash averages 26 in/s over a trip on a robot the follower allows 66 in/s, and it drives to one fixed spot per cell while the drivers fire from nearer. The two levers are a goal chosen near where the drivers fire from, which needs the launch grid tuned on the robot, and a faster last approach that still stops, which the two quick trials above show is not a matter of raising two numbers. The dashes stay switched off until both gates pass and the grid routes have had their first robot runs.
+**What is next for this target.** The time. The dash averages 26 in/s over a trip on a robot the follower allows 66 in/s, and it drives to one fixed spot per cell while the drivers fire from nearer. The two levers are a goal chosen near where the drivers fire from, which needs the launch grid tuned on the robot, and a faster last approach that still stops, which the two quick trials above show is not a matter of raising two numbers. The plan was to keep the grid routes switched off until both gates pass and they have had their first robot runs. **The team switched them on, with the smooth paths, on 2026-11-18 before either:** the speed gate still fails by 0.09 s on the median trip and nothing has run on the robot.
 
 - The red alliance was not surveyed. The simulator has that option; the field is symmetric, the logged trips are not.

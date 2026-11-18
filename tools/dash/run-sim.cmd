@@ -17,7 +17,8 @@ rem The two gates of specs\dashes.md section 6.1 (target T9); add --grid for the
 rem   python -I tools\dash\hand_trips.py --event "Hartland Qualifier 2026"     the drivers' trips to a launch from the labeled logs -> build\dashsim\hand_trips.csv
 rem   tools\dash\run-sim.cmd trips build\dashsim\hand_trips.csv --plant wheel [--moving]   SPEED GATE: the real Hive Dash from each hand trip's start, beside the drivers' time
 rem   tools\dash\run-sim.cmd driftsurvey 12 4 --plant wheel                    SAFETY GATE: the survey with the believed pose out by 4 in, eight directions and none
-rem   ... --smooth                        either gate with the grid routes driven as smooth paths from the plan tables (GridDash.SMOOTH, the 2026-11-17 prototype; implies --grid)
+rem   ... --smooth                        either gate with the grid routes driven as smooth paths from the plan tables (GridDash.SMOOTH; implies --grid). THIS IS WHAT THE ROBOT DOES since 2026-11-18;
+rem                                       without --grid / --smooth the simulator still runs the earlier planner / leg by leg, whatever the robot's defaults are
 rem   ... --smooth-search                 the same with each path found by the full search on the spot (what the tables are generated with)
 rem   ... --grid --route-drift 2          either gate on trees built in memory with another drift margin (GridRoutes.DRIFT_IN), without writing the robot's tables
 if not exist build\dashsim mkdir build\dashsim

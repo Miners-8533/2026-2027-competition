@@ -24,10 +24,11 @@ public final class GridDash {
     public static double REPICK_SPEED_IN_PER_S = 6.0, STOP_TIMEOUT_SEC = 1.0;
     public static int MAX_REPICKS = 2;
     /**
-     * PROTOTYPE (2026-11-17, simulation only, never run on the robot): true drives the grid route as one smooth path ({@link SmoothFollower}: the fewest points,
-     * arcs at the corners, one turn to the goal heading, one speed profile) when such a path is clear, and leg by leg with GridFollower when it is not.
+     * True drives the grid route as one smooth path ({@link SmoothFollower}: the fewest points, arcs at the corners, one turn to the goal heading, one speed
+     * profile) when such a path is clear, and leg by leg with GridFollower when it is not. ON since 2026-11-18 for both dashes (the team's decision), in simulation
+     * only: NOT YET RUN ON THE ROBOT. False drives every grid route leg by leg.
      */
-    public static boolean SMOOTH = false;
+    public static boolean SMOOTH = true;
     /** The smooth path is taken when its predicted time is no more than this (s) over the leg-by-leg route's. */
     public static double SMOOTH_MAX_EXTRA_SEC = 0.3;
     /**

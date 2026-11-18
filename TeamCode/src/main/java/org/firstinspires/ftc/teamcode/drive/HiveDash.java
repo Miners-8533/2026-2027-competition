@@ -88,10 +88,11 @@ public final class HiveDash {
     public static boolean DRY_RUN = false;
     /**
      * True: the GRID PLANNER (design/dash-planner-grid.md: the precomputed route trees of GridRoutes, driven by GridFollower with its own speeds and corner limits, and the
-     * off-route guard of GridDash) instead of HiveRoute and the follower above. The arrival, the aim and the launch are the same. Off until the robot has run it (2026-11-07);
-     * when the tables cannot be used (see the log) the dash falls back to today's planner.
+     * off-route guard of GridDash) instead of HiveRoute and the follower above. The arrival, the aim and the launch are the same. ON since 2026-11-18 (the team's
+     * decision, with GridDash.SMOOTH), in simulation only: NOT YET RUN ON THE ROBOT. When the tables cannot be used (see the log) the dash falls back to the earlier
+     * planner; false here brings that planner back for every dash.
      */
-    public static boolean GRID_ROUTES = false;
+    public static boolean GRID_ROUTES = true;
     /**
      * A grid dash that has arrived brakes against its remaining velocity: drive power per in/s, its limit, and the speed (in/s) below which it stops (the Pinpoint's
      * velocity is noise there). 0 gain turns it off (the robot coasts to rest, as today's route does). Not run on the robot (2026-11-17): watch for a

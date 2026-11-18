@@ -204,7 +204,7 @@ No behavior the drivers can see changes.
 | Drive hold during a salvo | added later; ran in practice, not at speed |
 | Flywheel position hold; flywheel encoder recovery | added later; not run |
 | Launch grid | added later; off; not run |
-| Grid routes | built; off; not run on the robot |
+| Grid routes, driven as smooth paths | built; on since 2026-11-18 for both dashes; not run on the robot |
 | Pusher lock for a target lock or dash | built; off |
 | Drive-to-pose static friction term | added later; opt-in; not run |
 | Drive-to-pose gain tuning on this robot | never done |

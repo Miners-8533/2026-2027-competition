@@ -887,6 +887,16 @@ public final class DashSim {
                 }
             }
         }
+        // The robot's dashes use the grid routes and the smooth paths since 2026-11-18 (the defaults of these three switches are true). The simulator's switches stay
+        // as they were, so every earlier figure can be reproduced: the earlier planner without --grid, leg by leg without --smooth. "--smooth" is what the robot does.
+        try {
+            for (Field f : new Field[]{HiveDash.class.getField("GRID_ROUTES"), ParkDash.class.getField("GRID_ROUTES"), GridDash.class.getField("SMOOTH")}) {
+                DEFAULTS.put(f, false);
+                f.setBoolean(null, false);
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /** --set Class.FIELD=value: Dashboard values put in after every restore of the defaults (a trial without editing the source). */
