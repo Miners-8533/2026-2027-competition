@@ -34,10 +34,11 @@ public final class HeldCount {
         load.setLength(0);
         loadT.clear();
         loadAtSalvo = "";
-        // SPEC GAP: the page does not say what happens when the saved load order and the saved count disagree in
-        // length. The count rules: a longer text is cut, a shorter one is filled with "?".
+        // The count decides the length: letters beyond the count are dropped, and missing letters are "?". A letter
+        // other than P, R or B is "?".
         for (int i = 0; i < held; i++) {
-            load.append(startLoad != null && i < startLoad.length() ? startLoad.charAt(i) : '?');
+            char c = startLoad != null && i < startLoad.length() ? startLoad.charAt(i) : '?';
+            load.append(c == 'P' || c == 'R' || c == 'B' ? c : '?');
             loadT.add(Double.NaN);
         }
     }

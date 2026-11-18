@@ -495,15 +495,20 @@ public class Check {
             int prox = (int) q[1];
             int[] color = null;
             out[6]++;
-            if (kinds.wantColor(t)) {
+            boolean want = kinds.wantColor(rule.level());
+            if (want) {
                 // The robot would take the longer read here: the color is used only when it is new since the last color read.
                 if (newColor) color = new int[] {(int) q[3], (int) q[4], (int) q[5]};
                 newColor = false;
                 out[5]++;
             }
+            kinds.readDone(want);
             EntryRule.Entry e = rule.sample(t, prox);
-            if (e != null) out[0]++;
-            EntryKinds.Result k = kinds.sample(t, prox, rule.level(), e != null, color);
+            if (e != null) {
+                out[0]++;
+                if (e.number != out[0]) out[0] = -1000;     // the entries are numbered 1, 2, 3, ...
+            }
+            EntryKinds.Result k = kinds.sample(t, prox, rule.level(), e != null ? e.number : 0, color);
             if (k != null) out[1 + k.kind.ordinal()]++;
         }
         return out;
@@ -532,22 +537,26 @@ public class Check {
             StringBuilder sb = new StringBuilder();
             asked = 0;
             for (double[] q : rows) {
-                boolean want = kinds.wantColor(q[0]);
+                boolean want = kinds.wantColor(rule.level());
                 if (want && q[0] > 1.5) asked++;
+                kinds.readDone(want);
                 EntryRule.Entry e = rule.sample(q[0], (int) q[1]);
                 if (e != null) entries++;
-                EntryKinds.Result k = kinds.sample(q[0], (int) q[1], rule.level(), e != null, want ? new int[] {(int) q[3], (int) q[4], (int) q[5]} : null);
+                EntryKinds.Result k = kinds.sample(q[0], (int) q[1], rule.level(), e != null ? e.number : 0, want ? new int[] {(int) q[3], (int) q[4], (int) q[5]} : null);
                 if (k != null) {
                     sb.append(k.kind.letter);
                     lastDelay = q[0] - k.entryT;
                     lastValues = k.values;
+                    lastEntry = k.entry;
+                    lastText = k.text();
                 }
             }
             return sb.toString();
         }
 
-        int entries, asked, lastValues;
+        int entries, asked, lastValues, lastEntry;
         double lastDelay;
+        String lastText = "";
     }
 
     /** The kind of each entry and the load order (specs/element-counting.md section 2.8). */
@@ -590,6 +599,9 @@ public class Check {
         m.empty(40);
         String got = m.run();
         expect(got.equals("RBP") && m.entries == 3, "made-up red nectar, blue nectar and pollen passing one after the other are named in order (" + got + ")");
+        expect(m.lastEntry == 3, "a kind carries the number of its entry: the third entry of the run is number 3");
+        expect(m.lastText.matches("POLLEN \\(shares green 0\\.\\d\\d, blue 0\\.\\d\\d, red 0\\.\\d\\d; rise \\d+ counts over \\d+ color samples, \\d\\.\\d\\d s\\)"),
+                "the kind's text has the form the page gives for the CS5 KIND line (" + m.lastText + ")");
 
         m = new Made();
         m.add(120, 110, 100, 5, 60);        // parked for 3 s
@@ -598,7 +610,7 @@ public class Check {
         askedParked = m.asked;
         expect(parked.equals("P") && Math.abs(m.lastDelay - 0.5) < 0.03, String.format(
                 "an element that stays in front is named once, %.3f s after its entry (0.5 s)", m.lastDelay));
-        expect(askedParked <= 23, "no more color is asked for while it stays (" + askedParked + " color reads in 3 s)");
+        expect(askedParked >= 28 && askedParked <= 37, "while it is parked the thread reads as with nothing in front, one read in 8 (" + askedParked + " color reads in 3 s)");
         m.empty(40);
         m.add(4, 110, 20, 5, 100);
         m.empty(40);
@@ -618,6 +630,55 @@ public class Check {
         m.empty(40);
         got = m.run();
         expect(m.entries == 0 && got.isEmpty(), "a pass in which no entry was counted gives nothing");
+
+        m = new Made();
+        m.add(60, 68, 0, 0, 0);             // 1.5 s above the pass level with no entry
+        got = m.run();
+        expect(m.entries == 0 && got.isEmpty() && m.asked <= 28, "a pass with no entry is dropped 0.5 s after it began, and what is in front is parked (" + m.asked + " color reads in 1.5 s)");
+        m.add(4, 110, 20, 5, 100);          // an entry is counted while it is parked
+        m.empty(40);
+        got = m.run();
+        expect(m.entries == 1 && got.equals("R"), "an entry counted while parked begins a new pass on that sample (" + got + ")");
+
+        // The rule fed by hand: level 65, empty color 100/100/100.
+        EntryKinds k1 = new EntryKinds();
+        expect(k1.wantColor(Double.NaN), "through the first second, while the empty proximity level is being measured, every read is the longer read");
+        expect(k1.emptyLevelText().equals("-"), "there is no empty color level before the first empty color sample");
+        k1.sample(0.00, 65, Double.NaN, 0, new int[] {100, 100, 100});
+        expect(k1.emptyLevelText().equals("100/100/100"), "a color value of the first second is an empty color sample; with one sample the level is that sample");
+        k1.sample(0.025, 65, Double.NaN, 0, new int[] {200, 100, 100});
+        expect(k1.emptyLevelText().equals("150/100/100"), "with two samples the empty color level is their mean");
+        k1.sample(0.05, 65, 65, 0, new int[] {400, 100, 100});
+        expect(k1.emptyLevelText().equals("200/100/100"), "with three it is the median, each channel on its own");
+        k1.sample(0.075, 65, 65, 0, new int[] {100, 100, 100});
+        k1.sample(0.10, 65, 65, 0, new int[] {100, 100, 100});
+        k1.readDone(true);
+        StringBuilder pattern = new StringBuilder();
+        for (int i = 0; i < 17; i++) {
+            boolean w = k1.wantColor(65);
+            pattern.append(w ? 'C' : '.');
+            k1.readDone(w);
+        }
+        expect(pattern.toString().equals(".......C.......C."), "with nothing in front seven small reads follow each longer read (" + pattern + ")");
+        for (int i = 0; i < 7; i++) k1.readDone(false);
+        expect(k1.wantColor(65) && k1.wantColor(65), "a longer read that failed is not counted: the next read is a longer read again");
+        k1.sample(1.000, 110, 65, 0, new int[] {200, 100, 100});     // the pass begins
+        k1.sample(1.025, 110, 65, 1, new int[] {200, 100, 100});     // its entry
+        EntryKinds.Result r1 = k1.sample(1.050, 110, 65, 2, new int[] {100, 100, 300});      // a second entry before the pass has ended
+        expect(r1 != null && r1.entry == 1 && r1.values == 2 && r1.red == 0 && r1.green == 1,
+                "a second entry closes the first at that moment, and the color value read on that sample belongs to the second");
+        EntryKinds.Result r2 = null;
+        for (int i = 0; i < 4 && r2 == null; i++) r2 = k1.sample(1.075 + 0.025 * i, 65, 65, 0, null);
+        expect(r2 != null && r2.entry == 2 && r2.values == 1 && r2.red == 1 && r2.kind == EntryKinds.Kind.RED_NECTAR,
+                "the second entry's pass begins from the same empty color level and is named by its own color");
+
+        EntryKinds k2 = new EntryKinds();
+        k2.sample(0.00, 110, 65, 1, new int[] {300, 100, 100});
+        EntryKinds.Result r3 = null;
+        for (int i = 0; i < 4 && r3 == null; i++) r3 = k2.sample(0.025 + 0.025 * i, 65, 65, 0, null);
+        expect(r3 != null && r3.kind == EntryKinds.Kind.UNKNOWN && r3.values == 0 && r3.why.equals("no empty color level yet")
+                        && r3.text().endsWith("; no empty color level yet)"),
+                "a pass that begins before any empty color sample adds nothing to its sums and its kind is unknown, with the reason in its text");
 
         m = new Made();
         m.add(4, 110, 100, 5, 60);
@@ -654,6 +715,12 @@ public class Check {
         expect(h.load().isEmpty() && h.held() == 0, "a finished reject empties the load order with the count");
         h.start(2, "PR");
         expect(h.load().equals("PR"), "a count that starts from a known load starts with the load order saved with it");
+        h.start(2, "PRB");
+        String cut = h.load();
+        h.start(3, "B");
+        expect(cut.equals("PR") && h.load().equals("B??"), "the count decides the length: letters beyond it are dropped, missing letters are ?");
+        h.start(4, "PxR-");
+        expect(h.load().equals("P?R?"), "a letter other than P, R or B is ?");
     }
 
     static List<String> lines(File f) throws Exception {

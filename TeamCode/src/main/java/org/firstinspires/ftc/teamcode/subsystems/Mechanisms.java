@@ -121,10 +121,10 @@ public final class Mechanisms {
         if (entry != null) held.start(settings.startHeld, settings.startLoad);
         RunLog.event("SETUP mechanisms: " + found());
         if (entry != null) {
-            // SPEC GAP: the pages give what the ENTRY COUNT start line, the SALVO started line and the CS5 KIND lines
-            // carry (specs/logging.md section 2.2, specs/element-counting.md section 2.8), not their wording. The
-            // wording of the load order and of the CS5 KIND lines is this code's.
-            RunLog.event("ENTRY COUNT starts at " + held.held() + ", load order \"" + held.load() + "\"");
+            // The form of this line, of the SALVO started line's end and of the CS5 KIND lines is given in
+            // specs/element-counting.md section 2.8 ("The log lines").
+            RunLog.eventf("ENTRY COUNT starts at %d (was 0), load order %s: %s", held.held(), loadText(),
+                    held.held() > 0 ? "the load this opmode starts with" : "nothing is known to be aboard");
             if (!entry.fastMode()) RunLog.event("CS5 ENTRY the sensor could not be put into its fast proximity mode: the count is useless");
         }
     }
@@ -141,9 +141,10 @@ public final class Mechanisms {
     /** Before the first update: the CS5 held count to start with (the TeleOp's INIT can discard a saved count). */
     public void setStartHeld(int n, String why) {
         if (entry == null) return;
+        int was = held.held();
         held.reset();
         held.start(n, null);
-        RunLog.event("ENTRY COUNT starts at " + n + ", load order \"" + held.load() + "\" (" + why + ")");
+        RunLog.eventf("ENTRY COUNT starts at %d (was %d), load order %s: %s", n, was, loadText(), why);
     }
 
     /** For INIT: reads the slot count and nothing else. Nothing moves. */
@@ -374,18 +375,17 @@ public final class Mechanisms {
 
         // ---- 3. The entry count: the new entries, then full ----
         if (entry != null) {
-            if (firstUpdate) RunLog.event("CS5 ENTRY COUNTER started" + (entry.fastMode() ? "" : " (NOT in fast mode)"));
+            if (firstUpdate) RunLog.event("CS5 ENTRY COUNTER started" + (entry.fastMode() ? "" : " (NOT in fast mode)") + "; " + entry.kindsText());
             for (EntryRule.Entry e : entry.collect()) {
                 boolean counted = held.onEntry(e.t);
-                RunLog.eventf("CS5 ENTRY height %d, proximity %d, %.3f s ago, %s, held %d", e.height, e.proximity, t - e.t,
+                RunLog.eventf("CS5 ENTRY %d: height %d, proximity %d, %.3f s ago, %s, held %d", e.number, e.height, e.proximity, t - e.t,
                         counted ? "counted" : "not counted (the intake was running OUT)", held.held());
             }
             // The kind of an entry arrives when its pass closes, usually within about 0.25 s and at most 0.5 s after it.
             for (EntryKinds.Result k : entry.collectKinds()) {
                 boolean placed = held.onKind(k.entryT, k.kind.letter);
-                RunLog.eventf("CS5 KIND %s (%c): shares green %.2f, blue %.2f, red %.2f, rise %.0f over %d color values, entry %.3f s ago; %s",
-                        k.kind.text, k.kind.letter, k.green, k.blue, k.red, k.rise, k.values, t - k.entryT,
-                        placed ? "load order \"" + held.load() + "\"" : "its entry is no longer in the load: dropped, load order \"" + held.load() + "\"");
+                RunLog.event("CS5 KIND " + k.entry + ": " + k.text() + " | "
+                        + (placed ? "load order " + loadText() : "not in the load (it was not counted as held, or the track has been emptied since)"));
             }
             String kindNote = entry.takeKindNote();
             if (kindNote != null) RunLog.event("CS5 KIND OFF: " + kindNote);
@@ -534,9 +534,9 @@ public final class Mechanisms {
             } else if (ev == LaunchSequencer.Event.START) {
                 fullLock.onSalvoStart();        // the salvo sweeps from the lock position
                 pusher.salvo();
-                String loadBefore = held.load();
+                String loadBefore = loadText();
                 int taken = held.salvoStarted(slots != null && slots.valid() ? slots.count() : 0);
-                RunLog.eventf("SALVO started: flywheel %.0f for %.0f, arm at %.0f deg, %d taken to be aboard, tally %d, load order \"%s\"",
+                RunLog.eventf("SALVO started: flywheel %.0f for %.0f, arm at %.0f deg, %d taken to be aboard, tally %d | load order %s (the first letter leaves first)",
                         flywheel.filtered(), setpoint, pusher.angle(), taken, held.tally(), loadBefore);
             } else if (launch.detail != null) {
                 RunLog.event("LAUNCH " + launch.detail);
@@ -661,7 +661,13 @@ public final class Mechanisms {
     /** The load order by CS5: one letter per held element (P, R, B or ?), the first one in first; empty with no CS5 or nothing held. */
     public String loadOrder() { return entry == null ? "" : held.load(); }
 
-    /** Whether the color reads behind the kinds were given up for this run. */
+    /** The load order as the log's event lines write it: "-" when it is empty. */
+    private String loadText() {
+        String l = held.load();
+        return l.isEmpty() ? "-" : l;
+    }
+
+    /** Whether the color behind the kinds is off for this run. */
     public boolean kindsOff() { return entry != null && entry.colorOff(); }
 
     public String heldText() {

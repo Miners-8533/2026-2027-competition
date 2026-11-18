@@ -29,18 +29,22 @@ public final class EntryRule {
 
     /** One counted entry. */
     public static final class Entry {
+        /** 1 for the first entry of the run; every entry is numbered, added to the held count or not. */
+        public final int number;
         public final double t;
         /** Counts above the empty level. */
         public final int height;
         public final int proximity;
 
-        Entry(double t, int height, int proximity) {
+        Entry(int number, double t, int height, int proximity) {
+            this.number = number;
             this.t = t;
             this.height = height;
             this.proximity = proximity;
         }
     }
 
+    private int counted;
     private double startT = Double.NaN;
     private int[] first = new int[128];
     private int firstN;
@@ -123,7 +127,7 @@ public final class EntryRule {
                     above = 0;
                     disarmedAt = t;
                     parkedNoted = false;
-                    return new Entry(t, (int) Math.round(prox - level), prox);
+                    return new Entry(++counted, t, (int) Math.round(prox - level), prox);
                 }
             } else {
                 above = 0;
@@ -160,7 +164,7 @@ public final class EntryRule {
                     // A group containing a big peak counts once (one hard arrival that rings); small peaks count one by one.
                     if (!(groupBig && groupCounted >= 1)) {
                         groupCounted++;
-                        out = new Entry(peakT, height, peak);
+                        out = new Entry(++counted, peakT, height, peak);
                     }
                     lastPeakT = peakT;
                 }

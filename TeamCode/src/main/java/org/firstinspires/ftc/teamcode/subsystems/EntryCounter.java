@@ -37,9 +37,13 @@ public final class EntryCounter {
     /** MAIN_STATUS bit 3: a new color value since the last read. */
     private static final int STATUS_NEW_COLOR = 0x08;
     private static final int COLOR_FAILS_GIVE_UP = 3;
+    /** The color is off for the run: the setting failed, or three color reads in a row did. */
     private volatile boolean colorOff;
+    private final boolean colorSettingOk;
+    private final String colorSetting;
     private volatile String kindNote;
-    private volatile long colorReads;
+    private volatile long colorReads, colorErrors;
+    private volatile String emptyColor = "-";
     private int colorFails;
     private final ConcurrentLinkedQueue<Integer> raw = new ConcurrentLinkedQueue<>();
 
@@ -63,14 +67,22 @@ public final class EntryCounter {
             ok = false;
         }
         fastMode = ok;
+        String setting;
         try {
             // The color: a new 16-bit value every 25 ms (resolution in bits 6 to 4, rate in bits 2 to 0).
             sensor.write8(BroadcomColorSensor.Register.LS_MEAS_RATE,
                     (BroadcomColorSensor.LSResolution.R16BIT.bVal << 4) | BroadcomColorSensor.LSMeasurementRate.R25ms.bVal);
+            ok = true;
+            setting = "color preset applied (16-bit, a new value every 25 ms)";
         } catch (Throwable e) {
-            colorOff = true;
-            kindNote = "the color setting failed: the proximity is read alone and every kind is unknown for this run";
+            // The proximity is read alone and the count is not affected. This gives no CS5 KIND OFF line: the
+            // counter's start line says it.
+            ok = false;
+            setting = "COLOR PRESET FAILED (" + e + "): the kind of an entry will be UNKNOWN";
         }
+        colorSettingOk = ok;
+        colorSetting = setting;
+        colorOff = !ok;
     }
 
     /** Null when CS5 is not configured: no entry count, and the robot never declares itself full. */
@@ -133,6 +145,12 @@ public final class EntryCounter {
         return out;
     }
 
+    /** For the end of the counter's start line: whether the kinds are on, and the result of the color setting. */
+    public String kindsText() {
+        boolean on = colorSettingOk && EntryKinds.ENABLED && EntryRule.EDGE_COUNTING;
+        return "the kind of each entry is " + (on ? "ON" : "OFF") + ", " + colorSetting;
+    }
+
     /** Once, when the color reads were given up for the run; else null. */
     public String takeKindNote() {
         String n = kindNote;
@@ -140,15 +158,19 @@ public final class EntryCounter {
         return n;
     }
 
-    /** True once the color reads were given up for the run. */
+    /** True when the color is off for the run: the setting failed, or the color reads were given up. */
     public boolean colorOff() { return colorOff; }
 
     /** A statistics line every 15 s, or null. */
     public String stats(double t) {
         if (t - lastStats < STATS_EVERY_S) return null;
         lastStats = t;
-        String s = String.format(Locale.US, "%d samples (%d with the color), %d read errors, longest gap %.0f ms, empty level %.0f, latest %d, %s",
-                samples, colorReads, errors, maxPeriod * 1000, level, latest, healthy() ? "healthy" : "NOT ANSWERING");
+        // With the kinds never on (peak counting, or a failed setting) the color is not read.
+        String color = !colorSettingOk || !EntryRule.EDGE_COUNTING ? "not read"
+                : String.format(Locale.US, "%d reads in all, %d failed, empty level %s%s", colorReads, colorErrors, emptyColor,
+                        colorOff ? ", OFF" : EntryKinds.ENABLED ? "" : ", switched off");
+        String s = String.format(Locale.US, "%d samples, %d read errors, longest gap %.0f ms, empty level %.0f, latest %d, %s; color: %s",
+                samples, errors, maxPeriod * 1000, level, latest, healthy() ? "healthy" : "NOT ANSWERING", color);
         maxPeriod = 0;
         return s;
     }
@@ -164,18 +186,35 @@ public final class EntryCounter {
             while (Clock.now() - lastCollect < STOPS_AFTER_S) {
                 long period = Math.max(5, (long) EntryRule.SAMPLE_PERIOD_MS);
                 double t = Clock.now();
-                boolean withColor = !colorOff && kinds.wantColor(t);
+                boolean withColor = !colorOff && kinds.wantColor(rule.level());
                 try {
-                    int prox;
+                    int prox = -1;
                     int[] color = null;
                     if (withColor) {
-                        byte[] b = sensor.read(BroadcomColorSensor.Register.MAIN_STATUS, COLOR_READ_BYTES);
-                        prox = (b[1] & 0xFF) | ((b[2] & 0x07) << 8);
-                        // A color value is used only when the sensor reports it as new since the last color read.
-                        if ((b[0] & STATUS_NEW_COLOR) != 0) color = new int[] {u24(b, 6), u24(b, 9), u24(b, 12)};
-                        colorFails = 0;
-                        colorReads++;
+                        try {
+                            byte[] b = sensor.read(BroadcomColorSensor.Register.MAIN_STATUS, COLOR_READ_BYTES);
+                            int p = (b[1] & 0xFF) | ((b[2] & 0x07) << 8);
+                            // A color value is used only when the sensor reports it as new since the last color read.
+                            if ((b[0] & STATUS_NEW_COLOR) != 0) color = new int[] {u24(b, 6), u24(b, 9), u24(b, 12)};
+                            prox = p;
+                            colorFails = 0;
+                            colorReads++;
+                            kinds.readDone(true);
+                        } catch (Throwable ce) {
+                            // The small read follows in this same sample, so the count misses nothing, and the next
+                            // read is a longer read again.
+                            color = null;
+                            colorErrors++;
+                            if (++colorFails >= COLOR_FAILS_GIVE_UP) {
+                                // The count is not affected: from here the proximity is read alone.
+                                colorOff = true;
+                                kindNote = "three color reads in a row failed (" + ce + "): the color is off for this run, every kind is UNKNOWN";
+                            }
+                        }
                     } else {
+                        kinds.readDone(false);
+                    }
+                    if (prox < 0) {
                         byte[] b = sensor.read(BroadcomColorSensor.Register.PS_DATA, 2);
                         prox = (b[0] & 0xFF) | ((b[1] & 0x07) << 8);
                     }
@@ -191,16 +230,12 @@ public final class EntryCounter {
                     String n = rule.takeNote();
                     if (n != null) note = n;
                     if (!colorOff && EntryKinds.ENABLED && EntryRule.EDGE_COUNTING) {
-                        EntryKinds.Result k = kinds.sample(t, prox, rule.level(), e != null, color);
+                        EntryKinds.Result k = kinds.sample(t, prox, rule.level(), e != null ? e.number : 0, color);
                         if (k != null) kindResults.add(k);
+                        if (color != null) emptyColor = kinds.emptyLevelText();
                     }
                 } catch (Throwable e) {
                     errors++;
-                    if (withColor && ++colorFails >= COLOR_FAILS_GIVE_UP) {
-                        // The count is not affected: from here the proximity is read alone.
-                        colorOff = true;
-                        kindNote = COLOR_FAILS_GIVE_UP + " color reads in a row failed: the proximity is read alone and every kind is unknown for the rest of this run";
-                    }
                 }
                 long sleep = period - (long) ((Clock.now() - t) * 1000);
                 if (sleep > 0) Thread.sleep(sleep);
