@@ -135,7 +135,7 @@ It overcounted in real driving (a parked or rolling element makes several peaks)
 
 ### 2.5 What the coordinator does with entries
 
-- Each entry is logged with its height, the proximity value, and its time. Its kind is logged when it arrives (section 2.8).
+- Each entry is logged with its number, its height, the proximity value, and its time. The number is 1 for the first entry of the run and counts every entry, added to the held count or not. Its kind is logged when it arrives, under the same number (section 2.8).
 - An entry whose moment fell while the intake was running OUT, or within 0.4 s after, is **not** added to the held count: elements leaving pass the same sensor.
 - The **held count** restarts at 0 when a salvo starts or a reject finishes.
 - The held count reaching 4 declares **FULL**.
@@ -175,7 +175,7 @@ Two further guards exist and are switched off: requiring the slot count to agree
 | Thread statistics logged every | 15 s |
 | Kinds: in use | yes |
 | Kinds: a pass begins at / ends after | +2 counts / more than 2 samples below that |
-| Kinds: a pass is closed after its entry by | 0.5 s |
+| Kinds: a pass is closed after its entry (with no entry: after its start) by | 0.5 s |
 | Kinds: color read with nothing in front | one read in 8 (every 200 ms) |
 | Kinds: empty color level | the median of the last 3 empty color samples |
 | Kinds: least rise that can be named | 60 counts (green + blue + red, summed over the pass) |
@@ -200,24 +200,33 @@ Two further guards exist and are switched off: requiring the slot count to agree
 
 **Reading the color.**
 
-- The thread's read is the longer read (status, proximity and the infrared, green, blue and red channels in one transaction) in three cases: through the first second of a run; from the moment the proximity is 2 counts or more above the empty level until the pass is closed; and, with nothing in front, on one read in 8.
+- The thread's read is the longer read (status, proximity and the infrared, green, blue and red channels in one transaction) in three cases: through the first second of a run, while the empty proximity level is being measured (section 2.2); on every read of a pass, from its beginning until it is closed; and otherwise on one read in 8: seven small reads follow each longer read.
 - Every other read is the small proximity read, as before. In the recorded run about a fifth of the reads carried the color.
 - The sensor's color is set to produce a new 16-bit value every 25 ms when the counter is built.
 - A color value is used only when the sensor reports it as new since the last color read.
+- A longer read that fails is followed in the same sample by the small read, so the count misses no sample. The next read is a longer read again.
 - If the color setting fails, or three color reads in a row fail, the color is off for the rest of the run: the thread reads the proximity alone, the count is not affected, and every kind is unknown. The log says so.
 - The kinds need edge counting (section 2.3). With peak counting there are none.
 - One switch turns the kinds off and returns the thread to the small read alone.
 
-**The empty color level** is the median of the last 3 color values read with nothing in front (proximity under 2 counts above empty). It is fixed at the start of a pass.
+**An empty color sample** is a new color value read while no pass is open and nothing is parked (below):
+
+- every one of the first second. The empty proximity level is not known yet, and the intake must be clear for that second anyway (section 2.2);
+- afterwards, every one read with the proximity under 2 counts above empty.
+
+**The empty color level** is the median of the last 3 empty color samples, each channel on its own. With two samples so far it is their mean, with one it is that sample. It is fixed at the start of a pass. A pass that begins before there is any empty color sample adds nothing to its sums, and its entry's kind is unknown.
 
 **A pass.**
 
 1. It begins when the proximity is 2 counts or more above the empty level. That is below the count's own threshold of 6, so the color is already being read when the entry is counted.
-2. On every new color value of the pass, the rise of each channel over the empty color level is added to that channel's sum.
+2. On every new color value of the pass, the rise of each channel over the empty color level is added to that channel's sum. A value read on the sample that ends or closes the pass is added before it ends.
 3. It ends when the proximity has been below 2 counts for more than 2 samples in a row. The color is an average over 25 ms and lags the proximity, so the samples just after the element has gone still carry it.
 4. A pass in which no entry was counted gives nothing.
-5. If the element is still in front 0.5 s after its entry, the pass is closed with what it has, and no more color is asked for until the element has gone.
-6. If a second entry is counted before the first one's pass has ended, the first is closed at that moment and a new pass begins for the second.
+5. If the element is still in front 0.5 s after its entry, the pass is closed with what it has, and the element is **parked** (below).
+6. A pass that has no entry 0.5 s after it began is dropped, and what is in front is parked the same way.
+7. If a second entry is counted before the first one's pass has ended, the first is closed at that moment and a new pass begins for the second, from the same empty color level. A color value read on that very sample belongs to the second.
+
+**Parked.** No pass is open and no empty color sample is taken. It lasts until the proximity has been below 2 counts for more than 2 samples in a row, or until an entry is counted, which begins a new pass on that sample. While it lasts the thread reads as it does with nothing in front: one read in 8 is the longer read, and its color is not used.
 
 **The kind rule.** A channel whose sum is negative counts as 0. The three sums' shares of their total are tested in this order:
 
@@ -238,10 +247,25 @@ Two further guards exist and are switched off: requiring the slot count to agree
 - A kind whose entry is no longer in the load (it was not counted as held, or the track has been emptied since) is logged and dropped.
 - The load order is emptied whenever the held count restarts at 0.
 - A salvo that did not complete puts its elements back in front of whatever has entered since, as it puts the count back.
-- A count that starts from a known load (section 2.5) starts with the load order saved with it. A preload starts as `????`.
+- A count that starts from a known load (section 2.5) starts with the load order saved with it. The count decides the length: letters beyond the count are dropped, and missing letters are `?`. A letter other than `P`, `R` or `B` is `?`. A preload starts as `????`.
 - The autos and the competition TeleOp save the load order with the held count on every loop.
 
 **Where it shows.** The log: one line per kind, the load order on the line of a salvo's start and on the line of the count's start value, and a column in every sample row ([logging.md](logging.md), [mechanisms.md](mechanisms.md) section 14). The verbose screen and the TeleOp's INIT screen. Not the match screen.
+
+**The log lines.** No tool reads them yet. Their form is given here so that the limits can be read off the log of any build in the same way.
+
+- The kind of an entry: `CS5 KIND <n>: <KIND> (shares green 0.58, blue 0.05, red 0.37; rise 412 counts over 9 color samples, 0.21 s) | load order PP?`
+  - `<n>` is the entry's number, the one on its `CS5 ENTRY <n>` line (section 2.5).
+  - `<KIND>` is `POLLEN`, `RED_NECTAR`, `BLUE_NECTAR` or `UNKNOWN`.
+  - The shares have two decimals and the rise none. The time has two decimals and runs from the beginning of the pass to the result.
+  - An unknown kind says why, after `; ` and before the closing bracket: `no color sample in the pass`, `no empty color level yet`, `the rise is under 60 counts` or `the shares fit no kind`.
+  - When the entry is no longer in the load, the line ends `| not in the load (it was not counted as held, or the track has been emptied since)` in place of the load order.
+- An empty load order is written `-` in these lines. In the sample column it is empty.
+- The count's start value: `ENTRY COUNT starts at <n> (was <m>), load order <text>: <why>`.
+- A salvo's start: the `SALVO started` line ends ` | load order <text> (the first letter leaves first)`.
+- Three failed color reads in a row: `CS5 KIND OFF: three color reads in a row failed (<error>): the color is off for this run, every kind is UNKNOWN`.
+- A failed color setting gives no `CS5 KIND OFF` line. The `CS5 ENTRY COUNTER started` line ends with whether the kinds are on and with the result of the setting: `color preset applied (16-bit, a new value every 25 ms)` or `COLOR PRESET FAILED (<error>): the kind of an entry will be UNKNOWN`.
+- The thread's statistics line (every 15 s) ends `color: <n> reads in all, <n> failed, empty level <green>/<blue>/<red>` (the empty color level, in whole counts), followed by `, OFF` once the color reads were given up, or by `, switched off` with the switch off. The empty level is `-` before the first empty color sample. With the kinds never on (peak counting, or a failed setting) it ends `color: not read`.
 
 **What is left.**
 

@@ -100,7 +100,7 @@ The competition TeleOp's row is, in order: the pose, the stick, the drive comman
 
 ### 1.6 Event families
 
-These prefixes are relied on by the analysis tools, so they are part of the interface.
+These prefixes are relied on by the analysis tools, so they are part of the interface. Beyond its prefix the wording of an event is not fixed, with two exceptions: the wordings in the second table below, and a line whose form is given on the page of its feature.
 
 | Prefix | Source |
 |---|---|
@@ -115,7 +115,7 @@ These prefixes are relied on by the analysis tools, so they are part of the inte
 | `INTAKE`, `FLYWHEEL` | mode changes, current stretches, encoder lost and back |
 | `ELEMENTS`, `COUNTER` | slot count changes, stored baselines, the once-a-second empty-track health line |
 | `CS5 ENTRY`, `ENTRY` | each entry, FULL, resets, the thread's statistics and health |
-| `CS5 KIND` | the kind of an entry, with its color shares, total rise and number of color values, and the load order after it; `CS5 KIND OFF` when the color reads were given up for the run ([element-counting.md](element-counting.md) section 2.8) |
+| `CS5 KIND` | the kind of an entry, with its color shares, total rise and number of color values, and the load order after it; `CS5 KIND OFF` when the color reads were given up for the run. The form of these lines, and of the load order on the `ENTRY COUNT` and `SALVO started` lines, is given in [element-counting.md](element-counting.md) section 2.8 |
 | `WARNING`, `WARNING cleared`, `NOTICE` | the coordinator's standing conditions and one-off messages |
 | `REPORT` | the operator's reports of where a salvo landed |
 | `REMEMBERED AIM` | the remembered aims continued from the last TeleOp at INIT, or cleared there |
