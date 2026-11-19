@@ -168,6 +168,11 @@ public class TeleOpCompetition extends LinearOpMode {
     public static boolean AUTO_LOCK_WHEN_FULL = false;
     /** With the lock held and not ALIGNED, the driver's launch waits for ALIGNED (at most this long, then it is dropped) instead of firing at once. */
     public static boolean LAUNCH_WAITS_FOR_ALIGN = true;
+    /**
+     * (2026-11-19, user) No launch from a spot the 2-D launch grid measured as NO SHOT: the driver's launch, the Hive Dash's and the auto-launch are refused (a log line, and the screen shows NO SHOT in very large
+     * letters while the robot stands in the zone). Not applied in backup mode or with a Pinpoint fault (the pose, so the zone, cannot be trusted). The autos never use it.
+     */
+    public static boolean BLOCK_LAUNCH_IN_NO_SHOT = true;
     public static double LAUNCH_ALIGN_WAIT_SEC = 1.5;
     /** BACKUP MODE: the fixed launch distance (the start position's distance to the cell), and how long the Pinpoint must stay faulted before it is not just a blip. */
     public static double BACKUP_LAUNCH_DISTANCE_IN = 42.0;
@@ -226,6 +231,20 @@ public class TeleOpCompetition extends LinearOpMode {
     }
 
     /** What the 2-D launch grid (in use from Start) and the formula aim and the 1-D launch map (used where the grid has no data) say for this launch. */
+    /** The robot stands where the 2-D launch grid says no shot works (for the cell it targets); false without a trusted pose (backup mode, a Pinpoint fault) or when the grid is not in use. */
+    private static boolean inNoShotZone(Mechanisms m, boolean backupMode, boolean pinpointBad) {
+        if (backupMode || pinpointBad || !m.isGridOn()) return false;
+        LaunchGridMap.Result r = m.getGridResult();
+        return r != null && r.zone == LaunchGridMap.Zone.NO_SHOT;
+    }
+
+    /** True (and a log line) when a launch from here is refused because of the no-shot zone. */
+    private static boolean launchBlockedInNoShot(Mechanisms m, String who, boolean backupMode, boolean pinpointBad) {
+        if (!BLOCK_LAUNCH_IN_NO_SHOT || !inNoShotZone(m, backupMode, pinpointBad)) return false;
+        RunLog.event("LAUNCH BLOCKED (" + who + "): the 2-D launch grid has no shot from here | " + m.getGridResult().note);
+        return true;
+    }
+
     private static String gridSummary(HiveTarget t, Pose2d pose, boolean blue) {
         LaunchGridMap.Result g = LaunchGridMap.lookup(t, pose.position.x, pose.position.y);
         double bearing = Math.toDegrees(Math.atan2(t.y - pose.position.y, t.x - pose.position.x));
@@ -672,7 +691,7 @@ public class TeleOpCompetition extends LinearOpMode {
                             lastLaunchAim = aimSummary(pose, mechanisms, blue, lockOn);
                             lastLaunchCell = lockTarget;
                             RunLog.event(String.format(Locale.US, "AUTO LAUNCH: %.2f s after entering the zone, speed %.1f in/s | %s", autoLaunchZoneClock.seconds(), speed, lastLaunchAim));
-                            mechanisms.requestLaunch();
+                            if (!launchBlockedInNoShot(mechanisms, "auto-launch", backupMode, pinpointBad)) mechanisms.requestLaunch();   // autoLaunchDone is already set: the driver has the robot again
                         }
                     }
                 }
@@ -805,8 +824,12 @@ public class TeleOpCompetition extends LinearOpMode {
             if (launchNow) {
                 lastLaunchAim = aimSummary(pose, mechanisms, blue, lockOn);
                 lastLaunchCell = mechanisms.getOpenCell();
-                RunLog.event("LAUNCH requested: " + lastLaunchAim);
-                mechanisms.requestLaunch();
+                if (launchBlockedInNoShot(mechanisms, dash.launchNow ? "Hive Dash" : "driver", backupMode, pinpointBad)) {
+                    launchNow = false;
+                } else {
+                    RunLog.event("LAUNCH requested: " + lastLaunchAim);
+                    mechanisms.requestLaunch();
+                }
             }
             if (gamepad2.rightBumperWasPressed()) {
                 autoLaunchOn = !autoLaunchOn;
@@ -874,11 +897,8 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (driveHeld) screen.alert(CompetitionScreen.CYAN, "DRIVE HELD");
                 if (mechanisms.isEntryFull()) screen.alert(CompetitionScreen.CYAN, mechanisms.fullStatusText());
                 if (autoLaunchArmed && !autoLaunchOn) screen.alert(CompetitionScreen.CYAN, "AUTO-LAUNCH ARMED");
-                // the grid's no-shot zones warn; asked only while it matters (a lookup of the grid)
-                if (lockOn || mechanisms.isLaunchBusy()) {
-                    LaunchGridMap.Result gridNow = mechanisms.getGridResult();
-                    if (gridNow != null && gridNow.zone == LaunchGridMap.Zone.NO_SHOT) screen.alert(CompetitionScreen.YELLOW, "NO SHOT ZONE");
-                }
+                // the grid's no-shot zones (the launch is refused there, BLOCK_LAUNCH_IN_NO_SHOT): the very large NO SHOT line; the grid's answer is looked up every loop by Mechanisms.update anyway
+                screen.noShot = inNoShotZone(mechanisms, backupMode, pinpointBad);
                 HiveTarget dashCell = hiveDash.cell();
                 if (dashCell != null) {
                     String dashName = dashCell.name().endsWith("REAR") ? "REAR" : "AUDIENCE";

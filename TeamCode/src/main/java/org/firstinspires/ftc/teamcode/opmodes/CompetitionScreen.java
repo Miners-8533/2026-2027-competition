@@ -35,6 +35,7 @@ public final class CompetitionScreen {
         String target = "";           // for example "REAR 36 in"
         double x, y, headingDeg;
         boolean pusherLocked = false;
+        boolean noShot = false;       // the robot stands in a no-shot zone of the launch grid: a launch is refused (2026-11-19)
         boolean countOnly = false;    // the CS5 FULL actions are off (COUNT ONLY): the count is shown, nothing acts on FULL
         double speedTrim = 0.0;
         double aimRearDeg = 0.0, aimAudienceDeg = 0.0;   // the operator's remembered aim of the alliance's two cells, degrees (+ = counterclockwise); shown while either is not zero
@@ -63,6 +64,11 @@ public final class CompetitionScreen {
 
     /** Draws the screen: call telemetry.update() afterwards. The display format must be HTML. */
     public static void render(Telemetry t, State s) {
+        // standing where no shot works: the largest and first line (2026-11-19, user): the launch is refused here
+        if (s.noShot) {
+            t.addLine("<big><big><big><big><b>" + colored(RED, "NO SHOT") + "</b></big></big></big></big>");
+            t.addLine("<big><big><b>" + colored(RED, "LAUNCH BLOCKED: MOVE") + "</b></big></big>");
+        }
         // alerts first, red before yellow, at most three lines
         int shown = 0;
         for (int pass = 0; pass < 2 && shown < 3; pass++) {
@@ -152,7 +158,7 @@ public final class CompetitionScreen {
 
     // ---- sample screens for the Telemetry Font Test ----
 
-    /** 0: normal driving; 1: a dash in progress with a warning; 2: faults. */
+    /** 0: normal driving; 1: a dash in progress with a warning; 2: faults; 3: standing in a no-shot zone. */
     public static State sample(int variant) {
         State s = new State();
         s.blue = variant != 2;
@@ -178,6 +184,13 @@ public final class CompetitionScreen {
                 s.pusherLocked = true;
                 s.speedTrim = 10;
                 s.alert(YELLOW, "OPPONENT NECTAR: REJECT");
+                break;
+            case 3:
+                s.count = 4;
+                s.full = true;
+                s.flywheel = "READY";
+                s.flywheelColor = GREEN;
+                s.noShot = true;
                 break;
             default:
                 s.count = -1;

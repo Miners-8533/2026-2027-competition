@@ -18,7 +18,7 @@ import java.util.Locale;
  *  - inside a triangle of spots: the speed and the residual are blended linearly (a no-shot spot does not contribute to the blend);
  *  - outside the spots: the value at the nearest point of the outline is held (the estimated spots already reach the walls, so this is a few inches);
  *  - a spot, or a point whose nearest spot, had no shot possible is a NO_SHOT zone: the answer is still a speed and an aim (the nearest good spots'), and the zone is the WARNING
- *    (the screen shows NO SHOT ZONE), because the grid says a salvo from there does not score.
+ *    (the TeleOp shows NO SHOT in very large letters and refuses the launch, 2026-11-19), because the grid says a salvo from there does not score.
  * {@link Zone#NO_DATA} only happens when a cell has no data at all.
  *
  * The cells: BLUE_REAR (the near cell) and BLUE_AUDIENCE (the far cell) are both MEASURED with the Launch Grid Tuner (2026-11-12 and 2026-11-18; before the far cell was measured it was a SEED, the near cell's

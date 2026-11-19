@@ -99,7 +99,7 @@ Given a cell and a position, the answer is a speed, a residual and a **zone**:
 |---|---|---|
 | Interpolated | inside a triangle of measured spots | a linear blend of the three; a no-shot spot does not contribute |
 | Extrapolated | outside all triangles | the value at the nearest point of the data's outline, at any distance |
-| No shot | at a recorded no-shot spot, or nearest to one | still the nearby good spots' values; the zone itself is the warning |
+| No shot | at a recorded no-shot spot, or nearest to one | still the nearby good spots' values; the zone itself is the warning, and the TeleOp refuses a launch from it |
 | No data | the cell has no data at all | none |
 
 There is **no fallback to the formula** while the grid is on: wherever the grid has values, they are used.
@@ -109,7 +109,7 @@ There is **no fallback to the formula** while the grid is on: wherever the grid 
 - The grid supplies the flywheel speed (plus the operator's trim) and the aim residual to the target lock.
 - During a Hive Dash it is looked up for the launch spot, not the current pose.
 - In backup mode it is not used.
-- While the lock is on or a launch is queued in a no-shot zone, the screen warns; the launch still goes.
+- **A launch from a no-shot zone is refused** (2026-11-19, user; `TeleOpCompetition.BLOCK_LAUNCH_IN_NO_SHOT`, true; not run on the robot). The driver's launch, the Hive Dash's and the auto-launch ask the grid for the pose's zone and are dropped with a `LAUNCH BLOCKED (who)` log line when it is NO_SHOT. While the robot stands in a no-shot zone the screen shows `NO SHOT` in the largest text with `LAUNCH BLOCKED: MOVE` under it, at the top. Not applied in backup mode or with a Pinpoint fault (the pose, so the zone, cannot be trusted), and the autos never use it. A launch already queued or running is not stopped.
 - Every launch request logs the grid's answer beside the formula's and the map's, so practice sessions compare them.
 
 ### 4.4 Which spots a grid contains

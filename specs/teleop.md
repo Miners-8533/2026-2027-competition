@@ -210,7 +210,8 @@ The match screen uses the Driver Station's HTML display mode, which is the only 
 | Color | Alerts |
 |---|---|
 | Red | `BACKUP MODE`, `PINPOINT FAULT`, `DRIVE WHEEL LB?` (a wheel drawing too little current), `FLYWHEEL LOST`, `FLY OPEN LOOP`, `PUSHER STALLED`, `PUSHER NOT CALIBRATED`, `PUSHER JAMMED` |
-| Yellow | `BACKUP IN 0.6 s` and `RESEED IN 0.4 s` (hold countdowns), `DASH REFUSED`, `PARK DASH REFUSED`, `CS5 NOT ANSWERING`, `PUSHER ZERO?`, `OPPONENT NECTAR: REJECT`, `COUNTER NOT READING`, `LAUNCH MAP EMPTY`, `NO SHOT ZONE`, any current notice (cut to 26 characters), `CHECK ROBOT (verbose)` for a warning with no alert of its own |
+| Largest red text, above the alerts | `NO SHOT` with `LAUNCH BLOCKED: MOVE`: the robot stands in a no-shot zone of the launch grid and the launch is refused (2026-11-19) |
+| Yellow | `BACKUP IN 0.6 s` and `RESEED IN 0.4 s` (hold countdowns), `DASH REFUSED`, `PARK DASH REFUSED`, `CS5 NOT ANSWERING`, `PUSHER ZERO?`, `OPPONENT NECTAR: REJECT`, `COUNTER NOT READING`, `LAUNCH MAP EMPTY`, any current notice (cut to 26 characters), `CHECK ROBOT (verbose)` for a warning with no alert of its own |
 | Cyan | `DRIVE HELD`, the FULL sequence step, `AUTO-LAUNCH ARMED` |
 
 The alerts are chosen from the coordinator's warning **codes**, not their wording. Four warnings are deliberately not shown: the Full warning (the count line already turns green), stow waiting, zero not verified yet, and the coordinator's own backup warning.
