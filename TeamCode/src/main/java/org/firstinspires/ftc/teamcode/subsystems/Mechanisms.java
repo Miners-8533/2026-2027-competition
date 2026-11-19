@@ -55,13 +55,13 @@ public class Mechanisms {
     /** While the track reads empty, a COUNTER EMPTY line is logged this often: the four colour shifts from the stored empty baselines (tools/logs/baseline_health.py reads them). 0 turns it off. */
     public static double HEALTH_LOG_SEC = 1.0;
     /**
-     * PUSHER LOCK (2026-11-04, changed 2026-11-05): while the opmode REQUESTS it ({@link #setPusherLockWanted}: the TeleOp asks during a target lock or a Hive Dash, never because the robot is
-     * full, since the count of 4 cannot be trusted) and the arm is at HOLD, move the arm LOCK_DEG (90) forward across the intake entrance so the pollen cannot roll back out; the element count
-     * is frozen and the intake is OFF while locked (it used to run OUT). A launch goes from the lock (310 deg), a reject unlocks first, and the operator forcing the intake IN (right trigger) unlocks it.
+     * PUSHER LOCK (2026-11-04, changed 2026-11-05): while the opmode REQUESTS it ({@link #setPusherLockWanted}: the TeleOp asks during a target lock or a Hive Dash, never because of a count or
+     * FULL, and whatever the count says, even 0) and the arm is at HOLD, move the arm Pusher.LAUNCH_READY_DEG (156, a first guess: right behind the stack at the feed ramp; 90 until 2026-11-19) forward so the pollen cannot roll back out; the element count
+     * is frozen and the intake is OFF while locked (it used to run OUT). A launch goes from the lock (400 less the ready angle), a reject unlocks first, and the operator forcing the intake IN (right trigger) unlocks it.
      * When the request has ended for LOCK_RELEASE_DELAY_SEC the arm goes back to HOLD. The autos never request it. False turns the whole lock off.
      */
     /** FALSE since 2026-11-06 (user): the intake is always IN now, so the arm must not lock across the entrance; the lock stays off until the element sensors are more reliable. True brings it back. */
-    public static boolean PUSHER_LOCK_ENABLED = false;
+    public static boolean PUSHER_LOCK_ENABLED = true;   // TRUE again 2026-11-19 (user): the lock now parks the arm at the LAUNCH-READY position (Pusher.LAUNCH_READY_DEG, 156), right behind the stack at the feed ramp; first run on the robot to come
     /**
      * AUTOS (2026-11-05, user): the flower gather keeps the intake running IN, whatever the count says, from the ram until the flower salvo is done ({@link #forceIntakeIn}), so pollen still
      * coming off the ramp keep coming in while the robot backs off, turns and aims. False: the old behavior (the intake is requested at the ram and the automatic stop at 4 can end it).
@@ -83,7 +83,7 @@ public class Mechanisms {
     public static boolean ENTRY_FULL_ACTIONS = true;
     public static boolean FULL_STOPS_INTAKE = true;
     public static boolean FULL_CLEARS_FIFTH = true;
-    public static boolean FULL_LOCKS_PUSHER = true;
+    public static boolean FULL_LOCKS_PUSHER = false;   // FALSE 2026-11-19 (user): nothing locks the pusher because of a count or FULL; only a target lock or a Hive Dash does (the launch-ready position)
     /**
      * THE FULL SEQUENCE (2026-11-15, user): 0. the intake runs on IN for FULL_IN_HOLD_SEC (the 4th element in first); 1. the intake runs OUT for FULL_PRE_OUT_SEC (a short reverse to clear the entrance); 2. it STOPS, and only then does the pusher move to the lock position (the intake stays
      * stopped while the arm moves); 3. once LOCKED the intake runs OUT (FULL_LOCKED_INTAKE_OUT: the entrance is kept clear while the robot is full; false: it stays stopped and runs OUT only to clear a fifth element
@@ -446,7 +446,7 @@ public class Mechanisms {
             // the lock for FULL goes forward from wherever the arm rests (the 15:12 TeleOp: the lock never started because atHold() was false after every salvo)
             if (!pusher.isStopped()) return "the arm is moving";
             double past = pusher.getAnglePastHoldDeg();
-            if (past < -Pusher.HOLD_TOLERANCE_DEG || past > Pusher.LOCK_DEG + 40.0) return "the arm rests " + String.format(Locale.US, "%.0f", past) + " deg past a HOLD (the lock goes forward from -" + Pusher.HOLD_TOLERANCE_DEG + " to " + (Pusher.LOCK_DEG + 40.0) + ")";
+            if (past < -Pusher.HOLD_TOLERANCE_DEG || past > Pusher.LAUNCH_READY_DEG + 40.0) return "the arm rests " + String.format(Locale.US, "%.0f", past) + " deg past a HOLD (the lock goes forward from -" + Pusher.HOLD_TOLERANCE_DEG + " to " + (Pusher.LAUNCH_READY_DEG + 40.0) + ")";
         } else if (!pusher.atHold()) {
             return "the arm is not at HOLD (it is " + String.format(Locale.US, "%.0f", pusher.getAnglePastHoldDeg()) + " deg past it)";
         }
@@ -472,7 +472,7 @@ public class Mechanisms {
 
     private void beginLock(String why) {
         counter.setFrozen(true);
-        pusher.startLock();
+        pusher.startLock(Pusher.LAUNCH_READY_DEG);
         lockState = LockState.LOCKING;
         lockClock.reset();
         RunLog.event("PUSHER LOCK (" + why + "): " + heldText() + " | " + pusher.getLastCommand());
@@ -511,7 +511,7 @@ public class Mechanisms {
                         lockRefusalLogged = why;
                         RunLog.event("PUSHER LOCK for FULL refused: " + why + " (the intake stays IN until the pusher is locked)");
                     }
-                } else if (PUSHER_LOCK_ENABLED && lockWanted && counter.count() > 0 && !manualIntake && counter.isValid() && !counterOverride && lockRefusal(false) == null) {
+                } else if (PUSHER_LOCK_ENABLED && lockWanted && !manualIntake && !counterOverride && lockRefusal(false) == null) {   // 2026-11-19 (user): no count condition, the robot may think it is empty; only the request (target lock or Hive Dash) decides
                     beginLock("a target lock or a Hive Dash is on");
                 }
                 break;

@@ -106,6 +106,13 @@ public class Pusher {
      * turns SALVO_DEG - LOCK_DEG (310). Unlocking reverses to that HOLD. The lock and unlock are seeks at LOCK_POWER.
      */
     public static double LOCK_DEG = 90.0;
+    /**
+     * The LAUNCH-READY position (2026-11-19, user): where the TeleOp's pusher lock (Mechanisms.PUSHER_LOCK_ENABLED, on a target lock or a Hive Dash) parks the arm: right behind the stack, with the first pollen pushed up
+     * to the bottom of the feed ramp, so a salvo from here has less to turn (SALVO_DEG less this) and the first element is in the flywheel at once. A FIRST GUESS, to be confirmed on the robot: in 192 four-pollen salvos of
+     * 2026-11-18 the first pollen was in front of CS2 (the top of the feed ramp) after 171 deg of arm travel from the salvo start (the pollen after it at 226, 288 and 328 deg, a pitch of about 55 deg); this is 171 less 15. The
+     * autos' preload position (startLock(), LOCK_DEG) is not changed. Keep it under 180: past that the nearest HOLD is the next one and a salvo would turn a full revolution more.
+     */
+    public static double LAUNCH_READY_DEG = 156.0;
     public static double LOCK_POWER = 0.25;
     /** The arm counts as locked when it is stopped within this many degrees of LOCK_DEG past a HOLD. */
     public static double LOCK_TOLERANCE_DEG = 12.0;
@@ -188,6 +195,7 @@ public class Pusher {
     private final ElapsedTime jamClock = new ElapsedTime();
     private final ElapsedTime jamResumeClock = new ElapsedTime();
     private String jamReport = null;
+    private double lockTargetDeg = 90.0;   // where the lock in progress or the last one was sent (isLocked checks against it)
     private boolean lockSeek = false;   // the SEEK in progress is the lock (startLock): the only seek the jam resolution backs off
     private boolean gaveUp = false;   // the last move timed out (MOVE_TIMEOUT_S): the arm stays where it is until the next move is commanded
     private String faultReason = "";
@@ -460,11 +468,17 @@ public class Pusher {
 
     /** Moves the arm from HOLD to the LOCK position (LOCK_DEG forward of the nearest HOLD). Ignored until calibrated, or while faulted. */
     public void startLock() {
+        startLock(LOCK_DEG);
+    }
+
+    /** The same to a given angle forward of the nearest HOLD (the TeleOp's lock goes to LAUNCH_READY_DEG). */
+    public void startLock(double deg) {
         if (!isCalibrated() || state == State.STALLED) {
             lastCommand = "lock IGNORED: " + (isCalibrated() ? "the pusher is faulted" : "TICKS_PER_REV is not set");
             return;
         }
-        startSeek(nearestHoldTicks() + LOCK_DEG * TICKS_PER_REV / 360.0, LOCK_POWER);
+        lockTargetDeg = deg;
+        startSeek(nearestHoldTicks() + deg * TICKS_PER_REV / 360.0, LOCK_POWER);
         lockSeek = state == State.SEEK;
         lastCommand = "LOCK: " + lastCommand;
     }
@@ -493,7 +507,7 @@ public class Pusher {
     /** Idle, stopped, and within LOCK_TOLERANCE_DEG of the LOCK position. */
     public boolean isLocked() {
         return state == State.HOLD && isCalibrated() && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC
-                && Math.abs(getAnglePastHoldDeg() - LOCK_DEG) <= LOCK_TOLERANCE_DEG;
+                && Math.abs(getAnglePastHoldDeg() - lockTargetDeg) <= LOCK_TOLERANCE_DEG;
     }
 
     /** Ends a jog where it is: the state goes back to HOLD (so {@link #isStopped} can be true) without moving to a HOLD. */

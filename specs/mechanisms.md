@@ -166,7 +166,7 @@ Lock states: none, locking, locked, unlocking.
 
 **Unlocking** happens when: the reason for the lock has ended (after 0.5 s, and no launch is pending); the operator forces the intake in; or a reject is requested. When the arm stops, the count is unfrozen.
 
-**A second reason to lock exists but is switched off:** locking whenever the TeleOp has a target lock or a Hive Dash active and something is held. It is disabled by a master switch because the TeleOp intake is always in.
+**The one reason to lock (changed 2026-11-19, user; not run on the robot):** the TeleOp has a target lock or a Hive Dash active, whatever the count says (even 0). The arm goes to the launch-ready position (`LAUNCH_READY_DEG`, 156 deg, a first guess: right behind the stack at the bottom of the feed ramp; [pusher.md](pusher.md)). No count and no FULL ever locks the pusher (`FULL_LOCKS_PUSHER` is false). The master switch `PUSHER_LOCK_ENABLED` is on again. The autos never request it; their preload pre-position stays at 90 deg.
 
 **Preload pre-position (autos).** At the very start of an auto the arm is moved to the lock angle while the flywheel spins up, so the preload salvo turns 310 deg instead of 400 and finishes about 0.3 s sooner. This calls the pusher's lock move directly and is independent of the switches above.
 

@@ -51,7 +51,7 @@ The hub is read once per loop (position and speed) and the motor is written only
 
 **Seek.** Go to a given absolute position at a given power, forward or reverse, with the same early cut. Used by the pusher check and for the lock.
 
-**Lock and unlock.** *Lock* is a seek to 90 deg forward of the nearest HOLD: the arm lies across the intake entrance. It nudges the stack forward but does not launch anything. *Unlock* is a seek back to that HOLD, **reverse only**; a forward return from the lock would sweep the stack into the flywheel. If the arm is already at or behind the HOLD, unlock does nothing. The arm counts as *locked* when it is idle, stopped and within 12 deg of the lock angle.
+**Lock and unlock.** *Lock* is a seek to an angle forward of the nearest HOLD, `startLock(deg)`: it nudges the stack forward but does not launch anything. Two angles are used: the autos' preload pre-position goes to `LOCK_DEG` (90 deg, the arm across the intake entrance), and the TeleOp's lock goes to `LAUNCH_READY_DEG` (156 deg since 2026-11-19, user: right behind the stack with the first pollen pushed up to the bottom of the feed ramp; a FIRST GUESS = the 171 deg of arm travel at which the first pollen is in front of CS2 at the top of the ramp, 192 four-pollen salvos of 2026-11-18, less 15; to be confirmed on the robot; keep it under 180). It is requested ONLY by a target lock or a Hive Dash, whatever the count says (even 0); no count or FULL ever locks the pusher (`FULL_LOCKS_PUSHER` is false). The arm counts as *locked* within the tolerance of the angle it was sent to. *Unlock* is a seek back to that HOLD, **reverse only**; a forward return from the lock would sweep the stack into the flywheel. If the arm is already at or behind the HOLD, unlock does nothing. The arm counts as *locked* when it is idle, stopped and within 12 deg of the lock angle.
 
 **Other commands.** *Cancel move* and *abort seek* stop the arm where it is. *Stop now* is for the end of an opmode: it stops and removes all power, including the active hold.
 
@@ -112,7 +112,7 @@ Reports: a line when a jam is found, when a jammed move finishes, and when it is
 | Active hold: gain / minimum / maximum power | 0.012 per deg / 0.05 / 0.15 |
 | Active hold: dead band / latch after / give up after | 2 deg / 0.3 s / 2 s |
 | Default seek power | 0.2 |
-| Lock angle / lock power / lock tolerance | 90 deg / 0.25 / 12 deg |
+| Lock angle (autos' preload) / launch-ready angle (TeleOp lock) / lock power / lock tolerance | 90 deg / 156 deg (first guess) / 0.25 / 12 deg |
 | Move timeout | 3 s |
 | Jam: current above / speed below / for / after | 1.2 A / 20 ticks/s / 0.3 s / 0.4 s into the move |
 | Jam: grace after resuming | 0.3 s |
