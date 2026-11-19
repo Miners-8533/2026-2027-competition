@@ -54,7 +54,7 @@ public class EntryClassifierCheck {
      * sensor produced a value since the last color read. Returns the results, one per classified entry; counts[0] = entries, counts[1] = color reads, counts[2] = all reads.
      */
     static List<EntryClassifier.Result> replay(List<double[]> rec, int offset, double periodSec, boolean always, int idleEvery, int[] counts) {
-        EntryPipeline pipe = EntryPipeline.edge(6.0, 4.0, 2, 1.0);   // EntryCounter.EDGE_HI and EDGE_LO (6 and 4 since 2026-11-18)
+        EntryPipeline pipe = EntryPipeline.edge(7.0, 5.0, 1, 1.0);   // EntryCounter.EDGE_HI, EDGE_LO and EDGE_CONFIRM (7, 5 and 1 since 2026-11-19)
         EntryClassifier cls = classifier();
         List<EntryClassifier.Result> out = new ArrayList<>();
         long entries = 0;

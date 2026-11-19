@@ -136,15 +136,15 @@ The period is a trade against the main loop: at 25 ms the thread costs nothing m
 
 An entry is the **rise** of the signal:
 
-1. The signal reaches 6 counts above the empty level and stays there for 2 samples in a row: **one entry**, counted at that moment (about 50 ms after the element arrives).
-2. No further entry is possible until the signal has come back to 4 counts above the empty level or lower (2 counts until 2026-11-18; the change has not run on the robot).
+1. The signal reaches 7 counts above the empty level on one sample: **one entry**, counted at that moment (6 counts held for 2 samples until 2026-11-19).
+2. No further entry is possible until the signal has come back to 5 counts above the empty level or lower (2 counts until 2026-11-18, 4 until 2026-11-19; the present levels have not run on the robot).
 
 Consequences, both accepted:
 
 - An element that stays under the sensor is one entry for as long as it stays.
 - A clump whose elements touch, so the signal never dips to the re-arm level, counts once.
 
-**Why the re-arm level is 4.** A load picked up while driving comes in as one burst of about a second, and between its elements the signal only falls to 3 to 5 counts above the empty level. With the re-arm at 2 the robot counted 1 to 3 for a load of 4 (section 2.7). At 5 the count runs over on a pile-up. The rise stays at 6: at the 25 ms sample period a rise of 7 misses weak single elements, which are that high for one sample only.
+**Why these levels.** A load picked up while driving comes in as one burst of about a second, and between its elements the signal only falls to 3 to 5 counts above the empty level. With the re-arm at 2 the robot counted 1 to 3 for a load of 4, and at 4 it was still low at 8 of 208 loads whose true number is known (section 2.7). At 5 it is low at 2. The rise is 7 on one sample for two reasons from older recordings: a rise of 6 against a re-arm of 5 leaves a single count between them, and an element lying at that height is then counted over and over; and a rise of 7 that must hold for two samples misses weak single elements at the 25 ms sample period.
 
 If the signal stays above the re-arm level for 10 s, a note is logged (an element is parked there, or the empty level has moved) and no entries come until it drops.
 
@@ -191,7 +191,7 @@ Two further guards exist and are switched off: requiring the slot count to agree
 |---|---|
 | Sample period | 25 ms |
 | Empty level measured over | first 1.0 s |
-| Edge: rise threshold / re-arm threshold / samples to confirm | +6 / +4 counts / 2 |
+| Edge: rise threshold / re-arm threshold / samples to confirm | +7 / +5 counts / 1 |
 | Edge counting in use | yes |
 | Peak rule: prominence / minimum separation | 6 counts / 0.06 s |
 | Peak rule: merge height / merge gap | 45 counts / 0.4 s |
@@ -211,7 +211,10 @@ Two further guards exist and are switched off: requiring the slot count to agree
 
 - The count was characterized with pollen only.
 - **It undercounted in its first robot runs** (ten practice TeleOps of 2026-11-17, re-arm at 2). The sensor and its thread were sound throughout: no read errors, the empty level 65 or 66 in every run. But at the 37 salvos where all four slots read pollen, so at least 4 were aboard (count-only mode, loads begun on an emptied track), the entry count read under 4 at 19, 4 at 14 and 5 at 4.
-- **The re-arm at 4 is judged by replay only**, against the slots as a lower limit: the same 37 loads give under 4 at 5, 4 at 22, 5 at 9 and 6 at 1. Whether a 5 is a fifth element or an overcount is not known. No run has a true count per load.
+- **With the re-arm at 4 it was still low** (thirteen logs of 2026-11-18, the first with a true number for each load: CS2 at the top of the feed ramp sees every element a salvo launches, section 6). 208 loads, 186 of them 4, the count capped at 4 as the robot uses it: right at 198, low at 8, high at 2.
+- **The present levels (rise 7 on one sample, re-arm 5; 2026-11-19) are judged by replay only.** On the same 208 loads: right at 204, low at 2, high at 2, and all 140 loads of the Launch Grid Tuner runs right. The same result comes from tuning on the TeleOps and testing on the tuner runs, or the other way round. Four loads stay wrong under every setting of the rule: their signals look like those of loads with another true number.
+- **The price is more overcounting where elements pile up.** Uncapped, the count reads 5 for about one load of 4 in twelve. That does no harm once 4 are aboard, but an extra count that comes before the fourth element shows FULL one early. On the older recordings: the hand-fed study gives 33 to 34 for 31 fed, and the 15:22 TeleOp of 2026-11-14, a run of pile-ups, 40 where the re-arm at 4 gave 29.
+- Tried on the same loads and worse: a re-arm on a dip measured against the peak (high at 67 at best), and taking an element that rests under the sensor as a sign of a full track (it rests there in about a quarter of the loads of 4 and of the loads of 3 alike).
 - An entry whose moment falls while the intake runs OUT, or within 0.4 s after, is not counted (section 2.5). After a short OUT by the operator this dropped real entries: 11 in the ten runs.
 - Elements that touch closely enough that the signal stays above the re-arm level still count once.
 - The signal level depends on how the sensor is mounted.
@@ -305,12 +308,12 @@ Two further guards exist and are switched off: requiring the slot count to agree
 
 - Slot count: used at Hartland with four sensors. With three (CS2 moved to the feed ramp after the runs of 2026-11-17, section 1.8): built 2026-11-18, not run.
 - CS2 at the top of the feed ramp: recorded through every salvo since 2026-11-18 (section 6.1), not run. Nothing counts launches yet.
-- Entry count: added after Hartland. Peak counting and a first version of the FULL actions ran in practice on 2026-11-14. Edge counting, the count as the robot's only count, the count carried between opmodes and the FULL sequence ran in ten practice TeleOps on 2026-11-17 (six in count-only mode, four acting on FULL), with the re-arm at 2. The re-arm at 4 (2026-11-18) has not run. What the FULL sequence did in those runs has not been examined beyond the count.
+- Entry count: added after Hartland. Peak counting and a first version of the FULL actions ran in practice on 2026-11-14. Edge counting, the count as the robot's only count, the count carried between opmodes and the FULL sequence ran in ten practice TeleOps on 2026-11-17 (six in count-only mode, four acting on FULL), with the re-arm at 2. The re-arm at 4 ran in thirteen logs on 2026-11-18. Rise 7 on one sample with the re-arm at 5 (2026-11-19) has not run. What the FULL sequence did in those runs has not been examined beyond the count.
 - Kinds and the load order: built 2026-11-17 from the one recorded run that holds CS5's color (31 pollen). Not run on the robot, and never tried on nectar.
 
 ## 4. Verification by replay
 
-The counting rule is one pure piece of logic with no robot dependencies, so recorded proximity traces can be replayed through exactly the code the robot runs. A PC check does this against recorded runs with known answers (a hand-fed run of 31 elements, also thinned to the robot's 25 ms; TeleOp runs with known loads) and against the driven loads of three of the 2026-11-17 runs, where the slots give the least each load can have held. Any change to the rule should be replayed before it goes on the robot.
+The counting rule is one pure piece of logic with no robot dependencies, so recorded proximity traces can be replayed through exactly the code the robot runs. A PC check does this against recorded runs with known answers (a hand-fed run of 31 elements, also thinned to the robot's 25 ms; TeleOp runs with known loads) against the driven loads of three of the 2026-11-17 runs, where the slots give the least each load can have held, and against the 208 loads of 2026-11-18 whose true number is known from CS2. Any change to the rule should be replayed before it goes on the robot.
 
 The kind rule and the pass logic are a second pure piece, checked the same way: the recorded pollen run is replayed with the color taken only on the reads where the robot would take it, at 20 ms and thinned to 25 ms (30 of its 31 entries are named pollen, the other is unknown, none is named nectar), and made-up signals cover the nectar kinds, a parked element, touching elements and a pass with no entry. The nectar cases are made up, so they check the logic and not the limits.
 
@@ -335,10 +338,10 @@ The kind rule and the pass logic are a second pure piece, checked the same way: 
 
 - The two guards that sit switched off beside the count (slot agreement before FULL; a reset when the slots read 0) are still in the code. They go when the entry count has run in a match.
 - The slot count's own windows for "full" (section 1.3) are still computed. They are only used with the switch off.
-- **The count ran low in its first runs** (section 2.7), so a load could reach five. The re-arm level was raised for that on 2026-11-18; elements that touch closely still count once. The answer to that is in the counting rule and in how the sensor is mounted, not in a second count.
+- **The count ran low in its first runs** (section 2.7), so a load could reach five. The re-arm level was raised for that on 2026-11-18 and again on 2026-11-19; elements that touch closely still count once. The answer to that is in the counting rule and in how the sensor is mounted, not in a second count.
 - The counter was characterized with pollen only; it needs a check with nectar. The kinds (section 2.8) need the same run.
 
-**Waits on** a run with the re-arm at 4 and a true count per load (someone counting what each salvo launches). The switch is the way back.
+**Waits on** a run with the present levels. The true number of each load now comes from CS2 in every log (section 6), so no one has to count. The switch back to the slot count no longer gives a working "full" (section 1.8).
 
 ## 6. Target T11: CS2 counts what a salvo launches
 

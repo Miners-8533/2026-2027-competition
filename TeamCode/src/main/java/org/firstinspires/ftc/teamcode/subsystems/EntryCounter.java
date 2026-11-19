@@ -58,16 +58,18 @@ public final class EntryCounter {
      * EDGE counting (2026-11-15, the user's idea; replaces the peaks): an entry is the RISE of the proximity to EDGE_HI counts above the empty level (held for EDGE_CONFIRM samples), counted at the rise (about 50 ms after, not 0.5 s as the peaks),
      * and the next one needs the signal back at EDGE_LO or lower. A persistent element, its wiggles and its ringing are one entry. USE_EDGE false goes back to the peaks (PROMINENCE, MERGE_*, VALLEY_MAX). Read when the thread starts.
      *
-     * EDGE_LO 4 since 2026-11-18 (2 before; not run on the robot with 4). The first robot runs (ten TeleOps of 2026-11-17) showed that a driven load comes in as one burst of about a second whose dips
-     * between the elements stay at +3 to +5, so with a re-arm at +2 the count read under 4 at 19 of the 37 salvos where all four slots read pollen (COUNT ONLY, loads from an emptied track). Replayed
-     * with a re-arm at +4: under 4 at 5 of them, 4 at 22, 5 at 9, 6 at 1; the hand-fed study gives 32 for 31 fed. A re-arm at +5 overcounts (the 15:22 TeleOp of 2026-11-14 goes from 25 to 50; 29 at +4).
-     * EDGE_HI stays 6: a rise of +7 reads the same on the driven loads but, at the robot's 25 ms, loses 1 to 3 of the study's 31 hand-fed elements (the weak ones are at +7 for one sample). The slots are
-     * only a lower limit, so whether the fives are fifth elements or overcounts is not known. tools/entry/run-check.cmd replays all of it.
+     * EDGE_HI 7, EDGE_LO 5 and EDGE_CONFIRM 1 since 2026-11-19 (6, 4 and 2 before; not run on the robot with these). History: 6 / 2 / 2 undercounted in its first robot runs (2026-11-17: a
+     * driven load comes in as one burst whose dips stay at +3 to +5), so the re-arm went to 4 on 2026-11-18. The runs of 2026-11-18 then gave a true number for every load: CS2, at the top of the feed
+     * ramp, sees each element a salvo launches. 208 loads (186 of them 4), the count capped at the capacity as the robot uses it: 6 / 4 / 2 was right at 198, low at 8, high at 2; a re-arm at 5 is right
+     * at 204, low at 2, high at 2, whatever the rise (the Launch Grid Tuner's 140 loads all right), tuned on the TeleOps and tested on the tuner runs or the other way round. The rise is 7 on ONE
+     * sample because of the older recordings: 6 against a re-arm of 5 leaves one count between them and chatters on an element lying at that height (the 15:22 TeleOp of 2026-11-14: 50 entries where
+     * 4 gave 29; 7 on one sample gives 40), and 7 held for two samples loses weak hand-fed elements at the robot's 25 ms (30 to 32 of the study's 31; one sample gives 33 to 34). A re-arm on a
+     * dip relative to the peak was tried on the same loads and overcounts badly (67 high at best). Four loads stay wrong under every setting. tools/entry/run-check.cmd replays all of it.
      */
     public static boolean USE_EDGE = true;
-    public static double EDGE_HI = 6.0;
-    public static double EDGE_LO = 4.0;
-    public static int EDGE_CONFIRM = 2;
+    public static double EDGE_HI = 7.0;
+    public static double EDGE_LO = 5.0;
+    public static int EDGE_CONFIRM = 1;
     /**
      * (EntryPipeline, 2026-11-14) A peak whose VALLEY (the lowest point before it) is more than this many counts above the empty level is rejected. OFF (100000) since 2026-11-14 (user): it rejected the wiggles of elements
      * parked under the sensor after a pile-up (valleys +4 to +8; the valley rule at 3 gave 18 entries on the 14:16 TeleOp, 15 of them right), but the robot now goes OUT when full, which removes that case, and tight groupings
