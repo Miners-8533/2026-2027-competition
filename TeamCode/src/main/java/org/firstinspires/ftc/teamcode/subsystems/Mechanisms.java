@@ -138,6 +138,13 @@ public class Mechanisms {
     public static double CHECK_SETTLE_SEC = 0.4;
     /** After a pusher check, the sensors are kept out of the element count this long (the arm leaving their view reads as an element). */
     public static double CHECK_COUNT_HOLDOFF_SEC = 0.8;
+    /**
+     * (2026-11-18, user) When the pusher check is skipped because the robot did not read empty, the arm is left resting past HOLD (the 2026-11-18 20:58 TeleOp: after a salvo it rested 70 deg past HOLD, CS4 read it as an element for 14 s,
+     * the check gave up, and the next load went in against an arm 73 deg past HOLD: the first element parked under CS5 and the salvo from there left one behind). With this on, the arm is then REVERSED to the nearest HOLD behind it (the same
+     * reverse as unlocking the lock; never forward, which would sweep the elements into the flywheel). Only when the arm rests more than the HOLD tolerance and at most REHOME_MAX_PAST_DEG past a HOLD, with the robot idle and no lock.
+     */
+    public static boolean REHOME_AFTER_SKIPPED_CHECK = true;
+    public static double REHOME_MAX_PAST_DEG = 130.0;
     /** With auto target on, the target cell switches only when the other cell is this much closer (so it does not flip-flop midway). */
     public static double AUTO_TARGET_HYSTERESIS_IN = 6.0;
     /** The arm is "near CS4" (an unclassified reading there is the arm, not an element) from this far behind HOLD to this far past it, degrees. Measured loosely: see design/integration-plan.md. */
@@ -223,6 +230,8 @@ public class Mechanisms {
     private Intake.Mode prevIntakeMode = null;
     private boolean prevManualOuttake = false;
     private boolean checkPending = false;
+    /** The arm is being reversed to HOLD after a skipped pusher check (REHOME_AFTER_SKIPPED_CHECK). */
+    private boolean rehoming = false;
     private boolean startupCheckConsidered = false;
     private final ElapsedTime checkTimer = new ElapsedTime();
 
@@ -425,7 +434,7 @@ public class Mechanisms {
     private String lockRefusal(boolean fromRestingArm) {
         if (pusher == null || !pusher.isCalibrated()) return "the pusher is missing or not calibrated";
         if (counter == null) return "there is no element counter";
-        if (launchQueued || salvoActive || rejectActive || manualOuttake || manualCalibration) return "the robot is busy";
+        if (launchQueued || salvoActive || rejectActive || manualOuttake || manualCalibration || rehoming) return "the robot is busy";
         if (pusher.isStalled()) return "the pusher is faulted";
         // a move that gave up (a jam, or the timeout) leaves the arm where it stuck: a lock seek from there goes into the same jam, and with the count put back after a salvo that gave up
         // (salvoNotCompleted) FULL would start one after another; the next salvo or reject clears it
@@ -442,6 +451,23 @@ public class Mechanisms {
             return "the arm is not at HOLD (it is " + String.format(Locale.US, "%.0f", pusher.getAnglePastHoldDeg()) + " deg past it)";
         }
         return null;
+    }
+
+    /** The pusher check was skipped because the robot did not read empty: reverse the arm to the HOLD behind it when it rests past HOLD (see REHOME_AFTER_SKIPPED_CHECK). */
+    private void startRehomeAfterSkippedCheck() {
+        if (!REHOME_AFTER_SKIPPED_CHECK || pusher == null || !pusher.isCalibrated()) return;
+        if (launchQueued || salvoActive || rejectActive || manualOuttake || manualCalibration || counterOverride) return;
+        if (lockState != LockState.NONE || pusher.isStalled() || pusher.isGaveUp() || !pusher.isStopped()) return;
+        double past = pusher.getAnglePastHoldDeg();
+        if (past <= Pusher.HOLD_TOLERANCE_DEG) return;   // at HOLD, or short of it (a reverse cannot help)
+        if (past > REHOME_MAX_PAST_DEG) {
+            RunLog.event(String.format(Locale.US, "PUSHER RE-HOME not done: the arm rests %.0f deg past HOLD, more than %.0f (a reverse that far could push elements out)", past, REHOME_MAX_PAST_DEG));
+            return;
+        }
+        RunLog.event(String.format(Locale.US, "PUSHER RE-HOME: the check was skipped and the arm rests %.1f deg past HOLD (%s): reversing to HOLD", past, heldText()));
+        pusher.startUnlock();
+        rehoming = pusher.getState() == Pusher.State.SEEK;
+        RunLog.event("PUSHER RE-HOME " + pusher.getLastCommand());
     }
 
     private void beginLock(String why) {
@@ -1136,8 +1162,20 @@ public class Mechanisms {
             // the intake may be running (the operator's toggle, or the ramp deployed): the check still runs, and aborts if an element shows up
             boolean busy = launchQueued || salvoActive || rejectActive || manualOuttake || counterOverride || pusher.isStalled();
             boolean counterOk = counter != null && counter.isValid();
-            counter.ignoreArmSensorCount(pusherCheck.isActive());
+            counter.ignoreArmSensorCount(pusherCheck.isActive() || rehoming);
             counter.ignoreAllCount(pusherCheck.isSweeping());   // the arm passes CS1 to CS3 in a sweep and reads as an element there
+            if (rehoming) {
+                if (pusher.isStalled() || pusher.isGaveUp() || launchQueued || salvoActive || rejectActive || manualOuttake) {
+                    rehoming = false;
+                    pusher.cancelMove();
+                    RunLog.event("PUSHER RE-HOME stopped: " + (launchQueued || salvoActive || rejectActive || manualOuttake ? "the robot is busy again" : "the pusher faulted or gave up")
+                            + " (the arm is " + String.format(Locale.US, "%.1f", pusher.getAnglePastHoldDeg()) + " deg past HOLD)");
+                } else if (pusher.isStopped()) {
+                    rehoming = false;
+                    counter.ignoreCountFor(CHECK_COUNT_HOLDOFF_SEC);
+                    RunLog.event("PUSHER RE-HOME done: the arm is " + String.format(Locale.US, "%.1f", pusher.getAnglePastHoldDeg()) + " deg past HOLD");
+                }
+            }
             if (pusherCheck.isActive()) {
                 if (busy) pusherCheck.abort("the robot is busy again");
                 else if (counterOk && counter.count() > 0) pusherCheck.abort("an element is in the robot");
@@ -1155,6 +1193,7 @@ public class Mechanisms {
                 } else if (checkTimer.seconds() > CHECK_WAIT_SEC) {
                     checkPending = false;
                     RunLog.event("PUSHER CHECK skipped: the robot did not read empty within " + CHECK_WAIT_SEC + " s");
+                    startRehomeAfterSkippedCheck();
                 }
             }
             if (pusherCheck.takeFinished()) counter.ignoreCountFor(CHECK_COUNT_HOLDOFF_SEC);
