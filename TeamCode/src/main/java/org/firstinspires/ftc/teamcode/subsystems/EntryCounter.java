@@ -165,6 +165,7 @@ public final class EntryCounter {
     private volatile boolean running = false;
     private volatile boolean started = false;
     private volatile boolean disabled = false;
+    private volatile boolean paused = false;
     private volatile String baselineNote = "";
     private volatile double baseline = Double.NaN, sigma = Double.NaN;
     private volatile long rejected = 0L;
@@ -240,6 +241,18 @@ public final class EntryCounter {
         else if (!running) restart();
     }
 
+    /**
+     * No CS5 reads while true (2026-11-19, user): Mechanisms pauses it through a salvo, when the intake count is not needed and the CS2 launch reads take the hub time the main loop waits for. About 1 % of the
+     * entries (8 of 899 in the TeleOp logs of 11-14 to 11-17) came in a salvo; they are not counted. When the reads resume the rule is not armed until the signal is back at the empty level (EntryPipeline.resync).
+     */
+    public void setPaused(boolean pause) {
+        paused = pause;
+    }
+
+    public boolean isPaused() {
+        return paused;
+    }
+
     /** This opmode reads CS5 itself: the thread will not start (and stops if it is running). */
     public void disable() {
         disabled = true;
@@ -300,9 +313,21 @@ public final class EntryCounter {
         long lastStart = 0L;
         int consecutiveErrors = 0;
         int colorFailsInARow = 0, idleReads = 0;
+        boolean wasPaused = false;
         while (running) {
             long t0 = System.nanoTime();
             if ((t0 - lastTouchNs) / 1e9 > IDLE_EXIT_SEC) break;   // the opmode is over
+            if (paused) {
+                wasPaused = true;
+                LockSupport.parkNanos(5_000_000L);   // not reading: the hub is the main loop's (and CS2's) for now
+                next = System.nanoTime();
+                continue;
+            }
+            if (wasPaused) {
+                wasPaused = false;
+                pipe.resync();
+                lastStart = 0L;   // the gap is not a late sample
+            }
             try {
                 // the color rides on the same transaction as the proximity (a burst in place of the 2-byte read): while an element is in front, through the first second (the empty color level), and
                 // one read in IDLE_COLOR_EVERY with nothing in front
@@ -439,7 +464,7 @@ public final class EntryCounter {
 
     /** True when the thread has produced a sample in the last 0.5 s. */
     public boolean isHealthy() {
-        return started && running && (System.nanoTime() - lastSampleNs) / 1e9 < 0.5;
+        return started && running && (paused || (System.nanoTime() - lastSampleNs) / 1e9 < 0.5);
     }
 
     public long errors() {

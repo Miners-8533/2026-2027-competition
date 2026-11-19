@@ -1023,6 +1023,8 @@ public class Mechanisms {
 
         if (entries != null) {
             entries.touch();   // starts the thread on the first call (nothing is read in INIT) and keeps it alive
+            if (entries.isPaused() != salvoActive) RunLog.event(salvoActive ? "CS5 ENTRY COUNTER paused for the salvo (no reads; counting resumes when the signal is back at the empty level)" : "CS5 ENTRY COUNTER reads again after the salvo");
+            entries.setPaused(salvoActive);   // no CS5 reads through a salvo: the hub goes to the CS2 launch reads and the main loop (2026-11-19)
             updateEntries();
         }
         if (launchSensor != null) {

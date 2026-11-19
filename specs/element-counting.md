@@ -374,7 +374,7 @@ The launch count does not declare FULL. It arrives after the elements have gone.
 | Stage | What | Changes behavior | State |
 |---|---|---|---|
 | 1 | **CS2 leaves the slot count** (section 1.8) | yes: the slot count reads at most 3 | built 2026-11-18, not run |
-| 2 | **Record.** CS2 is read fast through every salvo and every sample is logged (section 6.1). The team wanted the data from the competition TeleOp, so this is in the match opmodes and not in a study opmode | only the loop time during a salvo | built 2026-11-18, not run |
+| 2 | **Record.** CS2 is read fast through every salvo and every sample is logged (section 6.1). The team wanted the data from the competition TeleOp, so this is in the match opmodes and not in a study opmode | only the loop time during a salvo | built 2026-11-18, not run; 2026-11-19: read every 25 ms (was 12.5, 75 % of the hub) and 0.1 s past the salvo (was 0.6), from replaying 324 salvos: the launch peaks are 25 to 50 ms wide, the count holds at 25 ms with peak rule rise 5 / prominence 3, not at 37.5 ms; the last peak is 0.27 s or more before SALVO done |
 | 3 | **Count in shadow.** A rule made from the recordings counts in the match opmodes and is logged beside the held count at every salvo. Nothing acts on it | no more than stage 2 | not built: needs recordings |
 | 4 | **Use it:** the launched tally, what is still held after a salvo, and a warning for a salvo that launched fewer than were held | yes | not built |
 

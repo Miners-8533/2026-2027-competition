@@ -31,12 +31,18 @@ public final class LaunchSensor {
 
     /** False: the thread reads nothing (CS2 is then not read by anything). Read live. */
     public static boolean ENABLED = true;
-    /** Time between the starts of two reads in a fast stretch, ms. A FIRST VALUE (the sensor has a new value every 6.25 ms; a read takes about 3 ms alone and about 6 ms queued behind the main loop). Read live. */
-    public static double PERIOD_MS = 12.5;
+    /**
+     * Time between the starts of two reads in a fast stretch, ms. 25 since 2026-11-19 (was 12.5, which held the hub 73 to 80 % of every salvo: ten ms per read, the main loop waited behind it). The 324 salvos
+     * recorded at 12.5 ms, thinned to 25 ms, give the same launch count as at 12.5 in 323 with the peak rule rise 5 / prominence 3 (a launch peak is 25 to 50 ms wide); 37.5 ms fails in a third. Read live.
+     */
+    public static double PERIOD_MS = 25.0;
     /** Time between two reads outside a fast stretch, ms. Read live. */
     public static double IDLE_PERIOD_MS = 250.0;
-    /** The fast stretch goes on this long after the salvo is over (the arm coming to rest, an element that left late). Read live. */
-    public static double TAIL_SEC = 0.6;
+    /**
+     * The fast stretch goes on this long after the salvo is over. 0.1 since 2026-11-19 (was 0.6): in the 324 recorded salvos the last launch peak came 0.27 to 0.50 s BEFORE "SALVO done" (the arm
+     * is still turning, the elements have left). Read live.
+     */
+    public static double TAIL_SEC = 0.1;
     /** The thread ends when touch() has not been called for this long (the opmode ended); a touch() after that starts it again. */
     public static double IDLE_EXIT_SEC = 1.5;
     /** The empty level is the median of this many of the latest idle samples. */

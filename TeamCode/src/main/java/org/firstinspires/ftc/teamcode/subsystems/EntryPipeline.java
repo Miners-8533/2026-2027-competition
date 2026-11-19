@@ -133,6 +133,17 @@ public final class EntryPipeline {
         return out;
     }
 
+    /**
+     * The samples stopped for a while (EntryCounter pauses the CS5 reads during a salvo, 2026-11-19) and an element may have come to rest in front of the sensor meanwhile: the rule counts nothing
+     * until the signal has been back at the empty level + lo, as after an entry. The empty level and the baseline are kept.
+     */
+    public void resync() {
+        if (!edgeMode) return;
+        edgeArmed = false;
+        edgeAbove = 0;
+        edgeStuckSince = Double.NaN;
+    }
+
     /** Closes whatever is pending (the end of a run). */
     public List<EntryGrouper.Entry> flush() {
         return grouper.flush();
