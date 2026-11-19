@@ -22,11 +22,13 @@ import org.firstinspires.ftc.teamcode.drive.PoseStorage;
 import org.firstinspires.ftc.teamcode.drive.TargetLock;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
+import org.firstinspires.ftc.teamcode.drive.LaunchEquation;
 import org.firstinspires.ftc.teamcode.drive.LaunchGridMap;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
 import org.firstinspires.ftc.teamcode.subsystems.LaunchMap;
+import org.firstinspires.ftc.teamcode.subsystems.LaunchMethod;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 import org.firstinspires.ftc.teamcode.util.LoopProfiler;
@@ -154,6 +156,12 @@ public class TeleOpCompetition extends LinearOpMode {
      * AUTO_LAUNCH_WHEN_FULL); false = COUNT ONLY (the count is shown and logged, nothing acts on it: the intake is always IN, no lock on FULL, no auto-launch from FULL, as at Hartland). Default ON.
      */
     public static boolean FULL_AUTO = true;
+    /**
+     * (2026-11-18, user) The launch method, chosen at INIT with gamepad 1 Y (it cycles the three; the choice is kept until the app restarts) and used from Start: the 1-D launch map with
+     * the formula aim (the default, and what the autos always use), the 2-D launch grid, or the launch equation ({@link LaunchMethod}). During a run the operator's left bumper + A
+     * cycles the method in use (a practice control); that does not change this value.
+     */
+    public static LaunchMethod LAUNCH_METHOD = LaunchMethod.MAP;
     private static final double DRIVE_LOCK_MAX_SEC = 2.0;
 
     /** An auto pose older than this is ignored (a leftover from an earlier run). */
@@ -222,18 +230,19 @@ public class TeleOpCompetition extends LinearOpMode {
                         + "launcher offset %+.1f in + far-cell extra %+.1f in, predicted miss %+.1f in (against the launcher offset alone), setpoint %.0f (trim %+.0f), lock %s, remembered nudge %+.1f deg | %s",
                 blue ? "BLUE" : "RED", pose.position.x, pose.position.y, pose.heading.toDegrees(), t, t.x, t.y, dist, Math.toDegrees(bearing),
                 Math.toDegrees(err), targetLeftIn, TargetLock.LAUNCHER_OFFSET_LEFT_IN, TargetLock.farCellExtraLeftIn(t, blue), miss, mechanisms.getLastSetpoint(), mechanisms.getSpeedTrim(),
-                lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off", cellNudgeDeg[t.ordinal()], gridSummary(t, pose, blue, mechanisms.isGridOn()));
+                lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off", cellNudgeDeg[t.ordinal()], gridSummary(t, pose, blue, mechanisms.getLaunchMethod()));
     }
 
-    /** What the 2-D launch grid says for this launch beside what the formula and the launch map say (branch launch-grid-2d); used or logged only, by the operator's toggle (Mechanisms.USE_LAUNCH_GRID is its state at the start). */
-    private static String gridSummary(HiveTarget t, Pose2d pose, boolean blue, boolean gridOn) {
+    /** What each launch method says for this launch, and which one is in use (LAUNCH_METHOD at Start, then the operator's cycle): the 2-D launch grid, the formula aim and the launch map, the launch equation. */
+    private static String gridSummary(HiveTarget t, Pose2d pose, boolean blue, LaunchMethod method) {
         LaunchGridMap.Result g = LaunchGridMap.lookup(t, pose.position.x, pose.position.y);
         double bearing = Math.toDegrees(Math.atan2(t.y - pose.position.y, t.x - pose.position.x));
         double formulaAim = Math.toDegrees(TargetLock.aimHeadingRad(pose.position.x, pose.position.y, t, TargetLock.farCellExtraLeftIn(t, blue)));
         double dist = t.distanceFrom(pose);
         String mapSpeed = LaunchMap.isEmpty() ? "map empty" : String.format(Locale.US, "map %.0f ticks/s", LaunchMap.velocityFor(dist));
-        return String.format(Locale.US, "GRID (%s) %s | formula aim %.1f deg%s | %s", gridOn ? "USED where it has data" : "logged only", g.describe(), formulaAim,
-                g.hasValues() ? String.format(Locale.US, ", grid aim %.1f deg (bearing %.1f %+.1f)", bearing + g.residualDeg, bearing, g.residualDeg) : "", mapSpeed);
+        return String.format(Locale.US, "METHOD %s | GRID (%s) %s | formula aim %.1f deg%s | %s | EQUATION (%s) %s", method.label, method == LaunchMethod.GRID ? "USED where it has data" : "logged only", g.describe(), formulaAim,
+                g.hasValues() ? String.format(Locale.US, ", grid aim %.1f deg (bearing %.1f %+.1f)", bearing + g.residualDeg, bearing, g.residualDeg) : "", mapSpeed,
+                method == LaunchMethod.EQUATION ? "USED" : "logged only", LaunchEquation.describe(t, pose.position.x, pose.position.y));
     }
 
     private static String gridColumns(Mechanisms m) {
@@ -299,7 +308,6 @@ public class TeleOpCompetition extends LinearOpMode {
         // The ramp is NOT commanded in INIT: the servos sag when the auto ends, the auto may leave the ramp stuck or deployed, and G403 allows no
         // powered movement in the transition. It is stowed once, at Start. (The intake, flywheel and pusher constructors only set power 0.)
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE, false);
-        mechanisms.setGridAllowed(true);   // the 2-D launch grid (Mechanisms.USE_LAUNCH_GRID, off by default, is the state it starts in; the operator's LB + A toggles it)
         // The CS5 held count continues from the last opmode (2026-11-17, user: remember the count from the auto to the TeleOp and through an unexpected TeleOp restart). CS5 only sees elements
         // come in, so a count that started at 0 read low until the first salvo. The autos and this TeleOp save it every loop (PoseStorage.saveHeld); it is used while it is as fresh as a saved pose
         // must be. D-pad up in INIT discards it together with the saved pose. Nothing can be counted while no opmode runs: an element that rolled in or out since the save is missed.
@@ -326,6 +334,7 @@ public class TeleOpCompetition extends LinearOpMode {
 
         while (!isStarted() && !isStopRequested()) {
             if (gamepad1.xWasPressed()) FULL_AUTO = !FULL_AUTO;   // INIT only: FULL AUTO <-> COUNT ONLY
+            if (gamepad1.yWasPressed()) LAUNCH_METHOD = LAUNCH_METHOD.next();   // INIT only: the launch method, 1-D launch map -> 2-D launch grid -> launch equation -> ...
             if (gamepad1.dpadUpWasPressed() && (useAutoPose || heldSaved)) {   // discard what the last opmode saved: the pose and the CS5 held count
                 if (useAutoPose) {
                     useAutoPose = false;
@@ -391,6 +400,7 @@ public class TeleOpCompetition extends LinearOpMode {
             if (mechanisms.rampPositionUnknown()) telemetry.addData("Ramp", "position unknown: not commanded in INIT, it stows when you press Start");
             telemetry.addData("CS5 FULL (gamepad 1 X toggles)", FULL_AUTO ? "FULL AUTO: a FULL (4 entered) stops the intake, locks the pusher, runs the intake OUT and arms the auto-launch"
                     : "COUNT ONLY: the count is shown, nothing acts on FULL (intake always IN, as at Hartland)");
+            telemetry.addData("Launch method (gamepad 1 Y cycles)", "%s: %s", LAUNCH_METHOD.label, LAUNCH_METHOD.detail);
             if (aimsRestored) {
                 telemetry.addData("Remembered aim", "continued from the last TeleOp: rear %+.0f, audience %+.0f deg (D-pad up discards it with the pose)",
                         cellNudgeDeg[(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_REAR).ordinal()], cellNudgeDeg[(blue ? HiveTarget.BLUE_AUDIENCE : HiveTarget.RED_AUDIENCE).ordinal()]);
@@ -433,6 +443,7 @@ public class TeleOpCompetition extends LinearOpMode {
         mechanisms.setIntakeAlwaysOn(true);        // the intake is always IN, whatever the count and the pusher lock say; only the operator's left trigger and a reject run it OUT
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
         mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
+        mechanisms.setLaunchMethod(LAUNCH_METHOD, "chosen at INIT");   // the speed and the aim of every launch: the 1-D launch map and the formula, the 2-D launch grid or the launch equation
 
         RunLog.event("SETUP CS5 FULL mode: " + (FULL_AUTO ? "FULL AUTO (the intake / lock / auto-launch act on FULL)" : "COUNT ONLY (the count is shown and logged, nothing acts on FULL)"));
         RunLog.event(String.format("SETUP profile %s, alliance %s, start pose %s (%.1f, %.1f, %.1f deg), driver forward %.0f deg; %s",
@@ -618,9 +629,11 @@ public class TeleOpCompetition extends LinearOpMode {
                             pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
                 }
                 long profiledLock = LoopProfiler.start();
-                // the 2-D launch grid's aim (branch launch-grid-2d), only while the grid is on (operator LB + A) and only where it has data; else the formula
-                LaunchGridMap.Result gridAim = mechanisms.isGridOn() ? LaunchGridMap.lookup(lockTarget, pose.position.x, pose.position.y) : null;
-                double gridResidual = gridAim != null && gridAim.hasValues() ? gridAim.residualDeg : Double.NaN;
+                // the aim of the launch method in use: the 2-D launch grid's (only where it has data) or the launch equation's, as a residual on the bearing; else (NaN) the formula
+                LaunchMethod aimMethod = mechanisms.getLaunchMethod();
+                LaunchGridMap.Result gridAim = aimMethod == LaunchMethod.GRID ? LaunchGridMap.lookup(lockTarget, pose.position.x, pose.position.y) : null;
+                double gridResidual = gridAim != null && gridAim.hasValues() ? gridAim.residualDeg
+                        : aimMethod == LaunchMethod.EQUATION ? LaunchEquation.residualDeg(lockTarget, pose.position.x, pose.position.y) : Double.NaN;
                 cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget,
                         TargetLock.farCellExtraLeftIn(lockTarget, blue), cellNudgeDeg[lockTarget.ordinal()], gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt, gridResidual);   // the nudge needs the left bumper held
                 LoopProfiler.stop("target_lock", profiledLock);
@@ -817,8 +830,8 @@ public class TeleOpCompetition extends LinearOpMode {
             boolean operatorB = gamepad2.bWasPressed();   // read every loop; the reject needs the left bumper held, so it cannot be set off by accident
             if (operatorB && gamepad2.left_bumper) mechanisms.requestReject();
             if (gamepad2.xWasPressed()) mechanisms.requestDeploy();
-            boolean operatorA = gamepad2.aWasPressed();   // read every loop; with the left bumper held it toggles the 2-D launch grid against the launch map and the formula aim (a test control: guarded so it cannot be hit by accident)
-            if (operatorA && gamepad2.left_bumper) mechanisms.toggleGrid();
+            boolean operatorA = gamepad2.aWasPressed();   // read every loop; with the left bumper held it cycles the launch method in use: 1-D launch map -> 2-D launch grid -> launch equation (a practice control: guarded so it cannot be hit by accident)
+            if (operatorA && gamepad2.left_bumper) mechanisms.setLaunchMethod(mechanisms.getLaunchMethod().next(), "operator LB + A");
             boolean operatorY = gamepad2.yWasPressed();   // read once: with the left bumper held, Y is the pusher calibration instead of the stow
             if (operatorY && gamepad2.left_bumper) mechanisms.requestPusherCalibration();
             else if (operatorY) mechanisms.requestStowNow();   // stow at once: no flower check
@@ -876,9 +889,13 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (driveHeld) screen.alert(CompetitionScreen.CYAN, "DRIVE HELD");
                 if (mechanisms.isEntryFull()) screen.alert(CompetitionScreen.CYAN, mechanisms.fullStatusText());
                 if (autoLaunchArmed && !autoLaunchOn) screen.alert(CompetitionScreen.CYAN, "AUTO-LAUNCH ARMED");
-                LaunchGridMap.Result gridNow = mechanisms.isGridOn() ? mechanisms.getGridResult() : null;   // only with the grid on: off, asking would look the grid up on every loop for nothing
-                if (mechanisms.isGridOn()) screen.alert(CompetitionScreen.CYAN, "LAUNCH GRID ON");
-                if (mechanisms.isGridOn() && gridNow != null && gridNow.zone == LaunchGridMap.Zone.NO_SHOT && (lockOn || mechanisms.isLaunchBusy())) screen.alert(CompetitionScreen.YELLOW, "NO SHOT ZONE");
+                LaunchMethod methodNow = mechanisms.getLaunchMethod();
+                if (methodNow != LaunchMethod.MAP) screen.alert(CompetitionScreen.CYAN, methodNow == LaunchMethod.GRID ? "LAUNCH GRID ON" : "LAUNCH EQUATION ON");
+                // the grid's no-shot zones warn under the launch equation too (the equation has none of its own); asked only while it matters: with the grid off this is a lookup of the grid
+                if (methodNow != LaunchMethod.MAP && (lockOn || mechanisms.isLaunchBusy())) {
+                    LaunchGridMap.Result gridNow = mechanisms.getGridResult();
+                    if (gridNow != null && gridNow.zone == LaunchGridMap.Zone.NO_SHOT) screen.alert(CompetitionScreen.YELLOW, "NO SHOT ZONE");
+                }
                 HiveTarget dashCell = hiveDash.cell();
                 if (dashCell != null) {
                     String dashName = dashCell.name().endsWith("REAR") ? "REAR" : "AUDIENCE";
@@ -918,7 +935,7 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Remembered aim (operator D-pad left / right)", "blue rear %+.1f, blue audience %+.1f, red rear %+.1f, red audience %+.1f deg   | speed trim %+.0f ticks/s (D-pad up / down)",
                     cellNudgeDeg[HiveTarget.BLUE_REAR.ordinal()], cellNudgeDeg[HiveTarget.BLUE_AUDIENCE.ordinal()], cellNudgeDeg[HiveTarget.RED_REAR.ordinal()],
                     cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()], mechanisms.getSpeedTrim());
-            telemetry.addData("Launch method (operator LB + A toggles)", mechanisms.isGridOn() ? "2-D LAUNCH GRID (speed and aim where it has data)" : "launch map + formula aim");
+            telemetry.addData("Launch method (chosen at INIT; operator LB + A cycles)", "%s: %s", mechanisms.getLaunchMethod().label, mechanisms.getLaunchMethod().detail);
             telemetry.addData("CS5 FULL mode", mechanisms.isEntryFullActionsOn() ? "FULL AUTO" : "COUNT ONLY");   // the mode in use (set at Start, and the Mechanisms master switch), as on the match screen; not the FULL_AUTO static, which the Dashboard can change after Start
             telemetry.addData("Auto-launch (operator RB toggles; FULL arms it)", backupMode ? "off (backup mode)" : autoLaunchOn ? "ON: " + autoLaunchState : autoLaunchArmed ? "ARMED BY FULL: " + autoLaunchState : "off");
             telemetry.addData("Hive Dash (driver D-pad left / right, held)", hiveDash.status());

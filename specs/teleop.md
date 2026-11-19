@@ -24,18 +24,19 @@ The x of the default start is computed from the wall position and the robot's or
 | D-pad right / left | choose BLUE / RED. Only when no saved pose is in use; a saved pose fixes the alliance |
 | D-pad up | discard what the last opmode saved: the pose (the default start is used, and the alliance choice then works), the remembered aims that went with it, and the CS5 held count (it starts at 0) |
 | X | switch between **FULL AUTO** and **COUNT ONLY** (default FULL AUTO; kept until the app restarts) |
+| Y | cycle the **launch method**: 1-D launch map (the default), 2-D launch grid, launch equation ([aiming.md](aiming.md) section 4.5; kept until the app restarts) |
 
 Changing the alliance or discarding the saved pose re-seeds the position on the device at once, without recalibrating its IMU.
 
 ### 1.3 INIT screen
 
-It reports: where the start pose came from and how old a saved pose is; the Pinpoint pose and whether it is acceptable; which mechanisms were found; the remembered aims, when they were continued; the CS5 held count it will start with, its load order ([element-counting.md](element-counting.md) section 2.8) and how old the save is; that the ramp position is unknown; what the flywheel position servo will do; the FULL mode; whether the slot count is reading; whether both gamepads are assigned; and a warning if no hub is registered.
+It reports: where the start pose came from and how old a saved pose is; the Pinpoint pose and whether it is acceptable; which mechanisms were found; the remembered aims, when they were continued; the CS5 held count it will start with, its load order ([element-counting.md](element-counting.md) section 2.8) and how old the save is; that the ramp position is unknown; what the flywheel position servo will do; the FULL mode; the launch method; whether the slot count is reading; whether both gamepads are assigned; and a warning if no hub is registered.
 
 The pose is **acceptable** when, after an adoption, the device reports READY, or, after a seed, the pose is within 1.5 in and 3 deg of the start pose and the seed was confirmed. After an adoption, a difference of more than 3 in or 5 deg from the saved pose is flagged for the drivers to check.
 
 ### 1.4 At Start
 
-In this order: stow the ramp; command the flywheel position to POLLEN; set the target cell to the one nearest the start; switch on "target follows the pose", "intake always on" and "flywheel runs from Start"; allow the FULL actions if FULL AUTO was chosen; allow the launch grid (off unless switched on). The setup is logged: profile, alliance, start pose, mechanisms found, FULL mode, gamepad assignment.
+In this order: stow the ramp; command the flywheel position to POLLEN; set the target cell to the one nearest the start; switch on "target follows the pose", "intake always on" and "flywheel runs from Start"; allow the FULL actions if FULL AUTO was chosen; set the launch method chosen at INIT. The setup is logged: profile, alliance, start pose, mechanisms found, FULL mode, launch method, gamepad assignment.
 
 ## 2. Controls
 
@@ -71,7 +72,7 @@ Neither controller uses Start or Back. The driver's stick buttons are unused. An
 | D-pad down / up | report: the last salvo landed LOW / HIGH |
 | Left bumper + D-pad left or right | clear the remembered aim of the last-launched cell |
 | Left bumper + D-pad up or down | clear the speed trim |
-| Left bumper + A | switch the launch grid on / off (a test control) |
+| Left bumper + A | cycle the launch method in use: 1-D launch map, 2-D launch grid, launch equation (a practice control; the INIT choice is what a run starts with) |
 
 There is no control for the intake (always in), the flywheel (always running), the target cell (always the nearer one), or the pusher lock.
 
@@ -104,7 +105,7 @@ Log lines mark the lock coming on (and why), becoming aligned, and going off.
 
 ## 5. Launching
 
-There are four ways a salvo is requested. Each logs a full aim line: pose, cell, distance, bearing, predicted miss, setpoint and trim, lock state, the remembered correction, and what the launch grid would say.
+There are four ways a salvo is requested. Each logs a full aim line: pose, cell, distance, bearing, predicted miss, setpoint and trim, lock state, the remembered correction, the launch method in use, and what the launch grid and the launch equation would say.
 
 1. **Driver A.** Launches at once, with any number of elements, locked or not. If the lock is on but not yet aligned, the launch **waits** for aligned, at most 1.5 s; it is dropped if the lock is released or the time passes.
 2. **Hive Dash**, on arrival ([dashes.md](dashes.md)).
@@ -213,7 +214,7 @@ The match screen uses the Driver Station's HTML display mode, which is the only 
 |---|---|
 | Red | `BACKUP MODE`, `PINPOINT FAULT`, `DRIVE WHEEL LB?` (a wheel drawing too little current), `FLYWHEEL LOST`, `FLY OPEN LOOP`, `PUSHER STALLED`, `PUSHER NOT CALIBRATED`, `PUSHER JAMMED` |
 | Yellow | `BACKUP IN 0.6 s` and `RESEED IN 0.4 s` (hold countdowns), `DASH REFUSED`, `PARK DASH REFUSED`, `CS5 NOT ANSWERING`, `PUSHER ZERO?`, `OPPONENT NECTAR: REJECT`, `COUNTER NOT READING`, `LAUNCH MAP EMPTY`, `NO SHOT ZONE`, any current notice (cut to 26 characters), `CHECK ROBOT (verbose)` for a warning with no alert of its own |
-| Cyan | `DRIVE HELD`, the FULL sequence step, `AUTO-LAUNCH ARMED`, `LAUNCH GRID ON` |
+| Cyan | `DRIVE HELD`, the FULL sequence step, `AUTO-LAUNCH ARMED`, `LAUNCH GRID ON`, `LAUNCH EQUATION ON` |
 
 The alerts are chosen from the coordinator's warning **codes**, not their wording. Four warnings are deliberately not shown: the Full warning (the count line already turns green), stow waiting, zero not verified yet, and the coordinator's own backup warning.
 

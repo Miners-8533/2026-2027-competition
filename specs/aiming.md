@@ -1,4 +1,4 @@
-# Aiming: target lock, auto-launch and the launch grid
+# Aiming: target lock, auto-launch, the launch grid and the launch equation
 
 How the robot points its launcher at a hive cell and decides when a launch may go. Launch speed is in [flywheel.md](flywheel.md); the field points are in [field.md](field.md).
 
@@ -76,7 +76,7 @@ The behavior built on the zones is the TeleOp's ([teleop.md](teleop.md)): inside
 
 **Purpose.** Replace "speed from distance, aim from a formula" with measured values per field position, because the best aim and speed vary with where the robot stands, not only how far it is.
 
-**Status:** built after Hartland from one tuning run for one cell; never used on the robot. It is off unless the operator switches it on in the TeleOp. The autos never use it.
+**Status:** built after Hartland from one tuning run for one cell; never used on the robot. It is used only when it is the launch method chosen in the TeleOp (section 4.5). The autos never use it.
 
 ### 4.1 Data
 
@@ -111,7 +111,7 @@ There is **no fallback to the formula** while the grid is on: wherever the grid 
 - During a Hive Dash it is looked up for the launch spot, not the current pose.
 - In backup mode it is not used.
 - While the lock is on or a launch is queued in a no-shot zone, the screen warns; the launch still goes.
-- Whether the grid is on or off, every launch request logs the grid's answer beside the formula's and the map's, so practice sessions compare them.
+- Whether the grid is on or off, every launch request logs the grid's answer beside the formula's, the map's and the launch equation's, so practice sessions compare them.
 
 ### 4.4 Which spots a grid contains
 
@@ -123,6 +123,26 @@ The spot generator (used by the tuning opmode) keeps a lattice point for a cell 
 4. the robot, turned to its aim heading there, overlaps no hive support or flower stand (with the route planner's margin) and fits inside the walls less 3 in.
 
 A point that fails only on a wall is slid toward the field center, up to 8 in: on each axis it is moved by as much as the robot's rectangle is over the limit, and that is repeated until it fits. The lattice is centered on the field with a 12 in pitch, giving about 30 spots per cell, visited as a serpentine sweep.
+
+### 4.5 Launch equation, and the launch method (2026-11-18, not run on the robot)
+
+**The launch method** says where the speed and the aim of a TeleOp launch come from. There are three, chosen at INIT (gamepad 1 Y cycles them; the default is the first) and cycled during a run by the operator's left bumper + A:
+
+| Method | Speed | Aim |
+|---|---|---|
+| 1-D launch map (default; the autos always use it) | the launch map, by distance ([flywheel.md](flywheel.md)) | the aim heading of section 1 |
+| 2-D launch grid | the grid (sections 4.1 to 4.3) | bearing + the grid's residual |
+| Launch equation | a quadratic in the distance | bearing + the equation's residual |
+
+**The launch equation** is two formulas fitted to the same measured spots the grid holds (the 21 good spots of the blue rear cell). It answers in the grid's form, a speed and an aim residual, and has no data table.
+
+- **Speed** = 1333.3 - 2.188 d + 0.07359 d^2 ticks/s, d = the distance to the cell in inches, with d held to 25 .. 82 in. Over the spots the speed depends on the distance only. Fit: 14 ticks/s rms, worst 24.
+- **Aim at the blue rear cell** = the aim heading of section 1 computed with the launcher offset alone (-2.5 in, no far-cell extra) toward a point 6.1 in deeper into the hive than the cell's point (toward X = 0), plus 6.0 deg (counterclockwise). Fit: 2.3 deg rms, worst 4.9. The two numbers are a curve fit, not a measurement of the robot.
+- **The other cells** follow the grid's rules. The red cells are the blue ones turned 180 deg about the field center. The blue audience cell is the rear cell mirrored about X = 0 keeping the ball's path: the launcher's line at the mirrored rear spot crosses the rear opening face at some y, and the robot aims its launcher line at that y on the audience face. It is a guess there, as the grid's seed is.
+- It has no no-shot zones: the grid's no-shot warning is shown under the launch equation too.
+- During a Hive Dash the speed is for the launch spot's distance. In backup mode it is not used.
+
+A PC check compares the equation with the grid's data spot by spot and fails when the fit is worse than 20 ticks/s or 3 deg rms, so a new tuning run that moves the data shows up as a failed check until the constants are refitted.
 
 ## 5. Target T1: drift is accepted, and allowed for in one place
 
