@@ -15,7 +15,7 @@ The one object every opmode talks to for the intake, flywheel, pusher, ramp and 
 | Intake always on | yes | yes | no |
 | Flywheel stops after a salvo | no (runs from Start) | no (runs from Start) | yes, 0.5 s after |
 | Target cell follows the pose | yes | no (each launch names its cell) | no |
-| FULL actions allowed | yes, if FULL AUTO was chosen at INIT | no | no |
+| FULL actions allowed | only if `FULL_AUTO` is set in the code (it is false) | no | no |
 | Launch grid allowed | yes | no | no |
 | Jam retries | 2 | 1 | 2 |
 | Ramp commanded at INIT | no | yes | yes |
@@ -136,7 +136,7 @@ The robot is **FULL** when 4 elements have entered, by the CS5 entry count, sinc
 
 The CS1 to CS4 count plays no part in declaring FULL: those sensors do not see every element when the track is crowded.
 
-FULL is always declared and logged. Whether anything **acts** on it depends on the opmode: the competition TeleOp in FULL AUTO mode acts; COUNT ONLY mode and every other opmode do not.
+FULL is always declared and logged. Whether anything **acts** on it depends on the opmode: the competition TeleOp acts only in FULL AUTO mode (off: the code's `FULL_AUTO` is false); COUNT ONLY mode and every other opmode do not.
 
 ### 7.2 The FULL sequence (TeleOp, FULL AUTO)
 

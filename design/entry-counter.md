@@ -84,7 +84,7 @@ Use the count for the intake stop at 4 (a fraction of a second after the 4th ele
 
 ## FULL AUTO / COUNT ONLY (2026-11-16)
 
-The automatic actions on a CS5 FULL are chosen at INIT of TeleOp - Competition with gamepad 1 X (`TeleOpCompetition.FULL_AUTO`, default true, kept until the app restarts):
+The automatic actions on a CS5 FULL are OFF by default (changed 2026-11-18, user: the choice at INIT with gamepad 1 X was removed and the default is COUNT ONLY). `TeleOpCompetition.FULL_AUTO` (false) turns them on, only in the code or on the Dashboard before Start:
 
 - **FULL AUTO**: FULL (4 entries since the last salvo or reject) runs the intake IN 0.1 s, OUT 0.1 s, stops it, locks the pusher, runs the intake OUT while locked (or clears a fifth under CS5), and arms the auto-launch.
 - **COUNT ONLY**: the count is shown on the driver screen (with a COUNT ONLY note) and logged (`ENTRY FULL ... COUNT ONLY`), nothing acts on it: the intake is always IN, no lock on FULL, no auto-launch from FULL, as at Hartland. The operator's own auto-launch toggle, the operator right trigger and the target-lock pusher lock work as before.

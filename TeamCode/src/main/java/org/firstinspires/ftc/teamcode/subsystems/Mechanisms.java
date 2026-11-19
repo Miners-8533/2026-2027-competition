@@ -8,7 +8,6 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.drive.LaunchEquation;
 import org.firstinspires.ftc.teamcode.drive.LaunchGridMap;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.util.LoopProfiler;
@@ -214,7 +213,7 @@ public class Mechanisms {
     private HiveTarget gridCell = null;        // the cell and spot of the last update, for getGridResult() (null before the first update)
     private double gridX = 0.0, gridY = 0.0;
     private boolean gridSpeedUsed = false;
-    private LaunchMethod launchMethod = LaunchMethod.MAP;   // only the TeleOp changes it (its INIT choice, then the operator's LB + A): the autos keep the launch map and their own aim
+    private boolean launchGridOn = false;   // only the TeleOp turns it on, at Start (2026-11-18, user): the speed and the aim come from the 2-D launch grid where it has data; the autos keep the 1-D launch map and their own aim
     private double lastSetpoint = 0.0;
 
     // for the run log
@@ -848,22 +847,17 @@ public class Mechanisms {
 
     /** The distance the launch speed was last worked out for (the open cell, the dash's spot or the backup mode's fixed distance), inches. For the competition screen. */
     /**
-     * The launch method (the TeleOp only: its INIT choice at Start, then the operator's cycle; the autos never call it, so they keep {@link LaunchMethod#MAP}): where the flywheel speed
-     * comes from here and the aim in the TeleOp's target lock. by: who changed it, for the log.
+     * The 2-D launch grid (the TeleOp turns it on at Start; the autos never call this, so they keep the 1-D launch map): the flywheel speed here and the aim in the TeleOp's target lock come from
+     * the grid's measured spots where it has data, and from the 1-D launch map and the formula aim everywhere else. by: who changed it, for the log.
      */
-    public void setLaunchMethod(LaunchMethod method, String by) {
-        if (method == null) return;
-        launchMethod = method;
-        RunLog.event("COMMAND launch method -> " + method.label + " (" + method.detail + ") (" + by + ")");
+    public void setLaunchGrid(boolean on, String by) {
+        launchGridOn = on;
+        RunLog.event("COMMAND launch speed and aim -> " + (on ? "2-D launch grid (the 1-D launch map and the formula aim where the grid has no data)" : "1-D launch map and formula aim") + " (" + by + ")");
     }
 
-    public LaunchMethod getLaunchMethod() {
-        return launchMethod;
-    }
-
-    /** True when the 2-D launch grid is the method in use now. */
+    /** True when the 2-D launch grid is in use. */
     public boolean isGridOn() {
-        return launchMethod == LaunchMethod.GRID;
+        return launchGridOn;
     }
 
     /** The 2-D launch grid's answer for the open cell from the pose of the last update (null before the first). */
@@ -1060,10 +1054,6 @@ public class Mechanisms {
         gridSpeedUsed = gridNow != null && gridNow.hasValues();
         if (gridSpeedUsed) {
             lastSetpoint = Math.max(0.0, gridNow.speed + speedTrim);
-            mapAvailable = true;
-        } else if (launchMethod == LaunchMethod.EQUATION && fixedDistanceIn <= 0.0) {
-            // the launch equation: its speed for the same distance the map would use (the pose's, or the Hive Dash's launch spot's); backup mode (no pose) keeps the launch map, like the grid
-            lastSetpoint = Math.max(0.0, LaunchEquation.speedFor(lastDistance) + speedTrim);
             mapAvailable = true;
         }
         // a dead flywheel encoder: no closed loop, so every launch is the same base power (Flywheel.LOST_BASE_SETPOINT) moved only by the speed trim
@@ -1682,7 +1672,6 @@ public class Mechanisms {
         telemetry.addData("Open cell / distance (in)", "%s / %.1f", openCell, lastDistance);
         telemetry.addData("Flywheel setpoint (ticks/s)", "%.0f   (%s)", lastSetpoint,
                 gridSpeedUsed ? String.format(Locale.US, "2-D launch grid %+.0f trim", speedTrim)
-                        : launchMethod == LaunchMethod.EQUATION && fixedDistanceIn <= 0.0 ? String.format(Locale.US, "launch equation %+.0f trim", speedTrim)
                         : useLaunchMap && !LaunchMap.isEmpty() ? String.format(Locale.US, "launch map %+.0f trim", speedTrim) : "manual");
         telemetry.addData("Pusher lock", lockText());
         telemetry.addData("Launch", launchQueued ? (flywheel != null && !flywheel.isInLaunchBand() ? "QUEUED, waiting: the flywheel is " + flywheel.launchBandState() : "QUEUED, starting") : salvoActive ? "SALVO running" : "idle");
