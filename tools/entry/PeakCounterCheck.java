@@ -15,6 +15,40 @@ import java.util.Locale;
  */
 public class PeakCounterCheck {
     static int failures = 0;
+    /** The edge rule's levels: keep them the same as EntryCounter.EDGE_HI and EDGE_LO (6 and 4 since 2026-11-18; 6 and 2 before). */
+    static final double EDGE_HI = 6.0, EDGE_LO = 4.0;
+
+    /**
+     * One 2026-11-17 COUNT ONLY TeleOp through the edge rule: the entries of every load that began on an emptied track and ended with all four slots reading pollen (so at least 4 were aboard; the
+     * slots are a lower limit, not the true number). Adds to tally: [0] loads, [1] under 4, [2] exactly 4, [3] exactly 5, [4] over 5.
+     */
+    static void drivenLoads(String dir, String run, double hi, double lo, int[] tally) throws Exception {
+        List<double[]> prox = readCsv(dir + "2026-11-17_" + run + "_teleop_cs5_proximity.csv", 2);
+        EntryPipeline pipe = EntryPipeline.edge(hi, lo, 2, 1.0);
+        List<Double> times = new ArrayList<>();
+        for (double[] sm : prox) for (EntryGrouper.Entry e : pipe.push(sm[0], sm[1])) times.add(e.time);
+        double prev = Double.NaN;
+        try (BufferedReader r = new BufferedReader(new FileReader(dir + "2026-11-17_" + run + "_salvos.csv"))) {
+            String line;
+            boolean header = true;
+            while ((line = r.readLine()) != null) {
+                if (line.startsWith("#") || line.trim().isEmpty()) continue;
+                if (header) {
+                    header = false;
+                    continue;
+                }
+                String[] p = line.split(",");
+                double t = Double.parseDouble(p[0]);
+                if (p[3].trim().equals("1") && p[1].equals("PPPP")) {
+                    int n = 0;
+                    for (double e : times) if (e >= prev + 1.3 && e < t) n++;
+                    tally[0]++;
+                    tally[n < 4 ? 1 : n == 4 ? 2 : n == 5 ? 3 : 4]++;
+                }
+                prev = t;
+            }
+        }
+    }
 
     static void check(boolean ok, String what) {
         System.out.println((ok ? "  ok    " : "  FAIL  ") + what);
@@ -228,14 +262,14 @@ public class PeakCounterCheck {
         check(park.rejected() >= 4, "the wiggles on the parked object are rejected (got " + park.rejected() + ")");
 
         // ---- EDGE mode (2026-11-15): the robot's counter ----
-        EntryPipeline eStudy = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        EntryPipeline eStudy = EntryPipeline.edge(EDGE_HI, EDGE_LO, 2, 1.0);
         List<Double> edgeStudy = new ArrayList<>();
         for (int i = 0; i < t.length; i++) for (EntryGrouper.Entry e : eStudy.push(t[i], x[i])) edgeStudy.add(e.time);
         int edgeMatched = matched(edgeStudy, presses);
         System.out.println(String.format(Locale.US, "EDGE on the study run: %d entries, %d of %d presses matched", edgeStudy.size(), edgeMatched, presses.size()));
         check(edgeStudy.size() >= 30 && edgeStudy.size() <= 32, "edge, study run: 30 to 32 entries for the 31 elements fed (got " + edgeStudy.size() + ")");
         check(edgeMatched >= 29, "edge, study run: at least 29 of the 31 presses matched (got " + edgeMatched + ")");
-        EntryPipeline eTele = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        EntryPipeline eTele = EntryPipeline.edge(EDGE_HI, EDGE_LO, 2, 1.0);
         int eEmpty = 0, eLoads = 0;
         for (double[] sm : tele) {
             for (EntryGrouper.Entry e : eTele.push(sm[0], sm[1])) {
@@ -245,15 +279,33 @@ public class PeakCounterCheck {
         }
         System.out.println(String.format(Locale.US, "EDGE on the 14:16 TeleOp: %d entries while driving empty (0 to 29 s), %d before the third salvo (3 loads of 4)", eEmpty, eLoads));
         check(eEmpty == 0, "edge, 14:16 empty drive: 0 entries");
-        check(eLoads == 12, "edge, 14:16: exactly 12 entries in the three loads of 4 (got " + eLoads + ")");
+        check(eLoads == 12 || eLoads == 13, "edge, 14:16: 12 or 13 entries in the three loads of 4 (12 with the re-arm at +2; 13 at +4, one over in the second load) (got " + eLoads + ")");
+        // the robot samples every 25 ms, the study was recorded at 20: thinned to 25 ms a rise of +7 loses 1 to 3 of the 31 hand-fed elements (the weak ones are at +7 for one sample), a rise of +6 loses none
+        int thinMin = Integer.MAX_VALUE, thinMax = 0, thin7Min = Integer.MAX_VALUE;
+        for (double off : new double[]{0.0, 0.005, 0.010, 0.015, 0.020}) {
+            EntryPipeline e25 = EntryPipeline.edge(EDGE_HI, EDGE_LO, 2, 1.0), e25hi7 = EntryPipeline.edge(7.0, EDGE_LO, 2, 1.0);
+            int n25 = 0, n7 = 0;
+            double next = t[0] + off;
+            for (int i = 0; i < t.length; i++) {
+                if (t[i] + 1e-9 < next) continue;
+                next += 0.025;
+                n25 += e25.push(t[i], x[i]).size();
+                n7 += e25hi7.push(t[i], x[i]).size();
+            }
+            thinMin = Math.min(thinMin, n25);
+            thinMax = Math.max(thinMax, n25);
+            thin7Min = Math.min(thin7Min, n7);
+        }
+        System.out.println("EDGE on the study run thinned to 25 ms (five offsets): " + thinMin + " to " + thinMax + " entries for the 31 fed (a rise of +7 would give as few as " + thin7Min + ")");
+        check(thinMin >= 31 && thinMax <= 33, "edge, study at 25 ms: 31 to 33 entries at every offset, never under the 31 fed (got " + thinMin + " to " + thinMax + ")");
         List<double[]> comp = readCsv(dir + "2026-11-14_152200_teleop_cs5_proximity.csv", 2);
-        EntryPipeline eComp = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        EntryPipeline eComp = EntryPipeline.edge(EDGE_HI, EDGE_LO, 2, 1.0);
         int compTotal = 0;
         for (double[] sm : comp) compTotal += eComp.push(sm[0], sm[1]).size();
         System.out.println("EDGE on the 15:22 TeleOp: " + compTotal + " entries in all (the counter held 25 at the nine salvos; the peaks gave 37)");
-        check(compTotal >= 24 && compTotal <= 26, "edge, 15:22: 24 to 26 entries (got " + compTotal + ")");
+        check(compTotal >= 27 && compTotal <= 30, "edge, 15:22: 27 to 30 entries (25 with the re-arm at +2; a re-arm at +5 gives 50) (got " + compTotal + ")");
         // synthetic: an element parked at +8 with wiggles to +20: ONE entry; four elements with dips to +2: four; a baseline that moves up and stays: a note, no entries
-        EntryPipeline eParked = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        EntryPipeline eParked = EntryPipeline.edge(EDGE_HI, EDGE_LO, 2, 1.0);
         int pe = 0;
         for (int i = 0; i < 600; i++) {
             double v = 66 + (i % 2);
@@ -261,7 +313,7 @@ public class PeakCounterCheck {
             pe += eParked.push(i * 0.025, v).size();
         }
         check(pe == 1, "edge: an element parked at +8 with wiggles to +20 is ONE entry (got " + pe + ")");
-        EntryPipeline eClump = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        EntryPipeline eClump = EntryPipeline.edge(EDGE_HI, EDGE_LO, 2, 1.0);
         int ce = 0;
         for (int i = 0; i < 400; i++) {
             double v = 66 + (i % 2);
@@ -269,16 +321,44 @@ public class PeakCounterCheck {
             ce += eClump.push(i * 0.025, v).size();
         }
         check(ce == 4, "edge: four bumps 0.3 s apart that dip back to empty: 4 entries (got " + ce + ")");
-        EntryPipeline eStuck = EntryPipeline.edge(6.0, 2.0, 2, 1.0);
+        EntryPipeline eStuck = EntryPipeline.edge(EDGE_HI, EDGE_LO, 2, 1.0);
         int se = 0;
         String stuckNote = null;
         for (int i = 0; i < 1200; i++) {
-            double v = i < 100 ? 66 : 72;   // the level jumps to +6 at 2.5 s and stays
+            double v = i < 100 ? 66 : 76;   // the level jumps to +9 at 2.5 s and stays (+9: above the rise, and above the re-arm level whichever of 66 and 67 the empty level lands on)
             se += eStuck.push(i * 0.025, v).size();
             String nt = eStuck.takeNote();
             if (nt != null && nt.contains("above the empty level")) stuckNote = nt;
         }
         check(se == 1 && stuckNote != null, "edge: a level that jumps up and stays: one entry for the arrival, then a stuck note and no more (entries " + se + ", note " + (stuckNote != null) + ")");
+
+        // synthetic: a driven burst, four bumps of +14 whose dips stay ABOVE the empty level: dips at +4 re-arm the count (4 entries), dips at +5 do not (1 entry)
+        for (int dip = 4; dip <= 5; dip++) {
+            EntryPipeline eBurst = EntryPipeline.edge(EDGE_HI, EDGE_LO, 2, 1.0);
+            int be = 0;
+            for (int i = 0; i < 400; i++) {
+                double v = 66 + (i % 2);
+                if (i >= 60 && i < 102) v = 67 + dip;                                                  // the burst never comes back to the empty level
+                for (int k = 0; k < 4; k++) if (i >= 60 + k * 12 && i < 66 + k * 12) v = 67 + 14;
+                be += eBurst.push(i * 0.025, v).size();
+            }
+            check(be == (dip == 4 ? 4 : 1), "edge: a burst of four bumps with dips to +" + dip + ": " + (dip == 4 ? 4 : 1) + " entries (got " + be + ")");
+        }
+
+        // ---- the first robot runs of the edge count (2026-11-17, COUNT ONLY): driven loads against the slots ----
+        String[] runs = {"191900", "193034", "194209"};
+        int[] now = new int[5], before = new int[5];
+        for (String run : runs) {
+            drivenLoads(dir, run, EDGE_HI, EDGE_LO, now);
+            drivenLoads(dir, run, 6.0, 2.0, before);
+        }
+        System.out.println(String.format(Locale.US, "driven loads with all four slots reading pollen (%d, three COUNT ONLY TeleOps of 2026-11-17): the edge rule at +%.0f / +%.0f gives under 4 at %d, 4 at %d, 5 at %d, over 5 at %d"
+                + " (at +6 / +2: under 4 at %d, 4 at %d, 5 at %d, over 5 at %d)", now[0], EDGE_HI, EDGE_LO, now[1], now[2], now[3], now[4], before[1], before[2], before[3], before[4]));
+        check(now[0] == 35, "driven loads: 35 loads read from the three runs (got " + now[0] + ")");
+        check(before[1] >= 15, "driven loads: the re-arm at +2 undercounted at least 15 of them, as the robot did (got " + before[1] + ")");
+        check(now[1] <= 6, "driven loads: at most 6 under 4 (got " + now[1] + ")");
+        check(now[4] <= 1, "driven loads: at most 1 over 5 (got " + now[4] + ")");
+        check(now[2] >= 20, "driven loads: at least 20 read exactly 4 (got " + now[2] + ")");
 
         System.out.println(failures == 0 ? "ALL CHECKS PASSED" : failures + " CHECK(S) FAILED");
         if (failures != 0) System.exit(1);

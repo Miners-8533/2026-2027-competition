@@ -1323,7 +1323,7 @@ public class Mechanisms {
             entriesStartLogged = true;
             entriesStatsTimer.reset();
             entriesStartedClock.reset();
-            RunLog.event(String.format(Locale.US, "CS5 ENTRY COUNTER started (it counts; TeleOp - Competition acts on FULL = " + ENTRY_CAPACITY + " entered since the last salvo: ENTRY_FULL_ACTIONS " + ENTRY_FULL_ACTIONS + "): a 2-byte proximity read every %.0f ms, peaks of at least %.0f counts, smoothing %d, a group with a peak of +%.0f or more within %.1f s counts once; %s; the kind of each entry (load order): %s, %s", EntryCounter.PERIOD_MS, EntryCounter.PROMINENCE, EntryCounter.SMOOTH, EntryCounter.MERGE_HEIGHT, EntryCounter.MERGE_GAP_SEC, entries.presetNote,
+            RunLog.event(String.format(Locale.US, "CS5 ENTRY COUNTER started (it counts; TeleOp - Competition acts on FULL = " + ENTRY_CAPACITY + " entered since the last salvo: ENTRY_FULL_ACTIONS " + ENTRY_FULL_ACTIONS + "): a 2-byte proximity read every %.0f ms, %s; %s; the kind of each entry (load order): %s, %s", EntryCounter.PERIOD_MS, EntryCounter.ruleText(), entries.presetNote,
                     entries.isClassifying() ? "ON (a color burst read while an element passes; logged only, nothing acts on it)" : "OFF (EntryCounter.CLASSIFY " + EntryCounter.CLASSIFY + ", edge counting " + EntryCounter.USE_EDGE + ")", entries.colorNote));
         }
         if (!entries.baselineNote().equals(entriesNoteLogged)) {

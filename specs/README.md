@@ -87,10 +87,10 @@ Collected from the pages; each is explained where it arises.
 |---|---|
 | The drive-to-pose gains have never been tuned on this robot | Target T2 ([motion.md](motion.md), [support-opmodes.md](support-opmodes.md)); needs a tuning session |
 | Odometry drift across the field was allowed for in four separate places | Target T1 ([aiming.md](aiming.md)): drift is accepted and trimmed by the operator. Mostly built 2026-11-17, not run |
-| Two element counts with different rules for "full" | Target T3 ([element-counting.md](element-counting.md)): the CS5 entry count is the count. Built 2026-11-17, not run |
+| Two element counts with different rules for "full" | Target T3 ([element-counting.md](element-counting.md)): the CS5 entry count is the count. Built and first run 2026-11-17; it undercounted, re-arm level raised 2026-11-18 (not run) |
 | The present dashes are too slow to use and cut clearances fine | Target T9 ([dashes.md](dashes.md)); the grid routes as smooth paths are switched on since 2026-11-18 and need their first robot run |
 | Several live settings are missing from the settings dump | Target T8 ([logging.md](logging.md)) |
-| The entry count and its FULL sequence, in their present form, have not run on the robot | no design change; needs a run ([element-counting.md](element-counting.md), [mechanisms.md](mechanisms.md)) |
+| The entry count ran low in its first robot runs (2026-11-17); the re-arm level raised for it has not run, and no run has a true count per load | needs a run with someone counting what each salvo launches ([element-counting.md](element-counting.md) section 2.7) |
 | The launch grid has data for one cell from one run | no design change; needs data ([aiming.md](aiming.md)) |
 
 ## Gaps found by a rebuild

@@ -57,10 +57,16 @@ public final class EntryCounter {
     /**
      * EDGE counting (2026-11-15, the user's idea; replaces the peaks): an entry is the RISE of the proximity to EDGE_HI counts above the empty level (held for EDGE_CONFIRM samples), counted at the rise (about 50 ms after, not 0.5 s as the peaks),
      * and the next one needs the signal back at EDGE_LO or lower. A persistent element, its wiggles and its ringing are one entry. USE_EDGE false goes back to the peaks (PROMINENCE, MERGE_*, VALLEY_MAX). Read when the thread starts.
+     *
+     * EDGE_LO 4 since 2026-11-18 (2 before; not run on the robot with 4). The first robot runs (ten TeleOps of 2026-11-17) showed that a driven load comes in as one burst of about a second whose dips
+     * between the elements stay at +3 to +5, so with a re-arm at +2 the count read under 4 at 19 of the 37 salvos where all four slots read pollen (COUNT ONLY, loads from an emptied track). Replayed
+     * with a re-arm at +4: under 4 at 5 of them, 4 at 22, 5 at 9, 6 at 1; the hand-fed study gives 32 for 31 fed. A re-arm at +5 overcounts (the 15:22 TeleOp of 2026-11-14 goes from 25 to 50; 29 at +4).
+     * EDGE_HI stays 6: a rise of +7 reads the same on the driven loads but, at the robot's 25 ms, loses 1 to 3 of the study's 31 hand-fed elements (the weak ones are at +7 for one sample). The slots are
+     * only a lower limit, so whether the fives are fifth elements or overcounts is not known. tools/entry/run-check.cmd replays all of it.
      */
     public static boolean USE_EDGE = true;
     public static double EDGE_HI = 6.0;
-    public static double EDGE_LO = 2.0;
+    public static double EDGE_LO = 4.0;
     public static int EDGE_CONFIRM = 2;
     /**
      * (EntryPipeline, 2026-11-14) A peak whose VALLEY (the lowest point before it) is more than this many counts above the empty level is rejected. OFF (100000) since 2026-11-14 (user): it rejected the wiggles of elements
@@ -202,6 +208,13 @@ public final class EntryCounter {
         }
         this.colorNote = cNote;
         this.colorPresetOk = cOk;
+    }
+
+    /** The counting rule and its levels as they are set now, for the log's start line (2026-11-18: the line named the peak rule's settings while the edge rule was counting). */
+    public static String ruleText() {
+        return USE_EDGE
+                ? String.format(Locale.US, "edge counting: an entry at +%.0f counts over the empty level for %d samples, the next one after the signal is back at +%.0f", EDGE_HI, EDGE_CONFIRM, EDGE_LO)
+                : String.format(Locale.US, "peaks of at least %.0f counts, smoothing %d, a group with a peak of +%.0f or more within %.1f s counts once", PROMINENCE, SMOOTH, MERGE_HEIGHT, MERGE_GAP_SEC);
     }
 
     private static int u16(byte[] d, int i) {

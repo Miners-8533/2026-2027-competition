@@ -249,7 +249,7 @@ Every sample row of the run log carries the coordinator's state: setpoint, flywh
 
 ## 15. Status
 
-In the Hartland build: the queued launch with the launch band, reject, always-on intake, the pusher check, jam handling, the preload pre-position, backup mode. Added 2026-11-17 and not run: the entry count as the only count for full and the tally, the held count carried between opmodes, stop all at the end of the autos, and the kind of each entry with the load order (logged only; [element-counting.md](element-counting.md) section 2.8). Added after Hartland: the CS5 entry count and FULL (the first version ran in practice; the present sequence and the edge counter have not run), the lock retry limit, the put-back after an incomplete salvo, stop all, the flywheel position hold, and the launch grid.
+In the Hartland build: the queued launch with the launch band, reject, always-on intake, the pusher check, jam handling, the preload pre-position, backup mode. Added 2026-11-17 and run in practice TeleOps that day: the entry count as the only count for full and the tally, and the held count carried between opmodes. Added 2026-11-17 and not run: stop all at the end of the autos, and the kind of each entry with the load order (logged only; [element-counting.md](element-counting.md) section 2.8). Added after Hartland: the CS5 entry count and FULL (the edge counter and the present sequence ran in practice on 2026-11-17, where the count ran low; the re-arm level raised for it on 2026-11-18 has not run), the lock retry limit, the put-back after an incomplete salvo, stop all, the flywheel position hold, and the launch grid.
 
 ## 16. Target T4: a coordinator made of parts
 
