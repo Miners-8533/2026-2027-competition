@@ -91,7 +91,7 @@ The alliance is assumed blue: the start is the blue default start against the re
 
 **Output.** One line per spot (speed split into map and trim, aim heading split likewise, distance, salvos fired, pose; a good spot with no salvo is marked unverified), a line per salvo, and a table at the end. A PC tool turns the log into the generated grid table.
 
-**Controls** (gamepad 1). At INIT, D-pad left / right chooses NEAR (the rear cell) / FAR (the audience cell); the start is against the rear wall, at (-63.4, 16.5, 0 deg).
+**Controls** (gamepad 1). At INIT, D-pad left / right chooses NEAR (the rear cell) / FAR (the audience cell); the start is against the rear wall, at (-63.4, 16.0, 0 deg) (16.5 until 2026-11-18; the same y as the TeleOp and the autos).
 
 | Control | Effect |
 |---|---|

@@ -21,8 +21,9 @@ import java.util.Locale;
  *    (the screen shows NO SHOT ZONE), because the grid says a salvo from there does not score.
  * {@link Zone#NO_DATA} only happens when a cell has no data at all.
  *
- * The cells: BLUE_REAR is measured, BLUE_AUDIENCE is a SEED (the measured spots mirrored about X = 0 keeping the ball's path, see make_table.py) until it is measured, and the RED cells
- * are the blue data turned 180 degrees about the field center (the residual does not change under the turn).
+ * The cells: BLUE_REAR (the near cell) and BLUE_AUDIENCE (the far cell) are both MEASURED with the Launch Grid Tuner (2026-11-12 and 2026-11-18; before the far cell was measured it was a SEED, the near cell's
+ * spots mirrored about X = 0, see make_table.py), each with its own spots, and the RED cells are the blue data turned 180 degrees about the field center (the residual does not change under the turn):
+ * RED_AUDIENCE from BLUE_REAR, RED_REAR from BLUE_AUDIENCE.
  */
 public final class LaunchGridMap {
 
@@ -78,7 +79,7 @@ public final class LaunchGridMap {
     }
 
     private static final Data BLUE_REAR = new Data(LaunchGridData.BLUE_REAR, LaunchGridData.BLUE_REAR_TRI, false);
-    private static final Data BLUE_AUDIENCE = new Data(LaunchGridData.BLUE_AUDIENCE, LaunchGridData.BLUE_AUDIENCE_TRI, true);
+    private static final Data BLUE_AUDIENCE = new Data(LaunchGridData.BLUE_AUDIENCE, LaunchGridData.BLUE_AUDIENCE_TRI, LaunchGridData.BLUE_AUDIENCE_SEEDED);
 
     private LaunchGridMap() {}
 

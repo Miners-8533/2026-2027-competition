@@ -82,12 +82,11 @@ The behavior built on the zones is the TeleOp's ([teleop.md](teleop.md)): inside
 
 For each measured spot: where the robot actually stood, the flywheel speed that scored, the **aim residual** (the heading that scored minus the bearing to the cell's center), and whether a shot was possible at all.
 
-- Only the blue rear cell was measured.
-- The blue audience cell is a **seed**: the measured spots mirrored about x = 0, keeping the ball's path.
-- The red cells are the blue data rotated 180 degrees.
+- Both blue cells are measured (2026-11-18): the near cell, `BLUE_REAR`, with 30 spots, and the far cell, `BLUE_AUDIENCE`, with 29, each from its own tuning runs. Before that the audience cell was a seed (the rear cell mirrored about x = 0, keeping the ball's path); the generator still builds the seed when it has no audience data.
+- The red cells are the blue data rotated 180 degrees: red audience from the blue rear, red rear from the blue audience.
 - Spots the tuner would have visited but nobody measured (near the walls) are **estimated** from their nearest measured neighbours and flagged.
 - The table is generated source, produced by a PC tool from the tuning run's log. It must not be edited by hand.
-- **Layout of the generated table:** one row per spot of the blue rear cell, holding x, y, the speed in ticks/s, the aim residual in degrees, shot possible (1 or 0) and estimated (1 or 0); and a list of triangles, each three row numbers, so that the robot does not work out the triangles itself.
+- **Layout of the generated table:** one table per measured blue cell (the rear and the audience), one row per spot, holding x, y, the speed in ticks/s, the aim residual in degrees, shot possible (1 or 0) and estimated (1 or 0); and a list of triangles, each three row numbers, so that the robot does not work out the triangles itself.
 - The measured spots themselves are in `tools/launchgrid/data/`. They are data and are not on these pages.
 
 Because the residual is relative to the bearing, the grid's aim does not depend on the launcher offset or the far-cell extra of section 1; they are already in the data.

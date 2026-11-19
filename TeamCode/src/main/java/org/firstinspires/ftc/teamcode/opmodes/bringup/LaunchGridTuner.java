@@ -59,13 +59,17 @@ import java.util.Locale;
  * INIT (gamepad 1): D-pad left = NEAR cell, D-pad right = FAR cell. Start pose: START_X_IN, START_Y_IN, START_HEADING_DEG (the usual blue start: against the rear
  * wall facing the audience wall, the pose the TeleOp starts blue from); keep still while the Pinpoint calibrates. START_INDEX starts the sweep at a later spot (to continue an earlier session). RETEST (2026-11-13): RETEST_SPOTS (for example "8-10,22-30") makes it visit only those spots of the full grid, keeping their numbers, and EXTRA_SPOTS ("x,y;x,y") adds field positions of your own after them (numbered 101, 102, ...), checked against the grid's rules; both are set in the Dashboard during INIT and the INIT screen lists what will be visited. tools/launchgrid/log_to_csv.py turns the run's GRID POINT lines into a CSV that make_table.py lets REPLACE the first run's rows for the same spot numbers.
  * The pusher is assumed to be where the last opmode left it (the saved zero).
+ *
+ * DATA (2026-11-18): the log carries the CS5 entry count and the CS2 launch sensor for every salvo, as in the TeleOp: the sample rows have the cs5_* columns, the 25 ms CS5 stream (cs5f) and the 12.5 ms CS2 stream
+ * (cs2f) around each salvo, and each FIRE line says how many elements the CS5 entry count and the slot counter hold. The CS5 and CS2 threads start with the first update after Start (CS5 takes its empty level from the
+ * first second: keep the intake empty then). Score a run with `python tools/logs/cs5_vs_cs2.py <log>`: CS2's count of the elements that LEFT is the label for what CS5 counted going in, and each salvo is listed with its spot.
  */
 @Config
 @TeleOp(name = "Launch Grid Tuner", group = "Bring-up")
 public class LaunchGridTuner extends LinearOpMode {
 
     public static double START_X_IN = -63.4;
-    public static double START_Y_IN = 16.5;
+    public static double START_Y_IN = 16.0;   // 2026-11-18: the same y as the TeleOp and the autos at the rear wall (it was 16.5, so the earlier grid data sits 0.5 in off in their frame)
     public static double START_HEADING_DEG = 0.0;
     /** Grid spacing, inches (12: 30 spots for the near cell, 29 for the far). */
     public static double PITCH_IN = 12.0;
@@ -79,12 +83,14 @@ public class LaunchGridTuner extends LinearOpMode {
     public static double WALL_MARGIN_IN = 3.0;
     /** Start the sweep at this spot (0 = the first). */
     public static int START_INDEX = 0;
+    /** The cell INIT starts with (2026-11-18: the far cell, the blue audience cell, is the one to measure next); the D-pad at INIT still chooses (left = NEAR, right = FAR). */
+    public static boolean START_WITH_FAR = true;
     /**
      * RETEST (2026-11-13), an INIT setting: visit only these spots of the FULL grid, by their number in the full visiting order (the numbers in the GRID POINT log lines and on the
      * screen), as a comma list with ranges, for example "8-10,22-30" (the spots that need a second look). Empty: every spot. The spots keep their numbers and their sweep order.
      * Set it in the Dashboard before Start; the INIT screen shows what will be visited.
      */
-    public static String RETEST_SPOTS = "";
+    public static String RETEST_SPOTS = "";   // empty: every spot (2026-11-18: the blue rear cell is finished, its spots 1 to 30 are in the grid; the far cell starts with a full run)
     /**
      * EXTRA spots (an INIT setting) visited after the others: field positions "x,y;x,y" in inches, for example "-30,0;-33,-27". Each must pass the grid's rules (the cell's open side, at
      * least 12 in out, within the angle limit, clear of the supports, the flower stands and the walls less WALL_MARGIN_IN) or the INIT screen says why it is left out. They are numbered 101, 102, ...
@@ -262,7 +268,7 @@ public class LaunchGridTuner extends LinearOpMode {
         mechanisms.setBlueAlliance(true);           // the assumed alliance (2026-11-12): blue; its usual start is against the rear wall
         mechanisms.setIntakeAlwaysOn(true);         // IN whatever the count, as in the TeleOp (the 2026-11-12 run had it OFF: nothing turned it on)
 
-        boolean far = false;
+        boolean far = START_WITH_FAR;
         HiveTarget cell = cellFor(far);
         fullPts = buildGrid(cell, params);
         planSig = "";
@@ -298,6 +304,7 @@ public class LaunchGridTuner extends LinearOpMode {
             telemetry.addData("Will visit (RETEST_SPOTS / EXTRA_SPOTS in the Dashboard)", "%d of the %d spots: %s", pts.size(), fullPts.size(), visit);
             if (!planNote.isEmpty()) telemetry.addData("Plan notes", planNote);
             telemetry.addData("Starts at", "number %d (START_INDEX %d in the list above)", no(Math.min(START_INDEX, Math.max(0, pts.size() - 1))), START_INDEX);
+            telemetry.addLine("Data: the CS5 entry count and the CS2 launch sensor are logged for every salvo; they start at Start (keep the intake EMPTY for the first second: CS5 takes its empty level then).");
             telemetry.addLine("Place the robot at the start pose and keep still while the Pinpoint calibrates. Then Start.");
             telemetry.update();
         }
@@ -437,7 +444,8 @@ public class LaunchGridTuner extends LinearOpMode {
                 salvos[idx]++;
                 RunLog.event(String.format(Locale.US, "FIRE spot %d salvo %d: pose (%.1f, %.1f, %.1f deg), aim heading %.1f deg (trim %+.1f), %.1f in from %s, setpoint %.0f (map %.0f, trim %+.0f)",
                         no(idx), salvos[idx], pose.position.x, pose.position.y, pose.heading.toDegrees(), Math.toDegrees(pt.headingRad) + angleTrim[idx], angleTrim[idx],
-                        cell.distanceFrom(pose), cell, mapSpeed(pt.distanceIn) + speedTrim[idx], mapSpeed(pt.distanceIn), speedTrim[idx]));
+                        cell.distanceFrom(pose), cell, mapSpeed(pt.distanceIn) + speedTrim[idx], mapSpeed(pt.distanceIn), speedTrim[idx])
+                        + String.format(Locale.US, " | CS5 entry count holds %d, the slot counter %d (the CS2 launch count follows in the CS2 LAUNCH SENSOR line)", mechanisms.getHeldByEntries(), mechanisms.getHeldCount()));
                 mechanisms.requestLaunch();
             }
 

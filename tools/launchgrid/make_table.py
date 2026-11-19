@@ -43,15 +43,15 @@ def norm_deg(a):
     return (a + 180.0) % 360.0 - 180.0
 
 
-def load():
+def load(cell_name="BLUE_REAR"):
     import glob
     by_spot = {}
-    files = sorted(glob.glob(os.path.join(DATA_DIR, "*_BLUE_REAR_*.csv")))
+    files = sorted(glob.glob(os.path.join(DATA_DIR, "*_%s_*.csv" % cell_name)))
     for path in files:
         with open(path, newline="") as fh:
             for r in csv.DictReader(fh):
                 by_spot[int(r["spot"])] = r          # a later file replaces an earlier one's row
-    print("data files: " + ", ".join(os.path.basename(f) for f in files))
+    print("%s data files: " % cell_name + (", ".join(os.path.basename(f) for f in files) or "none"))
     spots = []
     dropped = []
     if True:
@@ -63,7 +63,7 @@ def load():
             if good and salvos == 0:
                 dropped.append((n, "GOOD but no salvo was fired (unverified)"))
                 continue
-            if not good and salvos == 0 and x < -50.0:
+            if not good and salvos == 0 and abs(x) > 50.0:
                 dropped.append((n, "NO SHOT with no salvo fired in the wall column (the robot was stopped short, not tested)"))
                 continue
             spots.append(dict(n=n, x=x, y=y, heading=h, good=good, speed=int(r["speed_ticks_s"]) if good else None))
@@ -179,7 +179,7 @@ def loo(spots):
 
 
 def java_table(name, spots, seeded):
-    lines = ["    /** %s: x, y (in), flywheel speed (ticks/s), aim residual (deg), status (1 a shot works, 0 no shot), estimated (1 = estimated from the nearest measured spots, not measured). %s */" % (name, "SEEDED by mirroring BLUE_REAR (a guess)" if seeded else "measured 2026-11-12"),
+    lines = ["    /** %s: x, y (in), flywheel speed (ticks/s), aim residual (deg), status (1 a shot works, 0 no shot), estimated (1 = estimated from the nearest measured spots, not measured). %s */" % (name, "SEEDED by mirroring BLUE_REAR (a guess)" if seeded else "MEASURED with the Launch Grid Tuner (tools/launchgrid/data)"),
              "    public static final double[][] %s = {" % name]
     for s in spots:
         if s["good"]:
@@ -197,8 +197,23 @@ def java_table(name, spots, seeded):
     return "\n".join(lines)
 
 
+def report_cell(label, spots, cell):
+    """The leave-one-out and the extrapolation checks of one measured cell."""
+    spots = prepare(spots, cell)
+    es, er, inside, n = loo(spots)
+    print("%s leave-one-out over the %d GOOD spots (%d predicted inside the triangles of the rest, the others from the nearest spot):" % (label, n, inside))
+    print("  speed error  mean abs %.1f ticks/s, rms %.1f, worst %.0f" % (np.mean(np.abs(es)), np.sqrt(np.mean(es ** 2)), np.max(np.abs(es))))
+    print("  aim residual error  mean abs %.2f deg, rms %.2f, worst %.1f" % (np.mean(np.abs(er)), np.sqrt(np.mean(er ** 2)), np.max(np.abs(er))))
+    good = [s for s in spots if s["good"]]
+    print("  (the residuals themselves range %.1f to %.1f deg; speeds %d to %d)" % (min(s["resid"] for s in good), max(s["resid"] for s in good), min(s["speed"] for s in good), max(s["speed"] for s in good)))
+    es_, er_ = extrapolation_test(spots)
+    print("%s extrapolation test (%d outline spots): speed error mean abs %.1f ticks/s, worst %.0f; aim residual mean abs %.2f deg, worst %.1f" % (
+        label, len(es_), np.mean(np.abs(es_)), np.max(np.abs(es_)), np.mean(np.abs(er_)), np.max(np.abs(er_))))
+    return spots
+
+
 def main():
-    spots, dropped = load()
+    spots, dropped = load("BLUE_REAR")
     print("blue rear: %d spots used (%d GOOD, %d NO SHOT); dropped: %s" % (len(spots), sum(s["good"] for s in spots), sum(not s["good"] for s in spots),
                                                                              "; ".join("spot %d (%s)" % d for d in dropped) or "none"))
     spots = prepare(spots, CELLS["BLUE_REAR"])
@@ -214,23 +229,36 @@ def main():
     data_dir = os.path.join(ROOT, "tools", "launchgrid", "data")
     est_rear = estimate_missing(spots, os.path.join(data_dir, "lattice_BLUE_REAR.csv"))
     print("blue rear: %d missing lattice spots estimated: %s" % (len(est_rear), "; ".join("(%.0f, %.0f) speed %d residual %+.1f" % (e["x"], e["y"], e["speed"], e["resid"]) for e in est_rear)))
-    aud = seed_mirror(spots, CELLS["BLUE_REAR"], CELLS["BLUE_AUDIENCE"])
-    est_aud = estimate_missing(aud, os.path.join(data_dir, "lattice_BLUE_AUDIENCE.csv"))
-    print("blue audience (seeded): %d missing lattice spots estimated" % len(est_aud))
+    aud_spots, aud_dropped = load("BLUE_AUDIENCE")
+    if aud_spots:
+        # (2026-11-18) the far cell is measured: its own spots, not the mirror of the near cell. A far spot the tuner could not test is estimated from the nearest measured ones.
+        print("blue audience (MEASURED): %d spots (%d GOOD, %d NO SHOT); dropped: %s" % (len(aud_spots), sum(s["good"] for s in aud_spots), sum(not s["good"] for s in aud_spots),
+                                                                                  "; ".join("spot %d (%s)" % d for d in aud_dropped) or "none"))
+        aud = report_cell("blue audience", aud_spots, CELLS["BLUE_AUDIENCE"])
+        est_aud = estimate_missing(aud, os.path.join(data_dir, "lattice_BLUE_AUDIENCE.csv"))
+        print("blue audience: %d missing lattice spots estimated: %s" % (len(est_aud), "; ".join("(%.0f, %.0f) speed %d residual %+.1f" % (e["x"], e["y"], e["speed"], e["resid"]) for e in est_aud)))
+        aud_seeded = False
+    else:
+        aud = seed_mirror(spots, CELLS["BLUE_REAR"], CELLS["BLUE_AUDIENCE"])
+        est_aud = estimate_missing(aud, os.path.join(data_dir, "lattice_BLUE_AUDIENCE.csv"))
+        print("blue audience (seeded): %d missing lattice spots estimated" % len(est_aud))
+        aud_seeded = True
     spots = spots + est_rear
     aud = aud + est_aud
     ag = [s for s in aud if s["good"]]
-    print("blue audience seed (mirrored): %d spots, residuals %.1f to %.1f deg" % (len(aud), min(s["resid"] for s in ag), max(s["resid"] for s in ag)))
+    print("blue audience %s: %d spots, residuals %.1f to %.1f deg" % ("seed (mirrored)" if aud_seeded else "(measured)", len(aud), min(s["resid"] for s in ag), max(s["resid"] for s in ag)))
 
     src = ["package org.firstinspires.ftc.teamcode.drive;", "",
            "/**",
-           " * GENERATED by tools/launchgrid/make_table.py from tools/launchgrid/data/*.csv (the Launch Grid Tuner run of 2026-11-12). Do not edit by hand: run the script again.",
+           " * GENERATED by tools/launchgrid/make_table.py from tools/launchgrid/data/*.csv (the Launch Grid Tuner runs of 2026-11-12 and 2026-11-18). Do not edit by hand: run the script again.",
            " * Read by {@link LaunchGridMap}.",
            " */",
            "public final class LaunchGridData {", "",
            "    private LaunchGridData() {}", "",
            java_table("BLUE_REAR", spots, False), "",
-           java_table("BLUE_AUDIENCE", aud, True), "", "}", ""]
+           java_table("BLUE_AUDIENCE", aud, aud_seeded), "",
+           "    /** True while BLUE_AUDIENCE is the mirror of BLUE_REAR (a guess), false once the far cell is measured. */",
+           "    public static final boolean BLUE_AUDIENCE_SEEDED = %s;" % ("true" if aud_seeded else "false"), "", "}", ""]
     with open(OUT, "w", newline="\n", encoding="utf-8") as fh:
         fh.write("\n".join(src))
     print("wrote", os.path.normpath(OUT))
