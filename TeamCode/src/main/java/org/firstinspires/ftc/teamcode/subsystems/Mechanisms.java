@@ -163,6 +163,9 @@ public class Mechanisms {
     public final ElementCounter counter;
     /** Counts the elements as they enter, from CS5's proximity (SHADOW MODE, 2026-11-14: logged only, nothing depends on it); null without CS5 in the configuration. */
     public final EntryCounter entries;
+    /** CS2 at the top of the feed ramp (2026-11-18): recorded through every salvo, nothing counts or acts on it yet. Null without a CS2. Set by fromHardware. */
+    public LaunchSensor launchSensor;
+    private boolean launchSensorStartLogged = false;
     /** Checks the pusher's zero against CS4 after a salvo; null without the pusher or the counter. */
     private final PusherCheck pusherCheck;
 
@@ -307,7 +310,9 @@ public class Mechanisms {
         EntryCounter entries = EntryCounter.tryCreate(hardwareMap);   // CS5 at the intake: shadow mode (counts and logs only)
         FlywheelPosition flywheelPosition = FlywheelPosition.tryCreate(hardwareMap);   // null without the servo
         if (flywheelPosition != null && commandRampAtInit) flywheelPosition.set(FlywheelPosition.Element.POLLEN);   // the autos and the tuners: held from INIT, like the ramp (the TeleOp commands it at Start)
-        return new Mechanisms(intake, flywheel, pusher, ramp, counter, entries, flywheelPosition);
+        Mechanisms m = new Mechanisms(intake, flywheel, pusher, ramp, counter, entries, flywheelPosition);
+        m.launchSensor = LaunchSensor.tryCreate(hardwareMap);   // CS2 at the top of the feed ramp: recorded only
+        return m;
     }
 
     public String describe() {
@@ -1005,6 +1010,16 @@ public class Mechanisms {
             entries.touch();   // starts the thread on the first call (nothing is read in INIT) and keeps it alive
             updateEntries();
         }
+        if (launchSensor != null) {
+            launchSensor.touch(launchQueued || salvoActive);   // fast reads from a queued launch to a moment after the salvo; slow ones otherwise
+            if (!launchSensorStartLogged && launchSensor.isStarted()) {
+                launchSensorStartLogged = true;
+                RunLog.event(String.format(Locale.US, "CS2 LAUNCH SENSOR started (recorded only: the cs2f column and one line per salvo; nothing counts or acts on it): a 2-byte proximity read every %.1f ms"
+                        + " from a queued launch to %.1f s after the salvo, every %.0f ms otherwise; %s", LaunchSensor.PERIOD_MS, LaunchSensor.TAIL_SEC, LaunchSensor.IDLE_PERIOD_MS, launchSensor.presetNote));
+            }
+            String launchSummary = launchSensor.takeSalvoSummary();
+            if (launchSummary != null) RunLog.event("CS2 LAUNCH SENSOR fast stretch: " + launchSummary);
+        }
         if (COUNT_BY_ENTRIES) {   // full by the CS5 entry count alone (after updateEntries, so this loop's entries are in)
             full = entries != null && entries.isStarted() && entries.isHealthy() && heldByEntries >= ENTRY_CAPACITY;
             if (full) warn(WarningCode.FULL, "FULL: " + heldByEntries + " elements held (CS5 entry count)");
@@ -1628,12 +1643,12 @@ public class Mechanisms {
     }
 
     /** The column names of {@link #sampleRow()}, for {@link RunLog#setSampler}. */
-    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps,cs5_entries,cs5_held,cs5_full,cs5_prox,cs5f,launched_total,cs5_load";
+    public static final String SAMPLE_COLUMNS = "setpoint,fly_target,fly_vel,fly_ready,pusher_state,pusher_deg,pusher_vel,pusher_amps,intake_mode,ramp,count,slots,launch,warnings,overrides,check,fly_power,fly_amps,pusher_lock,pusher_hold,intake_amps,cs5_entries,cs5_held,cs5_full,cs5_prox,cs5f,launched_total,cs5_load,cs2f";
 
     /** One log row of the mechanisms' state, from values already read this loop (no hub reads). */
     public String sampleRow() {
         String launch = launchQueued ? "queued" : salvoActive ? "salvo" : rejectActive ? "reject" : "idle";
-        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s",
+        return String.format(Locale.US, "%.0f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s",
                 lastSetpoint,
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getTargetVelocity()),
                 flywheel == null ? "" : String.format(Locale.US, "%.0f", flywheel.getVelocity()),
@@ -1658,7 +1673,8 @@ public class Mechanisms {
                 entries == null || !entries.isStarted() ? "" : String.valueOf(entries.latestProx()),
                 entries == null || !entries.isStarted() ? "" : entries.drainSamples(),
                 launchedTotal,
-                entries == null || !entries.isStarted() ? "" : getLoadOrder());
+                entries == null || !entries.isStarted() ? "" : getLoadOrder(),
+                launchSensor == null || !launchSensor.isStarted() ? "" : launchSensor.drainSamples());
     }
 
     public void log(Telemetry telemetry) {

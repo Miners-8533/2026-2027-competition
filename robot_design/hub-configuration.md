@@ -49,7 +49,7 @@ Every motor is run as a plain duty cycle (the hubs' closed-loop encoder modes ar
 |---|---|---|---|---|
 | `pinpoint` | goBILDA Pinpoint odometry computer | Control | 1 | 0x31 |
 | `CS1` | REV Color Sensor V3, nearest the intake of the four | Expansion | 1 | 0x52 |
-| `CS2` | REV Color Sensor V3 | Expansion | 2 | 0x52 |
+| `CS2` | REV Color Sensor V3, at the top of the feed ramp since the move reported 2026-11-18 (same hub, bus and name as before) | Expansion | 2 | 0x52 |
 | `CS3` | REV Color Sensor V3 | Expansion | 3 | 0x52 |
 | `CS4` | REV Color Sensor V3, nearest the flywheel | Control | 3 | 0x52 |
 | `CS5` | REV Color Sensor V3, at the intake entrance | **NOT RECORDED** | **NOT RECORDED** | 0x52 |

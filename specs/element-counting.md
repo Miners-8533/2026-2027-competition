@@ -4,7 +4,7 @@ The robot counts what it holds in two independent ways.
 
 | Count | Sensors | Answers | Used for |
 |---|---|---|---|
-| **Slot count** | CS1 to CS4 along the track | which kind of element sits at each of four places | the pusher check (the track reads empty), the opponent-nectar warning, seeing the pusher arm, the log |
+| **Slot count** | CS1, CS3 and CS4 along the track. CS2 left the slot count on 2026-11-18, when it was moved to the top of the feed ramp (section 1.8); it is recorded there for the launch count (target T11, section 6) | which kind of element sits at each of three places | the pusher check (the track reads empty), the opponent-nectar warning, seeing the pusher arm, the log |
 | **Entry count** | CS5 at the entrance | how many elements have come in since the track was emptied, and what each one is (section 2.8, built 2026-11-17, not run on the robot) | **how many are held, and full**: FULL and its sequence, the driver screen, the end of a flower jostle in the autos, the "Full" warning, the launched tally. The kinds make the **load order**, which is logged and not yet acted on |
 
 **The entry count is the count the robot relies on** (team decision, 2026-11-17; built 2026-11-17; first run on the robot in ten practice TeleOps of 2026-11-17, where it undercounted: section 2.7). The slot count undercounts in a crowded track, which is the worse error on this robot, so it no longer says how many are held. One switch ("count by entries", on) returns the jostle end, the "Full" warning, the non-always-on intake stop and the launched tally to the slot count, in case the entry count misbehaves on the robot. With CS5 missing or not answering the robot is never full by it and there is no fall-back: a jostle ends on its deadline and the screen shows a question mark. How the coordinator uses the counts is in [mechanisms.md](mechanisms.md).
@@ -15,9 +15,9 @@ Sensor physics and measured signatures: [robot_design/sensors.md](../robot_desig
 
 ### 1.1 Reading
 
-- **One sensor is read every 40 ms**, in rotation, and never more than one per loop. A full refresh of all four takes about 160 ms. (Each read blocks about 13 ms and the sensors only produce a new value every 100 ms.)
+- **One sensor is read every 40 ms**, in rotation, and never more than one per loop. A full refresh of the three takes about 120 ms. (Each read blocks about 13 ms and the sensors only produce a new value every 100 ms.)
 - The counter is **valid** only while every sensor has been read within the last 1 s. Callers must not act on it otherwise.
-- All four sensors must be configured, or the counter does not exist.
+- The three track sensors must be configured, or the counter does not exist. CS2 is not needed.
 
 ### 1.2 Per-sensor result
 
@@ -55,7 +55,7 @@ A new presence state must persist 150 ms before it is reported.
 The end sensor flickers for about a second while an element moves, hence the windows. A fourth element is reported about 1.3 s after it is first seen.
 
 - **Gap flag:** an element seen without a neighbor on its flywheel side is still moving or a misread. It still counts.
-- **Full:** the count is 4.
+- **Full:** the count is 4. With three sensors in the track this can no longer happen (section 1.8).
 
 ### 1.4 Things that are kept out of the count
 
@@ -72,7 +72,7 @@ The end sensor flickers for about a second while an element moves, hence the win
 - Whether CS4 sees the pusher arm now, and how many times CS4 has been read (the pusher check waits for fresh reads).
 - The first sensor, from the intake end, that holds the **opponent's** nectar (red for a blue robot, blue for a red one), or none.
 - The kind of the element at CS4 (it launches first).
-- A compact text of the four slots for the log, for example `.PRB` (P pollen, R red nectar, B blue nectar, O other, A arm, a dot for empty).
+- A compact text of the slots for the log, for example `.-RB`: CS1 to CS4 in the order of their numbers (P pollen, R red nectar, B blue nectar, O other, A arm, a dot for empty). The second place is always a dash: CS2 is not a place along the track. The text keeps four places so that older logs and the tools read alike.
 - For each sensor: the latest brightness, distance, shares, and color shift from its empty reading.
 
 ### 1.6 The stored empty readings
@@ -91,6 +91,29 @@ To catch a stale baseline, while the track reads empty the coordinator logs the 
 | Count steady: rise / full / fall | 150 / 1000 / 300 ms |
 | Capacity | 4 |
 | Software gain | 1.0 |
+
+### 1.8 CS2 is no longer in the track (2026-11-18)
+
+**CS2 was moved to the top of the feed ramp, past the HOLD position** (team, 2026-11-18), to count launches. Its hub, bus and name are unchanged. The runs of 2026-11-17 still had it in its old place.
+
+**Built 2026-11-18, not run on the robot:** the slot count works with the three sensors left in the track.
+
+- CS2 is not read by the slot count, is never an element, has no empty reading, and is not needed for the counter to exist or to be valid. Its numbers in the log's `COUNTER EMPTY` lines are 0.
+- The read rotation is CS1, CS3, CS4.
+- The gap flag takes CS1 and CS3 as neighbours.
+- The Pit Check asks only that CS2 answers. The Color Sensor Study measures no baseline for it.
+- CS2 is read by its own reader instead (section 6.1).
+
+**What follows from three sensors:**
+
+| Effect | Consequence |
+|---|---|
+| The count is 3 at most | the slot count can never give full. The switch back to the slot count (the top of this page) therefore no longer gives a working "full": the jostle would end on its deadline and the non-always-on intake would never stop. The entry count is the only count that can say full |
+| The autos' INIT screen shows the slot count of the preload | it reads 3 with 4 loaded |
+| Section 2.7 takes "all four slots read pollen" as "at least 4 aboard" | true for the runs of 2026-11-17 only. From now on three slots reading pollen means at least 3 |
+| `tools/logs/launch_stability.py` picks salvos that began with four full slots for its per-pollen figure | it finds none in new logs |
+
+**Not checked on the robot:** that the three track sensors still read as before (the stored empty readings of CS1, CS3 and CS4 are unchanged), and whether the pusher arm, sweeping through the feed ramp, disturbs anything now that CS2 is not masked by the slot count's rules.
 
 ## 2. Entry count (CS5)
 
@@ -280,7 +303,8 @@ Two further guards exist and are switched off: requiring the slot count to agree
 
 ## 3. Status
 
-- Slot count: used at Hartland.
+- Slot count: used at Hartland with four sensors. With three (CS2 moved to the feed ramp after the runs of 2026-11-17, section 1.8): built 2026-11-18, not run.
+- CS2 at the top of the feed ramp: recorded through every salvo since 2026-11-18 (section 6.1), not run. Nothing counts launches yet.
 - Entry count: added after Hartland. Peak counting and a first version of the FULL actions ran in practice on 2026-11-14. Edge counting, the count as the robot's only count, the count carried between opmodes and the FULL sequence ran in ten practice TeleOps on 2026-11-17 (six in count-only mode, four acting on FULL), with the re-arm at 2. The re-arm at 4 (2026-11-18) has not run. What the FULL sequence did in those runs has not been examined beyond the count.
 - Kinds and the load order: built 2026-11-17 from the one recorded run that holds CS5's color (31 pollen). Not run on the robot, and never tried on nectar.
 
@@ -315,3 +339,60 @@ The kind rule and the pass logic are a second pure piece, checked the same way: 
 - The counter was characterized with pollen only; it needs a check with nectar. The kinds (section 2.8) need the same run.
 
 **Waits on** a run with the re-arm at 4 and a true count per load (someone counting what each salvo launches). The switch is the way back.
+
+## 6. Target T11: CS2 counts what a salvo launches
+
+**Decided by the team on 2026-11-18, when CS2 was moved to the top of the feed ramp. Its first two stages are built and not run: CS2 has left the slot count and is recorded through every salvo. Nothing counts launches yet.**
+
+**The weakness.** Nothing on the robot sees an element leave. The launched tally is the held count at the start of a salvo, so it is only as good as the entry count, and the entry count has no true number to be judged against (section 2.7). A salvo that leaves an element behind is not noticed.
+
+**Target.** CS2 counts the elements that go up the feed ramp in each salvo: the **launch count**.
+
+| Use | What it replaces |
+|---|---|
+| The true number of each load, in every log, to judge the entry count's rule | someone counting what each salvo launches |
+| The launched tally | the held count at the start of the salvo |
+| What is still held after a salvo: the held count less the launch count | the held count restarting at 0 at every salvo |
+| A salvo that launched fewer than were held | nothing: it is not noticed today |
+
+The launch count does not declare FULL. It arrives after the elements have gone.
+
+**What has to be measured first.** None of this is known for CS2's new place:
+
+- how high and how long the reading of one launched element is, for pollen and for nectar;
+- whether the elements of one salvo are apart in the reading, or run together as the driven loads do at CS5;
+- what the pusher arm reads as it follows the last element through, and at which angle;
+- how often CS2 must be read to see every element, and what that costs the main loop **during a salvo**, when the loop time sets how exactly the pusher stops.
+
+**Reading.** CS2's standard readings (a new value every 100 ms, read once in 160 ms) cannot follow a salvo, which launches four elements in about 1.2 s. The launch count needs CS2's fast proximity reading, as CS5 has (section 2.1), and only while a salvo runs. In that mode CS2 no longer gives a usable distance, so it could not stay in the slot count.
+
+**Stages.** Each is run on the robot before the next is built.
+
+| Stage | What | Changes behavior | State |
+|---|---|---|---|
+| 1 | **CS2 leaves the slot count** (section 1.8) | yes: the slot count reads at most 3 | built 2026-11-18, not run |
+| 2 | **Record.** CS2 is read fast through every salvo and every sample is logged (section 6.1). The team wanted the data from the competition TeleOp, so this is in the match opmodes and not in a study opmode | only the loop time during a salvo | built 2026-11-18, not run |
+| 3 | **Count in shadow.** A rule made from the recordings counts in the match opmodes and is logged beside the held count at every salvo. Nothing acts on it | no more than stage 2 | not built: needs recordings |
+| 4 | **Use it:** the launched tally, what is still held after a salvo, and a warning for a salvo that launched fewer than were held | yes | not built |
+
+### 6.1 The recording (built 2026-11-18, not run on the robot)
+
+A reader of its own, on its own thread, reads CS2's raw proximity (one small read, as for CS5). It counts nothing and nothing acts on it.
+
+- **Sensor setting:** fast proximity mode, set when the reader is built (INIT). If that fails the log says so and the samples are too slow to follow a salvo.
+- **Fast stretch:** one read every 12.5 ms from the moment a launch is queued, through the salvo, until 0.6 s after it. **12.5 ms is a first value**: how long a launched element is in view is not known.
+- **Otherwise:** one read every 250 ms. These give the empty level (the median of the last 9) and show anything that stays in front of the sensor between salvos.
+- The thread starts with the first coordinator update, so nothing is read during INIT, and stops by itself when updates stop for 1.5 s. One switch turns the reader off.
+- It runs in every opmode built on the coordinator (the competition TeleOp, the autos, the tuners), wherever a `CS2` is configured.
+
+**In the log.**
+
+- Sample column `cs2f`, the last column of the coordinator's part of every row: every raw sample since the previous row as `prox@-ms`, ms before that row's own time, the form of CS5's `cs5f`. During a salvo the rows are written every loop, so each sample can be set against the pusher's angle.
+- `CS2 LAUNCH SENSOR started ...`: the settings, and whether the fast proximity setting applied.
+- `CS2 LAUNCH SENSOR fast stretch: ...`, once after every salvo: the number of samples, the real interval (mean, longest, how many late), the read time and its share of the hub, the lowest and highest proximity, the empty level, read errors.
+
+**The cost is not known.** The fast reads take hub time from the main loop while a salvo runs, and the loop time then sets how exactly the pusher stops. CS5's reader at 20 ms cost the loop about 6 ms (section 2.1); this one runs beside it. The first run has to compare the loop time and the pusher's rest position through salvos with the reader on and off, and settle the period.
+
+**What the first recordings have to answer** is the list under "What has to be measured first" above. The held count and the slots at the start of each salvo, already in the log, say roughly how many elements each recording holds; a run with known loads says it exactly.
+
+**Waits on** the first run on the robot.

@@ -116,6 +116,7 @@ These prefixes are relied on by the analysis tools, so they are part of the inte
 | `ELEMENTS`, `COUNTER` | slot count changes, stored baselines, the once-a-second empty-track health line |
 | `CS5 ENTRY`, `ENTRY` | each entry, FULL, resets, the thread's statistics and health |
 | `CS5 KIND` | the kind of an entry, with its color shares, total rise and number of color values, and the load order after it; `CS5 KIND OFF` when the color reads were given up for the run. The form of these lines, and of the load order on the `ENTRY COUNT` and `SALVO started` lines, is given in [element-counting.md](element-counting.md) section 2.8 |
+| `CS2 LAUNCH SENSOR` | the reader of CS2 at the top of the feed ramp (recorded only, from 2026-11-18): its settings at the start, and after every salvo the statistics of the fast stretch ([element-counting.md](element-counting.md) section 6.1) |
 | `WARNING`, `WARNING cleared`, `NOTICE` | the coordinator's standing conditions and one-off messages |
 | `REPORT` | the operator's reports of where a salvo landed |
 | `REMEMBERED AIM` | the remembered aims continued from the last TeleOp at INIT, or cleared there |

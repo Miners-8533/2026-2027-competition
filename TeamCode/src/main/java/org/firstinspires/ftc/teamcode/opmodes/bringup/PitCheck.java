@@ -238,6 +238,11 @@ public class PitCheck extends LinearOpMode {
             double sum = c.red + c.green + c.blue + 1e-9;
             double r = c.red / sum, g = c.green / sum, b = c.blue / sum;
             String reading = String.format(Locale.US, "alpha %.3f, distance %.2f cm, shares %.2f/%.2f/%.2f", c.alpha, dist, r, g, b);
+            if (!ElementCounter.inTrack(i)) {   // CS2, at the top of the feed ramp since 2026-11-18: it has no stored empty reading, and its distance means nothing once the launch sensor's fast setting is on
+                if (c.alpha <= 0.0) record(name, Verdict.FAIL, "no usable reading (" + reading + "): check the cable and that it is on its own I2C bus");
+                else record(name, Verdict.PASS, "answers (" + reading + "); on the feed ramp, not compared with an empty reading");
+                continue;
+            }
             if (c.alpha <= 0.0 || Double.isNaN(dist) || dist > 100.0) {
                 record(name, Verdict.FAIL, "no usable reading (" + reading + "): check the cable and that it is on its own I2C bus");
             } else if (!ElementCounter.looksEmpty(i, r, g, b, c.alpha, dist)) {

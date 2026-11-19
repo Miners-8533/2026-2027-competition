@@ -7,7 +7,7 @@ Four actuators on top of the chassis: the intake, the pusher, the flywheel (with
 Everything enters and leaves at the **front** of the robot.
 
 ```
-floor or flower -> [ramp] -> intake -> CS5 -> track: CS1, CS2, CS3, CS4 -> feed ramp -> flywheel -> out the front
+floor or flower -> [ramp] -> intake -> CS5 -> track: CS1, CS3, CS4 -> feed ramp (CS2) -> flywheel -> out the front
                                               (the pusher arm sweeps this track)
 ```
 

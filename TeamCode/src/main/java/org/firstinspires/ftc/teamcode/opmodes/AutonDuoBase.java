@@ -92,7 +92,7 @@ abstract class AutonDuoBase extends LinearOpMode {
             telemetry.addData("Expected start pose", "%.2f, %.2f, %.1f", start.position.x, start.position.y, start.heading.toDegrees());
             telemetry.addData("Mechanisms present", mechanisms.describe());
             telemetry.addData("Preload", mechanisms.counter == null ? "no element counter"
-                    : mechanisms.counter.isValid() ? mechanisms.counter.count() + " elements seen (expect 4)   " + mechanisms.counter.stackString()
+                    : mechanisms.counter.isValid() ? mechanisms.counter.count() + " elements seen (expect 3 with the 4 loaded: CS1, CS3 and CS4; CS2 is on the feed ramp)   " + mechanisms.counter.stackString()
                     : "counter NOT READING");
             telemetry.addLine(poseOk ? "Pose OK." : "WARNING: Pinpoint pose does not match the start pose. Do NOT start; restart the opmode.");
             telemetry.addLine("Gamepad 1: D-pad right = BLUE, D-pad left = RED, then press Start on the Driver Station.");

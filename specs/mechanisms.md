@@ -203,7 +203,7 @@ Entered by the TeleOp when the pose cannot be trusted; one way until the opmode 
 | Warning code | Condition |
 |---|---|
 | Counter override | the element counter is being ignored |
-| Counter not reading | a sensor of CS1 to CS4 has stopped answering |
+| Counter not reading | one of the track sensors CS1, CS3, CS4 has stopped answering |
 | Full | 4 held by the CS5 entry count (by the slot count with the "count by entries" switch off) |
 | Opponent nectar | the other alliance's nectar is at a named sensor; reject is the operator's decision |
 | Launch map empty | no speed source; the manual setpoint is in use |
@@ -243,9 +243,9 @@ These exist in the coordinator but no control reaches them in the competition op
 
 ## 14. Log columns
 
-Every sample row of the run log carries the coordinator's state: setpoint, flywheel target, speed and ready flag; pusher state, angle, speed and current; intake mode; ramp target; CS1 to CS4 count and slots; launch state; number of warnings; overrides; pusher check status; flywheel power and current; pusher lock state; active hold power; intake current; CS5 total entries, held count, FULL flag, latest proximity and raw samples; launched tally; the CS5 load order. See [logging.md](logging.md).
+Every sample row of the run log carries the coordinator's state: setpoint, flywheel target, speed and ready flag; pusher state, angle, speed and current; intake mode; ramp target; CS1 to CS4 count and slots; launch state; number of warnings; overrides; pusher check status; flywheel power and current; pusher lock state; active hold power; intake current; CS5 total entries, held count, FULL flag, latest proximity and raw samples; launched tally; the CS5 load order; CS2's raw samples. See [logging.md](logging.md).
 
-**Column names**, in order: `setpoint`, `fly_target`, `fly_vel`, `fly_ready`, `pusher_state`, `pusher_deg`, `pusher_vel`, `pusher_amps`, `intake_mode`, `ramp`, `count`, `slots`, `launch`, `warnings`, `overrides`, `check`, `fly_power`, `fly_amps`, `pusher_lock`, `pusher_hold`, `intake_amps`, `cs5_entries`, `cs5_held`, `cs5_full`, `cs5_prox`, `cs5f` (the raw samples), `launched_total`, `cs5_load` (the load order, one letter per held element, the first one in first; [element-counting.md](element-counting.md) section 2.8; added 2026-11-17).
+**Column names**, in order: `setpoint`, `fly_target`, `fly_vel`, `fly_ready`, `pusher_state`, `pusher_deg`, `pusher_vel`, `pusher_amps`, `intake_mode`, `ramp`, `count`, `slots`, `launch`, `warnings`, `overrides`, `check`, `fly_power`, `fly_amps`, `pusher_lock`, `pusher_hold`, `intake_amps`, `cs5_entries`, `cs5_held`, `cs5_full`, `cs5_prox`, `cs5f` (the raw samples), `launched_total`, `cs5_load` (the load order, one letter per held element, the first one in first; [element-counting.md](element-counting.md) section 2.8; added 2026-11-17), `cs2f` (the raw samples of CS2 at the top of the feed ramp, in the form of `cs5f`; [element-counting.md](element-counting.md) section 6.1; added 2026-11-18).
 
 ## 15. Status
 

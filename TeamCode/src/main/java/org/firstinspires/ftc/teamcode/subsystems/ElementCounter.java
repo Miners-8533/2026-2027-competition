@@ -13,8 +13,12 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import java.util.Arrays;
 
 /**
- * Counts and identifies the elements in the transport with four REV Color Sensor V3 named CS1 to CS4, numbered along the
- * track: intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel (CS4 is deepest, nearest the flywheel and the pusher arm). The count
+ * Counts and identifies the elements in the transport with THREE REV Color Sensor V3 along the track: intake -> CS1 -> CS3 ->
+ * CS4 -> flywheel (CS4 is deepest, nearest the flywheel and the pusher arm). Until 2026-11-18 there were four: CS2 sat between
+ * CS1 and CS3. The team moved it to the top of the feed ramp, where {@link LaunchSensor} reads it; it is NOT read here, never
+ * counts, and its place in the slots text is a dash (IN_TRACK). The arrays keep four places so that the sensor numbers and the
+ * log's columns stay as they were. The count is therefore 3 at most and {@link #isFull()} can no longer be true: the robot's
+ * count is the CS5 entry count (Mechanisms.COUNT_BY_ENTRIES). Not run on the robot in this form. The count
  * is the number of sensors that see an element. The stack fills from the CS4 end, so the run of elements in a row from
  * CS4 is a check: an element seen without a neighbor toward the flywheel is still moving (or a misread) and sets
  * {@link #hasGap()}, but it still counts as held.
@@ -93,6 +97,15 @@ public class ElementCounter {
     public static final String[] NAMES = {"CS1", "CS2", "CS3", "CS4"};
     public static final int N = NAMES.length;
     public static final int ARM_SENSOR = 3;   // CS4
+    /** CS2: at the top of the feed ramp since 2026-11-18, read by {@link LaunchSensor} and not by this class. */
+    public static final int FEED_RAMP_SENSOR = 1;
+    /** Which of the four names is a place along the track. A sensor that is not is never read here, is never an element, and is not needed for the counter to exist or to be valid. */
+    private static final boolean[] IN_TRACK = {true, false, true, true};
+
+    /** True if sensor i (0 = CS1) is a place along the track; false for CS2, which is on the feed ramp. */
+    public static boolean inTrack(int i) {
+        return IN_TRACK[i];
+    }
 
     /**
      * Empty-track readings: alpha, distance (cm), and the red / green / blue shares, per sensor. RE-MEASURED 2026-11-05 after the rotary transport was
@@ -131,6 +144,7 @@ public class ElementCounter {
 
     private ElementCounter(HardwareMap hardwareMap) {
         for (int i = 0; i < N; i++) {
+            if (!IN_TRACK[i]) continue;   // CS2: left to LaunchSensor (its fast proximity setting leaves no usable distance)
             color[i] = hardwareMap.get(NormalizedColorSensor.class, NAMES[i]);
             distance[i] = hardwareMap.tryGet(DistanceSensor.class, NAMES[i]);
             color[i].setGain((float) GAIN);
@@ -139,10 +153,10 @@ public class ElementCounter {
         Arrays.fill(slot, Slot.EMPTY);
     }
 
-    /** The counter if all four sensors CS1 to CS4 are configured, else null (a robot without them still runs). */
+    /** The counter if the three track sensors CS1, CS3 and CS4 are configured, else null (a robot without them still runs). CS2 is not needed. */
     public static ElementCounter tryCreate(HardwareMap hardwareMap) {
-        for (String name : NAMES) {
-            if (hardwareMap.tryGet(NormalizedColorSensor.class, name) == null) return null;
+        for (int i = 0; i < N; i++) {
+            if (IN_TRACK[i] && hardwareMap.tryGet(NormalizedColorSensor.class, NAMES[i]) == null) return null;
         }
         return new ElementCounter(hardwareMap);
     }
@@ -185,7 +199,9 @@ public class ElementCounter {
         if ((now - lastReadNs) / 1e6 >= READ_PERIOD_MS) {
             lastReadNs = now;
             readSensor(nextSensor, now);
-            nextSensor = (nextSensor + 1) % N;
+            do {
+                nextSensor = (nextSensor + 1) % N;
+            } while (!IN_TRACK[nextSensor]);
         }
         if (frozen) return;   // the pusher lock: the sensors are still read (and logged) but the count stays where it was
         // the count changes only after the raw count has been steady for COUNT_STABLE_MS
@@ -223,6 +239,7 @@ public class ElementCounter {
     }
 
     private boolean isElement(int i) {
+        if (!IN_TRACK[i]) return false;
         if (allCountIgnored || System.nanoTime() < countIgnoredUntilNs) return false;
         if (i == ARM_SENSOR && armCountIgnored) return false;
         if (i == ARM_SENSOR && armNear && slot[i] == Slot.OTHER) return false;   // the edge of the arm in CS4's view, not an element
@@ -298,6 +315,7 @@ public class ElementCounter {
     private int contiguousFromFlywheelEnd() {
         int n = 0;
         for (int i = N - 1; i >= 0; i--) {
+            if (!IN_TRACK[i]) continue;   // CS2 is not between CS1 and CS3 any more
             if (isElement(i)) n++;
             else break;
         }
@@ -310,6 +328,7 @@ public class ElementCounter {
     public boolean isValid() {
         long now = System.nanoTime();
         for (int i = 0; i < N; i++) {
+            if (!IN_TRACK[i]) continue;
             if (readAtNs[i] == 0L || (now - readAtNs[i]) / 1e6 > STALE_MS) return false;
         }
         return true;
@@ -362,8 +381,9 @@ public class ElementCounter {
         return lastShares[i][channel];
     }
 
-    /** How far sensor i's latest color shares are from its own empty baseline (the presence rule's first test). */
+    /** How far sensor i's latest color shares are from its own empty baseline (the presence rule's first test). 0 for CS2, which is not read here. */
     public double colorShift(int i) {
+        if (!IN_TRACK[i]) return 0.0;
         return Math.sqrt(Math.pow(lastShares[i][0] - BASE_SHARES[i][0], 2) + Math.pow(lastShares[i][1] - BASE_SHARES[i][1], 2)
                 + Math.pow(lastShares[i][2] - BASE_SHARES[i][2], 2));
     }
@@ -372,6 +392,10 @@ public class ElementCounter {
     public static String describeBaselines() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < N; i++) {
+            if (!IN_TRACK[i]) {
+                sb.append(String.format(java.util.Locale.US, "%sCS%d not in the slot count (on the feed ramp)", i == 0 ? "" : "; ", i + 1));
+                continue;
+            }
             sb.append(String.format(java.util.Locale.US, "%sCS%d alpha %.3f dist %.2f cm shares %.3f/%.3f/%.3f", i == 0 ? "" : "; ", i + 1, BASE_ALPHA[i], BASE_DIST[i],
                     BASE_SHARES[i][0], BASE_SHARES[i][1], BASE_SHARES[i][2]));
         }
@@ -428,17 +452,17 @@ public class ElementCounter {
         }
     }
 
-    /** For example ".PRB" (CS1 to CS4; P pollen, R red nectar, B blue nectar, O other, A arm, . empty). */
+    /** For example ".-RB" (CS1 to CS4; P pollen, R red nectar, B blue nectar, O other, A arm, . empty; the dash is CS2, which is not a place along the track). */
     public String slotsCompact() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < N; i++) sb.append(symbol(slot[i]));
+        for (int i = 0; i < N; i++) sb.append(IN_TRACK[i] ? symbol(slot[i]) : "-");
         return sb.toString();
     }
 
-    /** For example "intake > [.] [P] [R] [B] > flywheel". */
+    /** For example "intake > [.] [R] [B] > flywheel" (CS1, CS3, CS4). */
     public String stackString() {
         StringBuilder sb = new StringBuilder("intake > ");
-        for (int i = 0; i < N; i++) sb.append("[").append(symbol(slot[i])).append("] ");
+        for (int i = 0; i < N; i++) if (IN_TRACK[i]) sb.append("[").append(symbol(slot[i])).append("] ");
         return sb.append("> flywheel").toString();
     }
 

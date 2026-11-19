@@ -38,7 +38,7 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 | Configuration | every required device name and type; a stale second flywheel motor; the hub and port of each device; configured devices the code does not use | automatic |
 | Battery | at least 12.0 V on every hub | automatic |
 | Pinpoint | status READY and a sane device loop time | automatic |
-| CS1 to CS4 | each answers and matches its stored empty reading | automatic |
+| CS1 to CS4 | each answers; CS1, CS3 and CS4 match their stored empty readings (CS2, on the feed ramp, has none) | automatic |
 | Flywheel | spins at low power: the encoder reads the right way and fast enough | encoder automatic; launching direction by eye |
 | Pusher | turns about 60 deg forward and back: encoder sign, and return to the start | sign and return automatic; pushing direction by eye |
 | Intake | pulses in, then out; the current is shown | by eye |
@@ -138,7 +138,7 @@ Each study was built to answer one question from logged data.
 | Launch Salvo Speed Study (removed 2026-11-17) | How fast should the pusher turn a salvo? | A copy of the competition TeleOp in which the driver's D-pad changed the pusher's power live | 0.37 turned a salvo in 1.0 s against 1.2 s at 0.30 with no change in flywheel dip; the team chose 0.30 |
 | Flywheel Step Study | How fast does the flywheel follow a setpoint change? | The flywheel alone steps through a list of setpoints; each change is timed until the speed is in the launch band and has stayed there | not yet run on the robot |
 | CS Pass Study | Can CS5 count entering elements without slowing the loop? | The real mechanisms with the intake in; CS5 read on its own thread; the operator presses a button per element fed as ground truth | yes at a 20 to 25 ms period with a small read; this led to the entry counter |
-| Color Sensor Study | What do CS1 to CS4 read after the track or lighting changes? | Four guided steps: empty baseline, an empty pusher sweep, a full baseline with 4 pollen, a slow reject | prints the new empty readings to paste into the element counter |
+| Color Sensor Study | What do the track sensors CS1, CS3 and CS4 read after the track or lighting changes? | Four guided steps: empty baseline, an empty pusher sweep, a full baseline with 4 pollen, a slow reject | prints the new empty readings to paste into the element counter |
 
 ### 3.1 The match loop exists once
 

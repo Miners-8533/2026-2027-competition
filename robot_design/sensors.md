@@ -5,7 +5,8 @@ Everything the software can measure. The wiring is in [hub-configuration.md](hub
 | Sensor | Measures | Used for |
 |---|---|---|
 | goBILDA Pinpoint with two pods | field position, heading, velocity | all driving, aiming and distance to the hive |
-| `CS1` to `CS4` (REV Color Sensor V3) | color and distance at four places along the track | which elements are held; where the pusher arm is |
+| `CS1`, `CS3`, `CS4` (REV Color Sensor V3) | color and distance at three places along the track | which elements are held; where the pusher arm is |
+| `CS2` (REV Color Sensor V3) | color and distance at the top of the feed ramp (moved there, reported 2026-11-18; it was the second place along the track) | meant to count the elements a salvo launches (team, 2026-11-18); for now its proximity is recorded through every salvo and nothing is counted |
 | `CS5` (REV Color Sensor V3) | proximity at the intake entrance | counting elements as they enter |
 | Pusher motor encoder | arm angle and speed | every pusher move |
 | Flywheel motor encoder | wheel speed | launch readiness |
@@ -16,13 +17,15 @@ There is no camera in use, no limit or home switch, and no encoder on the drive 
 
 ## The color sensors along the track: CS1 to CS4
 
-Four REV Color Sensor V3, numbered in the order an element passes them:
+Four REV Color Sensor V3. Until 2026-11-17 they were numbered in the order an element passes them. **`CS2` has since been moved to the feed ramp** (next section), so the order an element passes them is now:
 
 ```
-intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel
+intake -> CS1 -> CS3 -> CS4 -> feed ramp (CS2) -> flywheel
 ```
 
-`CS4` is deepest, nearest the flywheel. Where each sits along the track in inches or degrees: **NOT RECORDED**.
+`CS4` is the deepest of the three left in the track. Where each sits along the track in inches or degrees: **NOT RECORDED**.
+
+The rest of this section was measured with `CS2` in its old place, between `CS1` and `CS3`.
 
 **How they behave.**
 
@@ -36,7 +39,7 @@ intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel
 | Sensor | Alpha | Distance (cm) | Red / green / blue share |
 |---|---|---|---|
 | CS1 | 0.209 | 3.60 | 0.238 / 0.410 / 0.352 |
-| CS2 | 0.109 | 5.20 | 0.220 / 0.448 / 0.332 |
+| CS2 (its old place; **not valid since the move**) | 0.109 | 5.20 | 0.220 / 0.448 / 0.332 |
 | CS3 | 0.353 | 3.92 | 0.226 / 0.414 / 0.360 |
 | CS4 | 0.061 | 7.67 | 0.240 / 0.408 / 0.352 |
 
@@ -66,6 +69,24 @@ A dim blue nectar at CS4 is close to the arm's color; the arm is told apart by i
 - One skipped belt tooth (18 deg) moves the arm out of the parked window, so a parked look detects any slip.
 - The arm's edge has a long tail toward HOLD: with the arm resting a few degrees to about 60 deg past HOLD, CS4 can read an unclassified object. After a salvo the arm rests in that zone (40 to 60 deg).
 - `CS1` to `CS3` also see the arm as an unclassified object when it sweeps past them.
+
+## CS2 on the feed ramp
+
+`CS2` was moved from the track to the feed ramp, the fixed end of the track that turns the elements up into the flywheel. Reported 2026-11-18. In the ten runs of 2026-11-17 it was still in its old place: its empty reading matched the stored one in every run (alpha 0.114 to 0.118, 5.1 to 5.2 cm).
+
+| Quantity | Value |
+|---|---|
+| Where | at the top of the feed ramp, past the HOLD position (team, 2026-11-18). Inches or degrees: **NOT RECORDED** |
+| What it is for | counting the elements a salvo launches (team, 2026-11-18) |
+| Whether anything rests in its view with the arm at HOLD and 4 held | taken to be nothing, since it sits past HOLD: elements pass it only on their way into the flywheel. **Not confirmed on the robot** |
+| Empty reading in the new place | **NOT MEASURED** |
+| Pollen, red nectar, blue nectar in the new place | **NOT MEASURED** |
+| The pusher arm in its view: at which angles, and whether the arm rests there after a salvo (it rests 40 to 60 deg past HOLD) | **NOT MEASURED**; the arm sweeps through the feed ramp, so it must pass |
+| How long one launched element is in view | **NOT MEASURED** |
+| Hub, bus and name | unchanged: Expansion Hub, bus 2, `CS2` (team, 2026-11-18). Only its place changed |
+
+- With the standard sensor settings (a new value every 100 ms) it cannot follow single elements through a salvo: a salvo launches four in about 1.2 s. From 2026-11-18 it is put in the fast proximity mode CS5 uses (8-bit, a new value every 6.25 ms) and is no longer read by the slot count. In that mode its distance reading means nothing.
+- The software records it and counts nothing yet: [specs/element-counting.md](../specs/element-counting.md) sections 1.8 and 6. Every NOT MEASURED line above waits on the first recordings.
 
 ## The entrance sensor: CS5
 
