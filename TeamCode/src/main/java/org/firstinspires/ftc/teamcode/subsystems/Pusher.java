@@ -116,6 +116,12 @@ public class Pusher {
     public static double LOCK_POWER = 0.25;
     /** The arm counts as locked when it is stopped within this many degrees of LOCK_DEG past a HOLD. */
     public static double LOCK_TOLERANCE_DEG = 12.0;
+    /**
+     * The launch-ready lock (startLockNearest) stops about LOCK_OVERSHOOT_DEG PAST its target (2026-11-19 logs: it landed 159 to 168.5 deg for a 156 target, cut off 4 to 6 deg early and then coasting on), so the seek
+     * is aimed that much short. An arm up to LOCK_STAY_AHEAD_DEG PAST the launch-ready angle counts as locked and is not moved again: the 21:59 run landed at 168.5, outside the 12 deg tolerance, the lock was
+     * called failed, and the forward-only retry went a whole lap (348 deg) through the launch zone, which pushed an element out.
+     */
+    public static double LOCK_OVERSHOOT_DEG = 9.0, LOCK_STAY_AHEAD_DEG = 25.0;
 
     /** How often (ms) the motor current is refreshed for the display when no stall check needs it. */
     public static double CURRENT_DISPLAY_REFRESH_MS = 250.0;
@@ -195,6 +201,7 @@ public class Pusher {
     private final ElapsedTime jamClock = new ElapsedTime();
     private final ElapsedTime jamResumeClock = new ElapsedTime();
     private String jamReport = null;
+    private double lockOverTolDeg = 12.0;   // how far PAST the lock angle still counts as locked (the launch-ready lock allows more)
     private double lockTargetDeg = 90.0;   // where the lock in progress or the last one was sent (isLocked checks against it)
     private boolean lockSeek = false;   // the SEEK in progress is the lock (startLock): the only seek the jam resolution backs off
     private boolean gaveUp = false;   // the last move timed out (MOVE_TIMEOUT_S): the arm stays where it is until the next move is commanded
@@ -478,9 +485,41 @@ public class Pusher {
             return;
         }
         lockTargetDeg = deg;
+        lockOverTolDeg = LOCK_TOLERANCE_DEG;
         startSeek(nearestHoldTicks() + deg * TICKS_PER_REV / 360.0, LOCK_POWER);
         lockSeek = state == State.SEEK;
         lastCommand = "LOCK: " + lastCommand;
+    }
+
+    /**
+     * The TeleOp's launch-ready lock from WHEREVER the arm is (2026-11-19, user: the arm position and a move in progress must not keep it from happening, and the seek ONLY MOVES FORWARD): a seek to the next
+     * position {@code deg} past a HOLD that is ahead of the arm (an arm already within LOCK_TOLERANCE_DEG past it stays where it is). From the arm's rest after a salvo, 40 to 60 deg past HOLD, that is forward about 100 deg.
+     * From beyond the launch-ready angle (171 to 336 deg past a HOLD, for example the pusher check's park at 326) the next one is 150 to 330 deg forward, through the launch zone: an element in the way would be
+     * pushed out. It replaces any move in progress; the caller has already decided that nothing (a salvo, a jam) forbids it. Ignored until calibrated, or while faulted.
+     */
+    public void startLockNearest(double deg) {
+        if (!isCalibrated() || state == State.STALLED) {
+            lastCommand = "lock IGNORED: " + (isCalibrated() ? "the pusher is faulted" : "TICKS_PER_REV is not set");
+            return;
+        }
+        lockTargetDeg = deg;
+        lockOverTolDeg = LOCK_STAY_AHEAD_DEG;
+        double rev = TICKS_PER_REV;
+        double off = deg * rev / 360.0;
+        double pos = getUnwrappedTicks();
+        double sincePast = ((pos - off) % rev + rev) % rev;            // ticks past the nearest launch-ready angle behind the arm, 0 to one turn
+        double err = sincePast > rev / 2.0 ? sincePast - rev : sincePast;   // signed, -180 to 180 deg worth of ticks: positive = past the angle
+        double errDeg = err * 360.0 / rev;
+        double target;
+        if (errDeg >= -LOCK_TOLERANCE_DEG && errDeg <= LOCK_STAY_AHEAD_DEG) {
+            target = pos;   // already there (within the tolerance short of it or the stay window past it): stay, never a lap
+        } else {
+            double aim = off - LOCK_OVERSHOOT_DEG * rev / 360.0;   // the seek stops about LOCK_OVERSHOOT_DEG past what it is aimed at
+            target = Math.ceil((pos - aim) / rev) * rev + aim;
+        }
+        startSeek(target, LOCK_POWER);
+        lockSeek = state == State.SEEK;
+        lastCommand = String.format(java.util.Locale.US, "LOCK (forward only, %.0f deg to go, arm %+.1f from the launch-ready angle): %s", (target - pos) * 360.0 / rev, errDeg, lastCommand);
     }
 
     /** Moves the arm back from the LOCK position to the nearest HOLD (a reverse of LOCK_DEG; never forward, which would sweep the pollen into the flywheel). */
@@ -507,7 +546,7 @@ public class Pusher {
     /** Idle, stopped, and within LOCK_TOLERANCE_DEG of the LOCK position. */
     public boolean isLocked() {
         return state == State.HOLD && isCalibrated() && Math.abs(velocityRaw) < STOP_SPEED_TICKS_PER_SEC
-                && Math.abs(getAnglePastHoldDeg() - lockTargetDeg) <= LOCK_TOLERANCE_DEG;
+                && (getAnglePastHoldDeg() - lockTargetDeg) >= -LOCK_TOLERANCE_DEG && (getAnglePastHoldDeg() - lockTargetDeg) <= lockOverTolDeg;
     }
 
     /** Ends a jog where it is: the state goes back to HOLD (so {@link #isStopped} can be true) without moving to a HOLD. */

@@ -245,6 +245,7 @@ public class Mechanisms {
     private final java.util.ArrayDeque<long[]> intakeOutIntervals = new java.util.ArrayDeque<>();   // recent stretches with the intake OUT: {start, end} in System.nanoTime(), for judging an entry by the time of its PEAK
     private long intakeOutStartNs = 0L;
     private String lockRefusalLogged = "";
+    private String wantedRefusalLogged = "";   // the last refusal logged for a target-lock / Hive Dash request, so a refusal is logged once per reason
     private int lockFailures = 0;   // pusher locks that failed since the last salvo, reject, lock or change of the lock request (LOCK_MAX_TRIES)
     /**
      * The flywheel position servo (2026-11-16, user): the competition TeleOp and the autos HOLD THE POLLEN POSITION, nothing else for now (no toggle: a nectar jams at the pollen position and a pollen misses from the nectar position, but the launch map was tuned for the pollen position). Null when the servo is
@@ -409,6 +410,7 @@ public class Mechanisms {
     public void setPusherLockWanted(boolean wanted) {
         if (wanted != lockWanted) {
             lockWanted = wanted;
+            wantedRefusalLogged = "";
             lockFailures = 0;   // a new request (or its end): the lock may be tried again
             lockWantedOffClock.reset();
             RunLog.event("PUSHER LOCK request " + (wanted ? "ON (target lock or Hive Dash)" : "off") + " (" + heldText() + ", lock " + lockCode() + ")");
@@ -470,9 +472,39 @@ public class Mechanisms {
         RunLog.event("PUSHER RE-HOME " + pusher.getLastCommand());
     }
 
+    /**
+     * Why the launch-ready lock asked for by a target lock or a Hive Dash cannot start now, or null (2026-11-19, user): ONLY a salvo (or a launch or reject, which are the same job), a jam or a fault, or a jog
+     * of the pusher by hand. The arm's position, a pusher check, a re-home, a seek or a return in progress do not: they are stopped and the arm goes to the launch-ready position (stopPusherWorkForLock).
+     */
+    private String wantedLockRefusal() {
+        if (pusher == null || !pusher.isCalibrated()) return "the pusher is missing or not calibrated";
+        if (counter == null) return "there is no element counter";
+        if (salvoActive || launchQueued || rejectActive) return "a salvo, a queued launch or a reject is running";
+        if (manualCalibration) return "the pusher is being calibrated by hand";
+        if (pendingRejectAfterUnlock) return "a reject is waiting for the unlock";
+        if (pusher.isStalled()) return "the pusher is faulted";
+        if (pusher.isGaveUp() || pusher.isJamUnresolved()) return "the pusher jammed or gave up on its last move: launch or reject first";
+        if (LOCK_MAX_TRIES > 0 && lockFailures >= LOCK_MAX_TRIES) return "the lock failed " + lockFailures + " times: no more tries until a salvo, a reject or a new lock request";
+        return null;
+    }
+
+    /** Stops what the pusher is doing (a pusher check, a re-home, a wait for the check) before the launch-ready lock takes it over. */
+    private void stopPusherWorkForLock() {
+        if (pusherCheck != null && pusherCheck.isActive()) pusherCheck.abort("the launch-ready lock is wanted (a target lock or a Hive Dash is on)");
+        if (checkPending) {
+            checkPending = false;
+            RunLog.event("PUSHER CHECK cancelled: the launch-ready lock is wanted (a target lock or a Hive Dash is on)");
+        }
+        if (rehoming) {
+            rehoming = false;
+            RunLog.event("PUSHER RE-HOME stopped: the launch-ready lock is wanted");
+        }
+        pusher.cancelMove();
+    }
+
     private void beginLock(String why) {
         counter.setFrozen(true);
-        pusher.startLock(Pusher.LAUNCH_READY_DEG);
+        pusher.startLockNearest(Pusher.LAUNCH_READY_DEG);
         lockState = LockState.LOCKING;
         lockClock.reset();
         RunLog.event("PUSHER LOCK (" + why + "): " + heldText() + " | " + pusher.getLastCommand());
@@ -511,8 +543,16 @@ public class Mechanisms {
                         lockRefusalLogged = why;
                         RunLog.event("PUSHER LOCK for FULL refused: " + why + " (the intake stays IN until the pusher is locked)");
                     }
-                } else if (PUSHER_LOCK_ENABLED && lockWanted && !manualIntake && !counterOverride && lockRefusal(false) == null) {   // 2026-11-19 (user): no count condition, the robot may think it is empty; only the request (target lock or Hive Dash) decides
-                    beginLock("a target lock or a Hive Dash is on");
+                } else if (PUSHER_LOCK_ENABLED && lockWanted) {   // 2026-11-19 (user): no count condition, and nothing but a salvo or a jam keeps it off: the arm's position and a move in progress do not
+                    String why = wantedLockRefusal();
+                    if (why == null) {
+                        wantedRefusalLogged = "";
+                        stopPusherWorkForLock();
+                        beginLock("a target lock or a Hive Dash is on");
+                    } else if (!why.equals(wantedRefusalLogged)) {
+                        wantedRefusalLogged = why;
+                        RunLog.event("PUSHER LOCK for the target lock / Hive Dash refused: " + why);
+                    }
                 }
                 break;
             case LOCKING:
@@ -539,6 +579,12 @@ public class Mechanisms {
                 }
                 break;
             case UNLOCKING:
+                if (PUSHER_LOCK_ENABLED && lockWanted && !lockForFull() && wantedLockRefusal() == null) {   // the request came back while the arm was reversing to HOLD: back to the launch-ready position
+                    stopPusherWorkForLock();
+                    beginLock("a target lock or a Hive Dash is on again, while the arm was unlocking");
+                    unlockForIntake = false;
+                    break;
+                }
                 if (pusher.isStalled() || (pusher.getState() == Pusher.State.HOLD && pusher.isStopped())) {
                     RunLog.event(String.format(Locale.US, "PUSHER UNLOCKED: the arm is %.1f deg past HOLD (%s)", pusher.getAnglePastHoldDeg(), pusher.getLastResult()));
                     lockState = LockState.NONE;
