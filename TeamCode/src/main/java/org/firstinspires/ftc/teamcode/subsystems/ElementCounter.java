@@ -81,12 +81,15 @@ public class ElementCounter {
     public static double BLUE_NECTAR_MIN_BLUE_OVER_GREEN = 0.08;
     public static double BLUE_NECTAR_MAX_RED = 0.25;
     /** Pusher arm: bluish with GREEN CLOSE TO BLUE (about 0.23 / 0.38 / 0.39); a dim blue nectar has blue well above green. */
-    public static double ARM_MIN_BLUE = 0.36;
+    // 2026-11-19 (user, the new normal at CS4): the arm now reads rgb 0.21 to 0.22 / 0.41 to 0.42 / 0.36 to 0.37 at 2.5 to 3.0 cm (Pusher Calibration Test), so the blue floor is 0.34, the green to blue gap 0.10, there is
+    // a blue CEILING (blue nectar is 0.44 and up), and the distance is no longer asked for (below).
+    public static double ARM_MIN_BLUE = 0.34;
+    public static double ARM_MAX_BLUE = 0.42;
     public static double ARM_MAX_RED = 0.28;
-    public static double ARM_MAX_GREEN_BLUE_GAP = 0.06;
+    public static double ARM_MAX_GREEN_BLUE_GAP = 0.10;
     /** The arm is only expected at CS4; ColorSensorsTest turns this on to hold it in front of any sensor. */
     public static boolean ARM_ANY_SENSOR = false;
-    public static boolean ARM_REQUIRE_DISTANCE = true;
+    public static boolean ARM_REQUIRE_DISTANCE = false;   // FALSE 2026-11-19: the arm now reads 2.5 to 3.0 cm, as near as pollen (3.0), so the color alone says arm: pollen's blue is 0.18 to 0.27, nectar's 0.44 and up
     /**
      * The arm reads farther than pollen at CS4 (pollen about 3.0 cm, an empty track about 7.7). 4.0 since 2026-11-05 (was 5.5): with the recolored transport the arm's CENTER reads 5.1 to 5.2 cm and only
      * its shoulders read 5.8 cm or more, so 5.5 accepted only the shoulders: the pusher check saw a crossing 8 to 18 deg wide instead of about 46 and corrected the zero by 14 to 29 deg (and by 94 and 155 deg
@@ -117,9 +120,11 @@ public class ElementCounter {
      * 2026-10-31: alpha 0.077 0.080 0.173 0.038, distance 3.68 5.23 4.11 7.87, shares 0.32/0.38/0.30 0.29/0.42/0.29 0.28/0.40/0.32 0.30/0.39/0.31.)
      * Lighting and the sensor views change: re-measure in the pit (Color Sensor Study: an empty STILL take) and copy the medians here.
      */
-    private static final double[] BASE_ALPHA = {0.209, 0.109, 0.353, 0.061};
-    private static final double[] BASE_DIST = {3.60, 5.20, 3.92, 7.67};
-    private static final double[][] BASE_SHARES = {{0.238, 0.410, 0.352}, {0.220, 0.448, 0.332}, {0.226, 0.414, 0.360}, {0.240, 0.408, 0.352}};
+    // CS4 re-measured 2026-11-19 (user: the new normal for this sensor): its empty view now reads about 3 cm, not 7.7 (the 19:53 TeleOp read 6.1 to 6.9, every run from 21:45 on 2.7 to 2.9). The Pusher
+    // Calibration Test's two empty baselines, the arm at HOLD (alpha 0.078, 2.74 cm, 0.237/0.429/0.335) and the arm 40 deg past it (0.055, 3.13 cm, 0.263/0.430/0.306), averaged, so both are within about 0.02 of it.
+    private static final double[] BASE_ALPHA = {0.209, 0.109, 0.353, 0.067};
+    private static final double[] BASE_DIST = {3.60, 5.20, 3.92, 2.94};
+    private static final double[][] BASE_SHARES = {{0.238, 0.410, 0.352}, {0.220, 0.448, 0.332}, {0.226, 0.414, 0.360}, {0.250, 0.430, 0.320}};
 
     private final NormalizedColorSensor[] color = new NormalizedColorSensor[N];
     private final DistanceSensor[] distance = new DistanceSensor[N];
@@ -184,7 +189,7 @@ public class ElementCounter {
     /** What a PRESENT object is, from its color shares (and distance, for the arm). */
     public static Slot classify(int sensor, double red, double green, double blue, double distCm) {
         if ((ARM_ANY_SENSOR || sensor == ARM_SENSOR) && (!ARM_REQUIRE_DISTANCE || distCm >= ARM_MIN_DIST_CM)
-                && blue >= ARM_MIN_BLUE && red <= ARM_MAX_RED && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return Slot.PUSHER_ARM;
+                && blue >= ARM_MIN_BLUE && blue <= ARM_MAX_BLUE && red <= ARM_MAX_RED && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return Slot.PUSHER_ARM;
         if (red >= RED_NECTAR_MIN_RED && red >= green - 0.01 && blue < RED_NECTAR_MAX_BLUE) return Slot.RED_NECTAR;
         if (blue >= BLUE_NECTAR_MIN_BLUE && blue - green >= BLUE_NECTAR_MIN_BLUE_OVER_GREEN && red <= BLUE_NECTAR_MAX_RED) return Slot.BLUE_NECTAR;
         if (green >= POLLEN_MIN_GREEN_OVER_BLUE * blue && red <= POLLEN_MAX_RED) return Slot.POLLEN;

@@ -41,7 +41,7 @@ The rest of this section was measured with `CS2` in its old place, between `CS1`
 | CS1 | 0.209 | 3.60 | 0.238 / 0.410 / 0.352 |
 | CS2 (its old place; **not valid since the move**) | 0.109 | 5.20 | 0.220 / 0.448 / 0.332 |
 | CS3 | 0.353 | 3.92 | 0.226 / 0.414 / 0.360 |
-| CS4 | 0.061 | 7.67 | 0.240 / 0.408 / 0.352 |
+| CS4 (re-measured 2026-11-19, the new normal: the empty view reads about 3 cm; the arm 2.5 to 3.0 cm) | 0.067 | 2.94 | 0.250 / 0.430 / 0.320 |
 
 These depend on the lighting and on the track's color. A stale empty reading shows up as a phantom element (this happened on 2026-11-03), so they are re-measured in the pit when the lighting changes. They cannot be captured at the start of a match, because the robot starts with elements in it.
 

@@ -35,7 +35,7 @@ A new presence state must persist 150 ms before it is reported.
 
 **Kind** (what a present object is), tested in this order on the color shares:
 
-1. **Pusher arm** (CS4 only): blue at least 0.36, red at most 0.28, green within 0.06 of blue, and at least 4.0 cm away.
+1. **Pusher arm** (CS4 only): blue from 0.34 to 0.42, red at most 0.28, green within 0.10 of blue, and no distance condition (changed 2026-11-19, user: CS4's empty view now reads about 3 cm and the arm 2.5 to 3.0 cm, as near as pollen; before: blue at least 0.36, green within 0.06 of blue, at least 4.0 cm away. Pollen's blue is 0.18 to 0.27 and nectar's 0.44 and up, so the color alone separates them). Not yet checked on the robot.
 2. **Red nectar:** red at least 0.35, red not below green, blue under 0.30.
 3. **Blue nectar:** blue at least 0.44, blue at least 0.08 above green, red at most 0.25.
 4. **Pollen:** green at least 1.5 times blue, red at most 0.35.
