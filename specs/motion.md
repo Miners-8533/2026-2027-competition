@@ -76,7 +76,7 @@ Not in the code. See "As built and target" in the [README](README.md).
 1. A leg that is meant to settle does settle. The time cap is a safety net.
 2. The control law in use is the one that was tuned: the static friction term is part of it, not an option.
 3. A tuned value is in the code, with the date and the log it came from.
-4. Every number in the acceptance test is measured and reported by the opmode that runs it. Nobody works them out by hand. **Built 2026-11-17, not run on the robot:** the Drive Acceptance opmode ([support-opmodes.md](support-opmodes.md) section 4.2.1).
+4. Every number in the acceptance test is measured and reported by the opmode that runs it. Nobody works them out by hand. **Built 2026-11-17, run 2026-11-19:** the Drive Acceptance opmode ([support-opmodes.md](support-opmodes.md) section 4.2.1).
 
 **Acceptance test** (on `ROBOT_1`, run by the Drive Acceptance opmode, [support-opmodes.md](support-opmodes.md) section 4.2.1, with the battery at least 12.0 V at rest). The values are proposed and are to be fixed at the tuning session.
 
@@ -89,6 +89,19 @@ Not in the code. See "As built and target" in the [README](README.md).
 | Overshoot | at most 1.5 in and 5 deg |
 | Time to settle | at most 1.0 s more than the distance at the leg's speed |
 | A 12 in move and a 5 deg turn (the stall case) | settled within 1.5 s |
+
+**Result, 2026-11-19 21:32 (`robot-logs/2026-11-19/213230_bringup.log`, build 60e5cbe with uncommitted changes, battery at rest 12.93 to 13.14 V, so every run counted): ALL PASS, with the gains of the parameter table above (the starting values of 2026-09-14, never tuned) and the static friction term on.** The robot settled in every one of the 60 runs and none timed out; the overshoot was at most 0.43 in and 0.2 deg.
+
+| Test | Worst final error | Worst time (limit) |
+|---|---|---|
+| 48 in forward | 0.43 in, 0.3 deg | 1.55 s (3.18) |
+| 48 in strafe | 0.87 in, 0.2 deg | 1.86 s (3.80) |
+| 90 deg turn | 0.33 in, 1.7 deg | 0.78 s (1.75) |
+| 180 deg turn | 0.31 in, 1.7 deg | 1.03 s (2.50) |
+| 12 in move | 0.41 in, 0.4 deg | 0.83 s (1.50) |
+| 5 deg turn | 0.36 in, 1.5 deg | 0.34 s (1.50) |
+
+The thin margins: the strafe stops 0.73 to 0.87 in short of its target every time (limit 1.0 in) and the turns end up to 1.7 deg off (limit 2.0 deg). The static friction term is what removed the stall short of the target (section 2). The tuners were not run; the gains are unchanged, so requirement 3 (a tuned value in the code with its date and log) is met by recording these starting values as the accepted ones, with this log.
 
 **Design consequences.**
 

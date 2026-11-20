@@ -187,7 +187,7 @@ These have **not** been used to tune `ROBOT_1`; the drive-to-pose gains are stil
 
 ### 4.2.1 Drive Acceptance
 
-**Status:** built 2026-11-17 for target T2 ([motion.md](motion.md) section 2.1). It compiles and has not run on the robot. It is shown on the Driver Station.
+**Status:** built 2026-11-17 for target T2 ([motion.md](motion.md) section 2.1). **Run on the robot 2026-11-19 21:32 (build 60e5cbe, 119 s): ALL PASS, 6 tests of 10 runs, with the gains of 2026-09-14 and the static friction term on** (results in motion.md section 2.1). It is shown on the Driver Station.
 
 **Purpose.** Drive the acceptance test of *drive to pose* and report every number of it, so a tuning session ends with a verdict and a record. The tuners find the gains; this opmode judges them.
 
