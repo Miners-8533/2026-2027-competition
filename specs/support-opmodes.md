@@ -13,6 +13,7 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 | Flywheel Step Study | Bring-up | yes | bringup |
 | Color Sensor Study | Bring-up | hidden | bringup |
 | Color Sensors Test (CS1-CS4) | Bring-up | hidden | none (device log) |
+| Pusher Calibration Test | Bring-up | yes | bringup |
 | Launcher Offset Finder | Bring-up | hidden | bringup |
 | Pinpoint Push Test | Bring-up | hidden | bringup |
 | Pinpoint Offset Check | Bring-up | hidden | bringup |
