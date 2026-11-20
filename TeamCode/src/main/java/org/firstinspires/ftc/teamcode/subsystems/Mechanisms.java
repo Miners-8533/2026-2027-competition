@@ -129,7 +129,14 @@ public class Mechanisms {
     public static int ENTRY_FULL_MIN_COUNTER = 0;
     /** The entry count goes back to 0 when the counter has read 0 for this long, so false peaks never pile up into a phantom FULL. */
     public static double ENTRY_ZERO_RESET_SEC = 0.0;
-    /** After a salvo, when the robot is empty and idle, check the pusher's zero against CS4 and correct a belt slip (see PusherCheck). */
+    /**
+     * MASTER SWITCH, TEMPORARILY OFF (2026-11-19, user): CS4 no longer sees the pusher arm the way the check expects (its empty view reads about 3 cm and the arm barely changes it; the pusher check lost the arm in 5 of
+     * 6 starts), so there is NO pusher check and NO calibration sweep, and the robot relies on the pusher's zero set at INIT (the arm at HOLD, the robot placed right). False: no check after a salvo, none at Start, the
+     * operator's calibration sweep (left bumper + Y) refuses with a notice, and the two zero warnings (PUSHER ZERO NOT VERIFIED / UNCERTAIN) are not raised. With the check off, a salvo that leaves the arm past HOLD
+     * is followed by the re-home to HOLD by the encoder (REHOME_AFTER_SKIPPED_CHECK), as after a skipped check, so the intake keeps its room. True: the checks below work as before.
+     */
+    public static boolean PUSHER_CHECK_ENABLED = false;
+    /** After a salvo, when the robot is empty and idle, check the pusher's zero against CS4 and correct a belt slip (see PusherCheck). Needs PUSHER_CHECK_ENABLED. */
     public static boolean AUTO_PUSHER_CHECK = true;
     /** Also check right after Start when the zero has not been verified since the app started (a power cycle, an install, or a zero set by hand). */
     public static boolean AUTO_STARTUP_CHECK = true;
@@ -838,6 +845,11 @@ public class Mechanisms {
             pusherCheck.abort("the operator stopped it");
             return;
         }
+        if (!PUSHER_CHECK_ENABLED) {
+            notice("Pusher calibration is OFF (PUSHER_CHECK_ENABLED): CS4 cannot see the arm now, so the robot relies on the zero set at INIT.");
+            RunLog.event("COMMAND pusher calibration refused: PUSHER_CHECK_ENABLED is false");
+            return;
+        }
         String why = null;
         if (counterOverride) why = "the element counter is overridden";
         else if (counter == null || !counter.isValid()) why = "the element counter is not reading";
@@ -1174,9 +1186,11 @@ public class Mechanisms {
                 RunLog.event(String.format(Locale.US, "SALVO done: lowest flywheel speed %.0f ticks/s | %s | %s",
                         salvoMinSpeed, pusher.getLastResult(), pusher.getLastSettle()));
                 if (pusher.isGaveUp()) salvoNotCompleted(pusher.isJamUnresolved() ? "the pusher gave up on a jam" : "the pusher gave up on the move timeout");
-                if (AUTO_PUSHER_CHECK && pusherCheck != null) {
+                if (PUSHER_CHECK_ENABLED && AUTO_PUSHER_CHECK && pusherCheck != null) {
                     checkPending = true;
                     checkTimer.reset();
+                } else if (!PUSHER_CHECK_ENABLED && !lockWanted) {
+                    startRehomeAfterSkippedCheck();   // no check to bring the arm back to HOLD: the encoder does it (only when a target lock or a Hive Dash is not asking for the launch-ready lock)
                 }
                 if (autoStopAfterSalvo) {
                     stopScheduled = true;
@@ -1201,7 +1215,7 @@ public class Mechanisms {
         if (pusherCheck != null && pusher != null) {
             if (!startupCheckConsidered) {
                 startupCheckConsidered = true;
-                if (AUTO_PUSHER_CHECK && AUTO_STARTUP_CHECK && !Pusher.isZeroVerified()) {
+                if (PUSHER_CHECK_ENABLED && AUTO_PUSHER_CHECK && AUTO_STARTUP_CHECK && !Pusher.isZeroVerified()) {
                     checkPending = true;   // the same wait as after a salvo: empty robot, nothing else going on, within CHECK_WAIT_SEC
                     checkTimer.reset();
                     RunLog.event("PUSHER CHECK wanted at start: the zero has not been verified against CS4 since it was set");
@@ -1245,10 +1259,10 @@ public class Mechanisms {
                 }
             }
             if (pusherCheck.takeFinished()) counter.ignoreCountFor(CHECK_COUNT_HOLDOFF_SEC);
-            if (!Pusher.isZeroVerified() && !pusherCheck.isLost() && !pusherCheck.isActive()) {
+            if (PUSHER_CHECK_ENABLED && !Pusher.isZeroVerified() && !pusherCheck.isLost() && !pusherCheck.isActive()) {
                 warn(WarningCode.PUSHER_ZERO_NOT_VERIFIED, "Pusher zero not verified against CS4 yet (the first pusher check will do it)");
             }
-            if (pusherCheck.isLost()) {
+            if (PUSHER_CHECK_ENABLED && pusherCheck.isLost()) {
                 warn(WarningCode.PUSHER_ZERO_UNCERTAIN, "PUSHER ZERO UNCERTAIN: the pusher check could not find the arm (" + pusherCheck.lastDetail() + ")");
             }
         }

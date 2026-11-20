@@ -64,7 +64,7 @@ Neither controller uses Start or Back. The driver's stick buttons are unused. An
 | Left bumper + B | reject. Also cancels a queued launch or a running salvo |
 | X | deploy the ramp |
 | Y | stow the ramp, at once |
-| Left bumper + Y | pusher calibration sweep; again to stop it |
+| Left bumper + Y | pusher calibration sweep; again to stop it. **Refused with a notice since 2026-11-19 (`Mechanisms.PUSHER_CHECK_ENABLED` false: CS4 cannot see the arm)** |
 | Right bumper | auto-launch on / off (off at Start) |
 | D-pad left / right | report: the last salvo landed LEFT / RIGHT |
 | D-pad down / up | report: the last salvo landed LOW / HIGH |
