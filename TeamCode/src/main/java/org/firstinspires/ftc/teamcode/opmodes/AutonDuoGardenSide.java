@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
@@ -25,6 +26,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *   5. Park in the loading zone through a helper point clear of the hive supports, ramp stowed.
  * The first runs will show how this fits the 30 s; nothing is cut yet (design/duo-autos.md).
  */
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @Autonomous(name = "Auton - Duo Garden Side", group = "Auto")
 public class AutonDuoGardenSide extends AutonDuoBase {
 

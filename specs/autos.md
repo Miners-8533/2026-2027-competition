@@ -8,12 +8,12 @@ Building blocks: [motion.md](motion.md), [mechanisms.md](mechanisms.md), [aiming
 |---|---|---|---|
 | Auton - Solo | rear | yes | the partner only parks; since 2026-11-19 the audience launch spot is (48, 36) with the 2-D launch grid's speed and aim; also from 2026-11-19 (user) the garden in one leg from the start to the end of the angled pickup (last 12.5 in at 0.5 power) and a THIRD garden salvo of the wall flower's pollen into the same cell from the grid's BLUE_AUDIENCE spot 2 (36.3, 47.7), then the park is tried even if time runs out (not run since) |
 | Auton - Duo Daryl | rear | yes | garden first, leaves the partner a time window |
-| Auton - Cybugs | rear | yes | Daryl without the last flower; ends about 5 s early |
-| Auton - Duo Garden Side | rear | yes | one half of a matched pair |
+| Auton - Cybugs | rear | hidden | Daryl without the last flower; ends about 5 s early |
+| Auton - Duo Garden Side | rear | hidden | one half of a matched pair |
 | Auton - Duo Flower Side | audience | hidden | the other half of the pair |
 | Auton - Duo Primary | rear | hidden | the longest program; does not fit 30 s with every step |
 
-A hidden program is complete code that is disabled from the Driver Station list.
+A hidden program is complete code that is disabled from the Driver Station list. Since 2026-11-19 (the user) only Solo and Daryl are shown.
 
 ## 1. Common frame
 

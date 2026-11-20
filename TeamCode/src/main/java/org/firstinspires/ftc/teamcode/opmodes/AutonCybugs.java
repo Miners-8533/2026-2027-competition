@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
@@ -28,6 +29,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *   7. Park in the hive-side corner of the loading zone (26, 53.1) through the helper point (-36, 40), ramp stowed.
  * The intake runs IN from the start (AutonDuoBase) until the last salvo. Estimated at about 24.7 s (design/duo-autos.md).
  */
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @Autonomous(name = "Auton - Cybugs", group = "Auto")
 public class AutonCybugs extends AutonDuoBase {
 
