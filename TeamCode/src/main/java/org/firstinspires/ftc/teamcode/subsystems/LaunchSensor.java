@@ -32,6 +32,12 @@ public final class LaunchSensor {
     /** False: the thread reads nothing (CS2 is then not read by anything). Read live. */
     public static boolean ENABLED = true;
     /**
+     * THE CS2 SWITCH (2026-11-20, user), OFF by default: false = the robot runs as if CS2 were not there, WITHOUT changing the hub configuration (the sensor may stay configured, plugged in or not): tryCreate
+     * returns null, so nothing talks to the sensor (no preset write, no thread, no reads) and the CS2 columns and the per-salvo launch summary are empty. CS2 is only RECORDED (nothing counts or acts on it), so
+     * nothing else changes. Set it true to record the launches again (the pusher check is off and the entry count does not use it). Read once, at the start of an opmode.
+     */
+    public static boolean CS2_PRESENT = false;
+    /**
      * Time between the starts of two reads in a fast stretch, ms. 25 since 2026-11-19 (was 12.5, which held the hub 73 to 80 % of every salvo: ten ms per read, the main loop waited behind it). The 324 salvos
      * recorded at 12.5 ms, thinned to 25 ms, give the same launch count as at 12.5 in 323 with the peak rule rise 5 / prominence 3 (a launch peak is 25 to 50 ms wide); 37.5 ms fails in a third. Read live.
      */
@@ -91,6 +97,10 @@ public final class LaunchSensor {
 
     /** The reader on the configuration's "CS2", or null when there is none (the robot runs without it). */
     public static LaunchSensor tryCreate(HardwareMap hardwareMap) {
+        if (!CS2_PRESENT) {
+            org.firstinspires.ftc.teamcode.util.RunLog.event("CS2 SWITCHED OFF (LaunchSensor.CS2_PRESENT is false): no launch sensor, nothing talks to the sensor; the CS2 columns and the launch summary are empty");
+            return null;
+        }
         RevColorSensorV3 s = hardwareMap.tryGet(RevColorSensorV3.class, "CS2");
         return s == null ? null : new LaunchSensor(s);
     }

@@ -85,6 +85,13 @@ public final class EntryCounter {
     /** False: never start the thread (an opmode that reads CS5 itself, the CS Pass Study). */
     public static boolean ENABLED = true;
     /**
+     * THE CS5 SWITCH (2026-11-20, user): false = the robot runs as if CS5 were not there, WITHOUT changing the hub configuration (the sensor may stay configured, plugged in or not): tryCreate returns null,
+     * so nothing talks to the sensor (no preset write, no thread, no reads), and Mechanisms sees no entry counter. The effects are those of a configuration without "CS5": no entry count (the screen shows ? HELD), no
+     * FULL, a jostle that cannot end on "full", no held count handed from the auto to the TeleOp. Set it false BEFORE unplugging or removing the sensor; true again when it is back. Built-in: it is read once, at the
+     * start of an opmode (Dashboard or code).
+     */
+    public static boolean CS5_PRESENT = false;   // OFF by default from 2026-11-20 (user)
+    /**
      * (2026-11-17, not run on the robot) True: the thread reads CS5's color while an element passes and says what each entry is (EntryClassifier). False: the 2-byte proximity read only, exactly as before,
      * and every kind is UNKNOWN. Read live.
      */
@@ -226,6 +233,10 @@ public final class EntryCounter {
 
     /** The counter on the configuration's "CS5", or null when there is none (the robot runs without it). */
     public static EntryCounter tryCreate(HardwareMap hardwareMap) {
+        if (!CS5_PRESENT) {
+            org.firstinspires.ftc.teamcode.util.RunLog.event("CS5 SWITCHED OFF (EntryCounter.CS5_PRESENT is false): no entry counter, nothing talks to the sensor; the count shows ? HELD and there is no FULL");
+            return null;
+        }
         RevColorSensorV3 s = hardwareMap.tryGet(RevColorSensorV3.class, "CS5");
         return s == null ? null : new EntryCounter(s);
     }
