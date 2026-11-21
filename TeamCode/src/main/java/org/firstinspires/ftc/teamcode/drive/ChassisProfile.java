@@ -139,7 +139,7 @@ public final class ChassisProfile {
             GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED,   // Y pod reversed: Pinpoint Push Test 2026-11-01 read a left push as -Y
             -133.7, 9.5, 17.48, 13.70, 7.598, DcMotorSimple.Direction.FORWARD,   // offsets from the Offset Check of 2026-11-01 (0.16 in wobble then). On 2026-11-03 the check showed 2.1 to 2.2 in with these and suggested about -158.7 / +22.8; the CAD-based -139.0 / +1.0 gave 2.45 to 3.60 in. Kept as they are for now (user decision)
             DcMotorSimple.Direction.REVERSE, DcMotorSimple.Direction.FORWARD, DcMotorSimple.Direction.FORWARD,
-            0.75, 0.25, 0.0, 1.0);   // ramp: stowed left / right, deployed left / right (the tied servos are mirrored); stowed moved 10 % toward deployed on 2026-11-05 (user), from 1.0 / 0.0, again on 2026-11-14 (user), from 0.9 / 0.1, and 5 % more the same day, from 0.8 / 0.2
+            1.0, 0.0, 0.0, 1.0);   // ramp: stowed left / right, deployed left / right (the tied servos are mirrored). The FULL range from 2026-11-21 (user, at the Novi Qualifier): stowed back at left 1.0 / right 0.0 (it was 0.75 / 0.25). Before: stowed moved 10 % toward deployed on 2026-11-05 (user), from 1.0 / 0.0, again on 2026-11-14 (user), from 0.9 / 0.1, and 5 % more the same day, from 0.8 / 0.2
 
     private static final ChassisProfile[] ALL = {PROTOTYPE, DRAFT_1, ROBOT_1};
     private static final ChassisProfile DEFAULT = DRAFT_1;
