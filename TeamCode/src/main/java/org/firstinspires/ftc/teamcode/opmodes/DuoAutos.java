@@ -18,8 +18,8 @@ public final class DuoAutos {
     private DuoAutos() {}
 
     // ---- the waits (seconds from Start), tuned from the first logged runs ----
-    /** F's preload launch is not before this: G's preload salvo ends at about 2.7 s, then the 4 s tip, then 0.5 s of margin. */
-    public static double F_FIRST_LAUNCH_NOT_BEFORE_SEC = 7.2;
+    /** F's preload launch is not before this: 9.0 s from 2026-11-21 (user). It was 7.2: G's preload salvo ends at about 2.7 s, then the 4 s tip, then 0.5 s of margin. The robot aims BEFORE the wait (DuoKit.aimWaitLaunch), so the salvo starts when the time passes. */
+    public static double F_FIRST_LAUNCH_NOT_BEFORE_SEC = 9.0;
     /** G's flower-pollen launch is not before this: F's second salvo ends at about 20 s, then the 4 s tip, plus margin (a first guess: read it from the first runs). */
     public static double G_SECOND_LAUNCH_NOT_BEFORE_SEC = 25.0;
     /** Each robot's flower jostle ends by this many seconds into the auto at the latest (it also ends when the robot is full). */
@@ -31,7 +31,13 @@ public final class DuoAutos {
     public static double G_START_Y_IN = 16.0;
 
     // ---- the launch spots (blue frame, x, y; the heading is the computed aim): F in the audience-side launch zone at its start y, G in the rear one a little off its start ----
-    public static double F_LAUNCH_X = 61.5, F_LAUNCH_Y = 7.5;
+    public static double F_LAUNCH_X = 61.5, F_LAUNCH_Y = 7.5;   // F's is unused from 2026-11-21: its preload launches from the start pose and its flower salvo from F_FLOWER_LAUNCH_X / Y
+    /**
+     * The FLOWER SIDE's launch spot for its flower salvo from 2026-11-21 (user: the learnings of the Solo, Daryl and Triple Tip autos): the Solo auto's spot, blue (56, 36) / red (-56, -36), in the 2-D launch
+     * grid's good zone for the audience cell (INTERPOLATED, speed 1371, aim residual +3.9 deg), 13.7 in from the flower back-out. It was (61.5, 7.5), at the start wall, outside the grid's spots. The speed and
+     * the aim come from the grid at the pose the robot is really at (DuoKit.launchOnGrid, Mechanisms.setLaunchGrid), so the launch leg ends within LAUNCH_POS_TOL_IN and F_FLOWER_TRIM_DEG stays 0.
+     */
+    public static double F_FLOWER_LAUNCH_X = 56.0, F_FLOWER_LAUNCH_Y = 36.0;
     public static double G_LAUNCH_X = -61.5, G_LAUNCH_Y = 15.25;
 
     // ---- aim trims (degrees, positive = counterclockwise, negative = clockwise), one per launch; the AIM log line shows them ----
@@ -57,12 +63,12 @@ public final class DuoAutos {
     public static double GARDEN_PICKUP_MAX_POWER = 0.35;
 
     // ---- the parks: both in the blue loading zone (x 23.9 to 46.6, y 59.1 to 70.1), facing the Blue Wall, F at the audience-side corner and G at the inner one ----
-    public static double F_PARK_X = 40.0, F_PARK_Y = 53.1, G_PARK_X = 26.0, G_PARK_Y = 53.1, PARK_HEADING_DEG = 90.0;
+    public static double F_PARK_X = 40.0, F_PARK_Y = 55.1, G_PARK_X = 26.0, G_PARK_Y = 53.1, PARK_HEADING_DEG = 90.0;   // F's y 55.1 from 2026-11-21 (was 53.1): 2 in farther from the field center, as the Solo and Daryl parks moved on 2026-11-20; its x stays 40 (the audience-side corner, the partner has the inner one)
     /** The park run uses full power; a target PARK_OVERSHOOT_IN past the pose pushes through the stall (0 here: with the front toward the wall a target 1 in further would press the wall). */
     public static double PARK_MAX_POWER = 1.0, PARK_OVERSHOOT_IN = 0.0, PARK_POS_TOL_IN = 2.5, PARK_HEADING_TOL_DEG = 5.0, PARK_TIMEOUT_SEC = 3.0;
     /** G's way to its park goes around the hive supports through this point (blue frame; the solo auto's helper, mirrored: G leaves from the rear side). */
     public static double HELPER_X = -36.0, HELPER_Y = 40.0;
-    /** F's way to its park goes through this point first (clear of the audience-wall flower and the hive's support rails); heading is the park heading. */
+    /** UNUSED from 2026-11-21: F parks straight from its flower launch spot (56, 36), which is already clear of the flower and the support rails. Before: F's way to its park went through this point first (it left from (61.5, 7.5), below the flower); heading is the park heading. */
     public static double F_PARK_VIA_X = 46.0, F_PARK_VIA_Y = 32.0;
 
     // ---- Auton - Duo Primary (2026-11-06, design/duo-autos.md): the rear-wall start of G with a longer program ----

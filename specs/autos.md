@@ -11,10 +11,10 @@ Building blocks: [motion.md](motion.md), [mechanisms.md](mechanisms.md), [aiming
 | Auton - Duo Daryl | rear | yes | garden first, leaves the partner a time window; since 2026-11-20 both audience-cell salvos launch from blue (56, 36) with the 2-D grid's speed and aim, every salvo from the launch-ready pusher position, and the preload takes the grid's flywheel speed, and it parks at (22, 55.1) (not run since) |
 | Auton - Cybugs | rear | hidden | Daryl without the last flower; ends about 5 s early |
 | Auton - Duo Garden Side | rear | hidden | one half of a matched pair |
-| Auton - Duo Flower Side | audience | hidden | the other half of the pair |
+| Auton - Duo Flower Side | audience | yes (from 2026-11-21) | the other half of the pair; since 2026-11-21 with the Solo and Daryl changes (section 6), built, never run |
 | Auton - Duo Primary | rear | hidden | the longest program; does not fit 30 s with every step |
 
-A hidden program is complete code that is disabled from the Driver Station list. Since 2026-11-19 (the user) only Solo and Daryl are shown.
+A hidden program is complete code that is disabled from the Driver Station list. Since 2026-11-19 (the user) only Solo and Daryl are shown; Triple Tip was added 2026-11-20 and Flower Side 2026-11-21.
 
 ## 1. Common frame
 
@@ -75,8 +75,8 @@ All are *drive to pose* with different options.
 
 | Program | Leg power | Cross power | Pass-through settle |
 |---|---|---|---|
-| Solo, Daryl, Cybugs, Primary | 0.85 | 1.0 | 0 s |
-| Garden Side, Flower Side | 0.6 (the drive's default) | 0.85 | 0.2 s |
+| Solo, Daryl, Cybugs, Primary, Flower Side (from 2026-11-21) | 0.85 | 1.0 | 0 s |
+| Garden Side | 0.6 (the drive's default) | 0.85 | 0.2 s |
 
 The launch spot tolerance is deliberately loose: the aim step that follows turns the robot onto the cell. The tight tolerance ran legs to their time caps because the drive stalls short of its target.
 
@@ -148,7 +148,6 @@ The robot's front edge ends 8 in from the wall and about 4 in inside the loading
 | East helper | Daryl, Cybugs, Primary | 180 deg |
 | West helper | Primary | 180 deg |
 | West helper | Cybugs, Garden Side, on the way to the park | 90 deg, the park's |
-| (46, 32) | Flower Side | 90 deg, the park's |
 
 ## 3. Auton - Solo
 
@@ -209,10 +208,15 @@ A matched pair for an alliance whose partner runs the other. Each robot launches
 
 **Flower Side** (audience wall, start (63.4, 7.5, 180 deg)):
 
-1. **Wait until 7.2 s** (the partner's preload salvo, the tip, a margin), then launch the preload at the audience cell.
-2. Audience-wall flower gather; jostle deadline 18 s.
-3. Back out, to the audience spot at the wall, the ramp stowing during the turn; launch the flower pollen.
-4. Through the point (46, 32), park in the audience-side corner.
+1. From Start the flywheel takes the 2-D launch grid's speed and the pusher goes to the launch-ready position, where it stays through the wait.
+2. Aim at the audience cell at once, from the start pose with the formula aim, and rest aimed. **Wait until 9.0 s** (the user, 2026-11-21; it was 7.2 s: the partner's preload salvo, the tip, a margin), then launch the preload at once. The aim is not repeated after the wait.
+3. Audience-wall flower gather (pre-position (38, 26.3), ram, one jostle cycle, back out to (46.3, 26.3)); jostle deadline 18 s.
+4. To the Solo launch spot, blue (56, 36), the ramp stowing during the turn and the pusher going to the launch-ready position; launch the flower pollen with the grid's speed and aim.
+5. Park in the audience-side corner, (40, 55.1, 90 deg), straight from the launch spot.
+
+Changed 2026-11-21 to follow Solo, Daryl and Triple Tip (built, not run; this program has never run on the robot). Before: the 90 deg pusher lock for the preload only, the flower salvo from (61.5, 7.5) at the start wall with the formula aim, legs at 0.6 power, the park at (40, 53.1) through the point (46, 32). The grid at the start pose is an estimate (4.0 in outside the measured spots: speed 1375); at (56, 36) it is measured (speed 1371, aim residual +3.9 deg).
+
+**The first leg and the center line (accepted, the user, 2026-11-21: do not worry about clearance).** The start is at y 7.5 (the side of the robot 0.65 in from the field's center line) and the leg to the flower turns the robot 180 deg. With the turn spread evenly over the leg the footprint keeps 0.5 in on our side; if the robot turns before it has moved, a corner swings up to 2.7 in over the line.
 
 All aim trims are 0. The Garden Side as written does not fit 30 s if its wait is really 25 s; its waits were first guesses to be tuned from logged runs.
 
@@ -242,7 +246,7 @@ With the garden it ran past 30 s and lost its park, hence the skip.
 | Daryl, Cybugs and Primary: audience-cell trims | -2.5 deg |
 | Cybugs: wait before the last salvo / rear trim | 1.0 s / 0 deg |
 | Garden Side: second launch not before / jostle deadline | 25.0 s / 20.0 s |
-| Flower Side: first launch not before / jostle deadline | 7.2 s / 18.0 s |
+| Flower Side: first launch not before / jostle deadline | 9.0 s / 18.0 s |
 | Primary: wall jostle / audience jostle deadlines | 12.0 s / 21.0 s |
 | Primary: garden latest start / audience flower latest start | 18.0 s / never skipped |
 
@@ -252,7 +256,7 @@ The -2.5 deg trims are the net of two older allowances at the far cell from (50,
 
 - Solo, Daryl and Cybugs ran at or just before Hartland and are in the tested build. In one Hartland match Daryl lost its park after colliding with the partner, and one Solo run started very late; neither is a reason to change the programs.
 - Garden Side is shown on the Driver Station but has no recorded match run in these notes.
-- Flower Side and Primary are hidden.
+- Primary is hidden. Flower Side is shown again from 2026-11-21 (the user) with the changes of section 6; it has never run on the robot.
 - **The drive gains were never tuned on this robot**, so every program relies on loose tolerances, time caps and, at the wall, physical squaring. The autos are due a rework. Target T2 ([motion.md](motion.md) section 2.1) comes first: the rework is built on a drive that passes its acceptance test, and the leg table of section 2.1 is then revised so that each coarse tolerance states its purpose. "The drive stalls short" stops being one.
 - Path checks on a PC sweep the robot's footprint along the duo legs against the hive supports and flower stands; the paths clear them.
 

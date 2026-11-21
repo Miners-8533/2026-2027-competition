@@ -63,12 +63,12 @@ public class DuoPathCheck {
         leg("G park helper -> park", helper, gPark, real);
 
         // Flower side (F)
-        double[] fLaunch = {61.5, 7.5, 172.0}, flowerPre = {38.0, 26.3, 0.0}, flowerRam = {67.3, 26.3, 0.0}, flowerBack = {46.3, 26.3, 0.0}, parkVia = {46.0, 32.0, 90.0}, fPark = {40.0, 60.0, 90.0};
-        leg("F launch spot -> flower pre", new double[]{61.5, 7.5, 180.0}, flowerPre, real);
+        // 2026-11-21: the flower salvo from the Solo launch spot (56, 36) with the grid's aim (-142.1 deg), the park (40, 55.1) straight from it (it was (61.5, 7.5, 172) and the via point (46, 32))
+        double[] fLaunch = {56.0, 36.0, -142.1}, flowerPre = {38.0, 26.3, 0.0}, flowerRam = {67.3, 26.3, 0.0}, flowerBack = {46.3, 26.3, 0.0}, fPark = {40.0, 55.1, 90.0};
+        leg("F start -> flower pre", new double[]{63.4, 7.5, 180.0}, flowerPre, real);
         leg("F flower pre -> ram target", flowerPre, flowerRam, real);
         leg("F back-out -> launch spot (turning to aim)", flowerBack, fLaunch, real);
-        leg("F launch spot -> park via", fLaunch, parkVia, real);
-        leg("F park via -> park", parkVia, fPark, real);
+        leg("F launch spot -> park", fLaunch, fPark, real);
 
         // Solo final gather (2026-11-05): launch spot 2, around the outside via the helper, the Blue Wall flower, back out, the hive-side corner (the AutonSolo defaults)
         double[] sLaunch2 = {50.0, 26.3, -152.5}, sHelper = {36.0, 40.0, 180.0}, sWallPre = {-26.3, 38.0, 90.0}, sWallRam = {-26.3, 67.3, 90.0}, sWallAt = {-26.3, 55.3, 90.0}, sWallBack = {-26.3, 46.3, 90.0}, sPark = {26.0, 60.0, 90.0};

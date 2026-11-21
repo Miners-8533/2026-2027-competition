@@ -39,24 +39,36 @@ Speeds: `DuoKit.fastLegs` gives this auto the solo auto's faster legs (`P_LEG_MA
 
 Open points: the cell order is the user's (rear, audience, rear, rear) and is not checked against the tip logic here: the preload tips the rear cell, after which the audience cell faces up and needs 8, and the later rear-cell salvos go to a cell whose state depends on whether the hive has tipped again, so what each salvo scores is for the user to confirm; the rear and audience launch spots and the aim trims `P_*_TRIM_DEG` (0) are untuned; the Blue Wall flower poses are a rotation of the audience flower's numbers, not measured.
 
+## Flower Side changes of 2026-11-21 (the user: the learnings of Solo, Daryl and Triple Tip; shown on the Driver Station again; the app builds, not run on the robot, and Flower Side has never run)
+- **Pusher:** the launch-ready position (`Mechanisms.requestLaunchReady`) at Start and again on the way to the flower launch spot; it was the 90 deg lock (`preparePusherForLaunch`) for the preload only. The arm stays at launch-ready through the wait.
+- **Flywheel:** the 2-D launch grid's speed from Start (`setLaunchGrid(true)`). At the start pose (63.4, 7.5) the grid is an estimate, 4.0 in outside its measured spots: speed 1375. The preload keeps its position and the formula aim (the grid's estimate there would add an aim residual of +8.1 deg; not used).
+- **Flower salvo:** from the Solo launch spot, blue (56, 36) / red (-56, -36) (`F_FLOWER_LAUNCH_X / Y`), with the grid's speed and aim at the pose the robot is really at (`DuoKit.launchOnGrid`): measured zone, speed 1371, aim residual +3.9 deg, leg heading -142.1 deg, 13.7 in from the flower back-out. It was (61.5, 7.5) at the start wall with the formula aim (27 in from the back-out). The launch leg ends within 3 in and 12 deg.
+- **Legs:** 0.85 power, cross legs 1.0, pass-through legs end at once (`k.fastLegs`, as Daryl); they were 0.6.
+- **Flower gather:** unchanged in the code; it uses the shared values that changed with Solo (ram 12 in past the flower at 0.6 for 0.6 s; the jostle with no opening press, 0.1 s back at 0.3, 0.2 s forward at 0.5, a 1.0 s press, one cycle).
+- **Park:** (40, 55.1, 90), 2 in farther from the field center than (40, 53.1), as the Solo and Daryl parks moved; x stays 40 (the audience-side corner, the partner has the inner one). Straight from the launch spot: the via point (46, 32) is not used any more.
+- **Footprint check (scratch script, the hive's foot bar and legs, the flower stands, the walls):** back-out to the launch spot keeps 4.7 in from the audience flower stand with the turn spread over the leg (1.9 in if the whole turn happens at the spot; Solo drives this same leg); launch spot to the park keeps 4.8 in from the audience wall.
+- **The first leg and the center line (accepted, the user, 2026-11-21: do not worry about clearance).** The start is at y 7.5, so the robot's side is 0.65 in from the field's center line, and the leg to the flower pre-position turns 180 deg. With the turn spread evenly the footprint keeps 0.5 in on our side; if the robot turns before it has moved, a corner swings up to 2.7 in over the line.
+- **The wait:** `F_FIRST_LAUNCH_NOT_BEFORE_SEC` is 9.0 s (the user, 2026-11-21; it was 7.2). The robot aims at the cell BEFORE the wait (`DuoKit.aimWaitLaunch`, the user, 2026-11-21) and rests aimed, at speed and at launch-ready, so the salvo starts when 9.0 s passes; the aim is not repeated after the wait.
+- **Estimated run time:** preload done at about 10.0 s (the 9.0 s wait, then a salvo of about 1.0 s from launch-ready), flower gather about 5 s, launch about 2.5 s later, park about 2 s after that: about 20 to 21 s in all.
+
 ## Why two
 A hive cell tips when it is filled: the upward cell starts with 3 nectar, so 3 more pollen tip it; the cell that then faces up is empty and needs 8 pollen. A tip takes about 4 s (assumed, conservative), and a robot must not launch into a hive that is tipping. The two robots share the tips: each launches only into the cell on its own start side, so neither needs the far-cell aim correction (`AimAtCell` is given extra 0).
 
 | Time (s, planned) | Garden side (rear wall) | Flower side (audience wall) |
 |---|---|---|
 | 0 | flywheel up; launch the preload into the rear cell: 4 pollen on 3 nectar, **tip 1** (20 points, ends about 2.7 s) | flywheel up, waits |
-| 7.2 | gathers the Blue Wall flower (the audience-wall flower turned 90 degrees) | launches its preload into the audience cell, gathers the audience-wall flower, launches it: the 8th pollen, **tip 2** |
+| 9.0 (7.2 before 2026-11-21) | gathers the Blue Wall flower (the audience-wall flower turned 90 degrees) | launches its preload into the audience cell, gathers the audience-wall flower, launches it: the 8th pollen, **tip 2** |
 | 25 | back at the rear launch spot, waits until `G_SECOND_LAUNCH_NOT_BEFORE_SEC` (the partner's tip is over), launches the flower pollen; gathers the garden; launches again: the 8th pollen, **tip 3** | parks |
 | end | parks in the loading zone | |
 
-Waits are absolute seconds from Start (a robot cannot see its partner): `F_FIRST_LAUNCH_NOT_BEFORE_SEC` = 2.7 s of G's salvo + 4 s tip + 0.5 s margin = 7.2 s; `G_SECOND_LAUNCH_NOT_BEFORE_SEC` = 25 is a first guess. Both are logged as `AUTO WAIT ... waited x s (on time | the time had already passed)`. If a wait is longer than the robot needs, the robot idles with the flywheel spinning.
+Waits are absolute seconds from Start (a robot cannot see its partner): `F_FIRST_LAUNCH_NOT_BEFORE_SEC` = 9.0 s from 2026-11-21 (the user); it was 2.7 s of G's salvo + 4 s tip + 0.5 s margin = 7.2 s; `G_SECOND_LAUNCH_NOT_BEFORE_SEC` = 25 is a first guess. Both are logged as `AUTO WAIT ... waited x s (on time | the time had already passed)`. If a wait is longer than the robot needs, the robot idles with the flywheel spinning.
 
 ## Poses (blue frame, all in `DuoAutos`)
 - Starts: F back flush to the audience wall at (63.4, 7.5), heading 180; G like the solo auto, (-63.4, 16.0), heading 0.
-- Launch spots: F (61.5, 7.5), G (-61.5, 15.25); the heading is the computed aim at the own-side cell with no far-cell extra, and `AimAtCell` takes out what is left.
+- Launch spots: F its preload from the start pose and its flower salvo from (56, 36) with the grid's aim (from 2026-11-21; it was (61.5, 7.5)), G (-61.5, 15.25); the heading is the computed aim at the own-side cell with no far-cell extra, and `AimAtCell` takes out what is left.
 - Flowers: F uses the solo auto's audience-wall flower numbers; G uses the same poses turned 90 degrees about the center (pre (-26.3, 38, 90), ram target (-26.3, 67.3), back-out to y 46.3) plus `WALL_FLOWER_DX_IN/DY_IN` to refine on the field.
 - Garden (G): the solo auto's angled approach, slow pickup and square on the wall.
-- Parks: F (40, 53.1, 90) through (46, 32); G (26, 53.1, 90) through the helper (-36, 40); both facing the Blue Wall in the loading zone (x 23.9 to 46.6, y 59.1 to 70.1; the line only has to be broken). Since 2026-11-07 (user) the front edge is 8 in from the wall (y 53.1 + 9.88 = 62.98 of 71; was 60, 1.1 in from it), so it is 3.9 in inside the zone: with the 2.5 in park tolerance the worst stop still has 1.4 in in. Overshoot is 0.
+- Parks: F (40, 55.1, 90) straight from its launch spot (from 2026-11-21; it was (40, 53.1) through (46, 32)); G (26, 53.1, 90) through the helper (-36, 40); both facing the Blue Wall in the loading zone (x 23.9 to 46.6, y 59.1 to 70.1; the line only has to be broken). Since 2026-11-07 (user) the front edge is 8 in from the wall (y 53.1 + 9.88 = 62.98 of 71; was 60, 1.1 in from it), so it is 3.9 in inside the zone: with the 2.5 in park tolerance the worst stop still has 1.4 in in. Overshoot is 0.
 - Every auto ends with the ramp stowed (a final `ramp stow` step).
 
 ## Checks

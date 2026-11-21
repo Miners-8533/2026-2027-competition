@@ -256,6 +256,19 @@ final class DuoKit {
                 timed("launch (wait + salvo): " + label, mechanisms.launch()));
     }
 
+    /**
+     * Aim at the cell NOW (the formula aim), rest aimed until notBeforeSec into the auto, then launch at once: the Flower Side's preload from 2026-11-21 (user), so the robot is aimed, at speed and at the
+     * launch-ready position during the wait for the partner's tip and the salvo starts when the time passes. The aim is not repeated after the wait (the drive rests, motors braking): a robot pushed during the
+     * wait launches from where it was pushed to.
+     */
+    Action aimWaitLaunch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, String waitLabel, double notBeforeSec) {
+        return new SequentialAction(
+                note("Aim now, launch not before " + notBeforeSec + " s: " + label),
+                timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg, 0.0)),
+                waitUntil(waitLabel, notBeforeSec),
+                timed("launch (wait + salvo): " + label, mechanisms.launch()));
+    }
+
     /** As above with the sideways aim extra: NaN = the far-cell extra of the cell on the opposite side from the alliance's start wall (TargetLock.farCellExtraLeftIn). No auto passes NaN from 2026-11-17: each launch's trim holds its whole allowance. */
     Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, double extraLeftIn) {
         return new SequentialAction(
