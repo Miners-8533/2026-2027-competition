@@ -11,11 +11,11 @@ Building blocks: [motion.md](motion.md), [mechanisms.md](mechanisms.md), [aiming
 | Auton - Blaser's Gambit | audience | yes | (2026-11-21, built, not run) a triple tip from the audience wall: the preload after a 7 s wait and the audience flower into the audience cell, the Blue Wall flower and the garden into the rear cell from the Triple Tip's launch spot; the salvos come before the park, which is tried last |
 | Auton - Duo Daryl | rear | yes | garden first; since 2026-11-20 the garden salvo launches from blue (56, 36) with the 2-D grid's speed and aim, every salvo from the launch-ready pusher position, the preload takes the grid's flywheel speed, and it parks at (22, 55.1); since 2026-11-21 the Blue Wall flower's pollen go into the original (preload's) cell from blue (-55.6, 26.2) and the partner wait, the second audience-cell salvo and the audience flower are gone (not run since 2026-11-07) |
 | Auton - Cybugs | rear | hidden | Daryl without the last flower; ends about 5 s early |
-| Auton - Duo Garden Side | rear | hidden | one half of a matched pair |
+| Auton - Duo Garden Side | rear | yes (from 2026-11-21) | one half of a matched pair; since 2026-11-21 with the changes of the other autos and its last two salvos as late as the park allows (section 6), built, never run |
 | Auton - Duo Flower Side | audience | yes (from 2026-11-21) | the other half of the pair; since 2026-11-21 with the Solo and Daryl changes (section 6), built, never run |
 | Auton - Duo Primary | rear | hidden | the longest program; does not fit 30 s with every step |
 
-A hidden program is complete code that is disabled from the Driver Station list. Since 2026-11-19 (the user) only Solo and Daryl are shown; Triple Tip was added 2026-11-20, Flower Side and Blaser's Gambit 2026-11-21.
+A hidden program is complete code that is disabled from the Driver Station list. Since 2026-11-19 (the user) only Solo and Daryl are shown; Triple Tip was added 2026-11-20, Flower Side, Blaser's Gambit and Garden Side 2026-11-21.
 
 ## 1. Common frame
 
@@ -76,8 +76,7 @@ All are *drive to pose* with different options.
 
 | Program | Leg power | Cross power | Pass-through settle |
 |---|---|---|---|
-| Solo, Daryl, Cybugs, Primary, Flower Side (from 2026-11-21) | 0.85 | 1.0 | 0 s |
-| Garden Side | 0.6 (the drive's default) | 0.85 | 0.2 s |
+| Solo, Daryl, Cybugs, Primary, Flower Side and Garden Side (both from 2026-11-21) | 0.85 | 1.0 | 0 s |
 
 The launch spot tolerance is deliberately loose: the aim step that follows turns the robot onto the cell. The tight tolerance ran legs to their time caps because the drive stalls short of its target.
 
@@ -198,12 +197,13 @@ A matched pair for an alliance whose partner runs the other. Each robot launches
 
 **Garden Side** (rear wall):
 
-1. Launch the preload at the rear cell.
-2. Blue Wall flower gather; jostle deadline 20 s.
-3. Back out, to the rear spot at the start wall, the ramp stowing during the turn.
-4. **Wait until 25 s**, then launch the flower pollen.
-5. Garden pickup, back to the same spot, launch the garden pollen.
-6. West helper, park in the hive-side corner.
+1. Start at the rear wall, (-63.4, 16, 0 deg). From Start the flywheel takes the 2-D launch grid's speed and the pusher goes to the launch-ready position; launch the preload at the rear cell from the start pose with the formula aim.
+2. Blue Wall flower gather (pre-position (-26.3, 38), ram, one jostle cycle, back out to (-26.3, 46.3)); jostle deadline 20 s.
+3. To the rear launch spot (-55.6, 26.2), the Triple Tip's, the ramp stowing and the pusher going to launch-ready; aim at once with the grid's aim and rest aimed; **wait until 19.3 s**, then launch the flower pollen.
+4. Garden as the Solo auto gathers it (one leg to (-59.8, 58.5, 105 deg), the last 12.5 in at 0.5 power, then the squaring for at most 0.8 s); back to the rear launch spot; aim at once; **not before 24.8 s**, launch the garden pollen.
+5. Through the via point (-20, 44), park at (22, 55.1) at heading 30 deg.
+
+Changed 2026-11-21 to follow the other autos (the user; built, not run; this program has never run on the robot). **The last two salvos are as late as the park allows with a 1 s buffer:** the last at 24.8 s = 30 - 1.0 buffer - 3.2 park - 1.0 salvo, the one before it at 19.3 s = 24.8 - 5.5 (its own salvo 1.0, the garden leg 1.6, the squaring 1.0, the leg back 1.5, the aim 0.4). Every piece is an estimate; after the first run the last is set to 29.0 s less the measured park and salvo, and the second from the measured time between them. A robot that reaches the spot later than its time launches at once. Estimated times: preload done 2.4 s, the flower backed out 6.9 s, at the launch spot and aimed about 8.8 s, a wait of about 10.5 s, the flower salvo 19.3 to 20.3 s, the garden salvo 24.8 to 25.8 s, parked about 29.0 s. Before: the 90 deg pusher lock for the preload only, both later salvos from (-61.5, 15.25) at the start wall with the formula aim, the three-step garden with the full squaring, legs at 0.6 power, one wait until 25 s before the flower salvo (which could not fit the 30 s), and the park at (26, 53.1) through the west helper.
 
 **Flower Side** (audience wall, start (63.4, 7.5, 180 deg)):
 
@@ -217,7 +217,7 @@ Changed 2026-11-21 to follow Solo, Daryl and Triple Tip (built, not run; this pr
 
 **The first leg and the center line (accepted, the user, 2026-11-21: do not worry about clearance).** The start is at y 7.5 (the side of the robot 0.65 in from the field's center line) and the leg to the flower turns the robot 180 deg. With the turn spread evenly over the leg the footprint keeps 0.5 in on our side; if the robot turns before it has moved, a corner swings up to 2.7 in over the line.
 
-All aim trims are 0. The Garden Side as written does not fit 30 s if its wait is really 25 s; its waits were first guesses to be tuned from logged runs.
+All aim trims are 0. The Garden Side's two waits (19.3 s and 24.8 s) are estimates to be tuned from its first logged run.
 
 ## 6a. Auton - Blaser's Gambit
 
@@ -261,7 +261,7 @@ With the garden it ran past 30 s and lost its park, hence the skip.
 | Daryl: rear launch spot / park via point / park heading (from 2026-11-21) | (-55.6, 26.2) / (-20, 44) / 30 deg |
 | Daryl, Cybugs and Primary: audience-cell trims | -2.5 deg |
 | Cybugs: wait before the last salvo / rear trim | 1.0 s / 0 deg |
-| Garden Side: second launch not before / jostle deadline | 25.0 s / 20.0 s |
+| Garden Side: second launch not before / last launch not before / jostle deadline | 19.3 s / 24.8 s / 20.0 s |
 | Flower Side: first launch not before / jostle deadline | 9.0 s / 18.0 s |
 | Primary: wall jostle / audience jostle deadlines | 12.0 s / 21.0 s |
 | Primary: garden latest start / audience flower latest start | 18.0 s / never skipped |
@@ -271,7 +271,7 @@ The -2.5 deg trims are the net of two older allowances at the far cell from (50,
 ## 9. Status
 
 - Solo, Daryl and Cybugs ran at or just before Hartland and are in the tested build. In one Hartland match Daryl lost its park after colliding with the partner, and one Solo run started very late; neither is a reason to change the programs.
-- Garden Side is shown on the Driver Station but has no recorded match run in these notes.
+- Garden Side is shown on the Driver Station again from 2026-11-21 with the changes of section 6; it has never run on the robot.
 - Primary is hidden. Flower Side is shown again from 2026-11-21 (the user) with the changes of section 6; it has never run on the robot.
 - **The drive gains were never tuned on this robot**, so every program relies on loose tolerances, time caps and, at the wall, physical squaring. The autos are due a rework. Target T2 ([motion.md](motion.md) section 2.1) comes first: the rework is built on a drive that passes its acceptance test, and the leg table of section 2.1 is then revised so that each coarse tolerance states its purpose. "The drive stalls short" stops being one.
 - Path checks on a PC sweep the robot's footprint along the duo legs against the hive supports and flower stands; the paths clear them.

@@ -118,6 +118,15 @@ public class DuoPathCheck {
         leg("C rear launch spot -> park helper", cRear, helper, withFlowers);
         leg("C park helper -> park", helper, gPark, withFlowers);
 
+        // Duo Garden Side from 2026-11-21: the start straight to the Blue Wall flower, the Triple Tip's rear launch spot, the Solo's garden and back, the park through the via point (the "G" legs above are the old path)
+        double[] g2Rear = {-55.6, 26.2, -11.7}, g2GardenEnd = {-59.8, 58.5, 105.0}, g2Square = {-64.15, 61.1, 90.0}, g2Via = {-20.0, 44.0, 30.0}, g2Park = {22.0, 55.1, 30.0};
+        leg("G2 start -> wall flower pre", gStart, wallPre, withFlowers);
+        leg("G2 wall flower back-out -> rear launch spot", wallBack, g2Rear, withFlowers);
+        leg("G2 rear launch spot -> garden end", g2Rear, g2GardenEnd, withFlowers);
+        leg("G2 squared on the wall -> rear launch spot", g2Square, g2Rear, withFlowers);
+        leg("G2 rear launch spot -> park via", g2Rear, g2Via, withFlowers);
+        leg("G2 park via -> park", g2Via, g2Park, withFlowers);
+
         // Blaser's Gambit (2026-11-21): the audience-wall start, the audience flower, the Solo launch spot, the Blue Wall flower, the rear launch spot, the garden and back, the park through the via point
         double[] bStart = {63.4, 7.5, 180.0}, bAud = {56.0, 36.0, -142.1}, bRear = {-55.6, 26.2, -11.7}, bGardenEnd = {-59.8, 58.5, 105.0}, bSquare = {-64.15, 61.1, 90.0}, bVia = {-20.0, 44.0, 30.0}, bPark = {22.0, 55.1, 30.0};
         leg("B start -> flower pre", bStart, flowerPre, real);

@@ -20,8 +20,15 @@ public final class DuoAutos {
     // ---- the waits (seconds from Start), tuned from the first logged runs ----
     /** F's preload launch is not before this: 9.0 s from 2026-11-21 (user). It was 7.2: G's preload salvo ends at about 2.7 s, then the 4 s tip, then 0.5 s of margin. The robot aims BEFORE the wait (DuoKit.aimWaitLaunch), so the salvo starts when the time passes. */
     public static double F_FIRST_LAUNCH_NOT_BEFORE_SEC = 9.0;
-    /** G's flower-pollen launch is not before this: F's second salvo ends at about 20 s, then the 4 s tip, plus margin (a first guess: read it from the first runs). */
-    public static double G_SECOND_LAUNCH_NOT_BEFORE_SEC = 25.0;
+    /**
+     * THE GARDEN SIDE'S LAST TWO SALVOS ARE AS LATE AS THE PARK ALLOWS with a 1 s buffer (user, 2026-11-21). The robot aims at the rear launch spot at once and rests aimed (DuoKit.aimWaitLaunch); neither salvo
+     * is before its time. The LAST (the garden pollen): 24.8 = 30 s - 1.0 s buffer - 3.2 s of park (the via point about 1.5 s, the park leg about 1.7 s) - 1.0 s of salvo from launch-ready. The SECOND (the flower
+     * pollen): 19.3 = 24.8 - 5.5 (its own 1.0 s of salvo, then the garden leg about 1.6 s, the squaring approach and the squaring 1.0 s, the leg back 1.5 s and the aim 0.4 s). Every piece is an ESTIMATE (from
+     * the Solo runs of 2026-11-20 and 21; these legs have not run): after the first run set the last to 29.0 less the measured park via point + park + salvo, and the second to the last less the measured time from
+     * the second salvo's start to the last aim's end. A robot that reaches the spot later than its time launches at once. Before 2026-11-21 there was one wait, until 25.0 s, before the flower salvo (F's second
+     * salvo and its tip), which left no time for the garden and the park.
+     */
+    public static double G_SECOND_LAUNCH_NOT_BEFORE_SEC = 19.3, G_LAST_LAUNCH_NOT_BEFORE_SEC = 24.8;
     /** Each robot's flower jostle ends by this many seconds into the auto at the latest (it also ends when the robot is full). */
     public static double F_JOSTLE_DEADLINE_SEC = 18.0, G_JOSTLE_DEADLINE_SEC = 20.0;
 
@@ -153,6 +160,14 @@ public final class DuoAutos {
     public static double B_LONG_LEG_POWER = 1.0;
     /** The park is TRIED last (the salvos come first in this auto), through the via point clear of the hive's foot bar, as the Triple Tip's and the Daryl's. */
     public static double B_PARK_X = 22.0, B_PARK_Y = 55.1, B_PARK_VIA_X = -20.0, B_PARK_VIA_Y = 44.0, B_PARK_HEADING_DEG = 30.0;
+
+    // ---- Auton - Duo Garden Side with the learnings of the other autos (2026-11-21; built, not run) ----
+    /** The launch spot of its two later salvos: the Triple Tip's rear launch spot, blue (-55.6, 26.2) / red (55.6, -26.2), with the 2-D grid's speed and aim (it was G_LAUNCH_X / Y at the start wall with the formula aim; the Cybugs auto still uses that one). */
+    public static double G_REAR_LAUNCH_X = -55.6, G_REAR_LAUNCH_Y = 26.2, G_REAR_TRIM_DEG = 0.0;
+    /** The squaring after its garden ends after this long at the latest, as the Solo auto's. */
+    public static double G_GARDEN_SQUARING_MAX_SEC = 0.8;
+    /** Its park: (22, 55.1) through the via point (-20, 44) at heading 30 deg, as the Daryl's and the Triple Tip's (it was G_PARK_X / Y (26, 53.1) through HELPER_X / Y, which the Cybugs and Primary autos keep). */
+    public static double G_SIDE_PARK_X = 22.0, G_SIDE_PARK_Y = 55.1, G_PARK_VIA_X = -20.0, G_PARK_VIA_Y = 44.0, G_PARK_HEADING_DEG = 30.0;
 
     // ---- legs, as in the solo auto ----
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
