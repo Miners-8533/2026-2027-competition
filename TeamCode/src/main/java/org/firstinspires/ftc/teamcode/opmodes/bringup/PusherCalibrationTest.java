@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes.bringup;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -43,6 +44,7 @@ import java.util.Locale;
  * leaves the arm where it stopped: stop the opmode and initialize again with the arm at HOLD before the next run. The log is a BRINGUP log (about 25 rows a second).
  */
 @Config
+@Disabled   // hidden from the Driver Station for now (2026-11-21, user); remove this line and the import to use it again
 @TeleOp(name = "Pusher Calibration Test", group = "Bring-up")
 public class PusherCalibrationTest extends LinearOpMode {
 

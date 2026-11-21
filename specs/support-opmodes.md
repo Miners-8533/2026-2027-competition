@@ -6,14 +6,14 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 
 | Opmode | Group | Shown | Log kind |
 |---|---|---|---|
-| Pit Check (robot on blocks) | Bring-up | yes | pitcheck |
+| Pit Check (robot on blocks) | Bring-up | hidden for now (2026-11-21) | pitcheck |
 | Launch Tuner | Bring-up | hidden | bringup |
 | Launch Grid Tuner | Bring-up | hidden | bringup |
 | CS Pass Study | Bring-up | hidden | bringup |
 | Flywheel Step Study | Bring-up | hidden | bringup |
 | Color Sensor Study | Bring-up | hidden | bringup |
 | Color Sensors Test (CS1-CS4) | Bring-up | hidden | none (device log) |
-| Pusher Calibration Test | Bring-up | yes | bringup |
+| Pusher Calibration Test | Bring-up | hidden for now (2026-11-21) | bringup |
 | Launcher Offset Finder | Bring-up | hidden | bringup |
 | Pinpoint Push Test | Bring-up | hidden | bringup |
 | Pinpoint Offset Check | Bring-up | hidden | bringup |
