@@ -150,6 +150,12 @@ public class TeleOpCompetition extends LinearOpMode {
      */
     public static boolean AUTO_LAUNCH_WHEN_FULL = true;
     /**
+     * FALSE from 2026-11-21 (user, at the Novi Qualifier): the TeleOp does NOT ask for the LAUNCH-READY pusher position during a target lock or a Hive Dash any more, so the arm stays at HOLD, the intake stays open
+     * and every TeleOp salvo starts from HOLD (about 1.3 s instead of about 1.0 s). The AUTOS keep the launch-ready position: they ask for it themselves (Mechanisms.requestLaunchReady), not through this.
+     * True brings the TeleOp's request back.
+     */
+    public static boolean LAUNCH_READY_IN_TELEOP = false;
+    /**
      * (2026-11-18, user) The CS5 FULL actions, off by default and no longer chosen at INIT (the INIT switch was removed): true = FULL AUTO (a CS5 FULL stops the intake, locks the pusher, runs the intake OUT and arms the auto-launch: the Mechanisms FULL_* settings and
      * AUTO_LAUNCH_WHEN_FULL); false = COUNT ONLY (the count is shown and logged, nothing acts on it: the intake is always IN, no lock on FULL, no auto-launch from FULL, as at Hartland). Changed only in the code or on the Dashboard before Start.
      */
@@ -868,7 +874,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 }
             }
 
-            mechanisms.setPusherLockWanted(!backupMode && (lockOn || hiveDash.state() != HiveDash.State.IDLE));   // lock the pusher during a target lock or a Hive Dash
+            mechanisms.setPusherLockWanted(LAUNCH_READY_IN_TELEOP && !backupMode && (lockOn || hiveDash.state() != HiveDash.State.IDLE));   // the launch-ready pusher position during a target lock or a Hive Dash: OFF in the TeleOp from 2026-11-21 (LAUNCH_READY_IN_TELEOP false); the autos keep theirs
             mechanisms.update(pose);
             RunLog.tick();
 
