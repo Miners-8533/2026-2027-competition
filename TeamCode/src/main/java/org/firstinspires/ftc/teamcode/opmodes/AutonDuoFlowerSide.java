@@ -76,7 +76,7 @@ public class AutonDuoFlowerSide extends AutonDuoBase {
                 new InstantAction(() -> m.setLaunchGrid(true, "Auton - Duo Flower Side, from Start (the preload: the grid's flywheel speed only)")),
                 new InstantAction(m::requestLaunchReady),
                 // aim first, then the wait, then the salvo at once (2026-11-21, user: aimed and ready during the wait; the aim came after the wait before, so the salvo started a few tenths later)
-                k.aimWaitLaunch(drive, m, cell, blue, "preload", DuoAutos.F_PRELOAD_TRIM_DEG, "first launch (partner's tip)", DuoAutos.F_FIRST_LAUNCH_NOT_BEFORE_SEC),
+                k.aimWaitLaunch(drive, m, cell, blue, "preload", DuoAutos.F_PRELOAD_TRIM_DEG, "first launch (partner's tip)", DuoAutos.F_FIRST_LAUNCH_NOT_BEFORE_SEC, false),
 
                 new InstantAction(m::requestDeploy),   // deploys on the way
                 k.note("To the flower pre-position, turning to the flower"),

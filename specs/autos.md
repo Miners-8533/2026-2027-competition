@@ -173,10 +173,10 @@ Start: rear wall. Garden first. The finish changed 2026-11-21 (the user; built, 
 2. Garden pickup.
 3. East helper, then the audience launch spot, blue (56, 36); launch the garden pollen at the **audience** cell with the 2-D grid's speed and aim (trim 0).
 4. East helper again, then the Blue Wall flower gather; jostle deadline 19 s; back out to (-26.3, 46.3), the ramp stowing.
-5. Straight to the rear launch spot, blue (-55.6, 26.2) (the Triple Tip's, 35 in away), the pusher going to launch-ready; wait for the ramp to stow; launch the flower pollen at the **rear** cell, the one the preload went into, with the grid's speed and aim (trim 0).
+5. Straight to the rear launch spot, blue (-55.6, 26.2) (the Triple Tip's, 35 in away), the pusher going to launch-ready; wait for the ramp to stow; aim at the **rear** cell, the one the preload went into, with the grid's aim (trim 0) and rest aimed; **wait until 23.8 s** (the user, 2026-11-21: the salvo as late as the park allows with a 2 s buffer), then launch the flower pollen at once.
 6. Through the via point (-20, 44), park in the hive-side corner, (22, 55.1), at heading 30 deg.
 
-There is no wait in the program any more. Estimated duration about 22 s (the Blue Wall flower's back-out at about 15.7 s, the last salvo done at about 18.8 s). Before 2026-11-21: not leaving the flower before 15.6 s, a second salvo at the audience cell not before 18 s (the partner's window), the audience-wall flower (skipped if it would start after 22.5 s) and the park at heading 90 deg, about 25 s.
+The 23.8 s is 30 s less a 2.0 s buffer, 3.2 s for the park (the via point about 1.5 s, the park leg about 1.7 s) and 1.0 s for the salvo; the 3.2 s and the 1.0 s are estimates until these legs have run, and the value is then set to 28.0 s less their measured sum. Estimated times: the Blue Wall flower's back-out at about 15.7 s, at the rear launch spot and aimed at about 17.8 s, a wait of about 6 s, the salvo 23.8 to 24.8 s, parked at about 28.0 s. A robot that arrives after 23.8 s launches at once. Before 2026-11-21: not leaving the flower before 15.6 s, a second salvo at the audience cell not before 18 s (the partner's window), the audience-wall flower (skipped if it would start after 22.5 s) and the park at heading 90 deg, about 25 s.
 
 ## 5. Auton - Cybugs
 
@@ -240,6 +240,7 @@ With the garden it ran past 30 s and lost its park, hence the skip.
 | Solo: jostle deadline / final jostle deadline | 23.0 s / 26.5 s |
 | Solo: garden and flower aim trims | -2.5 deg / -2.5 deg |
 | Daryl: wall jostle deadline | 19.0 s |
+| Daryl: last salvo not before (from 2026-11-21) | 23.8 s |
 | Daryl: rear launch spot / park via point / park heading (from 2026-11-21) | (-55.6, 26.2) / (-20, 44) / 30 deg |
 | Daryl, Cybugs and Primary: audience-cell trims | -2.5 deg |
 | Cybugs: wait before the last salvo / rear trim | 1.0 s / 0 deg |

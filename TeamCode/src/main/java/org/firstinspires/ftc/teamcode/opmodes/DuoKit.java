@@ -259,12 +259,15 @@ final class DuoKit {
     /**
      * Aim at the cell NOW (the formula aim), rest aimed until notBeforeSec into the auto, then launch at once: the Flower Side's preload from 2026-11-21 (user), so the robot is aimed, at speed and at the
      * launch-ready position during the wait for the partner's tip and the salvo starts when the time passes. The aim is not repeated after the wait (the drive rests, motors braking): a robot pushed during the
-     * wait launches from where it was pushed to.
+     * wait launches from where it was pushed to. grid: aim with the 2-D launch grid (the bearing plus the grid's residual at the real pose, AimAtCell.withGrid) instead of the formula aim; the Daryl auto's last salvo
+     * from 2026-11-21.
      */
-    Action aimWaitLaunch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, String waitLabel, double notBeforeSec) {
+    Action aimWaitLaunch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, String waitLabel, double notBeforeSec, boolean grid) {
+        AimAtCell aim = new AimAtCell(drive, cell, blue, trimDeg, 0.0);
+        if (grid) aim.withGrid();
         return new SequentialAction(
-                note("Aim now, launch not before " + notBeforeSec + " s: " + label),
-                timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg, 0.0)),
+                note("Aim" + (grid ? " (grid)" : "") + " now, launch not before " + notBeforeSec + " s: " + label),
+                timed("aim: " + label, aim),
                 waitUntil(waitLabel, notBeforeSec),
                 timed("launch (wait + salvo): " + label, mechanisms.launch()));
     }

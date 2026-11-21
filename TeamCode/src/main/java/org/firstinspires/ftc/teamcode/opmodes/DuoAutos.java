@@ -120,6 +120,13 @@ public final class DuoAutos {
      * D_SECOND_SHOT_NOT_BEFORE_SEC, D_RETURN_TRAVEL_SEC, D_AUD_JOSTLE_DEADLINE_SEC and D_AUD_FLOWER_LATEST_START_SEC are unused from then (the second audience-cell salvo, its wait and the audience flower are gone).
      */
     public static double D_REAR_LAUNCH_X = -55.6, D_REAR_LAUNCH_Y = 26.2, D_REAR_TRIM_DEG = 0.0;
+    /**
+     * The DARYL auto's last salvo starts as LATE as the park allows (user, 2026-11-21: make the park with a 2 s buffer): the robot aims at the rear launch spot at once and rests aimed, and the salvo is not before
+     * this many seconds into the auto. 23.8 = 30 s - 2.0 s buffer - 3.2 s of park (the via point about 1.5 s for 40 in, the park leg about 1.7 s for 43 in) - 1.0 s of salvo from launch-ready. The 3.2 s and the
+     * 1.0 s are ESTIMATES (these legs have not run on the robot): read the AUTO TIMING lines of the first run ("park via point", "park (full power)", "launch (wait + salvo)") and set this to 28.0 less their sum.
+     * A robot that reaches the spot later than this launches at once.
+     */
+    public static double D_LAST_SALVO_NOT_BEFORE_SEC = 23.8;
     public static double D_PARK_VIA_X = -20.0, D_PARK_VIA_Y = 44.0, D_PARK_HEADING_DEG = 30.0;
     public static double D_PRELOAD_TRIM_DEG = 0.0, D_GARDEN_TRIM_DEG = -2.5, D_WALL_TRIM_DEG = -2.5;   // -2.5 from 2026-11-17 (user): the net of the old -8.0 and the far-cell extra (about +5.5 deg at this spot), which the autos no longer apply; the note that follows is of the -8.0. // the salvos into the audience cell from (50, 26.3) (blue; the far cell from the rear-wall start) use -8.0, the solo auto's total trim there (user, 2026-11-07: the solo's landed left; -4.5 still landed left)
     /** The Blue Wall flower's jostle ends by this many seconds into the auto at the latest; the audience flower's likewise, and the audience flower is skipped when it would start later than the latest start (so the park keeps its time). */

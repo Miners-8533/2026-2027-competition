@@ -27,10 +27,11 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *   4. The Blue Wall flower (the audience flower's poses turned 90 deg): ram, one-cycle jostle, back out; the ramp stows.
  *   5. (2026-11-21, the user) The Blue Wall flower's pollen go into the ORIGINAL cell, the one the preload went into (blue the rear cell, red the audience cell): from the back-out straight to the rear launch
  *      spot, blue (-55.6, 26.2) (the Triple Tip auto's, 35 in away, on the same side of the hive), the ramp stowing and the pusher going to launch-ready on the way, then the 2-D grid's speed and aim.
+ *      The robot aims at once and rests aimed; the salvo starts as LATE as the park allows, not before D_LAST_SALVO_NOT_BEFORE_SEC (23.8 s: the park then ends about 2 s before the 30 s; user, 2026-11-21).
  *   6. Park in the hive-side corner of the loading zone, (22, 55.1), through the via point (-20, 44) (clear of the hive's foot bar) at heading 30 deg, as the Triple Tip auto does; ramp stowed.
  * Before 2026-11-21 steps 5 to 8 were: the partner's window (not back at the audience spot before 18 s), a second salvo into the AUDIENCE cell from (56, 36), the audience-wall flower (skipped when late, its
  * pollen kept for the TeleOp) and the park at heading 90. Those are gone: no wait, no second trip around the hive, no audience flower. Built 2026-11-21, not run on the robot.
- * Faster legs than the other duo autos (the solo auto's, DuoAutos.P_*); always launches every salvo (the autos never skip on an empty count). The estimate (design/duo-autos.md): about 22 s.
+ * Faster legs than the other duo autos (the solo auto's, DuoAutos.P_*); always launches every salvo (the autos never skip on an empty count). The estimate (design/duo-autos.md): the robot is at the rear launch spot at about 17.8 s, waits to 23.8 s, and is parked at about 28 s.
  */
 @Autonomous(name = "Auton - Duo Daryl", group = "Auto")
 public class AutonDuoDaryl extends AutonDuoBase {
@@ -144,7 +145,8 @@ public class AutonDuoDaryl extends AutonDuoBase {
                 new InstantAction(m::requestLaunchReady),   // the arm goes to the launch-ready position on this leg
                 k.launchLeg("rear launch spot", drive, rearSpot),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
-                k.launchOnGrid(drive, m, rearCell, blue, "wall flower pollen (original cell)", DuoAutos.D_REAR_TRIM_DEG),
+                // aimed at once, then the salvo as LATE as the park allows (2026-11-21, user): not before D_LAST_SALVO_NOT_BEFORE_SEC, the robot resting aimed, at speed and at launch-ready until then
+                k.aimWaitLaunch(drive, m, rearCell, blue, "wall flower pollen (original cell)", DuoAutos.D_REAR_TRIM_DEG, "last salvo (as late as the park allows)", DuoAutos.D_LAST_SALVO_NOT_BEFORE_SEC, true),
 
                 // 6. the park in the hive-side corner of the loading zone, through the via point (a straight run from the launch spot passes within an inch of the hive's foot bar)
                 k.note("Park through the via point (clear of the hive's foot bar)"),
