@@ -116,7 +116,7 @@ Reports: a line when a jam is found, when a jammed move finishes, and when it is
 | Active hold: gain / minimum / maximum power | 0.012 per deg / 0.05 / 0.15 |
 | Active hold: dead band / latch after / give up after | 2 deg / 0.3 s / 2 s |
 | Default seek power | 0.2 |
-| Lock angle (autos' preload) / launch-ready angle (TeleOp lock) / lock power / lock tolerance | 90 deg / 156 deg (first guess) / 0.25 / 12 deg |
+| Lock angle (autos' preload) / launch-ready angle (TeleOp lock) / lock power / lock tolerance | 90 deg / 141 deg (156 until 2026-11-19, moved back 15 deg by the user) / 0.25 / 12 deg |
 | Move timeout | 3 s |
 | Jam: current above / speed below / for / after | 1.2 A / 20 ticks/s / 0.3 s / 0.4 s into the move |
 | Jam: grace after resuming | 0.3 s |

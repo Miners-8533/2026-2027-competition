@@ -112,7 +112,8 @@ public class Pusher {
      * 2026-11-18 the first pollen was in front of CS2 (the top of the feed ramp) after 171 deg of arm travel from the salvo start (the pollen after it at 226, 288 and 328 deg, a pitch of about 55 deg); this is 171 less 15. The
      * autos' preload position (startLock(), LOCK_DEG) is not changed. Keep it under 180: past that the nearest HOLD is the next one and a salvo would turn a full revolution more.
      */
-    public static double LAUNCH_READY_DEG = 156.0;
+    // 141 from 2026-11-19 night (user: 15 deg further back, "so we are not quite so close to the flywheel"; it was 156, which landed at 151.8 to 159.6 deg in the 22:48 and 23:15 Solo runs and at 154 in the TeleOp).
+    public static double LAUNCH_READY_DEG = 141.0;
     public static double LOCK_POWER = 0.25;
     /** The arm counts as locked when it is stopped within this many degrees of LOCK_DEG past a HOLD. */
     public static double LOCK_TOLERANCE_DEG = 12.0;

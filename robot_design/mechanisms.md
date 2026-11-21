@@ -53,7 +53,7 @@ One arm, with some thickness, that rotates around the curved track and pushes th
 |---|---|---|
 | HOLD | 0 deg | the back of the arm limits the track to 4 elements; the arm must be here at power-up |
 | Lock | 90 deg | the arm lies across the intake entrance: nothing rolls out and a fifth element cannot enter (the autos' preload position) |
-| Launch ready | 156 deg (a first guess, 2026-11-19) | the TeleOp's lock position: behind the stack with the first pollen at the bottom of the feed ramp. The first pollen is in front of CS2 (top of the feed ramp) after 171 deg of arm travel, the next three at 226, 288 and 328 deg (192 salvos, 2026-11-18) |
+| Launch ready | 141 deg (2026-11-19: 156 moved back 15 deg by the user, to be farther from the flywheel; it landed at 152 to 160 deg) | the TeleOp's lock position: behind the stack with the first pollen at the bottom of the feed ramp. The first pollen is in front of CS2 (top of the feed ramp) after 171 deg of arm travel, the next three at 226, 288 and 328 deg (192 salvos, 2026-11-18) |
 | Center of CS4's view of the arm | 326.7 deg (33 deg behind HOLD) | where the arm is parked to check its position |
 | Rest after a salvo | 40 to 60 deg | a salvo turns the arm a full turn and 40 deg more |
 

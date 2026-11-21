@@ -197,6 +197,7 @@ public class Mechanisms {
     private boolean pendingRejectAfterUnlock = false;
     private boolean unlockForIntake = false;     // the unlock in progress was the operator forcing the intake IN
     private boolean intakeStoppedByFull = false;     // the automatic stop at full cleared the intake request (the toggle is off until it is pressed again)
+    private boolean lockOnceForLaunch = false;      // requestLaunchReady: the request ends when the next salvo starts
     private boolean lockWanted = false;              // the opmode asks for the pusher lock (a target lock or a Hive Dash is on)
     private final ElapsedTime lockWantedOffClock = new ElapsedTime();   // since when the request has been off
     private final ElapsedTime lockClock = new ElapsedTime();
@@ -1003,6 +1004,16 @@ public class Mechanisms {
         RunLog.event("COMMAND pusher to the lock position for the preload salvo (310 deg instead of 400): " + pusher.getLastCommand());
     }
 
+    /**
+     * AUTOS (2026-11-19, user): ask for the LAUNCH-READY position (Pusher.LAUNCH_READY_DEG, the same forward-only lock as the TeleOp's target lock) for the NEXT salvo only. The request is dropped when that salvo
+     * starts (so the arm is not locked again, and the encoder re-home brings it back to HOLD with the intake open for the next pickup). Call it on the last stretch of the drive to a launch spot: the lock takes
+     * 0.6 to 0.8 s and a locked arm blocks the intake. The queued launch waits for the arm to stop, then the salvo runs from the lock (about 246 deg, 0.9 s, against 388 to 410 deg, 1.3 s, from HOLD).
+     */
+    public void requestLaunchReady() {
+        lockOnceForLaunch = true;
+        setPusherLockWanted(true);
+    }
+
     /** The most jam back-offs per pusher move (the autos use Pusher.JAM_RETRIES_AUTO). */
     public void setJamRetries(int n) {
         if (pusher != null) pusher.setMaxJamRetries(n);
@@ -1291,6 +1302,10 @@ public class Mechanisms {
                 } else if (inBand && pusher.isStopped()) {
                     if (bandWaitLogged) RunLog.event(String.format(Locale.US, "LAUNCH released: the flywheel is inside the band after %.2f s of waiting", launchTimer.seconds()));
                     releaseLockForSalvo();
+                    if (lockOnceForLaunch) {
+                        lockOnceForLaunch = false;
+                        setPusherLockWanted(false);   // the launch-ready request of an auto is for this salvo only
+                    }
                     pusher.startSalvo();
                     salvoActive = true;
                     salvoMinSpeed = flywheel.getVelocity();
