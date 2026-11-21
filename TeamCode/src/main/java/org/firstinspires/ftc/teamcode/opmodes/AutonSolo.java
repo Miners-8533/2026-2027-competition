@@ -102,6 +102,12 @@ public class AutonSolo extends LinearOpMode {
     // (-55.6, 26.2) from 2026-11-20 (user: (-50, 24) was too close to the cell, back away 6 in): 6 in farther along the line from the cell through the old spot, so the same 22 deg off the cell's axis; 36.7 in from
     // the cell, the grid's good zone (speed 1386, aim residual +9.8 deg, heading -11.7 deg blue); the robot's back corner is 5 to 6 in from the rear wall there.
     public static double REAR_LAUNCH_X = -55.6, REAR_LAUNCH_Y = 26.2, REAR_AIM_TRIM_DEG = 0.0;
+    /**
+     * Auton - Boomerang's own launch spot for its last salvo, from 2026-11-21 (user: closer to the wall; 4 in was asked, 2 in chosen): blue (-57.6, 26.2) / red (57.6, -26.2), 2 in nearer the rear wall (red: the
+     * audience wall) than REAR_LAUNCH, which the Triple Tip keeps. Still inside the 2-D grid's measured zone for the first cell (speed 1402, aim residual +11.1 deg, heading -9.4 deg blue, 38.5 in from the cell);
+     * the robot's back corner is 4.8 in from the wall there. 4 in ((-59.6, 26.2)) would have left the measured zone (speed and aim estimated) and 2.8 in to the wall, less than the launch leg's 3 in tolerance.
+     */
+    public static double BOOMERANG_LAUNCH_X = -57.6, BOOMERANG_LAUNCH_Y = 26.2;
     public static double WEST_HELPER_X = -36.0, WEST_HELPER_Y = 40.0;
     public static double REAR_WALL_JOSTLE_DEADLINE_SEC = 23.5;
     public static double REAR_PARK_VIA_X = -20.0, REAR_PARK_VIA_Y = 44.0, REAR_PARK_HEADING_DEG = 30.0;
@@ -682,7 +688,9 @@ public class AutonSolo extends LinearOpMode {
         RunLog.event("AUTO third launch spot " + THIRD_LAUNCH_X + ", " + THIRD_LAUNCH_Y + " (blue frame) " + (THIRD_SALVO_ENABLED ? "ON" : "OFF (the park runs)") + " in the grid: " + gridThird.describe());
         Pose2d finalPark = forAlliance(pose(FINAL_PARK_X, FINAL_PARK_Y + FINAL_PARK_OVERSHOOT_IN, FINAL_PARK_HEADING_DEG), isBlue);
         // the rear finish (Auton - Triple Tip): the first cell's launch spot with the grid's aim, the west helper at that heading, and the park through its via point
-        Pose2d rearXY = forAlliance(pose(REAR_LAUNCH_X, REAR_LAUNCH_Y, 0.0), isBlue);
+        final boolean switchCell = lastSalvoIntoFirstCell() && THIRD_SALVO_ENABLED;   // Auton - Boomerang: the last salvo into the first cell from its own rear launch spot, then the park through the via point
+        final double rearLaunchX = switchCell ? BOOMERANG_LAUNCH_X : REAR_LAUNCH_X, rearLaunchY = switchCell ? BOOMERANG_LAUNCH_Y : REAR_LAUNCH_Y;   // the Triple Tip's spot, or the Boomerang's own (2026-11-21)
+        Pose2d rearXY = forAlliance(pose(rearLaunchX, rearLaunchY, 0.0), isBlue);
         LaunchGridMap.Result gridRear = LaunchGridMap.lookup(firstCell, rearXY.position.x, rearXY.position.y);
         double rearHeading = (gridRear.hasValues()
                 ? Math.atan2(firstCell.y - rearXY.position.y, firstCell.x - rearXY.position.x) + Math.toRadians(gridRear.residualDeg)
@@ -692,8 +700,7 @@ public class AutonSolo extends LinearOpMode {
         Pose2d westHelper = new Pose2d(westXY.position.x, westXY.position.y, rearHeading);   // arrives turned to the launch heading, as the first crossing does
         Pose2d rearParkVia = forAlliance(pose(REAR_PARK_VIA_X, REAR_PARK_VIA_Y, REAR_PARK_HEADING_DEG), isBlue);
         Pose2d rearPark = forAlliance(pose(FINAL_PARK_X, FINAL_PARK_Y + FINAL_PARK_OVERSHOOT_IN, REAR_PARK_HEADING_DEG), isBlue);
-        final boolean switchCell = lastSalvoIntoFirstCell() && THIRD_SALVO_ENABLED;   // Auton - Boomerang: the last salvo into the first cell from the rear launch spot, then the park through the via point
-        if (rearFinish() || switchCell) RunLog.event("AUTO rear launch spot " + REAR_LAUNCH_X + ", " + REAR_LAUNCH_Y + " (blue frame) for " + firstCell + " in the grid: " + gridRear.describe());
+        if (rearFinish() || switchCell) RunLog.event("AUTO rear launch spot " + rearLaunchX + ", " + rearLaunchY + " (blue frame) for " + firstCell + " in the grid: " + gridRear.describe());
 
         RunLog.event("AUTO launch spot " + LAUNCH_X + ", " + LAUNCH_Y + " (blue frame) in the grid: " + gridAtSpot.describe());
         RunLog.event(String.format(Locale.US, "SETUP profile %s, alliance %s, start pose (%.1f, %.1f, %.1f deg), cells %s then %s, launch spot (%.1f, %.1f, %.1f deg), %s",
