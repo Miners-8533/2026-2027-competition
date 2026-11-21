@@ -7,6 +7,7 @@ Building blocks: [motion.md](motion.md), [mechanisms.md](mechanisms.md), [aiming
 | Program | Start wall | Shown on the Driver Station | Intended use |
 |---|---|---|---|
 | Auton - Solo | rear | yes | the partner only parks; since 2026-11-19 the preload takes only its flywheel speed from the 2-D launch grid (`PRELOAD_GRID_SPEED`: 1394 ticks/s at the start wall, extrapolated, against the map's 1350; the position and the aim are unchanged); every salvo runs from the LAUNCH-READY pusher position (`Mechanisms.requestLaunchReady`, requested on the last leg to each launch spot, forward only to 156 deg, dropped when the salvo starts); the launch-spot legs end within 3 in and 12 deg (the grid's speed and aim are looked up at the pose the robot is really at; not run); since 2026-11-19 there is no squaring after the garden since 2026-11-19 (`GARDEN_SQUARING` false); the audience launch spot, one for all three salvos, is blue (56, 36) / red (-56, -36) (8 in toward the flower wall from (48, 36), 2026-11-19; a first move to (44, 36) went the wrong way for red) with the 2-D launch grid's speed and aim; also from 2026-11-19 (user) the garden in one leg from the start to the end of the angled pickup (last 12.5 in at 0.5 power) and a THIRD garden salvo of the wall flower's pollen into the same cell from that same spot (56, 36), then the park is tried even if time runs out (not run since) |
+| Auton - Boomerang | rear | yes | (2026-11-21, built, not run) Solo up to the Blue Wall flower's back-out; then the last salvo into the first (preload's) cell from blue (-55.6, 26.2) instead of into the second cell from (56, 36), and the park through (-20, 44) (section 3) |
 | Auton - Triple Tip | rear | yes | (2026-11-20, built, not run) Solo up to the first flower gather, the partner launches with our garden salvo; then around the outside of the hive to the first cell's side, two salvos into the first cell from blue (-55.6, 26.2) with the alliance-wall flower between them, and the park through (-20, 44) |
 | Auton - Blaser's Gambit | audience | yes | (2026-11-21, built, not run) a triple tip from the audience wall: the preload after a 7 s wait and the audience flower into the audience cell, the Blue Wall flower and the garden into the rear cell from the Triple Tip's launch spot; the salvos come before the park, which is tried last |
 | Auton - Duo Daryl | rear | yes | garden first; since 2026-11-20 the garden salvo launches from blue (56, 36) with the 2-D grid's speed and aim, every salvo from the launch-ready pusher position, the preload takes the grid's flywheel speed, and it parks at (22, 55.1); since 2026-11-21 the Blue Wall flower's pollen go into the original (preload's) cell from blue (-55.6, 26.2) and the partner wait, the second audience-cell salvo and the audience flower are gone (not run since 2026-11-07) |
@@ -15,7 +16,7 @@ Building blocks: [motion.md](motion.md), [mechanisms.md](mechanisms.md), [aiming
 | Auton - Duo Flower Side | audience | yes (from 2026-11-21) | the other half of the pair; since 2026-11-21 with the Solo and Daryl changes (section 6), built, never run |
 | Auton - Duo Primary | rear | hidden | the longest program; does not fit 30 s with every step |
 
-A hidden program is complete code that is disabled from the Driver Station list. Since 2026-11-19 (the user) only Solo and Daryl are shown; Triple Tip was added 2026-11-20, Flower Side, Blaser's Gambit and Garden Side 2026-11-21.
+A hidden program is complete code that is disabled from the Driver Station list. Since 2026-11-19 (the user) only Solo and Daryl are shown; Triple Tip was added 2026-11-20, Flower Side, Blaser's Gambit, Garden Side and Boomerang 2026-11-21.
 
 ## 1. Common frame
 
@@ -164,6 +165,14 @@ Start: rear wall, (-63.4, 16.0, 0 deg). Cells: rear, then audience.
 9. Park in the hive-side corner. The pollen from the final gather stay in the robot for the TeleOp.
 
 Nominal duration about 29 s. A switch can replace steps 8 and 9 with a plain park at (51.1, 54.0, 180 deg).
+
+**Auton - Boomerang** (2026-11-21, the user: Solo, but the last salvo into the other hive cell, then park; built, not run on the robot) is the Solo program up to and including the Blue Wall flower's back-out at (-26.3, 46.3) (`AutonBoomerang extends AutonSolo`, the hook `lastSalvoIntoFirstCell()`; every number is the Solo's). Then, where the Solo drives 81 in back to (56, 36) for a third salvo into the audience cell:
+
+1. Set the target to the **rear** cell (the one the preload went into). Straight to the rear launch spot, blue (-55.6, 26.2) (the Triple Tip's, 35 in away), the ramp stowing and the pusher going to launch-ready.
+2. Launch the Blue Wall flower's pollen at the rear cell with the grid's speed and aim (trim `REAR_AIM_TRIM_DEG`, 0).
+3. Park at (22, 55.1) through the via point (-20, 44) at heading 30 deg, as the Triple Tip and the Daryl do.
+
+It applies only while `THIRD_SALVO_ENABLED` is true. Controller simulation (not a robot run): the last salvo starts at about 23.8 s and the park ends at about 27.3 s, against 25.1 s and 27.8 s for the Solo (the leg to the launch spot takes 1.4 s instead of 2.7 s, the park from the rear side 2.5 s instead of 1.8 s).
 
 ## 4. Auton - Duo Daryl
 

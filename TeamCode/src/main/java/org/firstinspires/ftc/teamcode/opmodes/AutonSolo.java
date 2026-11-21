@@ -84,6 +84,15 @@ public class AutonSolo extends LinearOpMode {
     }
 
     /**
+     * False: the Solo auto. True ({@link AutonBoomerang}, 2026-11-21, user: Solo, but the last salvo into the other hive cell, then park): the same up to and including the wall flower's back-out, then the
+     * wall flower's pollen go into the FIRST cell (the one the preload went into: blue the rear cell, red the audience cell) from REAR_LAUNCH, 35 in from the back-out, instead of into the second cell from
+     * the Solo launch spot 81 in away; then the park through REAR_PARK_VIA at REAR_PARK_HEADING_DEG, as the Triple Tip's and the Daryl's. Only with THIRD_SALVO_ENABLED (without it there is no last salvo to move).
+     */
+    protected boolean lastSalvoIntoFirstCell() {
+        return false;
+    }
+
+    /**
      * THE REAR FINISH (Auton - Triple Tip, 2026-11-20, the user's design; built, not run on the robot). The partner waits and launches with our garden salvo, so the second cell tips and the FIRST cell (the one the
      * preload went into: blue the rear cell, red the audience cell) faces up again. After the first flower gather the robot goes around the OUTSIDE of the hive on its own half (the east helper, then the west helper
      * (WEST_HELPER_X / Y): never under the hive, whose lane is the field's center line) to REAR_LAUNCH (first blue (-50, 24), 30.6 in from the cell; see the note at the value for the spot in use: the 2-D grid's good zone for that cell, 22 deg off its axis), launches the flower pollen into the first cell, gathers the alliance-wall flower (27 in away), launches from the same spot again (8 pollen: the third tip), and parks at FINAL_PARK through
@@ -683,7 +692,8 @@ public class AutonSolo extends LinearOpMode {
         Pose2d westHelper = new Pose2d(westXY.position.x, westXY.position.y, rearHeading);   // arrives turned to the launch heading, as the first crossing does
         Pose2d rearParkVia = forAlliance(pose(REAR_PARK_VIA_X, REAR_PARK_VIA_Y, REAR_PARK_HEADING_DEG), isBlue);
         Pose2d rearPark = forAlliance(pose(FINAL_PARK_X, FINAL_PARK_Y + FINAL_PARK_OVERSHOOT_IN, REAR_PARK_HEADING_DEG), isBlue);
-        if (rearFinish()) RunLog.event("AUTO rear launch spot " + REAR_LAUNCH_X + ", " + REAR_LAUNCH_Y + " (blue frame) for " + firstCell + " in the grid: " + gridRear.describe());
+        final boolean switchCell = lastSalvoIntoFirstCell() && THIRD_SALVO_ENABLED;   // Auton - Boomerang: the last salvo into the first cell from the rear launch spot, then the park through the via point
+        if (rearFinish() || switchCell) RunLog.event("AUTO rear launch spot " + REAR_LAUNCH_X + ", " + REAR_LAUNCH_Y + " (blue frame) for " + firstCell + " in the grid: " + gridRear.describe());
 
         RunLog.event("AUTO launch spot " + LAUNCH_X + ", " + LAUNCH_Y + " (blue frame) in the grid: " + gridAtSpot.describe());
         RunLog.event(String.format(Locale.US, "SETUP profile %s, alliance %s, start pose (%.1f, %.1f, %.1f deg), cells %s then %s, launch spot (%.1f, %.1f, %.1f deg), %s",
@@ -801,7 +811,17 @@ public class AutonSolo extends LinearOpMode {
                                         flowerHold("wall flower jostle", drive, mechanisms, THIRD_SALVO_ENABLED ? THIRD_JOSTLE_DEADLINE_SEC : FINAL_JOSTLE_DEADLINE_SEC),
                                         backOutLeg("wall flower back-out (straight)", drive, wallBack, WALL_BACKOUT_TOL_IN),
                                         new InstantAction(mechanisms::requestStowNow),   // clear of the flower: the ramp stows on the way to the corner (or to the third launch spot)
-                                        THIRD_SALVO_ENABLED
+                                        switchCell
+                                                ? new SequentialAction(
+                                                        note("Last salvo into the OTHER cell (the preload's): the rear launch spot, then the park through the via point"),
+                                                        new InstantAction(() -> mechanisms.setOpenCell(firstCell)),   // the flywheel follows the first cell's distance from here
+                                                        new InstantAction(mechanisms::requestLaunchReady),   // the arm goes to the launch-ready position on this leg
+                                                        launchLeg("rear launch spot", drive, rearSpot),
+                                                        timed("ramp stow (wait)", rampTo(mechanisms, false)),
+                                                        launch(drive, mechanisms, firstCell, isBlue, "wall flower pollen (first cell)", REAR_AIM_TRIM_DEG, true),
+                                                        note("Park through the via point (clear of the hive's foot bar)"),
+                                                        crossLeg("park via point", drive, rearParkVia, CROSS_FIELD_MAX_POWER, true))
+                                        : THIRD_SALVO_ENABLED
                                                 ? new SequentialAction(
                                                         note("Third garden salvo: the wall flower's pollen into the same cell, then the park is tried"),
                                                         new InstantAction(mechanisms::requestLaunchReady),   // the arm goes to the launch-ready position on the way
@@ -809,7 +829,7 @@ public class AutonSolo extends LinearOpMode {
                                                         timed("ramp stow (wait)", rampTo(mechanisms, false)),
                                                         launch(drive, mechanisms, thirdCell, isBlue, "wall flower pollen", THIRD_AIM_TRIM_DEG, true))
                                                 : new InstantAction(() -> { }),
-                                        parkLeg("park (hive-side corner, full power)", drive, finalPark),   // tried even when little time is left: the auto ends at 30 s
+                                        parkLeg("park (hive-side corner, full power)", drive, switchCell ? rearPark : finalPark),   // tried even when little time is left: the auto ends at 30 s (Boomerang arrives from the rear side: the same corner at REAR_PARK_HEADING_DEG)
                                         timed("ramp stow (wait)", rampTo(mechanisms, false))
                                         ),
                                 new SequentialAction(
