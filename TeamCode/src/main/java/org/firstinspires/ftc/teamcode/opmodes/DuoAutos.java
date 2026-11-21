@@ -100,6 +100,13 @@ public final class DuoAutos {
     public static double D_SECOND_SHOT_NOT_BEFORE_SEC = 18.0, D_RETURN_TRAVEL_SEC = 2.4;
     /** The garden leg runs from the start straight to the wall squaring pose; the last D_GARDEN_SLOW_ZONE_IN inches (4 pollen of about 2.8 in end to end is 11.2 in, plus margin) are limited to D_GARDEN_SLOW_POWER (0.35 in the solo auto, relaxed to 0.5 by the user). */
     public static double D_GARDEN_SLOW_ZONE_IN = 12.5, D_GARDEN_SLOW_POWER = 0.5;
+    /**
+     * The DARYL auto's audience-cell launch spot from 2026-11-20 (user: the Solo launch spot), the same for both of its audience-cell salvos: blue (56, 36), red (-56, -36), in the 2-D launch grid's good zone (it was
+     * (50, 26.3), a NO SHOT zone). The speed and the aim come from the grid at the pose the robot is really at (AimAtCell.withGrid, Mechanisms.setLaunchGrid), so D_GRID_TRIM_DEG is 0.
+     */
+    public static double D_LAUNCH_X = 56.0, D_LAUNCH_Y = 36.0, D_GRID_TRIM_DEG = 0.0;
+    /** The DARYL auto's park from 2026-11-20 (user, as the Solo auto's): blue (22, 55.1), 4 in nearer the field center in x and 2 in farther from it in y than the hive-side park (26, 53.1) the other duo autos keep; red the same turned 180 deg. */
+    public static double D_PARK_X = 22.0, D_PARK_Y = 55.1;
     public static double D_PRELOAD_TRIM_DEG = 0.0, D_GARDEN_TRIM_DEG = -2.5, D_WALL_TRIM_DEG = -2.5;   // -2.5 from 2026-11-17 (user): the net of the old -8.0 and the far-cell extra (about +5.5 deg at this spot), which the autos no longer apply; the note that follows is of the -8.0. // the salvos into the audience cell from (50, 26.3) (blue; the far cell from the rear-wall start) use -8.0, the solo auto's total trim there (user, 2026-11-07: the solo's landed left; -4.5 still landed left)
     /** The Blue Wall flower's jostle ends by this many seconds into the auto at the latest; the audience flower's likewise, and the audience flower is skipped when it would start later than the latest start (so the park keeps its time). */
     public static double D_WALL_JOSTLE_DEADLINE_SEC = 19.0, D_AUD_JOSTLE_DEADLINE_SEC = 26.0, D_AUD_FLOWER_LATEST_START_SEC = 22.5;
@@ -107,7 +114,7 @@ public final class DuoAutos {
     // ---- legs, as in the solo auto ----
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
     public static double COARSE_POS_IN = 3.0, COARSE_HEADING_DEG = 10.0;
-    public static double LAUNCH_POS_TOL_IN = 2.5, LAUNCH_HEADING_TOL_DEG = 6.0;
+    public static double LAUNCH_POS_TOL_IN = 3.0, LAUNCH_HEADING_TOL_DEG = 12.0;   // 3 in and 12 deg from 2026-11-20 (were 2.5 and 6): the Daryl auto's speed and aim are looked up on the 2-D grid at the real pose, as the Solo auto's
     // ---- Cybugs (2026-11-07, built from Daryl) ----
     /** The salvo from the rear launch spot at the start wall into the rear cell (the cell near the start): the preload from beside it needs no trim. */
     public static double C_REAR_TRIM_DEG = 0.0;

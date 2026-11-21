@@ -4,6 +4,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.drive.FieldGeometry;
+import org.firstinspires.ftc.teamcode.drive.LaunchGridMap;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.TargetLock;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
@@ -62,12 +63,14 @@ public class AutonDuoDaryl extends AutonDuoBase {
         m.setOpenCell(rearCell);
 
         // the audience launch spot: the heading is the computed aim at the audience cell with the far-cell extra (the solo auto's spot, on the audience flower's line)
-        Pose2d audXY = DuoKit.forAlliance(DuoKit.pose(DuoAutos.P_AUD_LAUNCH_X, DuoAutos.P_AUD_LAUNCH_Y, 0.0), blue);
-        double audExtra = 0.0;   // no far-cell extra in the autos from 2026-11-17 (user): each launch's trim holds its whole allowance (DuoAutos)
-        // the spot headings include the salvo's aim trim (2026-11-07): the leg arrives pointed at the trimmed aim and the aim step only fine-tunes
-        double audAim = TargetLock.aimHeadingRad(audXY.position.x, audXY.position.y, audCell, audExtra);
-        Pose2d audSpot = new Pose2d(audXY.position.x, audXY.position.y, audAim + Math.toRadians(DuoAutos.D_GARDEN_TRIM_DEG));
-        Pose2d audSpotWall = new Pose2d(audXY.position.x, audXY.position.y, audAim + Math.toRadians(DuoAutos.D_WALL_TRIM_DEG));
+        // 2026-11-20 (user): the Solo auto's launch spot, blue (56, 36) / red (-56, -36), one spot for both audience-cell salvos, with the 2-D grid's aim (the bearing plus the grid's residual there) and speed
+        Pose2d audXY = DuoKit.forAlliance(DuoKit.pose(DuoAutos.D_LAUNCH_X, DuoAutos.D_LAUNCH_Y, 0.0), blue);
+        LaunchGridMap.Result audGrid = LaunchGridMap.lookup(audCell, audXY.position.x, audXY.position.y);
+        double audAim = audGrid.hasValues()
+                ? Math.atan2(audCell.y - audXY.position.y, audCell.x - audXY.position.x) + Math.toRadians(audGrid.residualDeg)
+                : TargetLock.aimHeadingRad(audXY.position.x, audXY.position.y, audCell, 0.0);
+        Pose2d audSpot = new Pose2d(audXY.position.x, audXY.position.y, audAim + Math.toRadians(DuoAutos.D_GRID_TRIM_DEG));
+        Pose2d audSpotWall = audSpot;
 
         // the garden as in the solo auto (2026-11-07, user: the one-leg garden ended too far from the wall): the angled pre-position, the slow pickup, the squaring approach, then the squaring
         Pose2d gardenPre = DuoKit.forAlliance(DuoKit.pose(DuoAutos.GARDEN_PRE_X, DuoAutos.GARDEN_PRE_Y, DuoAutos.GARDEN_HEADING_DEG), blue);
@@ -90,11 +93,12 @@ public class AutonDuoDaryl extends AutonDuoBase {
         Pose2d flowerBack = DuoKit.forAlliance(DuoKit.pose(DuoAutos.FLOWER_AT_X - DuoAutos.FLOWER_BACKOFF_IN, DuoAutos.FLOWER_AT_Y, DuoAutos.FLOWER_HEADING_DEG), blue);
 
         Pose2d eastHelper = DuoKit.forAlliance(DuoKit.pose(DuoAutos.P_EAST_HELPER_X, DuoAutos.P_EAST_HELPER_Y, DuoAutos.P_HELPER_HEADING_DEG), blue);
-        Pose2d park = DuoKit.forAlliance(DuoKit.pose(DuoAutos.G_PARK_X, DuoAutos.G_PARK_Y + DuoAutos.PARK_OVERSHOOT_IN, DuoAutos.PARK_HEADING_DEG), blue);
+        Pose2d park = DuoKit.forAlliance(DuoKit.pose(DuoAutos.D_PARK_X, DuoAutos.D_PARK_Y + DuoAutos.PARK_OVERSHOOT_IN, DuoAutos.PARK_HEADING_DEG), blue);
 
         return new SequentialAction(
-                // 1. the preload into the rear cell, the pusher already at the lock position
-                new InstantAction(m::preparePusherForLaunch),
+                // 1. the preload into the rear cell, the pusher going to the LAUNCH-READY position (2026-11-20, user; it was the 90 deg lock) and the flywheel speed from the 2-D grid (the formula aim and the position are unchanged)
+                new InstantAction(() -> m.setLaunchGrid(true, "Auton - Duo Daryl, from Start (the preload: the grid's flywheel speed only)")),
+                new InstantAction(m::requestLaunchReady),
                 k.launch(drive, m, rearCell, blue, "preload", DuoAutos.D_PRELOAD_TRIM_DEG),
 
                 // 2. the garden as in the solo auto: pre-position, slow pickup, squaring approach, squaring
@@ -111,8 +115,9 @@ public class AutonDuoDaryl extends AutonDuoBase {
                 k.note("Around the outside of the hive support rails, intake still ON so every element gets in"),
                 k.crossLeg("east helper (outside the support rails)", drive, eastHelper, true),
                 new InstantAction(() -> m.setOpenCell(audCell)),
+                new InstantAction(m::requestLaunchReady),   // the arm goes to the launch-ready position on this last leg
                 k.launchLeg("audience launch spot", drive, audSpot),
-                k.launch(drive, m, audCell, blue, "garden pollen", DuoAutos.D_GARDEN_TRIM_DEG, 0.0),
+                k.launchOnGrid(drive, m, audCell, blue, "garden pollen", DuoAutos.D_GRID_TRIM_DEG),
 
                 // 4. the Blue Wall flower
                 new InstantAction(m::requestDeploy),   // deploys on the way
@@ -135,10 +140,11 @@ public class AutonDuoDaryl extends AutonDuoBase {
                 // 6. back to the audience launch spot, the audience cell again
                 k.note("Around the outside of the hive to the audience launch spot (intake still ON)"),
                 k.crossLeg("east helper (outside the support rails)", drive, eastHelper, true),
+                new InstantAction(m::requestLaunchReady),   // the arm goes to the launch-ready position on this last leg
                 k.launchLeg("audience launch spot", drive, audSpotWall),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
                 k.waitUntil("second shot (partner parked)", DuoAutos.D_SECOND_SHOT_NOT_BEFORE_SEC),
-                k.launch(drive, m, audCell, blue, "wall flower pollen", DuoAutos.D_WALL_TRIM_DEG, 0.0),
+                k.launchOnGrid(drive, m, audCell, blue, "wall flower pollen", DuoAutos.D_GRID_TRIM_DEG),
 
                 // 7. the audience flower, skipped when late; its pollen stay for the TeleOp
                 k.unlessLate("audience flower", DuoAutos.D_AUD_FLOWER_LATEST_START_SEC, new SequentialAction(

@@ -248,6 +248,14 @@ final class DuoKit {
         return launch(drive, mechanisms, cell, blue, label, trimDeg, 0.0);
     }
 
+    /** Aim with the 2-D launch grid (the bearing plus the grid's residual at the pose the robot is really at; AimAtCell.withGrid) and launch: the Daryl auto from 2026-11-20, as the Solo auto's audience-cell salvos. */
+    Action launchOnGrid(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg) {
+        return new SequentialAction(
+                note("Aim (grid) and launch: " + label),
+                timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg, 0.0).withGrid()),
+                timed("launch (wait + salvo): " + label, mechanisms.launch()));
+    }
+
     /** As above with the sideways aim extra: NaN = the far-cell extra of the cell on the opposite side from the alliance's start wall (TargetLock.farCellExtraLeftIn). No auto passes NaN from 2026-11-17: each launch's trim holds its whole allowance. */
     Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, double extraLeftIn) {
         return new SequentialAction(
