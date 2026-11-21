@@ -122,9 +122,12 @@ public class ElementCounter {
      */
     // CS4 re-measured 2026-11-19 (user: the new normal for this sensor): its empty view now reads about 3 cm, not 7.7 (the 19:53 TeleOp read 6.1 to 6.9, every run from 21:45 on 2.7 to 2.9). The Pusher
     // Calibration Test's two empty baselines, the arm at HOLD (alpha 0.078, 2.74 cm, 0.237/0.429/0.335) and the arm 40 deg past it (0.055, 3.13 cm, 0.263/0.430/0.306), averaged, so both are within about 0.02 of it.
-    private static final double[] BASE_ALPHA = {0.209, 0.109, 0.353, 0.067};
-    private static final double[] BASE_DIST = {3.60, 5.20, 3.92, 2.94};
-    private static final double[][] BASE_SHARES = {{0.238, 0.410, 0.352}, {0.220, 0.448, 0.332}, {0.226, 0.414, 0.360}, {0.250, 0.430, 0.320}};
+    // CS4 REPLACED (a new sensor, 2026-11-21, user) and re-measured the same day with the Pusher Calibration Test (robot-logs/2026-11-21/093545_bringup.log), the arm at HOLD as always: alpha 0.128, 4.53 cm,
+    // 0.248/0.415/0.337 (the old sensor's last values were 0.067, 2.94 cm, 0.250/0.430/0.320; against those the new sensor's empty view read 2.6 times the alpha, a phantom element). With the arm far away the new
+    // sensor reads alpha 0.094 and 0.277/0.412/0.311 (a shift of 0.039, under the 0.05 ON threshold); the arm at its center reads alpha 0.28 to 0.38 (2.2 to 3.0 times the baseline), 3.5 to 3.9 cm, 0.23/0.41/0.36.
+    private static final double[] BASE_ALPHA = {0.209, 0.109, 0.353, 0.128};
+    private static final double[] BASE_DIST = {3.60, 5.20, 3.92, 4.53};
+    private static final double[][] BASE_SHARES = {{0.238, 0.410, 0.352}, {0.220, 0.448, 0.332}, {0.226, 0.414, 0.360}, {0.248, 0.415, 0.337}};
 
     private final NormalizedColorSensor[] color = new NormalizedColorSensor[N];
     private final DistanceSensor[] distance = new DistanceSensor[N];

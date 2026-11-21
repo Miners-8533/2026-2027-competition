@@ -135,7 +135,7 @@ public class Mechanisms {
      * operator's calibration sweep (left bumper + Y) refuses with a notice, and the two zero warnings (PUSHER ZERO NOT VERIFIED / UNCERTAIN) are not raised. With the check off, a salvo that leaves the arm past HOLD
      * is followed by the re-home to HOLD by the encoder (REHOME_AFTER_SKIPPED_CHECK), as after a skipped check, so the intake keeps its room. True: the checks below work as before.
      */
-    public static boolean PUSHER_CHECK_ENABLED = false;
+    public static boolean PUSHER_CHECK_ENABLED = true;   // ON again 2026-11-21 (user): CS4 was replaced and its baseline re-measured; the new sensor classes the arm PUSHER_ARM at 331 to 341 deg forward and 294 to 321 back (center about 322 to 327)
     /** After a salvo, when the robot is empty and idle, check the pusher's zero against CS4 and correct a belt slip (see PusherCheck). Needs PUSHER_CHECK_ENABLED. */
     public static boolean AUTO_PUSHER_CHECK = true;
     /** Also check right after Start when the zero has not been verified since the app started (a power cycle, an install, or a zero set by hand). */
