@@ -8,13 +8,14 @@ Building blocks: [motion.md](motion.md), [mechanisms.md](mechanisms.md), [aiming
 |---|---|---|---|
 | Auton - Solo | rear | yes | the partner only parks; since 2026-11-19 the preload takes only its flywheel speed from the 2-D launch grid (`PRELOAD_GRID_SPEED`: 1394 ticks/s at the start wall, extrapolated, against the map's 1350; the position and the aim are unchanged); every salvo runs from the LAUNCH-READY pusher position (`Mechanisms.requestLaunchReady`, requested on the last leg to each launch spot, forward only to 156 deg, dropped when the salvo starts); the launch-spot legs end within 3 in and 12 deg (the grid's speed and aim are looked up at the pose the robot is really at; not run); since 2026-11-19 there is no squaring after the garden since 2026-11-19 (`GARDEN_SQUARING` false); the audience launch spot, one for all three salvos, is blue (56, 36) / red (-56, -36) (8 in toward the flower wall from (48, 36), 2026-11-19; a first move to (44, 36) went the wrong way for red) with the 2-D launch grid's speed and aim; also from 2026-11-19 (user) the garden in one leg from the start to the end of the angled pickup (last 12.5 in at 0.5 power) and a THIRD garden salvo of the wall flower's pollen into the same cell from that same spot (56, 36), then the park is tried even if time runs out (not run since) |
 | Auton - Triple Tip | rear | yes | (2026-11-20, built, not run) Solo up to the first flower gather, the partner launches with our garden salvo; then around the outside of the hive to the first cell's side, two salvos into the first cell from blue (-55.6, 26.2) with the alliance-wall flower between them, and the park through (-20, 44) |
+| Auton - Blaser's Gambit | audience | yes | (2026-11-21, built, not run) a triple tip from the audience wall: the preload after a 7 s wait and the audience flower into the audience cell, the Blue Wall flower and the garden into the rear cell from the Triple Tip's launch spot; the salvos come before the park, which is tried last |
 | Auton - Duo Daryl | rear | yes | garden first; since 2026-11-20 the garden salvo launches from blue (56, 36) with the 2-D grid's speed and aim, every salvo from the launch-ready pusher position, the preload takes the grid's flywheel speed, and it parks at (22, 55.1); since 2026-11-21 the Blue Wall flower's pollen go into the original (preload's) cell from blue (-55.6, 26.2) and the partner wait, the second audience-cell salvo and the audience flower are gone (not run since 2026-11-07) |
 | Auton - Cybugs | rear | hidden | Daryl without the last flower; ends about 5 s early |
 | Auton - Duo Garden Side | rear | hidden | one half of a matched pair |
 | Auton - Duo Flower Side | audience | yes (from 2026-11-21) | the other half of the pair; since 2026-11-21 with the Solo and Daryl changes (section 6), built, never run |
 | Auton - Duo Primary | rear | hidden | the longest program; does not fit 30 s with every step |
 
-A hidden program is complete code that is disabled from the Driver Station list. Since 2026-11-19 (the user) only Solo and Daryl are shown; Triple Tip was added 2026-11-20 and Flower Side 2026-11-21.
+A hidden program is complete code that is disabled from the Driver Station list. Since 2026-11-19 (the user) only Solo and Daryl are shown; Triple Tip was added 2026-11-20, Flower Side and Blaser's Gambit 2026-11-21.
 
 ## 1. Common frame
 
@@ -218,6 +219,20 @@ Changed 2026-11-21 to follow Solo, Daryl and Triple Tip (built, not run; this pr
 
 All aim trims are 0. The Garden Side as written does not fit 30 s if its wait is really 25 s; its waits were first guesses to be tuned from logged runs.
 
+## 6a. Auton - Blaser's Gambit
+
+Start: audience wall. The user's design of 2026-11-21; built, not run on the robot. The partner starts at the rear wall and tips the hive with its preload (tip 1). Every piece is one another program already has: the Flower Side's start, the Solo's flower and garden, the Triple Tip's rear launch spot and park path.
+
+1. Start with the back against the audience wall, (63.4, 7.5, 180 deg). From Start the flywheel takes the 2-D launch grid's speed, the pusher goes to the launch-ready position and the robot aims at the audience cell (the formula aim) and rests aimed. **Wait until 7.0 s** (the partner's preload salvo and the tip), then launch the preload at once.
+2. Audience-wall flower gather (pre-position (38, 26.3), ram, one jostle cycle, back out to (46.3, 26.3)); to the Solo launch spot (56, 36), the ramp stowing during the turn; launch at the **audience** cell with the grid's speed and aim: 8 pollen, tip 2.
+3. East helper (36, 40), then the Blue Wall flower gather (pre-position (-26.3, 38), ram, jostle, back out to (-26.3, 46.3)); straight to the rear launch spot (-55.6, 26.2), the Triple Tip's; launch at the **rear** cell, which tip 2 turned up.
+4. Garden as the Solo auto gathers it: one leg from the launch spot to (-59.8, 58.5, 105 deg), the last 12.5 in at 0.5 power, then the squaring for at most 0.8 s; back to the rear launch spot; launch at the rear cell: 8 pollen, tip 3.
+5. The park is tried: through the via point (-20, 44) to (22, 55.1) at heading 30 deg.
+
+**The salvos come before the park** (the user): no step is skipped to save the park, and the park is only tried. The three long legs that would otherwise run at 0.85 power (east helper to the Blue Wall flower pre-position, and the two legs to the rear launch spot) run at 1.0 (`B_LONG_LEG_POWER`). All aim trims are 0. There is no guard that waits for a tip before the rear-cell salvos.
+
+Estimated times, from the Solo run of 2026-11-20 00:23 where the legs match: preload done 8.0 s, audience flower salvo 15.4 s, Blue Wall flower backed out 20.8 s, its salvo 23.6 s, garden gathered and squared 26.2 s, garden salvo 28.9 s; the park would need until about 31.9 s, so the 30 s end on the way to it. The legs between the rear launch spot and the garden have not been driven by any program.
+
 ## 7. Auton - Duo Primary
 
 Start: rear wall. Preload at the rear cell; Blue Wall flower gather (deadline 12 s); east helper to the audience launch spot, launch at the audience cell (trim -2.5 deg); audience-wall flower gather (deadline 21 s); east and west helpers to the rear launch spot, launch at the rear cell; garden pickup and a second launch from the rear spot, **skipped if it would start after 18 s**; west helper, park in the hive-side corner.
@@ -240,6 +255,8 @@ With the garden it ran past 30 s and lost its park, hence the skip.
 | Solo: jostle deadline / final jostle deadline | 23.0 s / 26.5 s |
 | Solo: garden and flower aim trims | -2.5 deg / -2.5 deg |
 | Daryl: wall jostle deadline | 19.0 s |
+| Blaser's Gambit: first launch not before / audience jostle deadline / wall jostle deadline | 7.0 s / 16.0 s / 24.0 s |
+| Blaser's Gambit: long-leg power / squaring limit | 1.0 / 0.8 s |
 | Daryl: last salvo not before (from 2026-11-21) | 23.8 s |
 | Daryl: rear launch spot / park via point / park heading (from 2026-11-21) | (-55.6, 26.2) / (-20, 44) / 30 deg |
 | Daryl, Cybugs and Primary: audience-cell trims | -2.5 deg |

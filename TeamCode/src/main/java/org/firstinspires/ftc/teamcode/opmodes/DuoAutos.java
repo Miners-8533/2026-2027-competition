@@ -132,6 +132,28 @@ public final class DuoAutos {
     /** The Blue Wall flower's jostle ends by this many seconds into the auto at the latest; the audience flower's likewise, and the audience flower is skipped when it would start later than the latest start (so the park keeps its time). */
     public static double D_WALL_JOSTLE_DEADLINE_SEC = 19.0, D_AUD_JOSTLE_DEADLINE_SEC = 26.0, D_AUD_FLOWER_LATEST_START_SEC = 22.5;
 
+    // ---- Auton - Blaser's Gambit (2026-11-21, the user's design; design/duo-autos.md): the audience-wall start, a triple tip; built, not run on the robot ----
+    /** The start, as the Flower Side's: back flush to the audience wall at this y (blue frame), heading 180. */
+    public static double B_START_Y_IN = 7.5;
+    /** The preload is not before this (the user, 2026-11-21: 7 s; the partner's preload salvo and the tip). The robot aims before the wait (DuoKit.aimWaitLaunch), so the salvo starts when it passes. Every second here comes off the end of the auto. */
+    public static double B_FIRST_LAUNCH_NOT_BEFORE_SEC = 7.0;
+    /** The launch spots, blue frame, each with the 2-D grid's speed and aim: the Solo's for the audience cell (the audience flower's pollen) and the Triple Tip's for the rear cell (the Blue Wall flower's and the garden's). */
+    public static double B_AUD_LAUNCH_X = 56.0, B_AUD_LAUNCH_Y = 36.0;
+    public static double B_REAR_LAUNCH_X = -55.6, B_REAR_LAUNCH_Y = 26.2;
+    public static double B_PRELOAD_TRIM_DEG = 0.0, B_AUD_TRIM_DEG = 0.0, B_REAR_TRIM_DEG = 0.0;
+    /** Each flower's jostle (one cycle, about 1.4 s) is cut short at this many seconds into the auto; the estimate has them end at about 11.9 s and 20.1 s. */
+    public static double B_AUD_JOSTLE_DEADLINE_SEC = 16.0, B_WALL_JOSTLE_DEADLINE_SEC = 24.0;
+    /** The squaring after the garden ends after this long at the latest, as the Solo auto's. */
+    public static double B_GARDEN_SQUARING_MAX_SEC = 0.8;
+    /**
+     * The power limit of the three long legs that would otherwise run at the leg power 0.85 (the user, 2026-11-21: faster on the longest stretches): the east helper to the Blue Wall flower pre-position (62 in) and
+     * the two legs to the rear launch spot (35 and 33 in). About 0.6 s in all by the Solo run of 2026-11-20 (full-power legs 32 to 35 in/s, the 0.85 leg to the wall flower 29 in/s). If the robot overshoots the
+     * flower pre-position, lower this (0.85 is what the other autos use).
+     */
+    public static double B_LONG_LEG_POWER = 1.0;
+    /** The park is TRIED last (the salvos come first in this auto), through the via point clear of the hive's foot bar, as the Triple Tip's and the Daryl's. */
+    public static double B_PARK_X = 22.0, B_PARK_Y = 55.1, B_PARK_VIA_X = -20.0, B_PARK_VIA_Y = 44.0, B_PARK_HEADING_DEG = 30.0;
+
     // ---- legs, as in the solo auto ----
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
     public static double COARSE_POS_IN = 3.0, COARSE_HEADING_DEG = 10.0;

@@ -118,6 +118,18 @@ public class DuoPathCheck {
         leg("C rear launch spot -> park helper", cRear, helper, withFlowers);
         leg("C park helper -> park", helper, gPark, withFlowers);
 
+        // Blaser's Gambit (2026-11-21): the audience-wall start, the audience flower, the Solo launch spot, the Blue Wall flower, the rear launch spot, the garden and back, the park through the via point
+        double[] bStart = {63.4, 7.5, 180.0}, bAud = {56.0, 36.0, -142.1}, bRear = {-55.6, 26.2, -11.7}, bGardenEnd = {-59.8, 58.5, 105.0}, bSquare = {-64.15, 61.1, 90.0}, bVia = {-20.0, 44.0, 30.0}, bPark = {22.0, 55.1, 30.0};
+        leg("B start -> flower pre", bStart, flowerPre, real);
+        leg("B flower back-out -> audience launch spot", flowerBack, bAud, real);
+        leg("B audience launch spot -> east helper", bAud, dEastHelper, withFlowers);
+        leg("B east helper -> wall flower pre", dEastHelper, wallPre, withFlowers);
+        leg("B wall flower back-out -> rear launch spot", wallBack, bRear, withFlowers);
+        leg("B rear launch spot -> garden end", bRear, bGardenEnd, withFlowers);
+        leg("B squared on the wall -> rear launch spot", bSquare, bRear, withFlowers);
+        leg("B rear launch spot -> park via", bRear, bVia, withFlowers);
+        leg("B park via -> park", bVia, bPark, withFlowers);
+
         System.out.println(fails == 0 ? "All duo and Solo legs clear of the supports." : fails + " leg(s) touch a support.");
         System.exit(fails == 0 ? 0 : 1);
     }

@@ -142,6 +142,13 @@ final class DuoKit {
         return timed("drive: " + label, baseDrive(drive, target).withTolerance(DuoAutos.WALL_PRE_POS_TOL_IN, DuoAutos.WALL_PRE_HEADING_TOL_DEG));
     }
 
+    /** As above at a given power limit: the Blaser's Gambit's 62 in leg from the east helper runs at B_LONG_LEG_POWER. */
+    Action wallPreLeg(String label, MecanumDrive drive, Pose2d target, double maxPower) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withMaxOutput(maxPower)
+                .withDistanceTimeout(DuoAutos.TIMEOUT_BASE_SEC, DuoAutos.TIMEOUT_IN_PER_S * maxPower / 0.6, DuoAutos.TIMEOUT_MIN_SEC, DuoAutos.TIMEOUT_TURN_EXTRA_SEC, DuoAutos.TIMEOUT_MAX_SEC)
+                .withTolerance(DuoAutos.WALL_PRE_POS_TOL_IN, DuoAutos.WALL_PRE_HEADING_TOL_DEG));
+    }
+
     /** The garden leg of the Daryl auto: from where the robot is straight to the wall squaring pose, the last D_GARDEN_SLOW_ZONE_IN inches limited to D_GARDEN_SLOW_POWER (the pollen are in a line of 4). */
     Action gardenLeg(String label, MecanumDrive drive, Pose2d target) {
         DriveToPose d = baseDrive(drive, target).withTolerance(DuoAutos.COARSE_POS_IN, DuoAutos.COARSE_HEADING_DEG)
@@ -159,6 +166,13 @@ final class DuoKit {
     /** A launch-spot leg: near is enough (the aim step turns onto the cell). */
     Action launchLeg(String label, MecanumDrive drive, Pose2d target) {
         return timed("drive: " + label, baseDrive(drive, target).withTolerance(DuoAutos.LAUNCH_POS_TOL_IN, DuoAutos.LAUNCH_HEADING_TOL_DEG));
+    }
+
+    /** A launch-spot leg at a given power limit (the Blaser's Gambit's two legs to the rear launch spot run at B_LONG_LEG_POWER: the spot only needs to be within the launch tolerances). */
+    Action launchLeg(String label, MecanumDrive drive, Pose2d target, double maxPower) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withMaxOutput(maxPower)
+                .withDistanceTimeout(DuoAutos.TIMEOUT_BASE_SEC, DuoAutos.TIMEOUT_IN_PER_S * maxPower / 0.6, DuoAutos.TIMEOUT_MIN_SEC, DuoAutos.TIMEOUT_TURN_EXTRA_SEC, DuoAutos.TIMEOUT_MAX_SEC)
+                .withTolerance(DuoAutos.LAUNCH_POS_TOL_IN, DuoAutos.LAUNCH_HEADING_TOL_DEG));
     }
 
     Action crossLeg(String label, MecanumDrive drive, Pose2d target, boolean pass) {
