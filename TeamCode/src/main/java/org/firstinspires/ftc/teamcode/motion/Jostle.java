@@ -28,11 +28,12 @@ import java.util.function.IntSupplier;
 public final class Jostle implements Action {
 
     /** The pause at the start, pressing against the flower, before the first back stroke (2026-11-05, user). */
-    public static double START_HOLD_SEC = 1.0;
+    public static double START_HOLD_SEC = 0.0;   // 0 from 2026-11-20 (user: no opening press, the ram already presses against the flower); it was 1.0 s
     public static double BACK_IN = 0.5;   // 2.0 moved a little too far on 2026-11-03: halved to 1.0; 0.25 from 2026-11-05 (user): a small shake; 0.5 from 2026-11-07 (user: the 0.25 in shake was hardly visible)
     public static double POWER = 0.5;
     /** The back stroke is gentle so that it does not overshoot the small BACK_IN (at 0.5 power the robot moves about an inch before the next loop sees it). Raise it if the robot does not move back. */
-    public static double BACK_POWER = 0.4;   // 0.3 until 2026-11-07: the robot did not move back at the audience flower in some runs (user); 0.45 for a moment, then 0.4 (user: less overshoot)
+    public static double BACK_POWER = 0.3;   // 0.3 again from 2026-11-19 night (user: a lower back-stroke power): at 0.4 the stroke is cut at 0.5 in but the robot brakes on to a deepest back-off of 1.5 to 2 in (median 1.95 in the 11-19 logs; the braking distance goes with the square of the speed), about 0.8 in less expected at 0.3; the Hartland runs of 2026-11-07 once did not move back at 0.3, so BACK_MAX_SEC is 0.4 now
+    // earlier history of this value: 0.3 until 2026-11-07: the robot did not move back at the audience flower in some runs (user); 0.45 for a moment, then 0.4 (user: less overshoot)
     public static double PUSH_SEC = 0.2;   // the least a push lasts (halved from 0.35)
     public static double PUSH_MAX_SEC = 0.6;
     /** Once back at the contact point the robot keeps pressing this long before it backs off again (0.4 s before 2026-11-05). */
@@ -43,7 +44,13 @@ public final class Jostle implements Action {
     /** The jostle may stop early when this many or more are held and nothing new has come in for QUIET_SEC. 5 = never (a robot holds at most 4): getting all 4 matters more than the time (2026-11-04). */
     public static int MIN_COUNT_TO_STOP = 5;
     public static double QUIET_SEC = 0.8;
-    public static double BACK_MAX_SEC = 0.3;   // halved from 0.5
+    /**
+     * THE STROKES BY TIME (2026-11-19 night, user): the back stroke is BACK_SEC (0.2 s) at BACK_POWER (0.3) and the push is PUSH_TIMED_SEC (0.4 s) at POWER (0.5), then the press (PRESS_HOLD_SEC) is the wait. The
+     * distance rules below (BACK_IN, CONTACT_TOL_IN, PUSH_SEC, PUSH_MAX_SEC) are used only when the flags are false. Why: the 0.5 in distance cut left the robot braking on to 1.5 to 2 in behind the contact point.
+     */
+    public static boolean BACK_BY_TIME = true, PUSH_BY_TIME = true;
+    public static double BACK_SEC = 0.1, PUSH_TIMED_SEC = 0.2;   // 0.1 and 0.2 from 2026-11-20 (user; they were 0.2 and 0.4: at 0.2 s the robot braked on to a deepest back-off of 2.03 in, 1.01 in behind the contact point at the end of the command)
+    public static double BACK_MAX_SEC = 0.4;   // halved from 0.5
     public static double HEADING_KP = 1.5;
     public static double HEADING_MAX_TURN = 0.15;
 
@@ -112,9 +119,9 @@ public final class Jostle implements Action {
             case BACK:
                 drive.setDrivePowers(new PoseVelocity2d(new Vector2d(-BACK_POWER, 0.0), turn));
                 minAlong = Math.min(minAlong, along);
-                if (along <= -BACK_IN || phase.seconds() >= BACK_MAX_SEC) {
+                if (BACK_BY_TIME ? phase.seconds() >= BACK_SEC : (along <= -BACK_IN || phase.seconds() >= BACK_MAX_SEC)) {
                     RunLog.event(String.format(Locale.US, "AUTO JOSTLE back stroke %d: commanded %.2f for %.2f s, %.2f in behind the contact point (wanted %.2f), ended by %s",
-                            cycles + 1, -BACK_POWER, phase.seconds(), -along, BACK_IN, along <= -BACK_IN ? "the distance" : "the time limit: it did not move back far enough"));
+                            cycles + 1, -BACK_POWER, phase.seconds(), -along, BACK_IN, BACK_BY_TIME ? "the time (BACK_SEC " + BACK_SEC + " s)" : along <= -BACK_IN ? "the distance" : "the time limit: it did not move back far enough"));
                     mode = Mode.PUSH;
                     phase.reset();
                 }
@@ -122,7 +129,7 @@ public final class Jostle implements Action {
             case PUSH:
                 drive.setDrivePowers(new PoseVelocity2d(new Vector2d(POWER, 0.0), turn));
                 minAlong = Math.min(minAlong, along);
-                if ((phase.seconds() >= PUSH_SEC && along >= -CONTACT_TOL_IN) || phase.seconds() >= PUSH_MAX_SEC) {
+                if (PUSH_BY_TIME ? phase.seconds() >= PUSH_TIMED_SEC : ((phase.seconds() >= PUSH_SEC && along >= -CONTACT_TOL_IN) || phase.seconds() >= PUSH_MAX_SEC)) {
                     RunLog.event(String.format(Locale.US, "AUTO JOSTLE push %d: commanded %.2f for %.2f s, back at %.2f in from the contact point; the deepest back-off was %.2f in",
                             cycles + 1, POWER, phase.seconds(), -along, -minAlong));
                     minAlong = 0.0;

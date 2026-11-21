@@ -46,6 +46,8 @@ public final class SquareOnWall implements Action {
     private boolean started = false;
     private Pose2d before;
     private double holdHeading;
+    private double totalLimitSec = Double.NaN;   // NaN: no limit on the whole squaring
+    private final ElapsedTime total = new ElapsedTime();
 
     /** expectedHeadingRad, expectedX and expectedY: the heading, x and y the pose would read if the robot is flush in the corner (for the log only). */
     public SquareOnWall(MecanumDrive drive, double expectedHeadingRad, double expectedX, double expectedY) {
@@ -55,10 +57,20 @@ public final class SquareOnWall implements Action {
         this.expectedY = expectedY;
     }
 
+    /**
+     * A limit on the WHOLE squaring, the side wall and the front wall together (2026-11-20, the Solo garden: 0.8 s; the two phases took 1.0 to 1.35 s in the logs). When it passes, the squaring stops where it is
+     * and the log says TIMED OUT. The static limits (MAX_SEC, FORWARD_MAX_SEC) still apply to each phase.
+     */
+    public SquareOnWall withTotalLimit(double sec) {
+        totalLimitSec = sec;
+        return this;
+    }
+
     @Override
     public boolean run(TelemetryPacket packet) {
         if (!started) {
             started = true;
+            total.reset();
             timer.reset();
             stopped.reset();
             before = drive.getPose();
@@ -75,16 +87,17 @@ public final class SquareOnWall implements Action {
         if (speed > STOP_SPEED_IN_PER_S) stopped.reset();
         double minSec = phase == 0 ? MIN_SEC : FORWARD_MIN_SEC, maxSec = phase == 0 ? MAX_SEC : FORWARD_MAX_SEC;
         boolean stoppedOk = timer.seconds() >= minSec && stopped.seconds() >= STOPPED_HOLD_SEC;
-        boolean done = stoppedOk || timer.seconds() >= maxSec;
+        boolean overTotal = !Double.isNaN(totalLimitSec) && total.seconds() >= totalLimitSec;
+        boolean done = stoppedOk || timer.seconds() >= maxSec || overTotal;
         if (!done) return true;
         Pose2d after = drive.getPose();
         RunLog.event(String.format(Locale.US, "AUTO SQUARE %s after %.2f s (%s): pose before (%.1f, %.1f, %.1f deg), after (%.1f, %.1f, %.1f deg); "
                         + "heading %+.1f deg, x %+.1f in, y %+.1f in from the flush pose (%.1f deg, x %.1f, y %.1f); the pose was NOT reseeded",
-                phase == 0 ? "on the side wall" : "on the front wall", timer.seconds(), stoppedOk ? "stopped by the wall" : "TIMED OUT, still moving",
+                phase == 0 ? "on the side wall" : "on the front wall", timer.seconds(), stoppedOk ? "stopped by the wall" : overTotal ? "TIMED OUT by the total limit of " + totalLimitSec + " s" : "TIMED OUT, still moving",
                 before.position.x, before.position.y, before.heading.toDegrees(), after.position.x, after.position.y, after.heading.toDegrees(),
                 Math.toDegrees(Rotation2d.normalize(after.heading.toDouble() - expectedHeadingRad)), after.position.x - expectedX, after.position.y - expectedY,
                 Math.toDegrees(expectedHeadingRad), expectedX, expectedY));
-        if (phase == 0) {
+        if (phase == 0 && !overTotal) {
             phase = 1;
             before = after;
             timer.reset();
