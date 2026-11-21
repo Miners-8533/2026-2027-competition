@@ -125,9 +125,12 @@ public class ElementCounter {
     // CS4 REPLACED (a new sensor, 2026-11-21, user) and re-measured the same day with the Pusher Calibration Test (robot-logs/2026-11-21/093545_bringup.log), the arm at HOLD as always: alpha 0.128, 4.53 cm,
     // 0.248/0.415/0.337 (the old sensor's last values were 0.067, 2.94 cm, 0.250/0.430/0.320; against those the new sensor's empty view read 2.6 times the alpha, a phantom element). With the arm far away the new
     // sensor reads alpha 0.094 and 0.277/0.412/0.311 (a shift of 0.039, under the 0.05 ON threshold); the arm at its center reads alpha 0.28 to 0.38 (2.2 to 3.0 times the baseline), 3.5 to 3.9 cm, 0.23/0.41/0.36.
-    private static final double[] BASE_ALPHA = {0.209, 0.109, 0.353, 0.128};
-    private static final double[] BASE_DIST = {3.60, 5.20, 3.92, 4.53};
-    private static final double[][] BASE_SHARES = {{0.238, 0.410, 0.352}, {0.220, 0.448, 0.332}, {0.226, 0.414, 0.360}, {0.248, 0.415, 0.337}};
+    // CS3 re-measured 2026-11-21 (user, after the Novi Qualifier), from the same Pusher Calibration Test (093545_bringup.log, the robot empty): alpha 0.575, 3.51 cm, 0.230/0.428/0.343. The stored values were
+    // 0.353, 3.92 cm, 0.226/0.414/0.360: against them the empty CS3 read 1.63 to 1.66 times the alpha, over ALPHA_RATIO_OFF (1.6), so once the first pollen of a run had passed it CS3 never read empty again. It
+    // showed OTHER whenever nothing was in front of it and counted as one element all day: every pusher check was skipped ("the robot did not read empty") and the held count read up to one too high.
+    private static final double[] BASE_ALPHA = {0.209, 0.109, 0.575, 0.128};
+    private static final double[] BASE_DIST = {3.60, 5.20, 3.51, 4.53};
+    private static final double[][] BASE_SHARES = {{0.238, 0.410, 0.352}, {0.220, 0.448, 0.332}, {0.230, 0.428, 0.343}, {0.248, 0.415, 0.337}};
 
     private final NormalizedColorSensor[] color = new NormalizedColorSensor[N];
     private final DistanceSensor[] distance = new DistanceSensor[N];
