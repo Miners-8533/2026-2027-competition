@@ -86,12 +86,13 @@ public class AutonSolo extends LinearOpMode {
     /**
      * THE REAR FINISH (Auton - Triple Tip, 2026-11-20, the user's design; built, not run on the robot). The partner waits and launches with our garden salvo, so the second cell tips and the FIRST cell (the one the
      * preload went into: blue the rear cell, red the audience cell) faces up again. After the first flower gather the robot goes around the OUTSIDE of the hive on its own half (the east helper, then the west helper
-     * (WEST_HELPER_X / Y): never under the hive, whose lane is the field's center line) to REAR_LAUNCH (blue (-50, 24): the 2-D grid's good zone for that cell, 30.6 in from it, 22 deg off its axis, speed 1339, aim
-     * residual +5.4 deg), launches the flower pollen into the first cell, gathers the alliance-wall flower (27 in away), launches from the same spot again (8 pollen: the third tip), and parks at FINAL_PARK through
+     * (WEST_HELPER_X / Y): never under the hive, whose lane is the field's center line) to REAR_LAUNCH (first blue (-50, 24), 30.6 in from the cell; see the note at the value for the spot in use: the 2-D grid's good zone for that cell, 22 deg off its axis), launches the flower pollen into the first cell, gathers the alliance-wall flower (27 in away), launches from the same spot again (8 pollen: the third tip), and parks at FINAL_PARK through
      * REAR_PARK_VIA (a straight run from the launch spot to the park passes within an inch of the hive's foot bar; through the via point the footprint keeps 4.4 in at any heading) at REAR_PARK_HEADING_DEG
      * (30 deg: nearer the way the robot comes in than the Solo's 90; the front corner is then inside the loading zone). The wall flower's jostle ends by REAR_WALL_JOSTLE_DEADLINE_SEC.
      */
-    public static double REAR_LAUNCH_X = -50.0, REAR_LAUNCH_Y = 24.0, REAR_AIM_TRIM_DEG = 0.0;
+    // (-55.6, 26.2) from 2026-11-20 (user: (-50, 24) was too close to the cell, back away 6 in): 6 in farther along the line from the cell through the old spot, so the same 22 deg off the cell's axis; 36.7 in from
+    // the cell, the grid's good zone (speed 1386, aim residual +9.8 deg, heading -11.7 deg blue); the robot's back corner is 5 to 6 in from the rear wall there.
+    public static double REAR_LAUNCH_X = -55.6, REAR_LAUNCH_Y = 26.2, REAR_AIM_TRIM_DEG = 0.0;
     public static double WEST_HELPER_X = -36.0, WEST_HELPER_Y = 40.0;
     public static double REAR_WALL_JOSTLE_DEADLINE_SEC = 23.5;
     public static double REAR_PARK_VIA_X = -20.0, REAR_PARK_VIA_Y = 44.0, REAR_PARK_HEADING_DEG = 30.0;
