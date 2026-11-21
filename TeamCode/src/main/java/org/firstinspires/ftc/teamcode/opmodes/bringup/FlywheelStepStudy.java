@@ -5,6 +5,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -52,6 +53,7 @@ import java.util.Map;
  * design/opmodes.md, design/run-logs.md (columns).
  */
 @Config
+@Disabled   // hidden from the Driver Station (2026-11-20, user: only Solo, Daryl, TeleOp - Competition, Pusher Calibration Test and Pit Check are shown); remove this line and the import to use it again
 @TeleOp(name = "Flywheel Step Study", group = "Bring-up")
 public class FlywheelStepStudy extends LinearOpMode {
 

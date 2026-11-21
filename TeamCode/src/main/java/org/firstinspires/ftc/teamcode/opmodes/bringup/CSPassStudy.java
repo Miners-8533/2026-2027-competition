@@ -7,6 +7,7 @@ import com.qualcomm.hardware.broadcom.BroadcomColorSensor;
 import com.qualcomm.hardware.broadcom.BroadcomColorSensorImpl;
 import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -60,6 +61,7 @@ import java.util.concurrent.locks.LockSupport;
  *             D-pad up / down  flywheel setpoint +/- 20 ticks/s     Back  clear a pusher fault
  */
 @Config
+@Disabled   // hidden from the Driver Station (2026-11-20, user: only Solo, Daryl, TeleOp - Competition, Pusher Calibration Test and Pit Check are shown); remove this line and the import to use it again
 @TeleOp(name = "CS Pass Study", group = "Bring-up")
 public class CSPassStudy extends LinearOpMode {
 

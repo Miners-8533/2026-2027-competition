@@ -5,6 +5,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -65,6 +66,7 @@ import java.util.Locale;
  * first second: keep the intake empty then). Score a run with `python tools/logs/cs5_vs_cs2.py <log>`: CS2's count of the elements that LEFT is the label for what CS5 counted going in, and each salvo is listed with its spot.
  */
 @Config
+@Disabled   // hidden from the Driver Station (2026-11-20, user: only Solo, Daryl, TeleOp - Competition, Pusher Calibration Test and Pit Check are shown); remove this line and the import to use it again
 @TeleOp(name = "Launch Grid Tuner", group = "Bring-up")
 public class LaunchGridTuner extends LinearOpMode {
 

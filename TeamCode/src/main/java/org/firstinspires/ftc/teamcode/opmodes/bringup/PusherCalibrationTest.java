@@ -34,6 +34,9 @@ import java.util.Locale;
  * angle (the shift of the color shares for CS1, CS3, CS4; the proximity rise for CS2 and CS5), so what the arm looks like to a sensor is there even where the presence rule said no. CS4 is compared with where the
  * pusher check parks the arm (PusherCheck.ARM_CENTER_DEG). Nothing else moves: no drive, no flywheel, no intake.
  *
+ * CS5 and CS2: their switches (EntryCounter.CS5_PRESENT, LaunchSensor.CS2_PRESENT) are off in the competition code, so this test turns both ON while it runs and restores them when it ends; a sensor that is not in the
+ * hub configuration is still shown as not configured.
+ *
  * Gamepad 1 (no Start or Back): A starts the step shown (and stops a running one), D-pad left / right goes to the previous / next step (between steps), right bumper logs a NOTE.
  *
  * The pusher must be at HOLD when the opmode is initialized (its zero is assumed there), and the robot must be still and EMPTY (no pollen or nectar anywhere in the track or the ramp). A sweep that is aborted
@@ -123,6 +126,11 @@ public class PusherCalibrationTest extends LinearOpMode {
     public void runOpMode() {
         RunLog.open(RunLog.Kind.BRINGUP, "Pusher Calibration Test", hardwareMap);
         double savedReadPeriod = ElementCounter.READ_PERIOD_MS;
+        // the CS5 and CS2 switches are OFF in the competition code (2026-11-20); this test needs to see the arm on both, so it turns them on for its own run and puts them back at the end
+        boolean savedCs5 = EntryCounter.CS5_PRESENT, savedCs2 = LaunchSensor.CS2_PRESENT;
+        EntryCounter.CS5_PRESENT = true;
+        LaunchSensor.CS2_PRESENT = true;
+        RunLog.event(String.format(Locale.US, "SETUP the CS5 and CS2 switches are forced ON for this test (they were CS5 %s, CS2 %s) and restored at the end", savedCs5 ? "on" : "off", savedCs2 ? "on" : "off"));
         try {
             test();
         } catch (Throwable t) {
@@ -130,6 +138,8 @@ public class PusherCalibrationTest extends LinearOpMode {
             throw t;
         } finally {
             ElementCounter.READ_PERIOD_MS = savedReadPeriod;
+            EntryCounter.CS5_PRESENT = savedCs5;
+            LaunchSensor.CS2_PRESENT = savedCs2;
             if (cs5 != null) cs5.stop();
             if (cs2 != null) cs2.stop();
             RunLog.close();

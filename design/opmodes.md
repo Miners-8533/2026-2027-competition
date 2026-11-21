@@ -4,7 +4,7 @@ All opmodes are in `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode
 
 ## Opmodes in use
 
-**Shown on the Driver Station as of 2026-11-19 (9):** TeleOp - Competition; Auton - Solo, Duo Daryl; Launch Tuner; Launch Grid Tuner; CS Pass Study; Pusher Calibration Test; Flywheel Step Study; Drive Acceptance. Every other opmode in this table carries `@Disabled` and is hidden until that line is removed.
+**Shown on the Driver Station as of 2026-11-20 (5, the user's list):** TeleOp - Competition; Auton - Solo, Duo Daryl; Pusher Calibration Test; Pit Check (robot on blocks). Every other opmode in this table carries `@Disabled` and is hidden until that line is removed.
 
 **"Run on the robot"** in this table was checked on 2026-11-17 against the logs in `robot-logs/`: it means a log of that opmode exists from that day, not that every feature of it was exercised. A change made after the last run is named where it is known.
 

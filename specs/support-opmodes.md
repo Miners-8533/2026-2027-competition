@@ -6,11 +6,11 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 
 | Opmode | Group | Shown | Log kind |
 |---|---|---|---|
-| Pit Check (robot on blocks) | Bring-up | hidden | pitcheck |
-| Launch Tuner | Bring-up | yes | bringup |
-| Launch Grid Tuner | Bring-up | yes | bringup |
-| CS Pass Study | Bring-up | yes | bringup |
-| Flywheel Step Study | Bring-up | yes | bringup |
+| Pit Check (robot on blocks) | Bring-up | yes | pitcheck |
+| Launch Tuner | Bring-up | hidden | bringup |
+| Launch Grid Tuner | Bring-up | hidden | bringup |
+| CS Pass Study | Bring-up | hidden | bringup |
+| Flywheel Step Study | Bring-up | hidden | bringup |
 | Color Sensor Study | Bring-up | hidden | bringup |
 | Color Sensors Test (CS1-CS4) | Bring-up | hidden | none (device log) |
 | Pusher Calibration Test | Bring-up | yes | bringup |
@@ -19,7 +19,7 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 | Pinpoint Offset Check | Bring-up | hidden | bringup |
 | Telemetry Font Test | Bring-up | hidden | none |
 | Auto Waypoint Marker | Auto build | hidden | waypoints |
-| Drive Acceptance | Tuning | yes | bringup |
+| Drive Acceptance | Tuning | hidden | bringup |
 | Tune - Axial, Lateral, Heading | Tuning | hidden | bringup |
 | Drive Characterization | Tuning | hidden | drivetest |
 | Auton Verify - Forward 48 and back, Lateral 48 and back | Auto verify | hidden | none |
