@@ -107,8 +107,11 @@ public class DuoPathCheck {
         leg("D east helper -> audience launch spot", dEastHelper, pAud, withFlowers);
         leg("D audience launch spot -> east helper", pAud, dEastHelper, withFlowers);
         leg("D east helper -> wall flower pre", dEastHelper, wallPre, withFlowers);
-        leg("D audience flower back-out -> park", flowerBack, gPark, withFlowers);
-        leg("D audience launch spot -> park (audience flower skipped)", pAud, gPark, withFlowers);
+        // 2026-11-21: the finish is the Blue Wall flower's pollen into the original cell from the rear launch spot (-55.6, 26.2), then the park (22, 55.1, 30 deg) through (-20, 44); the second audience salvo and the audience flower are gone
+        double[] dRear = {-55.6, 26.2, -11.7}, dParkVia = {-20.0, 44.0, 30.0}, dPark = {22.0, 55.1, 30.0};
+        leg("D wall flower back-out -> rear launch spot", new double[]{-26.3, 46.3, 90.0}, dRear, withFlowers);
+        leg("D rear launch spot -> park via", dRear, dParkVia, withFlowers);
+        leg("D park via -> park", dParkVia, dPark, withFlowers);
         // Cybugs (2026-11-07): the Blue Wall flower, the rear launch spot at the start wall, then the park through the helper
         double[] cRear = {-61.5, 15.25, -4.0};
         leg("C wall flower back-out -> rear launch spot", new double[]{-26.3, 46.3, 90.0}, cRear, withFlowers);

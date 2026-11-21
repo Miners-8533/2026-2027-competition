@@ -8,7 +8,7 @@ Building blocks: [motion.md](motion.md), [mechanisms.md](mechanisms.md), [aiming
 |---|---|---|---|
 | Auton - Solo | rear | yes | the partner only parks; since 2026-11-19 the preload takes only its flywheel speed from the 2-D launch grid (`PRELOAD_GRID_SPEED`: 1394 ticks/s at the start wall, extrapolated, against the map's 1350; the position and the aim are unchanged); every salvo runs from the LAUNCH-READY pusher position (`Mechanisms.requestLaunchReady`, requested on the last leg to each launch spot, forward only to 156 deg, dropped when the salvo starts); the launch-spot legs end within 3 in and 12 deg (the grid's speed and aim are looked up at the pose the robot is really at; not run); since 2026-11-19 there is no squaring after the garden since 2026-11-19 (`GARDEN_SQUARING` false); the audience launch spot, one for all three salvos, is blue (56, 36) / red (-56, -36) (8 in toward the flower wall from (48, 36), 2026-11-19; a first move to (44, 36) went the wrong way for red) with the 2-D launch grid's speed and aim; also from 2026-11-19 (user) the garden in one leg from the start to the end of the angled pickup (last 12.5 in at 0.5 power) and a THIRD garden salvo of the wall flower's pollen into the same cell from that same spot (56, 36), then the park is tried even if time runs out (not run since) |
 | Auton - Triple Tip | rear | yes | (2026-11-20, built, not run) Solo up to the first flower gather, the partner launches with our garden salvo; then around the outside of the hive to the first cell's side, two salvos into the first cell from blue (-55.6, 26.2) with the alliance-wall flower between them, and the park through (-20, 44) |
-| Auton - Duo Daryl | rear | yes | garden first, leaves the partner a time window; since 2026-11-20 both audience-cell salvos launch from blue (56, 36) with the 2-D grid's speed and aim, every salvo from the launch-ready pusher position, and the preload takes the grid's flywheel speed, and it parks at (22, 55.1) (not run since) |
+| Auton - Duo Daryl | rear | yes | garden first; since 2026-11-20 the garden salvo launches from blue (56, 36) with the 2-D grid's speed and aim, every salvo from the launch-ready pusher position, the preload takes the grid's flywheel speed, and it parks at (22, 55.1); since 2026-11-21 the Blue Wall flower's pollen go into the original (preload's) cell from blue (-55.6, 26.2) and the partner wait, the second audience-cell salvo and the audience flower are gone (not run since 2026-11-07) |
 | Auton - Cybugs | rear | hidden | Daryl without the last flower; ends about 5 s early |
 | Auton - Duo Garden Side | rear | hidden | one half of a matched pair |
 | Auton - Duo Flower Side | audience | yes (from 2026-11-21) | the other half of the pair; since 2026-11-21 with the Solo and Daryl changes (section 6), built, never run |
@@ -167,18 +167,16 @@ Nominal duration about 29 s. A switch can replace steps 8 and 9 with a plain par
 
 ## 4. Auton - Duo Daryl
 
-Start: rear wall. Garden first; the partner gets a window in the middle.
+Start: rear wall. Garden first. The finish changed 2026-11-21 (the user; built, not run): steps 5 and 6 replace the partner's window, a second audience-cell salvo and the audience-wall flower.
 
 1. Launch the preload at the **rear** cell.
 2. Garden pickup.
-3. East helper, then the audience launch spot; launch the garden pollen at the **audience** cell (trim -2.5 deg).
-4. East helper again, then the Blue Wall flower gather; jostle deadline 19 s.
-5. **Do not leave the flower before 15.6 s** (18 s less the 2.4 s drive back).
-6. East helper, the audience launch spot, wait for the ramp to stow, **wait until 18 s**, launch the flower pollen at the audience cell (trim -2.5 deg).
-7. Audience-wall flower gather, jostle deadline 26 s, **skipped if it would start after 22.5 s**. Its pollen stay for the TeleOp.
-8. Park in the hive-side corner.
+3. East helper, then the audience launch spot, blue (56, 36); launch the garden pollen at the **audience** cell with the 2-D grid's speed and aim (trim 0).
+4. East helper again, then the Blue Wall flower gather; jostle deadline 19 s; back out to (-26.3, 46.3), the ramp stowing.
+5. Straight to the rear launch spot, blue (-55.6, 26.2) (the Triple Tip's, 35 in away), the pusher going to launch-ready; wait for the ramp to stow; launch the flower pollen at the **rear** cell, the one the preload went into, with the grid's speed and aim (trim 0).
+6. Through the via point (-20, 44), park in the hive-side corner, (22, 55.1), at heading 30 deg.
 
-The 18 s is the partner's window: our preload ends at about 3 s, a tip takes 4 s, plus 2 s; the partner launches at about 9 s and is parked by about 18 s. Estimated duration about 28 to 30 s, so step 7 is skipped whenever anything runs late.
+There is no wait in the program any more. Estimated duration about 22 s (the Blue Wall flower's back-out at about 15.7 s, the last salvo done at about 18.8 s). Before 2026-11-21: not leaving the flower before 15.6 s, a second salvo at the audience cell not before 18 s (the partner's window), the audience-wall flower (skipped if it would start after 22.5 s) and the park at heading 90 deg, about 25 s.
 
 ## 5. Auton - Cybugs
 
@@ -241,8 +239,8 @@ With the garden it ran past 30 s and lost its park, hence the skip.
 | Park: power / tolerance / time cap | 1.0 / 2.5 in, 5 deg / 3.0 s |
 | Solo: jostle deadline / final jostle deadline | 23.0 s / 26.5 s |
 | Solo: garden and flower aim trims | -2.5 deg / -2.5 deg |
-| Daryl: second launch not before / return travel | 18.0 s / 2.4 s |
-| Daryl: wall jostle deadline / audience jostle deadline / audience flower latest start | 19.0 s / 26.0 s / 22.5 s |
+| Daryl: wall jostle deadline | 19.0 s |
+| Daryl: rear launch spot / park via point / park heading (from 2026-11-21) | (-55.6, 26.2) / (-20, 44) / 30 deg |
 | Daryl, Cybugs and Primary: audience-cell trims | -2.5 deg |
 | Cybugs: wait before the last salvo / rear trim | 1.0 s / 0 deg |
 | Garden Side: second launch not before / jostle deadline | 25.0 s / 20.0 s |

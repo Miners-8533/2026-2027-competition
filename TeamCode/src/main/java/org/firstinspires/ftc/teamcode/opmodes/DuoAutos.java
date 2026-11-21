@@ -113,6 +113,14 @@ public final class DuoAutos {
     public static double D_LAUNCH_X = 56.0, D_LAUNCH_Y = 36.0, D_GRID_TRIM_DEG = 0.0;
     /** The DARYL auto's park from 2026-11-20 (user, as the Solo auto's): blue (22, 55.1), 4 in nearer the field center in x and 2 in farther from it in y than the hive-side park (26, 53.1) the other duo autos keep; red the same turned 180 deg. */
     public static double D_PARK_X = 22.0, D_PARK_Y = 55.1;
+    /**
+     * The DARYL auto's finish from 2026-11-21 (user): the Blue Wall flower's pollen go into the ORIGINAL cell (the preload's: blue the rear cell, red the audience cell) from the Triple Tip auto's rear launch spot,
+     * blue (-55.6, 26.2) / red (55.6, -26.2) (the 2-D grid's good zone for that cell: speed 1386, aim residual +9.8 deg; 35 in from the flower back-out), then the park through the via point (-20, 44) (a straight
+     * run from the launch spot to the park passes within an inch of the hive's foot bar) at D_PARK_HEADING_DEG (30 deg, nearer the way the robot comes in than 90). The same numbers as AutonSolo's REAR_* values.
+     * D_SECOND_SHOT_NOT_BEFORE_SEC, D_RETURN_TRAVEL_SEC, D_AUD_JOSTLE_DEADLINE_SEC and D_AUD_FLOWER_LATEST_START_SEC are unused from then (the second audience-cell salvo, its wait and the audience flower are gone).
+     */
+    public static double D_REAR_LAUNCH_X = -55.6, D_REAR_LAUNCH_Y = 26.2, D_REAR_TRIM_DEG = 0.0;
+    public static double D_PARK_VIA_X = -20.0, D_PARK_VIA_Y = 44.0, D_PARK_HEADING_DEG = 30.0;
     public static double D_PRELOAD_TRIM_DEG = 0.0, D_GARDEN_TRIM_DEG = -2.5, D_WALL_TRIM_DEG = -2.5;   // -2.5 from 2026-11-17 (user): the net of the old -8.0 and the far-cell extra (about +5.5 deg at this spot), which the autos no longer apply; the note that follows is of the -8.0. // the salvos into the audience cell from (50, 26.3) (blue; the far cell from the rear-wall start) use -8.0, the solo auto's total trim there (user, 2026-11-07: the solo's landed left; -4.5 still landed left)
     /** The Blue Wall flower's jostle ends by this many seconds into the auto at the latest; the audience flower's likewise, and the audience flower is skipped when it would start later than the latest start (so the park keeps its time). */
     public static double D_WALL_JOSTLE_DEADLINE_SEC = 19.0, D_AUD_JOSTLE_DEADLINE_SEC = 26.0, D_AUD_FLOWER_LATEST_START_SEC = 22.5;
