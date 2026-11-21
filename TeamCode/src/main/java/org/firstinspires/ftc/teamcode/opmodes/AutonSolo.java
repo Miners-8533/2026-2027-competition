@@ -98,13 +98,51 @@ public class AutonSolo extends LinearOpMode {
      * side and the wall; the angled approach (the mouth turned toward the wall) keeps them in front of the mouth, so this version keeps the angle. Not run. False: the pre-position and the pickup as two legs.
      */
     public static boolean GARDEN_ONE_LEG = true;
+    /**
+     * THE SQUARING AFTER THE GARDEN, OFF (2026-11-19, user: get rid of it). It was the approach to (-61.2, 58.5) at heading 90 and the two wall pushes (side wall about 0.5 s, front wall about 0.5 s): about 1.2 s
+     * (0.14 + 1.02 in the 22:34 run). It never reseeded the pose, so what is lost is the robot standing flush for the helper leg, and the time the intake kept running at the wall: the 4th pollen came in
+     * about 0.7 s into the squaring in that run, so the stragglers now come in during the helper leg, which keeps the intake ON. True: the squaring as before.
+     */
+    public static boolean GARDEN_SQUARING = true;   // ON again 2026-11-20 (user: 'just square again', with a shorter limit, GARDEN_SQUARING_MAX_SEC); the push to the wall below is off then (GARDEN_DEEPER_PUSH)
+    public static double GARDEN_SQUARING_MAX_SEC = 0.8;   // the side wall and the front wall together (1.0 to 1.35 s before)
+    public static boolean GARDEN_DEEPER_PUSH = false;
+    /**
+     * FLOWER JOSTLE OFF, A TEST (2026-11-19, user): after the ram the robot only PAUSES for FLOWER_PAUSE_SEC (1.5 s), drive at rest, intake on, at both flowers (the audience flower and the wall flower share this).
+     * True: the jostle as before (press 1.0 s, one back stroke, push, press). The pause ends early when the robot is full only if FLOWER_PAUSE_ENDS_WHEN_FULL (false: a fixed 1.5 s, so the timing of the test is clean).
+     */
+    public static boolean FLOWER_JOSTLE_ENABLED = true;   // back ON 2026-11-19 night: the 1.5 s pause test got 1 pollen at the audience flower and 2 at the wall flower (4 each with the jostle)
+    public static double FLOWER_PAUSE_SEC = 1.5;
+    public static boolean FLOWER_PAUSE_ENDS_WHEN_FULL = false;
+    /**
+     * KEEP DRIVING DEEPER AFTER THE PICKUP LEG (2026-11-19, user: 'the garden gather is close, we just need to keep driving at the wall 4 more inches deeper'). In the runs without the squaring the garden salvo launched
+     * 4, then 3, then 2 pollen, against 4 every time with it; the squaring's front-wall push moved the robot 4.4 in on (y 56.2 to 60.6 in the 22:34 run) with the intake running, and the pickup leg itself ends about 1.7 in
+     * short of its target (y 56.8 against 58.5). So after the leg the robot drives GARDEN_DEEPER_IN further along the same line (the target is that far past the end), at GARDEN_DEEPER_POWER, for at most GARDEN_DEEPER_SEC (0.35 s; it was 0.7 s for a moment).
+     * At the 105 deg heading the front corner is 11.3 in ahead of the origin in y, so the Blue Wall (y 71) stops the robot at about y 59.7 whatever the target: the push ends against the wall or at the time limit. 0 = no push.
+     */
+    /**
+     * 2026-11-19 night (user: expand the timeout so we make position): in the 23:52 run the push TIMED OUT at 0.40 s with 2.83 in of y left, but the robot was already AT THE BLUE WALL: its y reached 59.7 (red -59.7) at
+     * 11.37 s and stayed, which is the front corner (11.3 in ahead of the origin at the 105 deg heading) touching the wall at y 71. No longer timeout could move it. The leg ended 2.6 in short of that, so the push gained
+     * about 2.6 in, not 4. So the push now aims at the wall position GARDEN_DEEPER_END_Y (59.7) with a 1.5 in tolerance and a longer limit (GARDEN_DEEPER_SEC 0.8 s), and ends by reaching it (it settles against the wall).
+     * GARDEN_DEEPER_IN is not used while GARDEN_DEEPER_END_Y is above 0.
+     * 2026-11-20 00:00 run: the push reached the wall (y error 0.27 in) but TIMED OUT at 0.84 s anyway: its x error was 1.70 in (the robot at x -61.5, the target line at -59.8), over the 1.5 in tolerance, and the
+     * drive stalls on a sideways error that small (P term 0.06 per in, below the strafe friction). The red run before it also sat at 61.5 to 62.0. So the push's x is GARDEN_DEEPER_X (-61.7, where the robot really is) and
+     * only y is left to travel.
+     */
+    public static double GARDEN_DEEPER_IN = 4.0, GARDEN_DEEPER_END_Y = 59.7, GARDEN_DEEPER_X = -61.7, GARDEN_HEADING_DEEPER_DEG = 105.0, GARDEN_DEEPER_POWER = 0.4, GARDEN_DEEPER_SEC = 0.8;
     public static double GARDEN_SLOW_ZONE_IN = 12.5, GARDEN_SLOW_POWER = 0.5;
     /**
      * The one launch spot for the audience cell, used for BOTH the garden pollen and the flower pollen. Since 2026-11-03 it is on the flower's line (y = FLOWER_AT_Y), 50 in from
      * the audience wall side: 31.6 in from the cell (the launch map minimum is 28.6 in plus 3 in of leeway; x 47.8 would be 29.6), about 25 deg off the cell's axis. It was (63.6, 8.5) at the wall, 6 deg off-axis.
      * Its heading is the computed aim.
      */
-    public static double LAUNCH_X = 48.0, LAUNCH_Y = 36.0;   // the grid's measured far-cell spot 18 (was 50.0, 26.3, a NO SHOT zone of the grid)
+    /**
+     * ONE launch spot for all three audience-cell salvos (the garden, the flower and the wall flower's: 2026-11-19, user): blue (56, 36), red (-56, -36), the field point 8 in nearer the wall with the flower on it (the
+     * audience wall for blue, the rear wall for red) than the grid's measured far-cell spot 18 at (48, 36). HISTORY: the user asked for 4 in nearer 'the rear wall in the -x direction'; that was applied in the BLUE frame
+     * (48 -> 44), which for the red robot of the logs is the OTHER way (red -48 -> -44, toward the center, away from the rear wall and its flower), so the user's 'closer to the wall, 4 more inches' became (56, 36) = 8 in
+     * the right way from (48, 36). From the grid: a shot works here with 2 to 4 in of margin on every side (speed 1371, aim residual +3.9 deg; the grid is extrapolated from x 58 on, and the old NO SHOT edge, x 41 and below,
+     * is 15 in west); 41.6 in from the cell, 34 deg off its axis (41 deg at x 48), 9.7 in from the robot's pose at the flower pickup (55.3, 26.3). The legs end within LAUNCH_POS_TOL_IN of it.
+     */
+    public static double LAUNCH_X = 56.0, LAUNCH_Y = 36.0;
     /** Deploy the ramp before the garden salvo (true: only if the launcher is known to work with the ramp down) or right after it, while the robot drives to the flower pre-position (false). */
     public static boolean RAMP_DEPLOY_DURING_LAUNCH = false;
     /**
@@ -115,6 +153,11 @@ public class AutonSolo extends LinearOpMode {
     // 2026-11-17 (user): ONE trim per launch. The far-cell extra (TargetLock.FAR_CELL_EXTRA_LEFT_IN) is no longer applied in the autos: at this spot it turned the robot about +5.5 deg,
     // against the -8.0 deg these trims then held. -2.5 is the net of the two, so the launches aim where they did (identical at the spot itself; up to about half a degree different when
     // the leg ends 2.5 in off it, because the extra's angle depended on the distance). The history after the values is of the -8.0.
+    /**
+     * THE PRELOAD'S FLYWHEEL SPEED FROM THE 2-D LAUNCH GRID (2026-11-19, user: only the speed; the preload's position and angle are not changed). At the start pose the grid says 1394 ticks/s against the 1-D launch map's
+     * 1350 (the start wall is only EXTRAPOLATED in the grid: the measured spots are 4 in off the wall, and the nearby ones run 1390 to 1410). The aim is still the formula's and the robot does not move. False: the map's speed.
+     */
+    public static boolean PRELOAD_GRID_SPEED = true;
     public static double GARDEN_AIM_TRIM_DEG = 0.0, FLOWER_AIM_TRIM_DEG = 0.0;   // 0 with the grid aim (the old -2.5 belonged to the formula aim at the old spot); a standing correction on top of the grid's residual, degrees, + = counterclockwise   // 2 deg clockwise from 2026-11-03, 1 more on 2026-11-04 (the launch was still a little left), 1.5 more on 2026-11-07 (the red run's rear-cell salvos landed left), and 1.5 more later that day, then 2 more (-8.0) together with the aim breakaway, which removes the stall that left the robot about 1 deg short of the trimmed aim (the blue runs still landed left; the aim step stops about 1 deg short of the trimmed aim, so the real shift is about 1 deg less than the trim)
     /**
      * After the jostle the robot first backs STRAIGHT out (heading held 0) to FLOWER_AT_X - FLOWER_BACKOFF_IN (x 46.3, ending within BACKOUT_TOL_IN) and only then does the turn move to the launch spot (false, the default).
@@ -135,7 +178,7 @@ public class AutonSolo extends LinearOpMode {
      * meets the flower, and the leg ends after FLOWER_RAM_SEC (it never reaches the target: the log says TIMED OUT, which is expected). The normal drive uses 0.05 x the
      * error, so a 12 in leg never passed 0.6.
      */
-    public static double FLOWER_RAM_POWER = 0.6, FLOWER_RAM_OVERSHOOT_IN = 12.0, FLOWER_RAM_SEC = 0.6;   // 0.9 / 0.8 rammed hard on 2026-11-03 and was not enough; the jostle does the work
+    public static double FLOWER_RAM_POWER = 0.6, FLOWER_RAM_OVERSHOOT_IN = 12.0, FLOWER_RAM_SEC = 0.6;   // BACK TO 12 on 2026-11-20 (user), after the 00:12 run: with 4 the ram timed out 7.2 in short of its target, 1.9 in short of the usual contact, crooked (heading 172 deg), and the flower gave 0 pollen. The 4 in trial (2026-11-19, user; was 12): with the target only 4 in past the flower the drive's own P term (0.05 per in) eases the power below 0.6 inside the last 12 in and presses at about 0.25 to 0.3 at contact (the robot meets the flower about 1 in short of FLOWER_AT_X), so the approach is slower and the press softer; the same constant is the wall flower's ram   // 0.9 / 0.8 rammed hard on 2026-11-03 and was not enough; the jostle does the work
     /** After the ram the robot jostles (back FLOWER jostle BACK_IN, push, repeat: see Jostle) until it is full, for at most FLOWER_PAUSE_MAX_SEC; then it backs off this far before turning. */
     public static double FLOWER_BACKOFF_IN = 9.0;   // 10 from the old turn at the flower; now the straight back-out before the turn (x 46.3), which ends within BACKOUT_TOL_IN of it
     public static double BACKOUT_TOL_IN = 1.5;
@@ -169,19 +212,19 @@ public class AutonSolo extends LinearOpMode {
     public static boolean FINAL_FLOWER_ENABLED = true;
     public static double FINAL_JOSTLE_DEADLINE_SEC = 26.5;
     /** FINAL_PARK_Y 53.1 (2026-11-07, user): the front edge (9.88 in ahead of the origin) ends 8 in from the wall (it was 60, 1.1 in from it) and still 3.9 in inside the loading zone (it starts at y 59.1). */
-    public static double FINAL_PARK_X = 26.0, FINAL_PARK_Y = 53.1, FINAL_PARK_HEADING_DEG = 90.0, FINAL_PARK_OVERSHOOT_IN = 0.0;
+    public static double FINAL_PARK_X = 22.0, FINAL_PARK_Y = 55.1, FINAL_PARK_HEADING_DEG = 90.0, FINAL_PARK_OVERSHOOT_IN = 0.0;
     /** The helper point outside the support rails for the trip back across, and the heading it is taken at (along the leg, toward -X). Nudge of the wall flower poses (blue frame, before the alliance turn). */
     public static double FINAL_HELPER_HEADING_DEG = 180.0;
     public static double FINAL_FLOWER_DX_IN = 0.0, FINAL_FLOWER_DY_IN = 0.0;
     /**
      * THIRD GARDEN SALVO (2026-11-19, user: one near salvo (the preload), then THREE garden salvos): after the wall flower the robot launches what it holds into the SAME cell as the garden and flower salvos
      * (blue: the audience cell), and THEN tries to park in the hive-side corner whether or not there is time left (the auto simply ends at 30 s). The launch spot is the 2-D launch grid's measured spot 2 of
-     * BLUE_AUDIENCE, (36.3, 47.7): 38.0 in from the cell, speed 1350, residual +4.35 deg, a straight run along y about 47 from the wall flower's back-out (-26.3, 46.3), 62.6 in, clear of the hive, and
+     * BLUE_AUDIENCE, (since 2026-11-19, user: the same spot as the garden and flower salvos, LAUNCH_X / LAUNCH_Y; it was the grid's BLUE_AUDIENCE spot 2 at (36.3, 47.7), 62.6 in from the wall flower's back-out (-26.3, 46.3)); the run from there to (44, 36) is about 21 in. Earlier text: a straight run along y about 47, clear of the hive, and
      * 11.6 in from the park pose (spot 3, 11 in nearer the hive, is NO SHOT). Red is the same turned 180 deg. The jostle ends at THIRD_JOSTLE_DEADLINE_SEC so the back-out, the run (about 2 s), the aim and the
      * salvo (1.4 s) end near 29 s; the park after it is likely cut by the end of the auto. False: no third salvo, the park as before (and the jostle ends at FINAL_JOSTLE_DEADLINE_SEC).
      */
     public static boolean THIRD_SALVO_ENABLED = true;
-    public static double THIRD_LAUNCH_X = 36.3, THIRD_LAUNCH_Y = 47.7, THIRD_JOSTLE_DEADLINE_SEC = 24.0, THIRD_AIM_TRIM_DEG = 0.0;
+    public static double THIRD_LAUNCH_X = LAUNCH_X, THIRD_LAUNCH_Y = LAUNCH_Y, THIRD_JOSTLE_DEADLINE_SEC = 24.0, THIRD_AIM_TRIM_DEG = 0.0;
 
     // ---- timing ----
     /** At the flower: pause until the robot holds 4 elements, but no longer than this. */
@@ -212,7 +255,7 @@ public class AutonSolo extends LinearOpMode {
     /** Pass-through legs (the garden pre-position, the square approach, the helper legs) end the moment they are within the coarse tolerance instead of waiting the drive's 0.20 s settle; the next leg takes over at speed. */
     public static double PASS_SETTLE_SEC = 0.0;
     /** The launch spots only need to be near (the aim step turns onto the cell): a leg ends within this position and heading; the tight 1 in / 2 deg tolerance ran two legs to their timeout each time. */
-    public static double LAUNCH_POS_TOL_IN = 2.5, LAUNCH_HEADING_TOL_DEG = 6.0;
+    public static double LAUNCH_POS_TOL_IN = 3.0, LAUNCH_HEADING_TOL_DEG = 12.0;   // 3 in and 12 deg (2026-11-19: 6 in and 12 deg for a while, user: the flywheel speed and the aim come from the grid at the pose the robot is really at, so the spot need not be exact; back to 3 in when the spot moved to (44, 36), 4 in from the red region on the west side, which every launch leg arrives from; the spot is now (56, 36), 15 in from that region; it was 2.5 in and 6 deg before, and the 22:34 run's leg to launch spot 1 timed out 2.7 in off)
     public static double GARDEN_PICKUP_MAX_POWER = 0.35;   // 0.25 moved only about 5.6 in/s on 2026-11-03 and missed the pollen
     /** The leg's hard cap is worked out with a speed of this many in/s per unit of power (a little under the real speed, so it only launches when the robot is stuck). */
     public static double SLOW_IN_PER_S_PER_POWER = 40.0;
@@ -297,6 +340,53 @@ public class AutonSolo extends LinearOpMode {
     /** A pass-through leg: ends as soon as the robot is near. */
     private Action passLeg(String label, MecanumDrive drive, Pose2d target) {
         return timed("drive: " + label, legDrive(drive, target).withTolerance(COARSE_POS_IN, COARSE_HEADING_DEG).withSettle(PASS_SETTLE_SEC));
+    }
+
+    /**
+     * What the robot does at a flower after the ram: the JOSTLE (FLOWER_JOSTLE_ENABLED) or, for the test of 2026-11-19, just a PAUSE of FLOWER_PAUSE_SEC with the drive at rest and the intake on (no back strokes, no push).
+     * The pause also ends at the auto's deadline for that flower, and when the robot is full if FLOWER_PAUSE_ENDS_WHEN_FULL.
+     */
+    private Action flowerHold(String label, MecanumDrive drive, Mechanisms mechanisms, double deadlineSec) {
+        if (FLOWER_JOSTLE_ENABLED) {
+            return timed(label, new Jostle(drive, jostleDone(mechanisms, deadlineSec), () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC));
+        }
+        return timed(label.replace("jostle", "pause (jostle OFF)"), new Action() {
+            private final ElapsedTime timer = new ElapsedTime();
+            private boolean started = false;
+
+            @Override
+            public boolean run(TelemetryPacket packet) {
+                if (!started) {
+                    started = true;
+                    timer.reset();
+                    RunLog.event(String.format(Locale.US, "AUTO FLOWER PAUSE (jostle OFF): %.2f s at the flower with the drive at rest, %d held, %.2f s into the auto", FLOWER_PAUSE_SEC, mechanisms.getHeldCount(), autoClock.seconds()));
+                }
+                String why = null;
+                if (timer.seconds() >= FLOWER_PAUSE_SEC) why = "the pause time is over";
+                else if (FLOWER_PAUSE_ENDS_WHEN_FULL && mechanisms.isFull()) why = "the robot is full";
+                else if (autoClock.seconds() >= deadlineSec) why = "the auto's deadline for this flower";
+                if (why != null) {
+                    RunLog.event(String.format(Locale.US, "AUTO FLOWER PAUSE ended after %.2f s (%s), %d held", timer.seconds(), why, mechanisms.getHeldCount()));
+                    return false;
+                }
+                return true;
+            }
+        });
+    }
+
+    /** The push deeper into the garden corner after the pickup leg (GARDEN_DEEPER_IN), intake still ON; nothing when it is 0. */
+    private Action gardenDeeper(MecanumDrive drive, Pose2d target) {
+        if (!GARDEN_DEEPER_PUSH || (GARDEN_DEEPER_IN <= 0.0 && GARDEN_DEEPER_END_Y <= 0.0)) return new InstantAction(() -> { });
+        return timed("drive: garden deeper (to the wall, y " + GARDEN_DEEPER_END_Y + ")", new DriveToPose(drive, target).withMaxOutput(GARDEN_DEEPER_POWER).withTolerance(1.5, 10.0).withTimeout(GARDEN_DEEPER_SEC));
+    }
+
+    /** The squaring after the garden: the approach to the wall squaring pose, then the side wall and the front wall (SquareOnWall). Nothing when GARDEN_SQUARING is false. */
+    private Action squaring(MecanumDrive drive, Pose2d squarePre, double headingRad, double flushX, double flushY) {
+        if (!GARDEN_SQUARING) return new InstantAction(() -> RunLog.event("AUTO garden squaring is OFF (GARDEN_SQUARING false): the helper leg starts from the end of the pickup"));
+        return new SequentialAction(
+                note("Square on the wall"),
+                passLeg("square approach", drive, squarePre),
+                timed("square on the wall", new SquareOnWall(drive, headingRad, flushX, flushY).withTotalLimit(GARDEN_SQUARING_MAX_SEC)));
     }
 
     /** The garden in one movement: one leg to the end of the pickup, the last GARDEN_SLOW_ZONE_IN inches at GARDEN_SLOW_POWER. */
@@ -514,6 +604,7 @@ public class AutonSolo extends LinearOpMode {
         HiveTarget secondCell = firstCell.otherSide();                                     // blue: audience, red: rear
         Pose2d gardenPre = forAlliance(pose(GARDEN_PRE_X, GARDEN_PRE_Y, GARDEN_HEADING_DEG), isBlue);
         Pose2d gardenEnd = forAlliance(pose(GARDEN_END_X, GARDEN_END_Y, GARDEN_HEADING_DEG), isBlue);
+        Pose2d gardenDeeper = forAlliance(pose(GARDEN_DEEPER_END_Y > 0.0 ? GARDEN_DEEPER_X : GARDEN_END_X, GARDEN_DEEPER_END_Y > 0.0 ? GARDEN_DEEPER_END_Y : GARDEN_END_Y + GARDEN_DEEPER_IN, GARDEN_HEADING_DEEPER_DEG), isBlue);   // the push on past the end of the pickup, into the corner
         double sideIn = profile.originFromSideIn();   // the origin to the robot's side, for the wall-flush x
         double squareX = -(FieldGeometry.HALF_IN - sideIn - SQUARE_GAP_IN);
         Pose2d squarePre = forAlliance(pose(squareX, GARDEN_END_Y, 90.0), isBlue);   // heading 90: the left side to the rear wall (red: the audience wall)
@@ -576,8 +667,9 @@ public class AutonSolo extends LinearOpMode {
         mechanisms.setSpinRequested(true);         // ... and spins from Start, so it is at speed on arrival at each launch spot
 
         Action auto = new SequentialAction(
-                new InstantAction(mechanisms::preparePusherForLaunch),   // the pusher moves to the lock position while the flywheel spins up: the preload salvo turns 310 deg instead of 400
-                launch(drive, mechanisms, firstCell, isBlue, "preload"),
+                new InstantAction(mechanisms::requestLaunchReady),   // the pusher moves to the LAUNCH-READY position (156 deg) while the flywheel spins up (2026-11-19, user; it was the 90 deg lock): the preload salvo turns about 246 deg instead of 400
+                new InstantAction(() -> { if (PRELOAD_GRID_SPEED) mechanisms.setLaunchGrid(true, "Auton - Solo, from Start (the preload: the grid's flywheel speed only; the position and the aim are the formula's)"); }),
+                launch(drive, mechanisms, firstCell, isBlue, "preload"),   // the formula aim, no grid residual: the position and the angle of the preload are not changed (user, 2026-11-19)
                 new InstantAction(() -> mechanisms.setLaunchGrid(true, "Auton - Solo, after the preload")),   // from here the flywheel speed follows the 2-D launch grid (the preload kept the launch map)
 
                 GARDEN_ONE_LEG
@@ -585,23 +677,22 @@ public class AutonSolo extends LinearOpMode {
                                 note("Intake ON: garden in ONE leg from the start to the end of the pickup at the angled heading, the last " + GARDEN_SLOW_ZONE_IN + " in at limited power"),
                                 mechanisms.setIntake(true),
                                 gardenLeg("garden (start to the pickup end)", drive, gardenEnd),
-                                note("Square on the wall"),
-                                passLeg("square approach", drive, squarePre),
-                                timed("square on the wall", new SquareOnWall(drive, squareHeadingRad, squareFlushX, squareFlushY)))
+                                gardenDeeper(drive, gardenDeeper),
+                                squaring(drive, squarePre, squareHeadingRad, squareFlushX, squareFlushY))
                         : new SequentialAction(
                                 note("Garden pre-position"),
                                 passLeg("garden pre-position", drive, gardenPre),
                                 note("Intake ON: garden, slow"),
                                 mechanisms.setIntake(true),
                                 slowLeg("garden pickup (slow)", drive, gardenEnd, GARDEN_PICKUP_MAX_POWER),
-                                note("Square on the wall"),
-                                passLeg("square approach", drive, squarePre),
-                                timed("square on the wall", new SquareOnWall(drive, squareHeadingRad, squareFlushX, squareFlushY))),
+                                gardenDeeper(drive, gardenDeeper),
+                                squaring(drive, squarePre, squareHeadingRad, squareFlushX, squareFlushY)),
 
                 new InstantAction(() -> mechanisms.setOpenCell(secondCell)),   // the tip flipped the cell; the flywheel follows the new distance on the way
                 note("Around the outside of the hive support rails, intake still ON so every element gets in"),
                 crossLeg("helper (outside the support rails)", drive, helper, CROSS_FIELD_MAX_POWER, true),
                 note("To the launch spot"),
+                new InstantAction(mechanisms::requestLaunchReady),   // the arm goes to the launch-ready position on this last leg (the intake is closed from here)
                 crossLeg("launch spot 1", drive, launchSpot, CROSS_FIELD_MAX_POWER, false),
                 RAMP_DEPLOY_DURING_LAUNCH ? new InstantAction(mechanisms::requestDeploy) : new InstantAction(() -> { }),   // deploys while it launches
                 launch(drive, mechanisms, secondCell, isBlue, "garden pollen", GARDEN_AIM_TRIM_DEG, true),
@@ -614,9 +705,10 @@ public class AutonSolo extends LinearOpMode {
                 mechanisms.setIntake(true),
                 mechanisms.forceIntakeIn(true),
                 ramLeg("ram the flower", drive, flowerRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
-                timed("flower jostle", new Jostle(drive, jostleDone(mechanisms), () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
+                flowerHold("flower jostle", drive, mechanisms, JOSTLE_DEADLINE_SEC),
                 note("Back off the flower to the launch spot (intake still ON)"),
                 FLOWER_TURN_WHILE_BACKING ? new InstantAction(() -> { }) : backOutLeg("flower back-out (straight)", drive, flowerBack),
+                new InstantAction(mechanisms::requestLaunchReady),   // the arm goes to the launch-ready position while the robot turns to the launch spot
                 stowWhenTurned(launchLeg("launch spot 2", drive, launchSpotFlower), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
                 launch(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG, true),
@@ -637,13 +729,13 @@ public class AutonSolo extends LinearOpMode {
                                 mechanisms.setIntake(true),
                                 mechanisms.forceIntakeIn(true),
                                 ramLeg("ram the wall flower", drive, wallRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
-                                timed("wall flower jostle", new Jostle(drive, jostleDone(mechanisms, THIRD_SALVO_ENABLED ? THIRD_JOSTLE_DEADLINE_SEC : FINAL_JOSTLE_DEADLINE_SEC),
-                                        () -> mechanisms.counter == null ? 0 : mechanisms.counter.count(), FLOWER_PAUSE_MAX_SEC)),
+                                flowerHold("wall flower jostle", drive, mechanisms, THIRD_SALVO_ENABLED ? THIRD_JOSTLE_DEADLINE_SEC : FINAL_JOSTLE_DEADLINE_SEC),
                                 backOutLeg("wall flower back-out (straight)", drive, wallBack, WALL_BACKOUT_TOL_IN),
                                 new InstantAction(mechanisms::requestStowNow),   // clear of the flower: the ramp stows on the way to the corner (or to the third launch spot)
                                 THIRD_SALVO_ENABLED
                                         ? new SequentialAction(
                                                 note("Third garden salvo: the wall flower's pollen into the same cell, then the park is tried"),
+                                                new InstantAction(mechanisms::requestLaunchReady),   // the arm goes to the launch-ready position on the way
                                                 crossLeg("third launch spot", drive, thirdSpot, CROSS_FIELD_MAX_POWER, false),
                                                 timed("ramp stow (wait)", rampTo(mechanisms, false)),
                                                 launch(drive, mechanisms, thirdCell, isBlue, "wall flower pollen", THIRD_AIM_TRIM_DEG, true))
