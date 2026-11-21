@@ -5,6 +5,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
+import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.ColorSensor;
@@ -23,6 +24,9 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
 import org.firstinspires.ftc.teamcode.subsystems.ElementCounter;
+import org.firstinspires.ftc.teamcode.subsystems.EntryCounter;
+import org.firstinspires.ftc.teamcode.subsystems.FlywheelPosition;
+import org.firstinspires.ftc.teamcode.subsystems.LaunchSensor;
 import org.firstinspires.ftc.teamcode.subsystems.Flywheel;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
@@ -128,6 +132,7 @@ public class PitCheck extends LinearOpMode {
         checkBattery();
         checkPinpoint();
         checkColorSensors();
+        checkOptionalDevices();
 
         if (!aborted) flywheelStep();
         if (!aborted) pusherStep();
@@ -168,6 +173,8 @@ public class PitCheck extends LinearOpMode {
         expected.add("depolLeft");
         expected.add("depolRight");
         for (String name : ElementCounter.NAMES) expected.add(name);
+        expected.add("CS5");   // the entry counter's sensor (EntryCounter.CS5_PRESENT): used by the code when its switch is on, still not stale when it is off
+        expected.add(FlywheelPosition.SERVO_NAME);   // the flywheel position servo (pollen / nectar), optional
         expected.add("pinpoint");
         StringBuilder ports = new StringBuilder();
         for (String name : expected) {
@@ -182,6 +189,34 @@ public class PitCheck extends LinearOpMode {
             if (!expected.contains(name) && !hubNames.contains(name)) unused.add(name);
         }
         if (!unused.isEmpty()) record("Configuration (unused)", Verdict.PASS, "configured but not used by our code (delete the stale ones): " + unused);
+    }
+
+    /**
+     * The devices the robot runs without (2026-11-20): CS5 (the entry counter, EntryCounter.CS5_PRESENT, OFF by default), CS2 as the launch sensor (LaunchSensor.CS2_PRESENT, OFF by default; CS2 itself is
+     * checked above with the color sensors) and the flywheel position servo. Each is reported as present, absent or switched off; none fails the check when its switch is off.
+     */
+    private void checkOptionalDevices() {
+        RevColorSensorV3 cs5 = hardwareMap.tryGet(RevColorSensorV3.class, "CS5");
+        if (!EntryCounter.CS5_PRESENT) {
+            record("CS5 (entry counter)", Verdict.PASS, "switched OFF (EntryCounter.CS5_PRESENT false): " + (cs5 == null ? "not configured either" : "configured, not read; the TeleOp shows ? HELD and has no FULL"));
+        } else if (cs5 == null) {
+            record("CS5 (entry counter)", Verdict.FAIL, "the switch is ON but 'CS5' is not configured (a REV color sensor on its own I2C bus), or set EntryCounter.CS5_PRESENT false");
+        } else {
+            int lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
+            for (int k = 0; k < 10; k++) {
+                int v = cs5.rawOptical();
+                lo = Math.min(lo, v);
+                hi = Math.max(hi, v);
+                sleep(30);
+            }
+            if (hi <= 0) record("CS5 (entry counter)", Verdict.FAIL, "proximity reads " + lo + " to " + hi + ": no usable reading, check the cable and that it is on its own I2C bus");
+            else record("CS5 (entry counter)", Verdict.PASS, String.format(Locale.US, "proximity %d to %d with the intake mouth empty (about 65 in the logs of 2026-11-19; a 20-count jump means something is in front of it)", lo, hi));
+        }
+        RevColorSensorV3 cs2 = hardwareMap.tryGet(RevColorSensorV3.class, "CS2");
+        record("CS2 (launch sensor)", Verdict.PASS, LaunchSensor.CS2_PRESENT ? (cs2 == null ? "the switch is ON but 'CS2' is not configured: the launches are not recorded" : "switch ON: the code records launches with it (checked above that it answers)")
+                : "switched OFF (LaunchSensor.CS2_PRESENT false): the code does not read it, the launches are not recorded; nothing else depends on it");
+        if (hardwareMap.tryGet(Servo.class, FlywheelPosition.SERVO_NAME) != null) record("Flywheel position servo", Verdict.PASS, "'" + FlywheelPosition.SERVO_NAME + "' is configured (pollen / nectar position)");
+        else record("Flywheel position servo", Verdict.PASS, "'" + FlywheelPosition.SERVO_NAME + "' is not configured: the robot runs without it (no pollen / nectar position)");
     }
 
     private void checkBattery() {
