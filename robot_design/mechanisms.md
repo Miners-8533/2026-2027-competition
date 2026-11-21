@@ -120,7 +120,7 @@ Two servos lower a ramp so that pollen released from the bottom opening of a FLO
 |---|---|
 | Actuators | two goBILDA torque servos, `depolLeft` and `depolRight`, in positional mode; part number **NOT RECORDED** |
 | Arrangement | a mirrored pair moving one ramp |
-| Stowed | left 0.75, right 0.25 |
+| Stowed | left 1.0, right 0.0 (the full range again from 2026-11-21, the user; it was left 0.75, right 0.25) |
 | Deployed | left 0.0, right 1.0 |
 | Travel time | 0.8 s (measured by the team) |
 | Feedback | none; the positions are commanded values |
