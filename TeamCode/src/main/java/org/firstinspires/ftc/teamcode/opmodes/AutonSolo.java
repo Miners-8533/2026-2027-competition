@@ -71,6 +71,31 @@ import java.util.Locale;
 @Autonomous(name = "Auton - Solo", group = "Auto")
 public class AutonSolo extends LinearOpMode {
 
+    /** The Driver Station name, for the log and the INIT screen (a subclass that changes the finish has its own). */
+    protected String autoName() {
+        return "Auton - Solo";
+    }
+
+    /**
+     * False: the Solo auto. True ({@link AutonTripleTip}, 2026-11-20, user): the same up to and including the first flower gather, then the REAR FINISH below instead of the flower salvo into the second cell.
+     */
+    protected boolean rearFinish() {
+        return false;
+    }
+
+    /**
+     * THE REAR FINISH (Auton - Triple Tip, 2026-11-20, the user's design; built, not run on the robot). The partner waits and launches with our garden salvo, so the second cell tips and the FIRST cell (the one the
+     * preload went into: blue the rear cell, red the audience cell) faces up again. After the first flower gather the robot goes around the OUTSIDE of the hive on its own half (the east helper, then the west helper
+     * (WEST_HELPER_X / Y): never under the hive, whose lane is the field's center line) to REAR_LAUNCH (blue (-50, 24): the 2-D grid's good zone for that cell, 30.6 in from it, 22 deg off its axis, speed 1339, aim
+     * residual +5.4 deg), launches the flower pollen into the first cell, gathers the alliance-wall flower (27 in away), launches from the same spot again (8 pollen: the third tip), and parks at FINAL_PARK through
+     * REAR_PARK_VIA (a straight run from the launch spot to the park passes within an inch of the hive's foot bar; through the via point the footprint keeps 4.4 in at any heading) at REAR_PARK_HEADING_DEG
+     * (30 deg: nearer the way the robot comes in than the Solo's 90; the front corner is then inside the loading zone). The wall flower's jostle ends by REAR_WALL_JOSTLE_DEADLINE_SEC.
+     */
+    public static double REAR_LAUNCH_X = -50.0, REAR_LAUNCH_Y = 24.0, REAR_AIM_TRIM_DEG = 0.0;
+    public static double WEST_HELPER_X = -36.0, WEST_HELPER_Y = 40.0;
+    public static double REAR_WALL_JOSTLE_DEADLINE_SEC = 23.5;
+    public static double REAR_PARK_VIA_X = -20.0, REAR_PARK_VIA_Y = 44.0, REAR_PARK_HEADING_DEG = 30.0;
+
 
     // ---- the path, BLUE frame: x, y in inches, heading in degrees (the start pose comes from the chassis profile) ----
     // The x values are the waypoint marks of 2026-11-02 + 1.0: those were recorded in a pose frame seeded at x = -64.4 (a 72 in field half-width), and the walls are
@@ -542,7 +567,7 @@ public class AutonSolo extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        RunLog.open(RunLog.Kind.AUTO, "Auton - Solo", hardwareMap);
+        RunLog.open(RunLog.Kind.AUTO, autoName(), hardwareMap);
         try {
             runAuto();
         } catch (Throwable t) {
@@ -579,7 +604,7 @@ public class AutonSolo extends LinearOpMode {
             boolean poseOk = loc.seedConfirmed
                     && Math.hypot(p.position.x - start.position.x, p.position.y - start.position.y) < 1.5
                     && Math.abs(Math.toDegrees(Rotation2d.normalize(p.heading.toDouble() - start.heading.toDouble()))) < 3.0;
-            telemetry.addLine("Auton - Solo. Back against the " + (blue ? "REAR" : "AUDIENCE") + " wall at y " + (blue ? "+" : "-") + START_Y_IN + ". Keep still.");
+            telemetry.addLine(autoName() + ". Back against the " + (blue ? "REAR" : "AUDIENCE") + " wall at y " + (blue ? "+" : "-") + START_Y_IN + ". Keep still.");
             telemetry.addData("Alliance", blue ? "BLUE" : "RED");
             telemetry.addData("Chassis profile", profile.label());
             telemetry.addData("Pinpoint status", loc.getDeviceStatus());
@@ -646,6 +671,18 @@ public class AutonSolo extends LinearOpMode {
         Pose2d thirdSpot = new Pose2d(thirdXY.position.x, thirdXY.position.y, thirdHeading + Math.toRadians(THIRD_AIM_TRIM_DEG));
         RunLog.event("AUTO third launch spot " + THIRD_LAUNCH_X + ", " + THIRD_LAUNCH_Y + " (blue frame) " + (THIRD_SALVO_ENABLED ? "ON" : "OFF (the park runs)") + " in the grid: " + gridThird.describe());
         Pose2d finalPark = forAlliance(pose(FINAL_PARK_X, FINAL_PARK_Y + FINAL_PARK_OVERSHOOT_IN, FINAL_PARK_HEADING_DEG), isBlue);
+        // the rear finish (Auton - Triple Tip): the first cell's launch spot with the grid's aim, the west helper at that heading, and the park through its via point
+        Pose2d rearXY = forAlliance(pose(REAR_LAUNCH_X, REAR_LAUNCH_Y, 0.0), isBlue);
+        LaunchGridMap.Result gridRear = LaunchGridMap.lookup(firstCell, rearXY.position.x, rearXY.position.y);
+        double rearHeading = (gridRear.hasValues()
+                ? Math.atan2(firstCell.y - rearXY.position.y, firstCell.x - rearXY.position.x) + Math.toRadians(gridRear.residualDeg)
+                : TargetLock.aimHeadingRad(rearXY.position.x, rearXY.position.y, firstCell, 0.0)) + Math.toRadians(REAR_AIM_TRIM_DEG);
+        Pose2d rearSpot = new Pose2d(rearXY.position.x, rearXY.position.y, rearHeading);
+        Pose2d westXY = forAlliance(pose(WEST_HELPER_X, WEST_HELPER_Y, 0.0), isBlue);
+        Pose2d westHelper = new Pose2d(westXY.position.x, westXY.position.y, rearHeading);   // arrives turned to the launch heading, as the first crossing does
+        Pose2d rearParkVia = forAlliance(pose(REAR_PARK_VIA_X, REAR_PARK_VIA_Y, REAR_PARK_HEADING_DEG), isBlue);
+        Pose2d rearPark = forAlliance(pose(FINAL_PARK_X, FINAL_PARK_Y + FINAL_PARK_OVERSHOOT_IN, REAR_PARK_HEADING_DEG), isBlue);
+        if (rearFinish()) RunLog.event("AUTO rear launch spot " + REAR_LAUNCH_X + ", " + REAR_LAUNCH_Y + " (blue frame) for " + firstCell + " in the grid: " + gridRear.describe());
 
         RunLog.event("AUTO launch spot " + LAUNCH_X + ", " + LAUNCH_Y + " (blue frame) in the grid: " + gridAtSpot.describe());
         RunLog.event(String.format(Locale.US, "SETUP profile %s, alliance %s, start pose (%.1f, %.1f, %.1f deg), cells %s then %s, launch spot (%.1f, %.1f, %.1f deg), %s",
@@ -668,9 +705,9 @@ public class AutonSolo extends LinearOpMode {
 
         Action auto = new SequentialAction(
                 new InstantAction(mechanisms::requestLaunchReady),   // the pusher moves to the LAUNCH-READY position (156 deg) while the flywheel spins up (2026-11-19, user; it was the 90 deg lock): the preload salvo turns about 246 deg instead of 400
-                new InstantAction(() -> { if (PRELOAD_GRID_SPEED) mechanisms.setLaunchGrid(true, "Auton - Solo, from Start (the preload: the grid's flywheel speed only; the position and the aim are the formula's)"); }),
+                new InstantAction(() -> { if (PRELOAD_GRID_SPEED) mechanisms.setLaunchGrid(true, autoName() + ", from Start (the preload: the grid's flywheel speed only; the position and the aim are the formula's)"); }),
                 launch(drive, mechanisms, firstCell, isBlue, "preload"),   // the formula aim, no grid residual: the position and the angle of the preload are not changed (user, 2026-11-19)
-                new InstantAction(() -> mechanisms.setLaunchGrid(true, "Auton - Solo, after the preload")),   // from here the flywheel speed follows the 2-D launch grid (the preload kept the launch map)
+                new InstantAction(() -> mechanisms.setLaunchGrid(true, autoName() + ", after the preload")),   // from here the flywheel speed follows the 2-D launch grid (the preload kept the launch map)
 
                 GARDEN_ONE_LEG
                         ? new SequentialAction(
@@ -708,45 +745,76 @@ public class AutonSolo extends LinearOpMode {
                 flowerHold("flower jostle", drive, mechanisms, JOSTLE_DEADLINE_SEC),
                 note("Back off the flower to the launch spot (intake still ON)"),
                 FLOWER_TURN_WHILE_BACKING ? new InstantAction(() -> { }) : backOutLeg("flower back-out (straight)", drive, flowerBack),
-                new InstantAction(mechanisms::requestLaunchReady),   // the arm goes to the launch-ready position while the robot turns to the launch spot
-                stowWhenTurned(launchLeg("launch spot 2", drive, launchSpotFlower), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
-                timed("ramp stow (wait)", rampTo(mechanisms, false)),
-                launch(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG, true),
+                rearFinish()
+                        ? new SequentialAction(
+                                note("Rear finish: around the outside of the hive to the first cell's side (never under it), launch, the alliance-wall flower, launch again, park"),
+                                new InstantAction(mechanisms::requestStowNow),   // clear of the flower: the ramp stows on the way
+                                new InstantAction(() -> mechanisms.setOpenCell(firstCell)),   // the partner's salvo tipped the second cell: the first cell is up again, the flywheel follows its distance
+                                crossLeg("east helper (outside the support rails)", drive, finalHelper, CROSS_FIELD_MAX_POWER, true),
+                                crossLeg("west helper (outside the support rails)", drive, westHelper, CROSS_FIELD_MAX_POWER, true),
+                                new InstantAction(mechanisms::requestLaunchReady),   // the arm goes to the launch-ready position on this last leg
+                                crossLeg("rear launch spot 1", drive, rearSpot, CROSS_FIELD_MAX_POWER, false),
+                                timed("ramp stow (wait)", rampTo(mechanisms, false)),
+                                launch(drive, mechanisms, firstCell, isBlue, "flower pollen (first cell)", REAR_AIM_TRIM_DEG, true),
 
-                choose(() -> {
-                            boolean go = FINAL_FLOWER_ENABLED;
-                            RunLog.event(String.format(Locale.US, "AUTO %s at %.2f s into the auto",
-                                    go ? "FINAL GATHER starts" : "FINAL GATHER disabled: the old park runs", autoClock.seconds()));
-                            return go;
-                        },
-                        new SequentialAction(
-                                note("Final gather: the alliance-wall flower, then the hive-side corner"),
+                                note("The alliance-wall flower"),
                                 new InstantAction(mechanisms::requestDeploy),   // deploys on the way
-                                crossLeg("final helper (outside the support rails)", drive, finalHelper, CROSS_FIELD_MAX_POWER, true),
                                 timed("drive: wall flower pre-position", legDrive(drive, wallPre).withTolerance(WALL_PRE_POS_TOL_IN, WALL_PRE_HEADING_TOL_DEG)),
                                 timed("ramp deploy (wait)", rampTo(mechanisms, true)),
-                                note("Intake ON: wall flower (held IN until the park)"),
                                 mechanisms.setIntake(true),
                                 mechanisms.forceIntakeIn(true),
                                 ramLeg("ram the wall flower", drive, wallRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
-                                flowerHold("wall flower jostle", drive, mechanisms, THIRD_SALVO_ENABLED ? THIRD_JOSTLE_DEADLINE_SEC : FINAL_JOSTLE_DEADLINE_SEC),
+                                flowerHold("wall flower jostle", drive, mechanisms, REAR_WALL_JOSTLE_DEADLINE_SEC),
                                 backOutLeg("wall flower back-out (straight)", drive, wallBack, WALL_BACKOUT_TOL_IN),
-                                new InstantAction(mechanisms::requestStowNow),   // clear of the flower: the ramp stows on the way to the corner (or to the third launch spot)
-                                THIRD_SALVO_ENABLED
-                                        ? new SequentialAction(
-                                                note("Third garden salvo: the wall flower's pollen into the same cell, then the park is tried"),
-                                                new InstantAction(mechanisms::requestLaunchReady),   // the arm goes to the launch-ready position on the way
-                                                crossLeg("third launch spot", drive, thirdSpot, CROSS_FIELD_MAX_POWER, false),
-                                                timed("ramp stow (wait)", rampTo(mechanisms, false)),
-                                                launch(drive, mechanisms, thirdCell, isBlue, "wall flower pollen", THIRD_AIM_TRIM_DEG, true))
-                                        : new InstantAction(() -> { }),
-                                parkLeg("park (hive-side corner, full power)", drive, finalPark),   // tried even when little time is left: the auto ends at 30 s
-                                timed("ramp stow (wait)", rampTo(mechanisms, false))
-                                ),
-                        new SequentialAction(
-                                note("Park"),
-                                PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),
-                                parkLeg("park (full power)", drive, park))),
+                                new InstantAction(mechanisms::requestStowNow),   // clear of the flower: the ramp stows on the way
+                                new InstantAction(mechanisms::requestLaunchReady),
+                                launchLeg("rear launch spot 2", drive, rearSpot),
+                                timed("ramp stow (wait)", rampTo(mechanisms, false)),
+                                launch(drive, mechanisms, firstCell, isBlue, "wall flower pollen (first cell)", REAR_AIM_TRIM_DEG, true),
+
+                                note("Park through the via point (clear of the hive's foot bar)"),
+                                crossLeg("park via point", drive, rearParkVia, CROSS_FIELD_MAX_POWER, true),
+                                parkLeg("park (hive-side corner, full power)", drive, rearPark))
+                        : new SequentialAction(
+                        new InstantAction(mechanisms::requestLaunchReady),   // the arm goes to the launch-ready position while the robot turns to the launch spot
+                        stowWhenTurned(launchLeg("launch spot 2", drive, launchSpotFlower), drive, mechanisms, flowerPre.heading.toDouble()),   // the ramp stows during the turn
+                        timed("ramp stow (wait)", rampTo(mechanisms, false)),
+                        launch(drive, mechanisms, secondCell, isBlue, "flower pollen", FLOWER_AIM_TRIM_DEG, true),
+
+                        choose(() -> {
+                                    boolean go = FINAL_FLOWER_ENABLED;
+                                    RunLog.event(String.format(Locale.US, "AUTO %s at %.2f s into the auto",
+                                            go ? "FINAL GATHER starts" : "FINAL GATHER disabled: the old park runs", autoClock.seconds()));
+                                    return go;
+                                },
+                                new SequentialAction(
+                                        note("Final gather: the alliance-wall flower, then the hive-side corner"),
+                                        new InstantAction(mechanisms::requestDeploy),   // deploys on the way
+                                        crossLeg("final helper (outside the support rails)", drive, finalHelper, CROSS_FIELD_MAX_POWER, true),
+                                        timed("drive: wall flower pre-position", legDrive(drive, wallPre).withTolerance(WALL_PRE_POS_TOL_IN, WALL_PRE_HEADING_TOL_DEG)),
+                                        timed("ramp deploy (wait)", rampTo(mechanisms, true)),
+                                        note("Intake ON: wall flower (held IN until the park)"),
+                                        mechanisms.setIntake(true),
+                                        mechanisms.forceIntakeIn(true),
+                                        ramLeg("ram the wall flower", drive, wallRam, FLOWER_RAM_POWER, FLOWER_RAM_SEC),
+                                        flowerHold("wall flower jostle", drive, mechanisms, THIRD_SALVO_ENABLED ? THIRD_JOSTLE_DEADLINE_SEC : FINAL_JOSTLE_DEADLINE_SEC),
+                                        backOutLeg("wall flower back-out (straight)", drive, wallBack, WALL_BACKOUT_TOL_IN),
+                                        new InstantAction(mechanisms::requestStowNow),   // clear of the flower: the ramp stows on the way to the corner (or to the third launch spot)
+                                        THIRD_SALVO_ENABLED
+                                                ? new SequentialAction(
+                                                        note("Third garden salvo: the wall flower's pollen into the same cell, then the park is tried"),
+                                                        new InstantAction(mechanisms::requestLaunchReady),   // the arm goes to the launch-ready position on the way
+                                                        crossLeg("third launch spot", drive, thirdSpot, CROSS_FIELD_MAX_POWER, false),
+                                                        timed("ramp stow (wait)", rampTo(mechanisms, false)),
+                                                        launch(drive, mechanisms, thirdCell, isBlue, "wall flower pollen", THIRD_AIM_TRIM_DEG, true))
+                                                : new InstantAction(() -> { }),
+                                        parkLeg("park (hive-side corner, full power)", drive, finalPark),   // tried even when little time is left: the auto ends at 30 s
+                                        timed("ramp stow (wait)", rampTo(mechanisms, false))
+                                        ),
+                                new SequentialAction(
+                                        note("Park"),
+                                        PARK_VIA_POINT ? passLeg("park via point", drive, parkVia) : new InstantAction(() -> { }),
+                                        parkLeg("park (full power)", drive, park)))),
                 new InstantAction(mechanisms::stopFlywheel)
         );
 
