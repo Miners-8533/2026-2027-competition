@@ -72,11 +72,11 @@ The behavior built on the zones is the TeleOp's ([teleop.md](teleop.md)): inside
 | Aligned and stopped for | 0.15 s |
 | Chassis held at most | 2.5 s |
 
-## 4. Launch grid (two-dimensional map, off by default)
+## 4. Launch grid (two-dimensional map; on from Start in the TeleOp and the shown autos)
 
 **Purpose.** Replace "speed from distance, aim from a formula" with measured values per field position, because the best aim and speed vary with where the robot stands, not only how far it is.
 
-**Status:** built after Hartland from one tuning run for one cell; never used on the robot. The TeleOp always uses it, from Start, where it has data (section 4.5; changed 2026-11-18). The autos never use it.
+**Status:** built after Hartland; both blue cells were measured on 2026-11-18 (section 4.1). The TeleOp always uses it, from Start, where it has data (section 4.5; changed 2026-11-18). The shown autos take their flywheel speed from it and, at their launch spots, the aim (2026-11-19 to 21; section 4.5). Used in every match at the Novi Qualifier of 2026-11-21.
 
 ### 4.1 Data
 
@@ -109,7 +109,8 @@ There is **no fallback to the formula** while the grid is on: wherever the grid 
 - The grid supplies the flywheel speed (plus the operator's trim) and the aim residual to the target lock.
 - During a Hive Dash it is looked up for the launch spot, not the current pose.
 - In backup mode it is not used.
-- **A launch from a no-shot zone is refused** (2026-11-19, user; `TeleOpCompetition.BLOCK_LAUNCH_IN_NO_SHOT`, true; not run on the robot). The driver's launch, the Hive Dash's and the auto-launch ask the grid for the pose's zone and are dropped with a `LAUNCH BLOCKED (who)` log line when it is NO_SHOT. While the robot stands in a no-shot zone the screen shows `NO SHOT` in the largest text with `LAUNCH BLOCKED: MOVE` under it, at the top. Not applied in backup mode or with a Pinpoint fault (the pose, so the zone, cannot be trusted), and the autos never use it. A launch already queued or running is not stopped.
+- **A launch from a no-shot zone is refused** (2026-11-19, user; `TeleOpCompetition.BLOCK_LAUNCH_IN_NO_SHOT`, true; first met in matches at the Novi Qualifier, next point). The driver's launch, the Hive Dash's and the auto-launch ask the grid for the pose's zone and are dropped with a `LAUNCH BLOCKED (who)` log line when it is NO_SHOT. While the robot stands in a no-shot zone the screen shows `NO SHOT` in the largest text with `LAUNCH BLOCKED: MOVE` under it, at the top. Not applied in backup mode or with a Pinpoint fault (the pose, so the zone, cannot be trusted), and never in an auto (an auto always launches). A launch already queued or running is not stopped.
+- **Seen at the Novi Qualifier (2026-11-21).** For the audience cell the launches were refused at spots 30 to 35 in from the cell (blue frame x 47 to 54.5, y 11 to 29); the salvos into that cell started from 34 in and more. The driver stopped nearer to the cell as the day went on and only learned of the zone on arrival. There was one refused press in the five qualification matches; then 17 presses over the last 4.6 s of playoff match 3, 12 presses (2.0 s) in the final's tiebreaker and 8 (1.0 s and 0.6 s) in the last match, each ended by backing away. A press while a salvo is already running is logged as blocked too when the robot stands in the zone; it changes nothing. Nothing was changed for it.
 - Every launch request logs the grid's answer beside the formula's and the map's, so practice sessions compare them.
 
 ### 4.4 Which spots a grid contains
@@ -123,9 +124,9 @@ The spot generator (used by the tuning opmode) keeps a lattice point for a cell 
 
 A point that fails only on a wall is slid toward the field center, up to 8 in: on each axis it is moved by as much as the robot's rectangle is over the limit, and that is repeated until it fits. The lattice is centered on the field with a 12 in pitch, giving about 30 spots per cell, visited as a serpentine sweep.
 
-### 4.5 The grid is the TeleOp's launch method (2026-11-18, not run on the robot)
+### 4.5 The grid is the launch method of the TeleOp (2026-11-18) and of the shown autos (2026-11-19 to 21); used at the Novi Qualifier
 
-The competition TeleOp always takes the flywheel speed and the aim from the 2-D launch grid (sections 4.1 to 4.3), from Start; there is no choice at INIT and no control during a run. Where the grid has no data for the spot (and in backup mode, with a fixed distance, or when it has no speed), the speed is the launch map's by distance ([flywheel.md](flywheel.md)) and the aim is the aim heading of section 1. The autos never use the grid: they keep the launch map and their own aim.
+The competition TeleOp always takes the flywheel speed and the aim from the 2-D launch grid (sections 4.1 to 4.3), from Start; there is no choice at INIT and no control during a run. Where the grid has no data for the spot (and in backup mode, with a fixed distance, or when it has no speed), the speed is the launch map's by distance ([flywheel.md](flywheel.md)) and the aim is the aim heading of section 1. **The autos** (2026-11-19 to 21; [autos.md](autos.md)). The mechanisms are told to use the grid from Start (`Mechanisms.setLaunchGrid`), so the flywheel speed is the grid's for where the robot stands, the preload included (at the start wall that value is extrapolated). At a launch spot the aim is the grid's as well (*aim at a cell* with the grid: the bearing plus the residual, plus the program's trim); the preload from the start pose keeps the formula aim. A spot for which the grid has no values falls back to the launch map and the formula aim. The hidden programs Cybugs and Primary keep the launch map and their own aim.
 
 A third method, the launch equation (two curves fitted to the grid's spots), was built and deleted on 2026-11-18 as the wrong approach; so was the choice of method at INIT (gamepad 1 Y) and the operator's left bumper + A cycle. They are in the git history (commit 0c481e0).
 

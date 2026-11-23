@@ -90,7 +90,7 @@ A dim blue nectar at CS4 is close to the arm's color; the arm is told apart by i
 
 ## The entrance sensor: CS5
 
-A fifth REV Color Sensor V3 at the intake entrance, ahead of `CS1`. Its **proximity** counts the elements. Its **color** names each one (from 2026-11-17, not run on the robot; the color table is below).
+A fifth REV Color Sensor V3 at the intake entrance, ahead of `CS1`. Its **proximity** counts the elements. Its **color** names each one (from 2026-11-17, not run on the robot; the color table is below). **The code does not read CS5 since 2026-11-20** (`EntryCounter.CS5_PRESENT` false; [specs/element-counting.md](../specs/element-counting.md)).
 
 | Quantity | Value |
 |---|---|

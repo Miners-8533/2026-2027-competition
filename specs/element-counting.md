@@ -9,6 +9,15 @@ The robot counts what it holds in two independent ways.
 
 **The entry count is the count the robot relies on** (team decision, 2026-11-17; built 2026-11-17; first run on the robot in ten practice TeleOps of 2026-11-17, where it undercounted: section 2.7). The slot count undercounts in a crowded track, which is the worse error on this robot, so it no longer says how many are held. One switch ("count by entries", on) returns the jostle end, the "Full" warning, the non-always-on intake stop and the launched tally to the slot count, in case the entry count misbehaves on the robot. With CS5 missing or not answering the robot is never full by it and there is no fall-back: a jostle ends on its deadline and the screen shows a question mark. How the coordinator uses the counts is in [mechanisms.md](mechanisms.md).
 
+**CS5 and CS2 are switched off in the code since 2026-11-20** (the user; `EntryCounter.CS5_PRESENT` and `LaunchSensor.CS2_PRESENT`, both false). With a switch off the robot runs as if the sensor were not there, with no change to the hub configuration: its object is not built, no thread is started, nothing is written to or read from the sensor, and one log line at INIT says that it is deliberate (`CS5 SWITCHED OFF ...`, `CS2 SWITCHED OFF ...`). While they are off:
+
+- **There is no held count in use.** "Count by entries" is still on, so nothing falls back to the slot count: the match screen shows `? HELD`, the robot is never FULL (no FULL sequence, no "Full" warning), a flower jostle in an auto ends on its cycle limit or its deadline, no count is handed from the auto to the TeleOp, and the launched tally stays 0.
+- **The slot count still runs** on CS1, CS3 and CS4 for its own jobs: the pusher check's "the track reads empty", seeing the pusher arm, the opponent-nectar warning, and the `N held (slots)` text of the log lines with the `count` and `slots` columns. That number is the slot count's, with its known undercount, and nothing acts on it.
+- **CS2 is not recorded:** its log columns and the launch summary are empty.
+- The Pusher Calibration Test switches both on while it runs and restores them when it ends. Pit Check reports each switch and whether its sensor is configured.
+
+The Novi Qualifier of 2026-11-21 was played this way. Sections 2, 5 and 6 describe the code as it runs with the switches on; none of it was removed.
+
 Sensor physics and measured signatures: [robot_design/sensors.md](../robot_design/sensors.md).
 
 ## 1. Slot count (CS1 to CS4)
@@ -80,6 +89,10 @@ The end sensor flickers for about a second while an element moves, hence the win
 The empty readings are constants in the code (values in [robot_design/sensors.md](../robot_design/sensors.md)). They cannot be measured at the start of a match because the robot starts loaded. They are re-measured in the pit when the lighting or the track changes.
 
 To catch a stale baseline, while the track reads empty the coordinator logs the four live color shifts once a second, and logs the stored baselines once at the start of every run.
+
+**What a stale baseline does (the Novi Qualifier, 2026-11-21).** CS3's stored empty reading (alpha 0.353, 3.92 cm) no longer matched the sensor: empty, it read alpha 0.575, which is 1.63 to 1.66 times the stored value and above the 1.6 release ratio of section 1.2. So once the first pollen of a run had passed, CS3 never went back to "empty". All day the track read `.-OO` after a salvo (CS3 held "occupied"; CS4 reads "other" while the arm is away from HOLD), the slot count read up to one too high, and the pusher check after a salvo was skipped every time because the track did not read empty in its 2.0 s ([mechanisms.md](mechanisms.md) section 6). The baseline was re-measured that evening (values in [robot_design/sensors.md](../robot_design/sensors.md); not run on the robot since).
+
+**After any change to a sensor, its mount or the track, measure the empty reading of every slot sensor and compare each with its stored baseline, not only the sensor that was changed.** CS4 had been replaced and re-measured that morning with the Pusher Calibration Test; the same log held CS3's reading and it was not looked at. Pit Check's color sensor step makes the same comparison ([support-opmodes.md](support-opmodes.md) section 1).
 
 ### 1.7 Parameters
 
@@ -306,9 +319,9 @@ Two further guards exist and are switched off: requiring the slot count to agree
 
 ## 3. Status
 
-- Slot count: used at Hartland with four sensors. With three (CS2 moved to the feed ramp after the runs of 2026-11-17, section 1.8): built 2026-11-18, not run.
-- CS2 at the top of the feed ramp: recorded through every salvo since 2026-11-18 (section 6.1), not run. Nothing counts launches yet.
-- Entry count: added after Hartland. Peak counting and a first version of the FULL actions ran in practice on 2026-11-14. Edge counting, the count as the robot's only count, the count carried between opmodes and the FULL sequence ran in ten practice TeleOps on 2026-11-17 (six in count-only mode, four acting on FULL), with the re-arm at 2. The re-arm at 4 ran in thirteen logs on 2026-11-18. Rise 7 on one sample with the re-arm at 5 (2026-11-19) has not run. What the FULL sequence did in those runs has not been examined beyond the count.
+- Slot count: used at Hartland with four sensors. With three (CS2 moved to the feed ramp after the runs of 2026-11-17, section 1.8): built 2026-11-18, used since then and at the Novi Qualifier of 2026-11-21, where a stale CS3 baseline held one sensor "occupied" all day (section 1.6).
+- CS2 at the top of the feed ramp: recorded through every salvo in the runs of 2026-11-18 and 19 (section 6.1). Switched off since 2026-11-20 (the top of this page). Nothing counts launches yet.
+- Entry count: added after Hartland. Peak counting and a first version of the FULL actions ran in practice on 2026-11-14. Edge counting, the count as the robot's only count, the count carried between opmodes and the FULL sequence ran in ten practice TeleOps on 2026-11-17 (six in count-only mode, four acting on FULL), with the re-arm at 2. The re-arm at 4 ran in thirteen logs on 2026-11-18. Rise 7 on one sample with the re-arm at 5 (2026-11-19) ran in four Solo autos that night and has not been examined. **Switched off since 2026-11-20** (the top of this page): not used at the Novi Qualifier. What the FULL sequence did in those runs has not been examined beyond the count.
 - Kinds and the load order: built 2026-11-17 from the one recorded run that holds CS5's color (31 pollen). Not run on the robot, and never tried on nectar.
 
 ## 4. Verification by replay
@@ -341,11 +354,11 @@ The kind rule and the pass logic are a second pure piece, checked the same way: 
 - **The count ran low in its first runs** (section 2.7), so a load could reach five. The re-arm level was raised for that on 2026-11-18 and again on 2026-11-19; elements that touch closely still count once. The answer to that is in the counting rule and in how the sensor is mounted, not in a second count.
 - The counter was characterized with pollen only; it needs a check with nectar. The kinds (section 2.8) need the same run.
 
-**Waits on** a run with the present levels. The true number of each load now comes from CS2 in every log (section 6), so no one has to count. The switch back to the slot count no longer gives a working "full" (section 1.8).
+**Waits on** CS5 being switched on again (off since 2026-11-20, the top of this page) and a run with the present levels. The true number of each load now comes from CS2 in every log (section 6), so no one has to count. The switch back to the slot count no longer gives a working "full" (section 1.8).
 
 ## 6. Target T11: CS2 counts what a salvo launches
 
-**Decided by the team on 2026-11-18, when CS2 was moved to the top of the feed ramp. Its first two stages are built and not run: CS2 has left the slot count and is recorded through every salvo. Nothing counts launches yet.**
+**Decided by the team on 2026-11-18, when CS2 was moved to the top of the feed ramp. Its first two stages are built (the recording ran on 2026-11-18 and 19; CS2 is switched off in the code since 2026-11-20, the top of this page): CS2 has left the slot count and is recorded through every salvo. Nothing counts launches yet.**
 
 **The weakness.** Nothing on the robot sees an element leave. The launched tally is the held count at the start of a salvo, so it is only as good as the entry count, and the entry count has no true number to be judged against (section 2.7). A salvo that leaves an element behind is not noticed.
 

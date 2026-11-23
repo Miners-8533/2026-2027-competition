@@ -143,6 +143,8 @@ The thin margins: the strafe stops 0.73 to 0.87 in short of its target every tim
 
 The pose is **not** reseeded. Each phase writes a log line with the pose before and after and its difference from the pose a flush robot should read, so odometry drift can be read from the logs.
 
+**A limit for the whole squaring.** The caller may give one time limit for both phases together (`withTotalLimit`). When it passes, the phase in progress ends and its log line says it was timed out by the total limit. The autos that take the garden in one leg use 0.8 s ([autos.md](autos.md)); without a limit each phase runs to its own times in the table.
+
 | Name | Value |
 |---|---|
 | Push power (side) | 0.5 |
@@ -158,10 +160,14 @@ The pose is **not** reseeded. Each phase writes a log line with the pose before 
 
 **Behavior.** The **contact point** is where the robot is when the jostle starts, pressed against the flower. Every stroke is measured from that anchor, so the robot cannot creep.
 
-1. **Hold:** keep pressing forward for the start-hold time.
-2. **Back:** reverse at the back power until the robot is the back distance behind the contact point, or the back time limit passes.
-3. **Push:** drive forward until it is back within the contact tolerance (after the minimum push time) or the push time limit passes.
+1. **Hold:** keep pressing forward for the start-hold time (0 since 2026-11-20: the ram before the jostle already presses against the flower).
+2. **Back:** reverse at the back power for the back time.
+3. **Push:** drive forward at the forward power for the push time.
 4. **Press:** keep pressing for the press-hold time. That completes one cycle; go to step 2.
+
+**The strokes are timed** (2026-11-19 and 20, user; `BACK_BY_TIME` and `PUSH_BY_TIME`, both true). Before, the back stroke ended at the back distance behind the contact point and the push ended when the robot was back within the contact tolerance, each with a time limit. With the 0.5 in distance the cut came so late that the robot braked on to 1.5 to 2 in behind the contact point. Those distance rules are still in the code and are used when a flag is false. The log lines still give each stroke's distance from the contact point.
+
+> In the last match's auto at the Novi Qualifier (2026-11-21) a jostle of one cycle took 1.37 s; the back stroke ended 0.8 and 1.3 in behind the contact point, and the deepest back-off was 1.3 and 2.4 in.
 
 The heading is held at its starting value with a small turn limit. All motion is along the robot's own forward axis, so it is the same for either alliance.
 
@@ -171,10 +177,11 @@ Log lines record the start, each back stroke (commanded power, time, distance re
 
 | Name | Value |
 |---|---|
-| Start hold | 1.0 s |
+| Start hold | 0 s (1.0 s until 2026-11-20) |
 | Forward power | 0.5 |
-| Back distance / back power / back time limit | 0.5 in / 0.4 / 0.3 s |
-| Push minimum / maximum time | 0.2 / 0.6 s |
+| Back stroke: time / power | 0.1 s / 0.3 |
+| Push: time | 0.2 s |
+| With the strokes by distance (off): back distance / back time limit / push minimum / maximum time | 0.5 in / 0.4 s / 0.2 s / 0.6 s |
 | Press hold | 1.0 s |
 | Cycle limit | 1 (0 = no limit) |
 | Contact tolerance | 0.3 in |

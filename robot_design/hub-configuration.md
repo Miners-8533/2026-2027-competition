@@ -72,13 +72,14 @@ All five color sensors have the same address, so each must be alone on its bus. 
 | The four drive motors, `pinpoint` | the opmode fails at INIT with a device-not-found error |
 | `intake`, `fly_motor_enc`, `gate` | that mechanism is silently left out; everything else runs |
 | `depolLeft`, `depolRight` | the ramp is left out unless both are present |
-| `CS1` to `CS4` | the element counter is left out unless all four are present |
-| `CS5` | no entry count: the robot never declares itself full |
+| `CS1`, `CS3`, `CS4` | the element counter is left out unless all three are present (`CS2` has not been in the track since 2026-11-18 and is not needed for it) |
+| `CS2` | no recording of the launches; nothing else depends on it. The code does not read it at all since 2026-11-20 (`LaunchSensor.CS2_PRESENT` false) |
+| `CS5` | no entry count: the robot never declares itself full and the screen shows `? HELD`. The code does not read it at all since 2026-11-20 (`EntryCounter.CS5_PRESENT` false), so that is the present state whether it is configured or not |
 | `fly_pos` | the flywheel position is not commanded |
 
 So a misspelled name looks like "the mechanism does nothing", not like an error. The INIT screen of the competition TeleOp lists the mechanisms it found.
 
-**Pit Check covers** the drive motors, `intake`, `fly_motor_enc`, `gate`, the two ramp servos, `pinpoint`, `CS1` to `CS4`, and a stale `fly_follow`. **It does not cover `CS5` or `fly_pos`**: confirm those from the TeleOp's INIT screen and the log line `CS5 ENTRY COUNTER started`.
+**Pit Check covers** the drive motors, `intake`, `fly_motor_enc`, `gate`, the two ramp servos, `pinpoint`, `CS1` to `CS4`, and a stale `fly_follow`. From 2026-11-20 it also reports `CS5`, `CS2` as the launch sensor, and `fly_pos`: whether each is configured, and for the two sensors the state of its switch in the code. A sensor whose switch is off passes whether it is configured or not; `CS5` fails only when its switch is on and the device is missing; `fly_pos` is optional and passes either way. None of the three is exercised: with its switch on, confirm `CS5` from the log line `CS5 ENTRY COUNTER started`.
 
 ## Saved configuration file
 

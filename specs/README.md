@@ -2,7 +2,7 @@
 
 What the team's robot software does and how it behaves, written so that it could be rebuilt from these pages without the source. Team 8533, BIOBUZZ season (2026-27).
 
-These pages describe the **`integration` branch as of 2026-11-17**. They cover the team's own code only, not the FTC SDK.
+These pages describe the **`integration` branch as of 2026-11-23** (robot code at commit 64087f6). They were first written on 2026-11-17 and are kept up with the code; the last full pass against the code and the run logs, those of the Novi Qualifier of 2026-11-21 included, was on 2026-11-23. They cover the team's own code only, not the FTC SDK.
 
 ## How to read them
 
@@ -62,6 +62,7 @@ Some targets only move things around and change nothing the robot does in a matc
 |---|---|
 | In the tested build, or used at Hartland | part of the build that ran at the Hartland Qualifier on 2026-11-07 (the `main` branch) |
 | Ran in practice | exercised on the robot after Hartland, outside a match |
+| Ran at Novi, or used at the Novi Qualifier | ran in a match at the Novi Qualifier on 2026-11-21, on the `integration` branch (builds dfee25d, 1fa5b23, and 9599d8b with uncommitted changes). `main` still holds the Hartland build |
 | Not run on the robot | builds and passes any PC checks, but has never run on the robot |
 | Off, or switched off | present in the code but disabled by a setting |
 | Hidden | an opmode that is complete but not shown on the Driver Station |
@@ -87,12 +88,15 @@ Collected from the pages; each is explained where it arises.
 |---|---|
 | The drive-to-pose gains have never been tuned on this robot | Target T2 ([motion.md](motion.md), [support-opmodes.md](support-opmodes.md)); needs a tuning session |
 | Odometry drift across the field was allowed for in four separate places | Target T1 ([aiming.md](aiming.md)): drift is accepted and trimmed by the operator. Mostly built 2026-11-17, not run |
-| Two element counts with different rules for "full" | Target T3 ([element-counting.md](element-counting.md)): the CS5 entry count is the count. Built and first run 2026-11-17; it undercounted, its levels changed 2026-11-18 and 2026-11-19 (the last not run) |
+| Two element counts with different rules for "full" | Target T3 ([element-counting.md](element-counting.md)): the CS5 entry count is the count. Built and first run 2026-11-17; it undercounted, its levels changed 2026-11-18 and 2026-11-19. **CS5 is switched off in the code since 2026-11-20** (the user), so at present the robot has no held count and is never FULL; the Novi Qualifier was played that way |
 | The present dashes are too slow to use and cut clearances fine | Target T9 ([dashes.md](dashes.md)); the grid routes as smooth paths are switched on since 2026-11-18 and need their first robot run |
 | Several live settings are missing from the settings dump | Target T8 ([logging.md](logging.md)) |
-| The entry count ran low in its first robot runs; at the levels of 2026-11-19 it is right at 204 of 208 loads by replay, and those levels have not run | needs a run; the true number of each load comes from CS2 in every log ([element-counting.md](element-counting.md) section 2.7) |
-| CS2 has been moved to the top of the feed ramp (2026-11-18). Nothing counts what a salvo launches yet | Target T11 ([element-counting.md](element-counting.md) section 6): CS2 has left the slot count and is recorded through every salvo (built 2026-11-18, not run). The counting rule waits on those recordings, and the cost of the fast reads during a salvo is not known |
-| The launch grid has data for one cell from one run | no design change; needs data ([aiming.md](aiming.md)) |
+| The entry count ran low in its first robot runs; at the levels of 2026-11-19 it is right at 204 of 208 loads by replay, and those levels ran only in four Solo autos on the night of 2026-11-19 (not examined) before CS5 was switched off | needs CS5 switched on again and a run; the true number of each load comes from CS2 in every log ([element-counting.md](element-counting.md) section 2.7) |
+| CS2 has been moved to the top of the feed ramp (2026-11-18). Nothing counts what a salvo launches yet | Target T11 ([element-counting.md](element-counting.md) section 6): CS2 has left the slot count and is recorded through every salvo (built 2026-11-18; recorded in the runs of 2026-11-18 and 19; **switched off in the code since 2026-11-20**). The counting rule waits on those recordings, and the cost of the fast reads during a salvo is not known |
+| The launch grid: both blue cells are measured (2026-11-18) and the grid was used in every match at the Novi Qualifier. Its no-shot zone begins about 34 in from the audience cell and the driver only learns of it on arrival: up to 17 blocked presses in a playoff match | not decided ([aiming.md](aiming.md) section 4.3) |
+| A press of the driver's A just after a salvo has ended starts another salvo, whatever is held. At the Novi Qualifier that gave 5 to 15 second salvos a match, each holding the drive about 0.85 s; about half launched nothing | not decided ([teleop.md](teleop.md) section 5) |
+| A stale empty baseline on one slot sensor (CS3) kept the track from reading empty all day at the Novi Qualifier, so the pusher check after a salvo was skipped every time | the baseline was re-measured on 2026-11-21 (not run since). After any change to a sensor or the track, compare every sensor's empty reading with its stored baseline ([element-counting.md](element-counting.md) section 1.6) |
+| The autos' start pose at the audience wall (Flower Side and Blaser's Gambit, y = 7.5) is not on a tile seam, and the team lines the robot up on the tile marks | not decided ([autos.md](autos.md) section 9) |
 
 ## Gaps found by a rebuild
 

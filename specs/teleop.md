@@ -104,10 +104,12 @@ Log lines mark the lock coming on (and why), becoming aligned, and going off.
 
 There are four ways a salvo is requested. Each logs a full aim line: pose, cell, distance, bearing, predicted miss, setpoint and trim, lock state, the remembered correction, and what the launch grid, the formula aim and the launch map say.
 
-1. **Driver A.** Launches at once, with any number of elements, locked or not. If the lock is on but not yet aligned, the launch **waits** for aligned, at most 1.5 s; it is dropped if the lock is released or the time passes.
+1. **Driver A.** Launches at once, with any number of elements, locked or not. If the lock is on but not yet aligned, the launch **waits** for aligned, at most 1.5 s; it is dropped if the lock is released or the time passes. A launch from a no-shot zone of the launch grid is refused ([aiming.md](aiming.md) section 4.3). **Every press counts:** a press while a salvo is running is ignored, and a press after it has ended starts another salvo, whatever is held.
 2. **Hive Dash**, on arrival ([dashes.md](dashes.md)).
 3. **Auto-launch**, when armed (section 6).
-4. From a FULL robot, by way of auto-launch being armed (section 7).
+4. From a FULL robot, by way of auto-launch being armed (section 7). With CS5 switched off, as it is since 2026-11-20 ([element-counting.md](element-counting.md)), the robot is never FULL and this way never happens.
+
+> **Seen at the Novi Qualifier (2026-11-21).** The driver presses A several times for one launch, so 5 to 15 salvos a match were second salvos that started 0.1 to 0.2 s after the first had ended. Each holds the drive for the sweep again (about 0.85 s from HOLD, 0.65 s from launch-ready), and in about two thirds of them the driver was already at full stick. By the flywheel's speed about half of them launched nothing and about a quarter launched a leftover element. Nothing was changed for it.
 
 What happens after the request is the coordinator's queued launch ([mechanisms.md](mechanisms.md)).
 
@@ -259,4 +261,4 @@ Kind TELEOP ([logging.md](logging.md)). Sample columns: pose; the driver's stick
 
 ## 15. Status
 
-Used at Hartland: field-oriented drive, the lock on the right bumper, launch waiting for aligned, the operator's auto-launch, the reports, hold position, backup mode, reseed, the match screen, the Pinpoint adoption. In the build at Hartland but not pressed in any match there: the dashes (no dash is in the event's TeleOp logs). Added after Hartland: the drive hold during the sweep (run in practice, not at speed), FULL AUTO with its auto-launch arming (the present sequence has not run), COUNT ONLY, the launch grid switch.
+Used at Hartland: field-oriented drive, the lock on the right bumper, launch waiting for aligned, the operator's auto-launch, the reports, hold position, backup mode, reseed, the match screen, the Pinpoint adoption. In the build at Hartland but not pressed in any match there: the dashes (no dash is in the event's TeleOp logs). Added after Hartland: the drive hold during the sweep (run in practice, not at speed), FULL AUTO with its auto-launch arming (the present sequence has not run), COUNT ONLY, the launch grid switch. **At the Novi Qualifier (2026-11-21, on `integration`):** the 2-D launch grid from Start with its no-shot block, the drive hold during the sweep, hold position and COUNT ONLY ran in every match; the launch-ready lock ran in the first two and is off since; no Hive Dash or Park Dash was started; CS5 was switched off, so the screen showed `? HELD`.

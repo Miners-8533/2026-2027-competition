@@ -49,7 +49,37 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 
 **Output.** Each failure names the fix. The result line is ALL PASS, FAILED or INCOMPLETE with the counts. A skipped step is not a pass. The ports line is the source for [robot_design/hub-configuration.md](../robot_design/hub-configuration.md).
 
-**Limits.** It drives the raw hardware, not the subsystem classes, so it does not disturb the pusher's saved zero; it returns the arm to where it started and reports if it cannot. It does not check CS5 or the flywheel position servo. It does not test behavior that needs real elements.
+**Limits.** It drives the raw hardware, not the subsystem classes, so it does not disturb the pusher's saved zero; it returns the arm to where it started and reports if it cannot. From 2026-11-20 it reports CS5, CS2 as the launch sensor and the flywheel position servo (configured or not, and the state of each sensor's switch in the code) without exercising them. It does not test behavior that needs real elements.
+
+### 1.1 Ramp Test
+
+**Purpose (2026-11-21, the user, at the Novi Qualifier).** Move the ramp by hand and nothing else, to check the two servos and their end positions after a repair.
+
+- X deploys, Y stows, on either gamepad, as often as wanted. Start and Back are not used.
+- Nothing else on the robot is built or run: no drive, intake, flywheel or pusher.
+- Nothing moves in INIT or at Start. The ramp servos are first commanded when a button is pressed; until then the screen says the position is unknown.
+- The positions are the chassis profile's ([robot_design/mechanisms.md](../robot_design/mechanisms.md)). The screen shows all four and the number of deploys and stows.
+- A ramp that is not configured is reported at INIT and does not move.
+- Log kind `bringup`: one `COMMAND ramp DEPLOY` or `COMMAND ramp STOW` line per press, with the two servo positions.
+
+**Status:** ran five times at the Novi Qualifier on 2026-11-21.
+
+### 1.2 Pusher Calibration Test
+
+**Purpose (2026-11-19, the user, after the pusher check stopped finding the arm at CS4).** With no elements in the robot, record what the pusher arm looks like to each color sensor, CS1 to CS5, at every pusher angle, and the empty reading of each.
+
+| Step | What happens |
+|---|---|
+| Baseline | track empty, pusher at HOLD, robot still for 4 s: the empty reading of every sensor (distance, alpha and color shares for CS1, CS3, CS4; proximity for CS2 and CS5) |
+| Forward | the pusher turns forward at 0.15 power, open loop (about 120 deg/s), 420 deg past HOLD, and stops |
+| Back | the pusher turns back to HOLD |
+
+- Gamepad 1: A starts the step shown and stops a running one; D-pad left and right choose the step; right bumper writes a note to the log. Start and Back are not used. Nothing else moves.
+- The pusher must be at HOLD at INIT (the zero is assumed there) and the robot empty and still. An aborted sweep leaves the arm where it stopped: initialize again with the arm at HOLD.
+- It switches CS5 and CS2 on in the code while it runs and restores the switches when it ends.
+- The log (kind `bringup`, about 25 rows a second) has the raw readings by pusher angle, a `RESULT` line for every stretch in which a sensor sees something, and `PROFILE` lines with the strongest signal per bin of pusher angle. CS4 is compared with where the pusher check parks the arm.
+
+**Status:** ran on 2026-11-21 at the Novi Qualifier; the CS4 and CS3 baselines in the code came from those runs ([element-counting.md](element-counting.md) section 1.6). Hidden for now.
 
 ## 2. Launch tuning
 
