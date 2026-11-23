@@ -9,14 +9,14 @@ The reference corners (video_config.json "field_corners_px", read by eye on the 
 pushed through it and written to video_config.json under "views": {label: {...}}. A check picture per match
 (views/<label>.jpg) shows the projected field grid and hive boxes; look at every one.
 """
-import argparse, json, os, re, subprocess, sys
+import argparse, glob, json, os, re, subprocess, sys
 import numpy as np
 import cv2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
-from fuse_match import clip_for, logs_for   # noqa: E402
+from fuse_match import clip_for, logs_for, parse_label, canon   # noqa: E402
 
 FF = os.path.join(os.environ.get("LOCALAPPDATA", ""), r"Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-125875-g5d4d3bdc61-win64-gpl\bin\ffmpeg.exe")
 MOVED_PX = 12.0   # field corners differing more than this between the two halves of a match = camera bumped or re-aimed
@@ -64,10 +64,14 @@ def draw(img, corners, hive_rois, half, path):
     cv2.imwrite(path, cv2.resize(out, (960, 540)))
 
 
-def field_for(label):
-    """Field rule for this event: odd quals field 1, even quals field 2; playoffs: decided by registration."""
-    m = re.match(r"([A-Za-z]+)(\d+)$", label)
-    if m.group(1).upper() == "Q": return "1" if int(m.group(2)) % 2 else "2"
+def field_for(label, cfg):
+    """The field a match was played on, from the event's video_config.json: "field_by_label" {label: field} (from FIRST's
+    schedule), else "quals_field_rule": "odd1_even2" (Hartland 2026). None = not known: decided by registration against
+    every field's reference (playoffs)."""
+    by = {canon(k): str(v) for k, v in cfg.get("field_by_label", {}).items()}
+    if canon(label) in by: return by[canon(label)]
+    k, n, _ = parse_label(label)
+    if k == "Q" and cfg.get("quals_field_rule") == "odd1_even2": return "1" if n % 2 else "2"
     return None
 
 
@@ -80,7 +84,19 @@ def fit(ref, imgs, f, cfg):
     for name, (x0, y0, x1, y1) in f["hive_rois"].items():
         q = cv2.perspectiveTransform(np.float32([[[x0, y0]], [[x1, y0]], [[x1, y1]], [[x0, y1]]]), H).reshape(-1, 2)
         rois[name] = [round(float(q[:, 0].min())), round(float(q[:, 1].min())), round(float(q[:, 0].max())), round(float(q[:, 1].max()))]
-    return {"H": H, "n": n, "corners": corners, "rois": rois, "zoom": float(np.sqrt(abs(np.linalg.det(H[:2, :2]))))}
+    zoom = float(np.sqrt(abs(np.linalg.det(H[:2, :2]))))
+    extra = {}
+    # Where a camera sees the hives at an angle (Novi 2026) the up cell is not simply the top of the hive box: a field may
+    # give the box balls arrive in ("landing_boxes") and the up cell's floor ("count_bands") per alliance, and how big a
+    # pollen is there ("ball_zoom": its diameter / 21 px). They are carried into each match's view like the hive boxes.
+    for key in ("landing_boxes", "count_bands", "cells"):
+        if key in f:
+            extra[key] = {}
+            for name, (x0, y0, x1, y1) in f[key].items():
+                q = cv2.perspectiveTransform(np.float32([[[x0, y0]], [[x1, y0]], [[x1, y1]], [[x0, y1]]]), H).reshape(-1, 2)
+                extra[key][name] = [round(float(q[:, 0].min())), round(float(q[:, 1].min())), round(float(q[:, 0].max())), round(float(q[:, 1].max()))]
+    if "ball_zoom" in f: extra["ball_zoom"] = round(f["ball_zoom"] * zoom, 3)
+    return {"H": H, "n": n, "corners": corners, "rois": rois, "zoom": zoom, "extra": extra}
 
 
 def main():
@@ -93,10 +109,12 @@ def main():
     labels = a.labels.split(",") if a.labels else sorted({r.split(",")[1].strip() for r in open(os.path.join(ev_dir, "labels.csv")).read().splitlines()[1:] if r.split(",")[1].strip()})
     os.makedirs(os.path.join(vdir, "views"), exist_ok=True)
     views = cfg.setdefault("views", {})
-    for L in labels:
+    for L in sorted({canon(x) for x in labels if parse_label(x)}):
+        if not glob.glob(os.path.join(cfg["clip_dir"], f"{parse_label(L)[0]}{parse_label(L)[1]:02d}{'TB' if parse_label(L)[2] else ''}_*.mp4")):
+            print(f"{L}: no clip, skipped"); continue
         clip = clip_for(L, cfg["clip_dir"])
         imgs = [im for im in (frame(clip, t) for t in TAKE_AT) if im is not None]
-        fixed = field_for(L)
+        fixed = field_for(L, cfg)
         tries = {k: fit(refs[k], imgs, cfg["fields"][k], cfg) for k in ([fixed] if fixed else cfg["fields"])}
         tries = {k: v for k, v in tries.items() if v}
         if not tries: print(f"{L}: registration failed"); continue
@@ -113,6 +131,7 @@ def main():
                     "from": f"field {fk} reference {cfg['fields'][fk]['reference_label']} via homography ({best['n']} pooled inliers from {len(imgs)} frames, zoom x{best['zoom']:.2f})",
                     "half_drift_px": round(drift, 1), "camera_moved": moved,
                     "tried": {k: v["n"] for k, v in tries.items()}}
+        views[L].update(best["extra"])
         draw(imgs[half], best["corners"], best["rois"], cfg["field_half_in"], os.path.join(vdir, "views", f"{L}.jpg"))
         print(f"{L}: field {fk} ({', '.join(f'f{k} {v[chr(110)]}' for k, v in tries.items())} inliers), zoom x{best['zoom']:.2f}, "
               f"first vs second half {drift:.1f} px{'  CAMERA MOVED: using the later-half fit; check views/' + L + '.jpg' if moved else ''}")

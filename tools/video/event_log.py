@@ -144,6 +144,8 @@ def main():
         row("match end", "field", "", tele + 120, source="derived", unc=UNCERTAINTY["period"], detail="TeleOp start + 120 s")
 
         # video notes
+        if d.get("log_flipped"):
+            row("video note", "field", "", None, source="log", detail=f"the robot ran set to {d.get('ran_as')} while FIRST lists us {ally}: logged poses and cells are turned 180 degrees to the real field")
         v = views.get(L, {})
         if v.get("camera_moved"): row("video note", "field", "", None, source="frames", detail="the camera moved during the match")
         if not d.get("landing_video_ok", True): row("video note", "field", "", None, source="frames", detail="pollen landings not read: the hive is not visible well enough")
@@ -164,6 +166,10 @@ def main():
                 row("hive tip", actor, t["alliance"], t["start"], t["end"], "frames", UNCERTAINTY["tip_start"], det + f"; swing peak {mt(t['t'])} s")
             elif t["source"].startswith("frames") and t.get("start") is not None:
                 row("hive tip", actor, t["alliance"], t["start"], t["end"], "frames", UNCERTAINTY["tip_start"], det + f"; swing peak {mt(t['t'])} s")
+            elif t["source"].startswith("inferred"):
+                g = t.get("gap") or [t["t"], t["t"]]
+                row("hive tip", actor, t["alliance"], t["t"], None, "derived", round((g[1] - g[0]) / 2, 1),
+                    det + f"; not seen in the frames or on the scoreboard: inferred from our aim and FiM's count ({t.get('duration_note')})")
             else:
                 row("hive tip", actor, t["alliance"], t["t"], None, "scoreboard", UNCERTAINTY["tip_scoreboard_only"], det + "; the frames missed it: time from the scoreboard, no swing")
             if t.get("scoreboard_t") is not None and t["source"] == "frames":
@@ -211,6 +217,8 @@ def main():
         for kind in ("auto", "teleop"):
             if kind not in logs or kind not in d["alignment"]: continue
             S = samples(logs[kind]); unc = log_unc(kind)
+            if d.get("log_flipped"):   # the robot ran set to the other alliance: its poses are the field turned 180 degrees
+                S = [(t_, -x_, -y_, f_, l_) for t_, x_, y_, f_, l_ in S]
             if not S: continue
             cur, t0 = None, None
             for (t, x, y, _, _) in S + [(S[-1][0] + 1e-3, None, None, 0, 0)]:

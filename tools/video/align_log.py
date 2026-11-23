@@ -46,9 +46,11 @@ def motion_frames(clip, start, end, fps):
     return out
 
 
-def align(log, clip, Hm, clip_start, duration=120.0, fps=10.0, search=(-2.0, 4.0)):
-    """Returns (delta_s, r, run_started_log_t, scan)."""
+def align(log, clip, Hm, clip_start, duration=120.0, fps=10.0, search=(-2.0, 4.0), flip=False):
+    """Returns (delta_s, r, run_started_log_t, scan). flip: the robot ran set to the other alliance, so its logged poses
+    are the field turned 180 degrees."""
     started, S = read_log(log)
+    if flip: S = S.copy(); S[:, 1] *= -1; S[:, 2] *= -1
     t_rel = S[:, 0] - started
     spd = np.hypot(np.gradient(S[:, 1], S[:, 0]), np.gradient(S[:, 2], S[:, 0]))
     frames = motion_frames(clip, clip_start + search[0] - 0.5, clip_start + duration + search[1] + 0.5, fps)

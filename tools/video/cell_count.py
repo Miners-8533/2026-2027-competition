@@ -62,10 +62,10 @@ def estimate(clip, hive_box, zoom, t, ref_t, kind="pollen", colour="pollen"):
     return count_in(frame(clip, t, bb), frame(clip, ref_t, bb) if ref_t is not None else None, zoom, kind, colour)
 
 
-def series(clip, hive_box, zoom, start, end, fps=2.0, skip=()):
+def series(clip, hive_box, zoom, start, end, fps=2.0, skip=(), band=None):
     """[(t, estimated pollen count)] every 1/fps s, the median of each reading and its two neighbours (balls in flight and
     people passing come and go). Readings inside any (t0, t1) of skip (tip swings) are left out."""
-    x0, y0, x1, y1 = band_box(hive_box)
+    x0, y0, x1, y1 = [int(v) // 2 * 2 for v in band] if band is not None else band_box(hive_box)   # band: the up cell's floor, given outright
     w, h = x1 - x0, y1 - y0
     p = subprocess.Popen([P.FF if os.path.exists(P.FF) else "ffmpeg", "-v", "error", "-ss", f"{start:.2f}", "-i", clip, "-t", f"{end - start:.2f}",
                           "-vf", f"fps={fps},crop={w}:{h}:{x0}:{y0}", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE)

@@ -15,8 +15,8 @@ OTHER_CELL = {"BLUE_REAR": "BLUE_AUDIENCE", "BLUE_AUDIENCE": "BLUE_REAR", "RED_R
 
 
 def order(label):
-    m = re.match(r"([A-Za-z]+)(\d+)", label)
-    return (0 if m.group(1).upper() == "Q" else 1, int(m.group(2)))
+    m = re.match(r"([A-Za-z])[A-Za-z]*\s*(\d+)(.*)", label)
+    return (0 if m.group(1).upper() == "Q" else 1, int(m.group(2)), 1 if m.group(3).strip() else 0)
 
 
 def main():
