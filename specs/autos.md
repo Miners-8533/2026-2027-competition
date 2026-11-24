@@ -170,7 +170,7 @@ Nominal duration about 29 s. A switch can replace steps 8 and 9 with a plain par
 
 **Boomerang's launch spot from 2026-11-21 (the user: closer to the wall):** blue (-57.6, 26.2) / red (57.6, -26.2) (`AutonSolo.BOOMERANG_LAUNCH_X / Y`), 2 in nearer the rear wall than the Triple Tip's (-55.6, 26.2), which is unchanged. Inside the grid's measured zone: speed 1402 ticks/s, aim residual +11.1 deg, heading -9.4 deg (blue), 38.5 in from the cell, the robot's back corner 4.8 in from the wall. The user first asked for 4 in; (-59.6, 26.2) is outside the measured zone and leaves 2.8 in to the wall, under the launch leg's 3 in tolerance, so 2 in was chosen. Built, not run on the robot.
 
-1. Set the target to the **rear** cell (the one the preload went into). Straight to the rear launch spot, blue (-55.6, 26.2) (the Triple Tip's, 35 in away), the ramp stowing and the pusher going to launch-ready.
+1. Set the target to the **rear** cell (the one the preload went into). Straight to the Boomerang's launch spot, blue (-57.6, 26.2) (37 in away; in its matches at the Novi Qualifier it was the Triple Tip's (-55.6, 26.2), 35 in away), the ramp stowing and the pusher going to launch-ready.
 2. Launch the Blue Wall flower's pollen at the rear cell with the grid's speed and aim (trim `REAR_AIM_TRIM_DEG`, 0).
 3. Park at (22, 55.1) through the via point (-20, 44) at heading 30 deg, as the Triple Tip and the Daryl do.
 
