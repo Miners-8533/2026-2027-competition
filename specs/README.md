@@ -63,9 +63,9 @@ Some targets only move things around and change nothing the robot does in a matc
 
 | Words | Meaning |
 |---|---|
-| In the tested build, or used at Hartland | part of the build that ran at the Hartland Qualifier on 2026-11-07 (the `main` branch) |
+| In the tested build, or used at Hartland | part of the build that ran at the Hartland Qualifier on 2026-11-07 (merged into `main` that day) |
 | Ran in practice | exercised on the robot after Hartland, outside a match |
-| Ran at Novi, or used at the Novi Qualifier | ran in a match at the Novi Qualifier on 2026-11-21, on the `integration` branch (builds dfee25d, 1fa5b23, and 9599d8b with uncommitted changes). `main` still holds the Hartland build |
+| Ran at Novi, or used at the Novi Qualifier | ran in a match at the Novi Qualifier on 2026-11-21, on the `integration` branch (builds dfee25d, 1fa5b23, and 9599d8b with the uncommitted changes that became 9fcb12d: stamp `built 2026-11-21 16:24:44 (PC clock)`, fingerprint 82e29283). That last build is `main` since 2026-11-23 |
 | Not run on the robot | builds and passes any PC checks, but has never run on the robot |
 | Off, or switched off | present in the code but disabled by a setting |
 | Hidden | an opmode that is complete but not shown on the Driver Station |

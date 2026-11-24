@@ -22,7 +22,7 @@ The robot code for **FIRST Tech Challenge team 8533, the CSPA Miners**, for the 
 Open the project in Android Studio (Narwhal 3 Feature Drop or later) and build and deploy to the Control Hub. The Dashboard for live tuning is at `192.168.43.1:8080/dash` over the hub's Wi-Fi. The hub setup checklist is in [robot_design/hub-configuration.md](robot_design/hub-configuration.md), and the Pit Check opmode checks the hardware ([specs/support-opmodes.md](specs/support-opmodes.md)).
 
 ## Branches and tags
-- **`main`** is the last build that has been **run on the robot**. Each tested build is tagged `tested-YYYY-MM-DD`.
+- **`main`** is the last build that has been **run on the robot**. Builds are not tagged: every run log names its build in its second line, the build stamp (commit id, build time by the PC's clock and, for a build with uncommitted changes, a fingerprint of them; [specs/logging.md](specs/logging.md) section 4), and `main` is brought up to the build whose stamp is in the robot's latest logs. At present that is the build of the Novi Qualifier of 2026-11-21: commit 9599d8b with the changes of 9fcb12d (fingerprint 82e29283, built 2026-11-21 16:24:44).
 - **`integration`** is the working branch: all new work lands here first, and it can contain changes that have not run on the robot yet (the feature status table in [specs/architecture.md](specs/architecture.md) says which).
 - Risky or large changes get their own branch (for example `duo-autos`) and are merged into `integration` once they work; `main` is updated only from tested builds.
 
