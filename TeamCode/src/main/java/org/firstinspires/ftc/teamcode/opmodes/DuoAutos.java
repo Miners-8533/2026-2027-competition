@@ -18,10 +18,17 @@ public final class DuoAutos {
     private DuoAutos() {}
 
     // ---- the waits (seconds from Start), tuned from the first logged runs ----
-    /** F's preload launch is not before this: G's preload salvo ends at about 2.7 s, then the 4 s tip, then 0.5 s of margin. */
-    public static double F_FIRST_LAUNCH_NOT_BEFORE_SEC = 7.2;
-    /** G's flower-pollen launch is not before this: F's second salvo ends at about 20 s, then the 4 s tip, plus margin (a first guess: read it from the first runs). */
-    public static double G_SECOND_LAUNCH_NOT_BEFORE_SEC = 25.0;
+    /** F's preload launch is not before this: 9.0 s from 2026-11-21 (user). It was 7.2: G's preload salvo ends at about 2.7 s, then the 4 s tip, then 0.5 s of margin. The robot aims BEFORE the wait (DuoKit.aimWaitLaunch), so the salvo starts when the time passes. */
+    public static double F_FIRST_LAUNCH_NOT_BEFORE_SEC = 9.0;
+    /**
+     * THE GARDEN SIDE'S LAST TWO SALVOS ARE AS LATE AS THE PARK ALLOWS with a 1 s buffer (user, 2026-11-21). The robot aims at the rear launch spot at once and rests aimed (DuoKit.aimWaitLaunch); neither salvo
+     * is before its time. The LAST (the garden pollen): 24.8 = 30 s - 1.0 s buffer - 3.2 s of park (the via point about 1.5 s, the park leg about 1.7 s) - 1.0 s of salvo from launch-ready. The SECOND (the flower
+     * pollen): 19.3 = 24.8 - 5.5 (its own 1.0 s of salvo, then the garden leg about 1.6 s, the squaring approach and the squaring 1.0 s, the leg back 1.5 s and the aim 0.4 s). Every piece is an ESTIMATE (from
+     * the Solo runs of 2026-11-20 and 21; these legs have not run): after the first run set the last to 29.0 less the measured park via point + park + salvo, and the second to the last less the measured time from
+     * the second salvo's start to the last aim's end. A robot that reaches the spot later than its time launches at once. Before 2026-11-21 there was one wait, until 25.0 s, before the flower salvo (F's second
+     * salvo and its tip), which left no time for the garden and the park.
+     */
+    public static double G_SECOND_LAUNCH_NOT_BEFORE_SEC = 19.3, G_LAST_LAUNCH_NOT_BEFORE_SEC = 24.8;
     /** Each robot's flower jostle ends by this many seconds into the auto at the latest (it also ends when the robot is full). */
     public static double F_JOSTLE_DEADLINE_SEC = 18.0, G_JOSTLE_DEADLINE_SEC = 20.0;
 
@@ -31,7 +38,13 @@ public final class DuoAutos {
     public static double G_START_Y_IN = 16.0;
 
     // ---- the launch spots (blue frame, x, y; the heading is the computed aim): F in the audience-side launch zone at its start y, G in the rear one a little off its start ----
-    public static double F_LAUNCH_X = 61.5, F_LAUNCH_Y = 7.5;
+    public static double F_LAUNCH_X = 61.5, F_LAUNCH_Y = 7.5;   // F's is unused from 2026-11-21: its preload launches from the start pose and its flower salvo from F_FLOWER_LAUNCH_X / Y
+    /**
+     * The FLOWER SIDE's launch spot for its flower salvo from 2026-11-21 (user: the learnings of the Solo, Daryl and Triple Tip autos): the Solo auto's spot, blue (56, 36) / red (-56, -36), in the 2-D launch
+     * grid's good zone for the audience cell (INTERPOLATED, speed 1371, aim residual +3.9 deg), 13.7 in from the flower back-out. It was (61.5, 7.5), at the start wall, outside the grid's spots. The speed and
+     * the aim come from the grid at the pose the robot is really at (DuoKit.launchOnGrid, Mechanisms.setLaunchGrid), so the launch leg ends within LAUNCH_POS_TOL_IN and F_FLOWER_TRIM_DEG stays 0.
+     */
+    public static double F_FLOWER_LAUNCH_X = 56.0, F_FLOWER_LAUNCH_Y = 36.0;
     public static double G_LAUNCH_X = -61.5, G_LAUNCH_Y = 15.25;
 
     // ---- aim trims (degrees, positive = counterclockwise, negative = clockwise), one per launch; the AIM log line shows them ----
@@ -57,12 +70,12 @@ public final class DuoAutos {
     public static double GARDEN_PICKUP_MAX_POWER = 0.35;
 
     // ---- the parks: both in the blue loading zone (x 23.9 to 46.6, y 59.1 to 70.1), facing the Blue Wall, F at the audience-side corner and G at the inner one ----
-    public static double F_PARK_X = 40.0, F_PARK_Y = 53.1, G_PARK_X = 26.0, G_PARK_Y = 53.1, PARK_HEADING_DEG = 90.0;
+    public static double F_PARK_X = 40.0, F_PARK_Y = 55.1, G_PARK_X = 26.0, G_PARK_Y = 53.1, PARK_HEADING_DEG = 90.0;   // F's y 55.1 from 2026-11-21 (was 53.1): 2 in farther from the field center, as the Solo and Daryl parks moved on 2026-11-20; its x stays 40 (the audience-side corner, the partner has the inner one)
     /** The park run uses full power; a target PARK_OVERSHOOT_IN past the pose pushes through the stall (0 here: with the front toward the wall a target 1 in further would press the wall). */
     public static double PARK_MAX_POWER = 1.0, PARK_OVERSHOOT_IN = 0.0, PARK_POS_TOL_IN = 2.5, PARK_HEADING_TOL_DEG = 5.0, PARK_TIMEOUT_SEC = 3.0;
     /** G's way to its park goes around the hive supports through this point (blue frame; the solo auto's helper, mirrored: G leaves from the rear side). */
     public static double HELPER_X = -36.0, HELPER_Y = 40.0;
-    /** F's way to its park goes through this point first (clear of the audience-wall flower and the hive's support rails); heading is the park heading. */
+    /** UNUSED from 2026-11-21: F parks straight from its flower launch spot (56, 36), which is already clear of the flower and the support rails. Before: F's way to its park went through this point first (it left from (61.5, 7.5), below the flower); heading is the park heading. */
     public static double F_PARK_VIA_X = 46.0, F_PARK_VIA_Y = 32.0;
 
     // ---- Auton - Duo Primary (2026-11-06, design/duo-autos.md): the rear-wall start of G with a longer program ----
@@ -75,7 +88,7 @@ public final class DuoAutos {
     public static double P_REAR_LAUNCH_X = -50.0, P_REAR_LAUNCH_Y = 26.3;
     /** The helper point outside the hive's support rails on the audience side, for the trips between the Blue Wall side and the audience side (the west one is HELPER_X / HELPER_Y). */
     public static double P_EAST_HELPER_X = 36.0, P_EAST_HELPER_Y = 40.0, P_HELPER_HEADING_DEG = 180.0;
-    public static double P_PRELOAD_TRIM_DEG = 0.0, P_WALL_TRIM_DEG = -8.0, P_AUD_FLOWER_TRIM_DEG = 0.0, P_GARDEN_TRIM_DEG = 0.0; // the salvos into the audience cell from (50, 26.3) (blue; the far cell from the rear-wall start) use -8.0, the solo auto's total trim there (user, 2026-11-07: the solo's landed left; -4.5 still landed left)
+    public static double P_PRELOAD_TRIM_DEG = 0.0, P_WALL_TRIM_DEG = -2.5, P_AUD_FLOWER_TRIM_DEG = 0.0, P_GARDEN_TRIM_DEG = 0.0; // the salvos into the audience cell from (50, 26.3) (blue; the far cell from the rear-wall start) use -8.0, the solo auto's total trim there (user, 2026-11-07: the solo's landed left; -4.5 still landed left)
     /** Each flower jostle ends by this many seconds into the auto at the latest (it also ends after its one back-and-forth or when the robot is full). */
     public static double P_WALL_JOSTLE_DEADLINE_SEC = 12.0, P_AUD_JOSTLE_DEADLINE_SEC = 21.0;
     /**
@@ -100,14 +113,66 @@ public final class DuoAutos {
     public static double D_SECOND_SHOT_NOT_BEFORE_SEC = 18.0, D_RETURN_TRAVEL_SEC = 2.4;
     /** The garden leg runs from the start straight to the wall squaring pose; the last D_GARDEN_SLOW_ZONE_IN inches (4 pollen of about 2.8 in end to end is 11.2 in, plus margin) are limited to D_GARDEN_SLOW_POWER (0.35 in the solo auto, relaxed to 0.5 by the user). */
     public static double D_GARDEN_SLOW_ZONE_IN = 12.5, D_GARDEN_SLOW_POWER = 0.5;
-    public static double D_PRELOAD_TRIM_DEG = 0.0, D_GARDEN_TRIM_DEG = -8.0, D_WALL_TRIM_DEG = -8.0; // the salvos into the audience cell from (50, 26.3) (blue; the far cell from the rear-wall start) use -8.0, the solo auto's total trim there (user, 2026-11-07: the solo's landed left; -4.5 still landed left)
+    /**
+     * The DARYL auto's audience-cell launch spot from 2026-11-20 (user: the Solo launch spot), the same for both of its audience-cell salvos: blue (56, 36), red (-56, -36), in the 2-D launch grid's good zone (it was
+     * (50, 26.3), a NO SHOT zone). The speed and the aim come from the grid at the pose the robot is really at (AimAtCell.withGrid, Mechanisms.setLaunchGrid), so D_GRID_TRIM_DEG is 0.
+     */
+    public static double D_LAUNCH_X = 56.0, D_LAUNCH_Y = 36.0, D_GRID_TRIM_DEG = 0.0;
+    /** The DARYL auto's park from 2026-11-20 (user, as the Solo auto's): blue (22, 55.1), 4 in nearer the field center in x and 2 in farther from it in y than the hive-side park (26, 53.1) the other duo autos keep; red the same turned 180 deg. */
+    public static double D_PARK_X = 22.0, D_PARK_Y = 55.1;
+    /**
+     * The DARYL auto's finish from 2026-11-21 (user): the Blue Wall flower's pollen go into the ORIGINAL cell (the preload's: blue the rear cell, red the audience cell) from the Triple Tip auto's rear launch spot,
+     * blue (-55.6, 26.2) / red (55.6, -26.2) (the 2-D grid's good zone for that cell: speed 1386, aim residual +9.8 deg; 35 in from the flower back-out), then the park through the via point (-20, 44) (a straight
+     * run from the launch spot to the park passes within an inch of the hive's foot bar) at D_PARK_HEADING_DEG (30 deg, nearer the way the robot comes in than 90). The same numbers as AutonSolo's REAR_* values.
+     * D_SECOND_SHOT_NOT_BEFORE_SEC, D_RETURN_TRAVEL_SEC, D_AUD_JOSTLE_DEADLINE_SEC and D_AUD_FLOWER_LATEST_START_SEC are unused from then (the second audience-cell salvo, its wait and the audience flower are gone).
+     */
+    public static double D_REAR_LAUNCH_X = -55.6, D_REAR_LAUNCH_Y = 26.2, D_REAR_TRIM_DEG = 0.0;
+    /**
+     * The DARYL auto's last salvo starts as LATE as the park allows (user, 2026-11-21: make the park with a 2 s buffer): the robot aims at the rear launch spot at once and rests aimed, and the salvo is not before
+     * this many seconds into the auto. 23.8 = 30 s - 2.0 s buffer - 3.2 s of park (the via point about 1.5 s for 40 in, the park leg about 1.7 s for 43 in) - 1.0 s of salvo from launch-ready. The 3.2 s and the
+     * 1.0 s are ESTIMATES (these legs have not run on the robot): read the AUTO TIMING lines of the first run ("park via point", "park (full power)", "launch (wait + salvo)") and set this to 28.0 less their sum.
+     * A robot that reaches the spot later than this launches at once.
+     */
+    public static double D_LAST_SALVO_NOT_BEFORE_SEC = 23.8;
+    public static double D_PARK_VIA_X = -20.0, D_PARK_VIA_Y = 44.0, D_PARK_HEADING_DEG = 30.0;
+    public static double D_PRELOAD_TRIM_DEG = 0.0, D_GARDEN_TRIM_DEG = -2.5, D_WALL_TRIM_DEG = -2.5;   // -2.5 from 2026-11-17 (user): the net of the old -8.0 and the far-cell extra (about +5.5 deg at this spot), which the autos no longer apply; the note that follows is of the -8.0. // the salvos into the audience cell from (50, 26.3) (blue; the far cell from the rear-wall start) use -8.0, the solo auto's total trim there (user, 2026-11-07: the solo's landed left; -4.5 still landed left)
     /** The Blue Wall flower's jostle ends by this many seconds into the auto at the latest; the audience flower's likewise, and the audience flower is skipped when it would start later than the latest start (so the park keeps its time). */
     public static double D_WALL_JOSTLE_DEADLINE_SEC = 19.0, D_AUD_JOSTLE_DEADLINE_SEC = 26.0, D_AUD_FLOWER_LATEST_START_SEC = 22.5;
+
+    // ---- Auton - Blaser's Gambit (2026-11-21, the user's design; design/duo-autos.md): the audience-wall start, a triple tip; built, not run on the robot ----
+    /** The start, as the Flower Side's: back flush to the audience wall at this y (blue frame), heading 180. */
+    public static double B_START_Y_IN = 7.5;
+    /** The preload is not before this (the user, 2026-11-21: 7 s; the partner's preload salvo and the tip). The robot aims before the wait (DuoKit.aimWaitLaunch), so the salvo starts when it passes. Every second here comes off the end of the auto. */
+    public static double B_FIRST_LAUNCH_NOT_BEFORE_SEC = 7.0;
+    /** The launch spots, blue frame, each with the 2-D grid's speed and aim: the Solo's for the audience cell (the audience flower's pollen) and the Triple Tip's for the rear cell (the Blue Wall flower's and the garden's). */
+    public static double B_AUD_LAUNCH_X = 56.0, B_AUD_LAUNCH_Y = 36.0;
+    public static double B_REAR_LAUNCH_X = -55.6, B_REAR_LAUNCH_Y = 26.2;
+    public static double B_PRELOAD_TRIM_DEG = 0.0, B_AUD_TRIM_DEG = 0.0, B_REAR_TRIM_DEG = 0.0;
+    /** Each flower's jostle (one cycle, about 1.4 s) is cut short at this many seconds into the auto; the estimate has them end at about 11.9 s and 20.1 s. */
+    public static double B_AUD_JOSTLE_DEADLINE_SEC = 16.0, B_WALL_JOSTLE_DEADLINE_SEC = 24.0;
+    /** The squaring after the garden ends after this long at the latest, as the Solo auto's. */
+    public static double B_GARDEN_SQUARING_MAX_SEC = 0.8;
+    /**
+     * The power limit of the three long legs that would otherwise run at the leg power 0.85 (the user, 2026-11-21: faster on the longest stretches): the east helper to the Blue Wall flower pre-position (62 in) and
+     * the two legs to the rear launch spot (35 and 33 in). About 0.6 s in all by the Solo run of 2026-11-20 (full-power legs 32 to 35 in/s, the 0.85 leg to the wall flower 29 in/s). If the robot overshoots the
+     * flower pre-position, lower this (0.85 is what the other autos use).
+     */
+    public static double B_LONG_LEG_POWER = 1.0;
+    /** The park is TRIED last (the salvos come first in this auto), through the via point clear of the hive's foot bar, as the Triple Tip's and the Daryl's. */
+    public static double B_PARK_X = 22.0, B_PARK_Y = 55.1, B_PARK_VIA_X = -20.0, B_PARK_VIA_Y = 44.0, B_PARK_HEADING_DEG = 30.0;
+
+    // ---- Auton - Duo Garden Side with the learnings of the other autos (2026-11-21; built, not run) ----
+    /** The launch spot of its two later salvos: the Triple Tip's rear launch spot, blue (-55.6, 26.2) / red (55.6, -26.2), with the 2-D grid's speed and aim (it was G_LAUNCH_X / Y at the start wall with the formula aim; the Cybugs auto still uses that one). */
+    public static double G_REAR_LAUNCH_X = -55.6, G_REAR_LAUNCH_Y = 26.2, G_REAR_TRIM_DEG = 0.0;
+    /** The squaring after its garden ends after this long at the latest, as the Solo auto's. */
+    public static double G_GARDEN_SQUARING_MAX_SEC = 0.8;
+    /** Its park: (22, 55.1) through the via point (-20, 44) at heading 30 deg, as the Daryl's and the Triple Tip's (it was G_PARK_X / Y (26, 53.1) through HELPER_X / Y, which the Cybugs and Primary autos keep). */
+    public static double G_SIDE_PARK_X = 22.0, G_SIDE_PARK_Y = 55.1, G_PARK_VIA_X = -20.0, G_PARK_VIA_Y = 44.0, G_PARK_HEADING_DEG = 30.0;
 
     // ---- legs, as in the solo auto ----
     public static double TIMEOUT_BASE_SEC = 1.0, TIMEOUT_IN_PER_S = 22.0, TIMEOUT_MIN_SEC = 1.5, TIMEOUT_TURN_EXTRA_SEC = 0.5, TIMEOUT_MAX_SEC = 8.0;
     public static double COARSE_POS_IN = 3.0, COARSE_HEADING_DEG = 10.0;
-    public static double LAUNCH_POS_TOL_IN = 2.5, LAUNCH_HEADING_TOL_DEG = 6.0;
+    public static double LAUNCH_POS_TOL_IN = 3.0, LAUNCH_HEADING_TOL_DEG = 12.0;   // 3 in and 12 deg from 2026-11-20 (were 2.5 and 6): the Daryl auto's speed and aim are looked up on the 2-D grid at the real pose, as the Solo auto's
     // ---- Cybugs (2026-11-07, built from Daryl) ----
     /** The salvo from the rear launch spot at the start wall into the rear cell (the cell near the start): the preload from beside it needs no trim. */
     public static double C_REAR_TRIM_DEG = 0.0;

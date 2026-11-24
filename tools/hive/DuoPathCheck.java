@@ -63,12 +63,12 @@ public class DuoPathCheck {
         leg("G park helper -> park", helper, gPark, real);
 
         // Flower side (F)
-        double[] fLaunch = {61.5, 7.5, 172.0}, flowerPre = {38.0, 26.3, 0.0}, flowerRam = {67.3, 26.3, 0.0}, flowerBack = {46.3, 26.3, 0.0}, parkVia = {46.0, 32.0, 90.0}, fPark = {40.0, 60.0, 90.0};
-        leg("F launch spot -> flower pre", new double[]{61.5, 7.5, 180.0}, flowerPre, real);
+        // 2026-11-21: the flower salvo from the Solo launch spot (56, 36) with the grid's aim (-142.1 deg), the park (40, 55.1) straight from it (it was (61.5, 7.5, 172) and the via point (46, 32))
+        double[] fLaunch = {56.0, 36.0, -142.1}, flowerPre = {38.0, 26.3, 0.0}, flowerRam = {67.3, 26.3, 0.0}, flowerBack = {46.3, 26.3, 0.0}, fPark = {40.0, 55.1, 90.0};
+        leg("F start -> flower pre", new double[]{63.4, 7.5, 180.0}, flowerPre, real);
         leg("F flower pre -> ram target", flowerPre, flowerRam, real);
         leg("F back-out -> launch spot (turning to aim)", flowerBack, fLaunch, real);
-        leg("F launch spot -> park via", fLaunch, parkVia, real);
-        leg("F park via -> park", parkVia, fPark, real);
+        leg("F launch spot -> park", fLaunch, fPark, real);
 
         // Solo final gather (2026-11-05): launch spot 2, around the outside via the helper, the Blue Wall flower, back out, the hive-side corner (the AutonSolo defaults)
         double[] sLaunch2 = {50.0, 26.3, -152.5}, sHelper = {36.0, 40.0, 180.0}, sWallPre = {-26.3, 38.0, 90.0}, sWallRam = {-26.3, 67.3, 90.0}, sWallAt = {-26.3, 55.3, 90.0}, sWallBack = {-26.3, 46.3, 90.0}, sPark = {26.0, 60.0, 90.0};
@@ -107,13 +107,37 @@ public class DuoPathCheck {
         leg("D east helper -> audience launch spot", dEastHelper, pAud, withFlowers);
         leg("D audience launch spot -> east helper", pAud, dEastHelper, withFlowers);
         leg("D east helper -> wall flower pre", dEastHelper, wallPre, withFlowers);
-        leg("D audience flower back-out -> park", flowerBack, gPark, withFlowers);
-        leg("D audience launch spot -> park (audience flower skipped)", pAud, gPark, withFlowers);
+        // 2026-11-21: the finish is the Blue Wall flower's pollen into the original cell from the rear launch spot (-55.6, 26.2), then the park (22, 55.1, 30 deg) through (-20, 44); the second audience salvo and the audience flower are gone
+        double[] dRear = {-55.6, 26.2, -11.7}, dParkVia = {-20.0, 44.0, 30.0}, dPark = {22.0, 55.1, 30.0};
+        leg("D wall flower back-out -> rear launch spot", new double[]{-26.3, 46.3, 90.0}, dRear, withFlowers);
+        leg("D rear launch spot -> park via", dRear, dParkVia, withFlowers);
+        leg("D park via -> park", dParkVia, dPark, withFlowers);
         // Cybugs (2026-11-07): the Blue Wall flower, the rear launch spot at the start wall, then the park through the helper
         double[] cRear = {-61.5, 15.25, -4.0};
         leg("C wall flower back-out -> rear launch spot", new double[]{-26.3, 46.3, 90.0}, cRear, withFlowers);
         leg("C rear launch spot -> park helper", cRear, helper, withFlowers);
         leg("C park helper -> park", helper, gPark, withFlowers);
+
+        // Duo Garden Side from 2026-11-21: the start straight to the Blue Wall flower, the Triple Tip's rear launch spot, the Solo's garden and back, the park through the via point (the "G" legs above are the old path)
+        double[] g2Rear = {-55.6, 26.2, -11.7}, g2GardenEnd = {-59.8, 58.5, 105.0}, g2Square = {-64.15, 61.1, 90.0}, g2Via = {-20.0, 44.0, 30.0}, g2Park = {22.0, 55.1, 30.0};
+        leg("G2 start -> wall flower pre", gStart, wallPre, withFlowers);
+        leg("G2 wall flower back-out -> rear launch spot", wallBack, g2Rear, withFlowers);
+        leg("G2 rear launch spot -> garden end", g2Rear, g2GardenEnd, withFlowers);
+        leg("G2 squared on the wall -> rear launch spot", g2Square, g2Rear, withFlowers);
+        leg("G2 rear launch spot -> park via", g2Rear, g2Via, withFlowers);
+        leg("G2 park via -> park", g2Via, g2Park, withFlowers);
+
+        // Blaser's Gambit (2026-11-21): the audience-wall start, the audience flower, the Solo launch spot, the Blue Wall flower, the rear launch spot, the garden and back, the park through the via point
+        double[] bStart = {63.4, 7.5, 180.0}, bAud = {56.0, 36.0, -142.1}, bRear = {-55.6, 26.2, -11.7}, bGardenEnd = {-59.8, 58.5, 105.0}, bSquare = {-64.15, 61.1, 90.0}, bVia = {-20.0, 44.0, 30.0}, bPark = {22.0, 55.1, 30.0};
+        leg("B start -> flower pre", bStart, flowerPre, real);
+        leg("B flower back-out -> audience launch spot", flowerBack, bAud, real);
+        leg("B audience launch spot -> east helper", bAud, dEastHelper, withFlowers);
+        leg("B east helper -> wall flower pre", dEastHelper, wallPre, withFlowers);
+        leg("B wall flower back-out -> rear launch spot", wallBack, bRear, withFlowers);
+        leg("B rear launch spot -> garden end", bRear, bGardenEnd, withFlowers);
+        leg("B squared on the wall -> rear launch spot", bSquare, bRear, withFlowers);
+        leg("B rear launch spot -> park via", bRear, bVia, withFlowers);
+        leg("B park via -> park", bVia, bPark, withFlowers);
 
         System.out.println(fails == 0 ? "All duo and Solo legs clear of the supports." : fails + " leg(s) touch a support.");
         System.exit(fails == 0 ? 0 : 1);

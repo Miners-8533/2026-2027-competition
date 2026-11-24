@@ -26,7 +26,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 @TeleOp(name = "Telemetry Font Test", group = "Bring-up")
 public class TelemetryFontTest extends LinearOpMode {
 
-    private static final int PAGES = 12;
+    private static final int PAGES = 13;
 
     private Telemetry.DisplayFormat format = Telemetry.DisplayFormat.HTML;
     private int page = 0;
@@ -87,7 +87,8 @@ public class TelemetryFontTest extends LinearOpMode {
                 case 8: linesPage(true); break;
                 case 9: competitionPage(0); break;
                 case 10: competitionPage(1); break;
-                default: competitionPage(2); break;
+                case 11: competitionPage(2); break;
+                default: competitionPage(3); break;
             }
             if (gamepad1.getGamepadId() == Gamepad.ID_UNASSOCIATED) telemetry.addLine("Gamepad 1 is not assigned: press Start + A on it.");
             telemetry.update();
@@ -186,9 +187,9 @@ public class TelemetryFontTest extends LinearOpMode {
         line("<tt>tt: " + r + "</tt>");
     }
 
-    // 10 to 12: the competition TeleOp's screen (CompetitionScreen) with sample facts; only the HTML format shows it as designed
+    // 10 to 13: the competition TeleOp's screen (CompetitionScreen) with sample facts; only the HTML format shows it as designed
     private void competitionPage(int variant) {
-        raw("PAGE " + (10 + variant) + ": the competition screen, sample " + (variant == 0 ? "normal driving" : variant == 1 ? "a dash with a warning" : "faults and a red alliance"));
+        raw("PAGE " + (10 + variant) + ": the competition screen, sample " + (variant == 0 ? "normal driving" : variant == 1 ? "a dash with a warning" : variant == 2 ? "faults and a red alliance" : "standing in a no-shot zone"));
         CompetitionScreen.render(telemetry, CompetitionScreen.sample(variant));
     }
 

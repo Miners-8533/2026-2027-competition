@@ -142,6 +142,13 @@ final class DuoKit {
         return timed("drive: " + label, baseDrive(drive, target).withTolerance(DuoAutos.WALL_PRE_POS_TOL_IN, DuoAutos.WALL_PRE_HEADING_TOL_DEG));
     }
 
+    /** As above at a given power limit: the Blaser's Gambit's 62 in leg from the east helper runs at B_LONG_LEG_POWER. */
+    Action wallPreLeg(String label, MecanumDrive drive, Pose2d target, double maxPower) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withMaxOutput(maxPower)
+                .withDistanceTimeout(DuoAutos.TIMEOUT_BASE_SEC, DuoAutos.TIMEOUT_IN_PER_S * maxPower / 0.6, DuoAutos.TIMEOUT_MIN_SEC, DuoAutos.TIMEOUT_TURN_EXTRA_SEC, DuoAutos.TIMEOUT_MAX_SEC)
+                .withTolerance(DuoAutos.WALL_PRE_POS_TOL_IN, DuoAutos.WALL_PRE_HEADING_TOL_DEG));
+    }
+
     /** The garden leg of the Daryl auto: from where the robot is straight to the wall squaring pose, the last D_GARDEN_SLOW_ZONE_IN inches limited to D_GARDEN_SLOW_POWER (the pollen are in a line of 4). */
     Action gardenLeg(String label, MecanumDrive drive, Pose2d target) {
         DriveToPose d = baseDrive(drive, target).withTolerance(DuoAutos.COARSE_POS_IN, DuoAutos.COARSE_HEADING_DEG)
@@ -159,6 +166,13 @@ final class DuoKit {
     /** A launch-spot leg: near is enough (the aim step turns onto the cell). */
     Action launchLeg(String label, MecanumDrive drive, Pose2d target) {
         return timed("drive: " + label, baseDrive(drive, target).withTolerance(DuoAutos.LAUNCH_POS_TOL_IN, DuoAutos.LAUNCH_HEADING_TOL_DEG));
+    }
+
+    /** A launch-spot leg at a given power limit (the Blaser's Gambit's two legs to the rear launch spot run at B_LONG_LEG_POWER: the spot only needs to be within the launch tolerances). */
+    Action launchLeg(String label, MecanumDrive drive, Pose2d target, double maxPower) {
+        return timed("drive: " + label, new DriveToPose(drive, target).withMaxOutput(maxPower)
+                .withDistanceTimeout(DuoAutos.TIMEOUT_BASE_SEC, DuoAutos.TIMEOUT_IN_PER_S * maxPower / 0.6, DuoAutos.TIMEOUT_MIN_SEC, DuoAutos.TIMEOUT_TURN_EXTRA_SEC, DuoAutos.TIMEOUT_MAX_SEC)
+                .withTolerance(DuoAutos.LAUNCH_POS_TOL_IN, DuoAutos.LAUNCH_HEADING_TOL_DEG));
     }
 
     Action crossLeg(String label, MecanumDrive drive, Pose2d target, boolean pass) {
@@ -248,7 +262,31 @@ final class DuoKit {
         return launch(drive, mechanisms, cell, blue, label, trimDeg, 0.0);
     }
 
-    /** As above with the sideways aim extra: NaN = the far-cell extra of the cell on the opposite side from the alliance's start wall (TargetLock.farCellExtraLeftIn). */
+    /** Aim with the 2-D launch grid (the bearing plus the grid's residual at the pose the robot is really at; AimAtCell.withGrid) and launch: the Daryl auto from 2026-11-20, as the Solo auto's audience-cell salvos. */
+    Action launchOnGrid(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg) {
+        return new SequentialAction(
+                note("Aim (grid) and launch: " + label),
+                timed("aim: " + label, new AimAtCell(drive, cell, blue, trimDeg, 0.0).withGrid()),
+                timed("launch (wait + salvo): " + label, mechanisms.launch()));
+    }
+
+    /**
+     * Aim at the cell NOW (the formula aim), rest aimed until notBeforeSec into the auto, then launch at once: the Flower Side's preload from 2026-11-21 (user), so the robot is aimed, at speed and at the
+     * launch-ready position during the wait for the partner's tip and the salvo starts when the time passes. The aim is not repeated after the wait (the drive rests, motors braking): a robot pushed during the
+     * wait launches from where it was pushed to. grid: aim with the 2-D launch grid (the bearing plus the grid's residual at the real pose, AimAtCell.withGrid) instead of the formula aim; the Daryl auto's last salvo
+     * from 2026-11-21.
+     */
+    Action aimWaitLaunch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, String waitLabel, double notBeforeSec, boolean grid) {
+        AimAtCell aim = new AimAtCell(drive, cell, blue, trimDeg, 0.0);
+        if (grid) aim.withGrid();
+        return new SequentialAction(
+                note("Aim" + (grid ? " (grid)" : "") + " now, launch not before " + notBeforeSec + " s: " + label),
+                timed("aim: " + label, aim),
+                waitUntil(waitLabel, notBeforeSec),
+                timed("launch (wait + salvo): " + label, mechanisms.launch()));
+    }
+
+    /** As above with the sideways aim extra: NaN = the far-cell extra of the cell on the opposite side from the alliance's start wall (TargetLock.farCellExtraLeftIn). No auto passes NaN from 2026-11-17: each launch's trim holds its whole allowance. */
     Action launch(MecanumDrive drive, Mechanisms mechanisms, HiveTarget cell, boolean blue, String label, double trimDeg, double extraLeftIn) {
         return new SequentialAction(
                 note("Aim and launch: " + label),
@@ -288,7 +326,7 @@ final class DuoKit {
                     if (!logged) {
                         logged = true;
                         RunLog.event(String.format(Locale.US, "AUTO jostle deadline reached at %.2f s into the auto: moving on with %d held", autoClock.seconds(),
-                                mechanisms.counter == null ? -1 : mechanisms.counter.count()));
+                                mechanisms.getHeldCount()));
                     }
                     return true;
                 }

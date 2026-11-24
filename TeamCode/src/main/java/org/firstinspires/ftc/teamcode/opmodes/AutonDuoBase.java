@@ -92,7 +92,7 @@ abstract class AutonDuoBase extends LinearOpMode {
             telemetry.addData("Expected start pose", "%.2f, %.2f, %.1f", start.position.x, start.position.y, start.heading.toDegrees());
             telemetry.addData("Mechanisms present", mechanisms.describe());
             telemetry.addData("Preload", mechanisms.counter == null ? "no element counter"
-                    : mechanisms.counter.isValid() ? mechanisms.counter.count() + " elements seen (expect 4)   " + mechanisms.counter.stackString()
+                    : mechanisms.counter.isValid() ? mechanisms.counter.count() + " elements seen (expect 3 with the 4 loaded: CS1, CS3 and CS4; CS2 is on the feed ramp)   " + mechanisms.counter.stackString()
                     : "counter NOT READING");
             telemetry.addLine(poseOk ? "Pose OK." : "WARNING: Pinpoint pose does not match the start pose. Do NOT start; restart the opmode.");
             telemetry.addLine("Gamepad 1: D-pad right = BLUE, D-pad left = RED, then press Start on the Driver Station.");
@@ -121,12 +121,17 @@ abstract class AutonDuoBase extends LinearOpMode {
         mechanisms.setBlueAlliance(isBlue);
         mechanisms.setIntakeAlwaysOn(true);   // the intake runs IN for the whole auto (user, 2026-11-07), whatever the count says; only a reject or an outtake runs it OUT
         mechanisms.setJamRetries(Pusher.JAM_RETRIES_AUTO);   // one jam back-off per pusher move: the autos are tight on time
+        PoseStorage.saveAims(null);   // this auto reset and seeded the Pinpoint: the remembered aims an earlier TeleOp saved corrected the old pose's drift
+        mechanisms.setHeldByEntries(Mechanisms.AUTO_PRELOAD_HELD, "the auto's preload");   // CS5 never saw the preload come in: the count starts at 4, not 0 (2026-11-17)
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel stays up between launches ...
         mechanisms.setSpinRequested(true);         // ... and spins from Start, so it is at speed on arrival at each launch spot
 
         Action auto = buildAuto(c);
 
-        Actions.runBlocking(this, auto, () -> mechanisms.update(drive.getPose()));
+        Actions.runBlocking(this, auto, () -> {
+            mechanisms.update(drive.getPose());
+            PoseStorage.saveHeld(mechanisms.getHeldForHandOver(), mechanisms.getLoadOrder());   // every loop, so a stopped or crashed auto still hands its count to the TeleOp
+        });
         RunLog.event(isStopRequested() ? "AUTO stopped before it finished" : "AUTO actions finished");
         RunLog.event(String.format(Locale.US, "AUTO TIMING total %.2f s into the auto; steps (s): %s", c.kit.autoClock.seconds(), String.join("; ", c.kit.timings)));
 
@@ -139,11 +144,15 @@ abstract class AutonDuoBase extends LinearOpMode {
             Pose2d p = drive.getPose();
             PoseStorage.save(p, isBlue);
             mechanisms.update(p);
+            PoseStorage.saveHeld(mechanisms.getHeldForHandOver(), mechanisms.getLoadOrder());
             RunLog.tick();
             telemetry.addLine("Auto complete.");
             telemetry.addData("Final Pinpoint pose (in, in, deg)", "%.2f, %.2f, %.1f", p.position.x, p.position.y, p.heading.toDegrees());
             telemetry.update();
         }
+        // the one way out, as in the TeleOp (2026-11-17): the drive, then every mechanism off at once, with no update() after it
+        drive.stop();
+        mechanisms.stopAll();
     }
 
     /** The wall-flush start x for this chassis, back against the audience (+1) or rear (-1) wall in the blue frame. */

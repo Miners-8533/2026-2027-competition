@@ -5,3 +5,5 @@ javac -d build\hivecheck TeamCode\src\main\java\org\firstinspires\ftc\teamcode\d
 java -cp build\hivecheck HiveRouteCheck
 javac -d build\hivecheck TeamCode\src\main\java\org\firstinspires\ftc\teamcode\drive\HiveRoute.java tools\hive\DuoPathCheck.java || exit /b 1
 java -cp build\hivecheck DuoPathCheck
+javac -d build\hivecheck TeamCode\src\main\java\org\firstinspires\ftc\teamcode\drive\HiveRoute.java TeamCode\src\main\java\org\firstinspires\ftc\teamcode\drive\LaunchGrid.java TeamCode\src\main\java\org\firstinspires\ftc\teamcode\subsystems\HiveTarget.java TeamCode\src\main\java\org\firstinspires\ftc\teamcode\math\*.java tools\hive\LaunchGridCheck.java || exit /b 1
+java -cp build\hivecheck LaunchGridCheck

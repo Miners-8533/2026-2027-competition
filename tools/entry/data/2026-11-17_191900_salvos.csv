@@ -1,0 +1,12 @@
+# the salvo starts of the 2026-11-17 19:19 TeleOp on the same clock: the four slots at the start (CS1 to CS4: P pollen, O other, A arm, a dot for empty), the entry count the robot logged (edge +6 / +2),
+# and from_empty = 1 when the load began on an emptied track (the salvo before it completed and started more than 4 s earlier): its entries are those from 1.3 s after that salvo's start to this one's
+t_sec,slots,logged_entries,from_empty
+84.964,PPPP,3,0
+104.729,PPPP,3,1
+115.033,PPPP,3,1
+121.053,..OP,1,1
+146.700,PPPP,4,1
+160.619,PPOP,1,1
+180.296,PPPP,4,1
+189.241,..PP,2,1
+206.521,PPPP,4,1

@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.motion.Actions;
 import org.firstinspires.ftc.teamcode.motion.DriveToPose;
+import org.firstinspires.ftc.teamcode.util.RunLog;
 
 /**
  * Tune the AXIAL (field-X, forward/back) PID. Drives 48 in forward, then back to the
@@ -28,6 +29,19 @@ public class AxialTuner extends LinearOpMode {
 
     @Override
     public void runOpMode() {
+        // a run log from 2026-11-17 (runlogs/bringup.log): the gains in force (CONFIG and TUNE lines), every leg's DRIVE lines with its time, final error and overshoot, and a row every 50 ms
+        RunLog.open(RunLog.Kind.BRINGUP, "Tune - Axial", hardwareMap);
+        try {
+            run();
+        } catch (Throwable t) {
+            RunLog.crash(t);
+            throw t;
+        } finally {
+            RunLog.close();
+        }
+    }
+
+    private void run() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
         MecanumDrive drive = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
@@ -36,6 +50,8 @@ public class AxialTuner extends LinearOpMode {
         telemetry.addLine("Clear 5+ ft ahead. START to run, B to kill.");
         telemetry.update();
         waitForStart();
+        if (isStopRequested()) return;
+        RunLog.started();
 
         Actions.cycle(this, drive,
                 new Pose2d(0, 0, 0),

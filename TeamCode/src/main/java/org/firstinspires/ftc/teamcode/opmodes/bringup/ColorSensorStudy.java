@@ -253,6 +253,10 @@ public class ColorSensorStudy extends LinearOpMode {
     private void finishStill() {
         for (int i = 0; i < NS; i++) {
             List<double[]> s = samples.get(i);
+            if (!ElementCounter.inTrack(i)) {
+                result(ElementCounter.NAMES[i] + ": on the feed ramp since 2026-11-18, not read by the slot count (no baseline to measure)");
+                continue;
+            }
             if (s.size() < 5) {
                 result(String.format(Locale.US, "%s: only %d fresh reads, not enough (is the sensor reading?)", ElementCounter.NAMES[i], s.size()));
                 continue;
@@ -314,7 +318,7 @@ public class ColorSensorStudy extends LinearOpMode {
             return;
         }
         for (int i = 0; i < NS; i++) {
-            if (stretchesFound[i] == 0) result(ElementCounter.NAMES[i] + " never lit during the sweep");
+            if (stretchesFound[i] == 0 && ElementCounter.inTrack(i)) result(ElementCounter.NAMES[i] + " never lit during the sweep");
         }
     }
 

@@ -61,7 +61,7 @@ public class AutonDuoPrimary extends AutonDuoBase {
 
         HiveTarget rearCell = DuoKit.cellForAlliance(HiveTarget.BLUE_REAR, blue);        // blue: rear, red: audience
         HiveTarget audCell = DuoKit.cellForAlliance(HiveTarget.BLUE_AUDIENCE, blue);     // blue: audience, red: rear
-        double audExtra = TargetLock.farCellExtraLeftIn(audCell, blue);                   // the far cell from the rear-wall start
+        double audExtra = 0.0;   // no far-cell extra in the autos from 2026-11-17 (user): each launch's trim holds its whole allowance (DuoAutos)                   // the far cell from the rear-wall start
         m.setOpenCell(rearCell);
 
         // the two launch spots: the headings are the computed aims at the cell of each (the audience one with the far-cell extra), AimAtCell takes out what is left
@@ -119,7 +119,7 @@ public class AutonDuoPrimary extends AutonDuoBase {
                 new InstantAction(() -> m.setOpenCell(audCell)),
                 k.launchLeg("audience launch spot", drive, audSpot),
                 k.timed("ramp stow (wait)", k.rampTo(m, false)),
-                k.launch(drive, m, audCell, blue, "wall flower pollen", DuoAutos.P_WALL_TRIM_DEG, Double.NaN),
+                k.launch(drive, m, audCell, blue, "wall flower pollen", DuoAutos.P_WALL_TRIM_DEG, 0.0),
 
                 // 4. the audience flower
                 k.unlessLate("audience flower", DuoAutos.P_AUD_FLOWER_LATEST_START_SEC, new SequentialAction(

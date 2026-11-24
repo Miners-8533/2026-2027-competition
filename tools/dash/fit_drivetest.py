@@ -8,13 +8,20 @@ Writes tools/dash/drive_model_wheel.npy (the parameters, in the order of NAMES) 
 THE MODEL (per wheel, so braking at zero power and coasting at part power are different, which the per-axis model could not have):
   the wheel speeds u (in/s along each wheel's drive direction) follow from the body velocity (forward vf, left vl in/s, turn w rad/s, robot frame):
       u_lf = vf - vl/s - kw w,  u_lb = vf + vl/s - kw w,  u_rb = vf - vl/s + kw w,  u_rf = vf + vl/s + kw w
-  (s: the strafe ratio, kw: in of wheel travel per radian of turn); each wheel's power p (the logged one, after MecanumDrive's scaling) sets a
-  target speed G_i (volts / 12) sign(p) max(0, |p| - d), and the wheel
-      BRAKES at zero power:                     du/dt = -u / tau_b - a_f sign(u)   (stops at zero)
-      COASTS when driven slower than it runs:   du/dt = -(u - target) / tau_c      (power and speed the same sign, |target| < |u|)
+  (s: the strafe ratio, kw: in of wheel travel per radian of turn). The wheel powers p (the logged ones, after MecanumDrive's scaling) are split
+  into the body command (forward, strafe, turn), each axis loses its own DEAD ZONE (d_f, d_t; the strafe's d_l only near rest, fading out by
+  V_FADE in/s: the rollers' static friction, the robot does not creep sideways at 0.16 while it creeps forward at 0.12), and the wheel powers
+  p' from that command set each wheel's target speed g_i (volts / 12) sign(p') F(|p'|), F a CURVE through (0, 0), (0.3, F3), (0.6, F6),
+  (0.15, F15), ..., (1, F10) (speed per power is flat to 0.6 and falls above it; g_i the wheels' share, mean 1); and the wheel
+      BRAKES at zero power:                     du/dt = -u / tau_b - a_b sign(u)   (stops at zero; a_b per side, a_bL and a_bR: the
+                                                                                    robot yaws while it brakes)
+      COASTS when driven slower than it runs:   du/dt = -a_c sign(u) - (u - target) / tau_c   (power and speed the same sign, |target| < |u|;
+                                                                                    measured: about 37 in/s^2 at 0.2 power from 54 down to 30 in/s)
       DRIVES otherwise:                         du/dt = (target - u) / tau_u
-  the wheel accelerations give the body's (the same kinematics backward); the tires push at most A in/s^2 (translation); the momentum keeps its
-  direction in the field while the robot turns.
+  the wheel accelerations give the body's (the same kinematics backward); the translation accel is at most A_up while it speeds the robot up
+  (the motors' current; the battery sags to 11 V at a start) and A_down while it slows it (the tires: about 210 in/s^2 down to 20 in/s when
+  braking from 80), less YAW_GRIP |turn accel| kw (the turn uses the same tires; 0.3 from the dash replay); the momentum keeps its direction in
+  the field while the robot turns.
 The error is the predicted body velocity against the measured one (Pinpoint) at every row of 0.45 s windows started from the measured velocity
 (turn rate weighted 10 in per rad).
 """
@@ -29,15 +36,24 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from drivetest_report import load  # noqa: E402
 
-NAMES = ["G_lf", "G_lb", "G_rb", "G_rf", "d", "tau_u", "tau_b", "a_f", "tau_c", "s", "kw", "A"]
-X0 = [100, 100, 100, 100, 0.06, 0.12, 0.25, 20, 0.6, 0.78, 10.0, 250]
-LO = [50, 50, 50, 50, 0.0, 0.02, 0.05, 0.0, 0.1, 0.4, 5.0, 80]
-HI = [160, 160, 160, 160, 0.2, 0.6, 1.0, 150, 5.0, 1.0, 16.0, 600]
+NAMES = ["g_lf", "g_lb", "g_rb", "F15", "F3", "F6", "F85", "F10", "d_f", "d_l", "d_t", "tau_u", "tau_b", "a_bL", "a_bR", "a_c", "tau_c", "s", "kw", "A_up", "A_down", "sa", "K_t"]
+X0 = [1.0, 1.0, 1.0, 15, 30, 59, 79, 88, 0.07, 0.15, 0.09, 0.17, 0.12, 133, 100, 37, 5.0, 0.77, 10.5, 148, 184, 0.8, 8.8]
+LO = [0.8, 0.8, 0.8, 5, 10, 30, 50, 55, 0.0, 0.0, 0.0, 0.02, 0.03, 0.0, 0.0, 0.0, 0.1, 0.4, 5.0, 60, 60, 0.2, 3.0]
+HI = [1.2, 1.2, 1.2, 30, 50, 90, 110, 120, 0.2, 0.4, 0.2, 0.6, 3.0, 600, 600, 200, 20.0, 1.0, 16.0, 600, 600, 2.0, 15.0]
+KNOTS = [0.0, 0.15, 0.3, 0.6, 0.85, 1.0]
+V_FADE = float(os.environ.get("FIT_V_FADE", "1e9"))   # in/s: the strafe dead zone fades out by this FORWARD speed (1e9: always on; the strafe steps are 0.15 short while strafing)
+# held at measurements unless FIT_FIX says otherwise: the coast of test 10 (the only clean one), and the forward dead zone and speed curve from the
+# steady ends of the forward steps (speed x 12 / vbat: 0.12 -> 4.9, 0.16 -> 9.0, 0.3 -> 23.4, 0.6 -> 53.5, 0.7 -> 62.3, 0.85 -> 72.6, 1.0 -> 84.3 in/s;
+# the fit itself, ruled by the transients, put the dead zone at 0.006 and 0.12 at 8.9 in/s)
+# and the turn line from the spins' steady rates (x 12 / vbat: 0.3 -> 104, 0.5 -> 198, 0.7 -> 305, 1.0 -> 465 deg/s: 516 deg/s = 9.0 rad/s per unit above 0.098)
+FIX_DEFAULT = "a_c=37,tau_c=5,d_f=0.072,F15=15.3,F3=30.6,F6=59.8,F85=78.1,F10=89.5,d_t=0.098,K_t=9.0"
 W = 30        # rows per window (about 0.45 s at 15 ms)
 STRIDE = 3
 HOLD_OUT = {33, 34}
 SUB = 0.005   # integration step (s)
 W_TURN = 10.0
+YAW_GRIP = float(os.environ.get("FIT_YAW_GRIP", "0.3"))
+LAG = int(os.environ.get("FIT_LAG", "0"))   # rows of delay between a logged command and the motors (checked 2026-11-07: see the design notes)
 
 
 def windows(paths):
@@ -55,8 +71,9 @@ def windows(paths):
         vb = np.array([r["vbat"] for r in rows])
         test = np.array([int(r["test"]) for r in rows])
         phase = [r["phase"] for r in rows]
-        for i in range(0, len(rows) - W, STRIDE):
+        for i in range(max(LAG, 0), len(rows) - W, STRIDE):
             j = slice(i, i + W)
+            jp = slice(i - LAG, i + W - LAG)   # the commands LAG rows earlier (a delay between the command and the motors)
             dt = np.diff(t[j])
             if dt.min() <= 0 or dt.max() > 0.05:
                 continue
@@ -67,7 +84,7 @@ def windows(paths):
                 continue
             if phase[i] in ("PAUSED", "DONE", "SETUP"):
                 continue
-            out.append(dict(t=t[j] - t[i], vf=vf[j], vl=vl[j], w=w[j], P=P[j], vb=vb[j], test=test[i], phase=phase[i]))
+            out.append(dict(t=t[j] - t[i], vf=vf[j], vl=vl[j], w=w[j], P=P[jp], vb=vb[jp], test=test[i], phase=phase[i]))
     return out
 
 
@@ -79,9 +96,16 @@ def stack(ws):
     return t, V, P, vb
 
 
+def unpack(th):
+    g = np.array([th[0], th[1], th[2], 4.0 - th[0] - th[1] - th[2]])
+    F = [0.0, th[3], th[4], th[5], th[6], th[7]]
+    return g, F, th[8:]
+
+
 def sim_wheel(th, t, V, P, vb):
-    G = np.array(th[0:4])
-    d, tau_u, tau_b, a_f, tau_c, s, kw, A = th[4:12]
+    g, F, rest = unpack(th)
+    d_f, d_l, d_t, tau_u, tau_b, a_bL, a_bR, a_c, tau_c, s, kw, A_up, A_down, sa, K_t = rest
+    a_b = np.array([a_bL, a_bL, a_bR, a_bR])[None, :]
     N, Wn = t.shape
     v = V[:, 0, :].copy()
     out = np.zeros_like(V)
@@ -91,20 +115,37 @@ def sim_wheel(th, t, V, P, vb):
         n = max(1, int(math.ceil(dt.max() / SUB)))
         h = dt / n
         p = P[:, k - 1, :]
-        tgt = G[None, :] * (vb[:, k - 1, None] / 12.0) * np.sign(p) * np.maximum(0.0, np.abs(p) - d)
         brake = np.abs(p) < 0.005
+        # the body command, each axis less its dead zone (the strafe's only near rest)
+        cf = p.mean(axis=1)
+        cl = (-p[:, 0] + p[:, 1] - p[:, 2] + p[:, 3]) / 4.0
+        ct = (-p[:, 0] - p[:, 1] + p[:, 2] + p[:, 3]) / 4.0
+        cf = np.sign(cf) * np.maximum(0.0, np.abs(cf) - d_f)
+        ct = np.sign(ct) * np.maximum(0.0, np.abs(ct) - d_t)
         for _ in range(n):
             vf, vl, w = v[:, 0], v[:, 1], v[:, 2]
+            dl = d_l * np.maximum(0.0, 1.0 - np.abs(vf) / V_FADE)   # fades with the FORWARD speed only: a pure strafe keeps it
+            cl2 = np.sign(cl) * np.maximum(0.0, np.abs(cl) - dl)
+            # the translation through the forward speed curve, the turn linear (K_t rad/s per unit at 12 V: the spins are linear to full power, 2026-11-07)
+            q = np.stack([cf - cl2, cf + cl2, cf - cl2, cf + cl2], axis=1)
+            rot = np.stack([-ct, -ct, ct, ct], axis=1) * K_t * kw
+            tgt = g[None, :] * (vb[:, k - 1, None] / 12.0) * (np.sign(q) * np.interp(np.abs(q), KNOTS, F) + rot)
             u = np.stack([vf - vl / s - kw * w, vf + vl / s - kw * w, vf - vl / s + kw * w, vf + vl / s + kw * w], axis=1)
             coast = (p * u > 0) & (np.abs(tgt) < np.abs(u)) & ~brake
-            du = np.where(brake, -u / tau_b - a_f * np.sign(u), np.where(coast, -(u - tgt) / tau_c, (tgt - u) / tau_u))
+            du = np.where(brake, -u / tau_b - a_b * np.sign(u), np.where(coast, -a_c * np.sign(u) - (u - tgt) / tau_c, (tgt - u) / tau_u))
+            # a coasting wheel does not drop below its target
+            du = np.where(coast & (np.abs(du * h[:, None]) > np.abs(u - tgt)), -(u - tgt) / h[:, None], du)
             # a braking wheel stops at zero
             du = np.where(brake & (np.abs(du * h[:, None]) > np.abs(u)), -u / h[:, None], du)
             af = du.mean(axis=1)
-            al = s * (-du[:, 0] + du[:, 1] - du[:, 2] + du[:, 3]) / 4.0
+            # sa: the sideways response (the rollers) is slower than the forward one; it does not change the strafe's steady speed
+            al = sa * s * (-du[:, 0] + du[:, 1] - du[:, 2] + du[:, 3]) / 4.0
             aw = (-du[:, 0] - du[:, 1] + du[:, 2] + du[:, 3]) / (4.0 * kw)
             mag = np.hypot(af, al)
-            sc = np.where(mag > A, A / np.maximum(mag, 1e-9), 1.0)
+            lim = np.where(af * vf + al * vl >= 0.0, A_up, A_down)
+            # the turn uses the same tires: the translation gets what is left after YAW_GRIP |aw| kw (0.3 chosen on the dash replay, 2026-11-07)
+            lim = np.maximum(0.3 * lim, lim - YAW_GRIP * np.abs(aw) * kw)
+            sc = np.where(mag > lim, lim / np.maximum(mag, 1e-9), 1.0)
             af, al = af * sc, al * sc
             v = np.stack([vf + (af + w * vl) * h, vl + (al - w * vf) * h, w + aw * h], axis=1)
         out[:, k, :] = v
@@ -162,7 +203,13 @@ def main():
     def f(th):
         return resid(sim_wheel(th, *Ts), Ts[1]).ravel()
 
-    r = least_squares(f, X0, bounds=(LO, HI), x_scale="jac", diff_step=1e-3, max_nfev=200, verbose=0)
+    lo, hi, x0 = list(LO), list(HI), list(X0)
+    # FIT_FIX="a_c=37,tau_c=5": hold parameters at measured values (the coast of test 10, 2026-11-07)
+    for item in filter(None, os.environ.get("FIT_FIX", FIX_DEFAULT).split(",")):
+        k, v = item.split("=")
+        i = NAMES.index(k)
+        x0[i], lo[i], hi[i] = float(v), float(v) - 1e-6, float(v) + 1e-6
+    r = least_squares(f, x0, bounds=(lo, hi), x_scale="jac", diff_step=1e-3, max_nfev=200, verbose=0)
     th = r.x
     print("fit:", ", ".join(f"{n} {v:.4g}" for n, v in zip(NAMES, th)), f"(cost {r.cost:.4g}, {r.nfev} evaluations)")
     np.save(os.path.join(HERE, "drive_model_wheel.npy"), th)
@@ -185,13 +232,17 @@ def main():
         a, b = rms(sim_wheel(th, *G), G[1]), rms(sim_tuned(*G), G[1])
         print(f"  test {k:2d} ({len(g):3d} windows){' held out' if k in HOLD_OUT else '         '}: {math.hypot(a[0], a[1]):5.1f} {a[2]:6.1f} | {math.hypot(b[0], b[1]):5.1f} {b[2]:6.1f}")
     # what the model says in words
-    G0 = np.array(th[0:4])
-    d, tau_u, tau_b, a_f, tau_c, s, kw, A = th[4:12]
-    vs = 12.2 / 12.0
-    print(f"\nat 12.2 V: forward 0.85 -> {G0.mean() * vs * (0.85 - d):.1f} in/s, strafe 0.85 -> {s * G0.mean() * vs * (0.85 - d):.1f}, turn 1.0 -> {math.degrees(G0.mean() * vs * (1 - d) / kw):.0f} deg/s;"
-          f" left wheels {G0[:2].mean():.1f}, right {G0[2:].mean():.1f} (a {100 * (G0[2:].mean() / G0[:2].mean() - 1):+.1f} % difference)")
-    print(f"braking from 77 in/s at zero power: {77 / tau_b + a_f:.0f} in/s^2 at first; coasting time constant {tau_c:.2f} s; speeding up {tau_u:.2f} s; tire limit {A:.0f} in/s^2")
-
+    g, F, rest = unpack(th)
+    d_f, d_l, d_t, tau_u, tau_b, a_bL, a_bR, a_c, tau_c, s_, kw, A_up, A_down, sa, K_t = rest
+    vs = 12.9 / 12.0
+    def fwd(pw):
+        return vs * np.interp(max(0.0, pw - d_f), KNOTS, F)
+    print("\nat 12.9 V, forward: " + ", ".join(f"{pw} -> {fwd(pw):.1f}" for pw in (0.12, 0.16, 0.3, 0.6, 0.85, 1.0)) + " in/s;"
+          f" strafe 0.4 / 0.7 / 0.85 -> " + " / ".join(f"{s_ * vs * np.interp(max(0, pw - d_l), KNOTS, F):.1f}" for pw in (0.4, 0.7, 0.85)) + " in/s;"
+          f" spin 0.3 / 0.5 / 0.7 / 1.0 -> " + " / ".join(f"{math.degrees(vs * K_t * max(0, pw - d_t)):.0f}" for pw in (0.3, 0.5, 0.7, 1.0)) + " deg/s;"
+          f" wheel shares {', '.join(f'{x:.3f}' for x in g)}")
+    print(f"dead zones forward {d_f:.3f}, strafe {d_l:.3f} (at rest), turn {d_t:.3f}; braking: wheels {77 / tau_b + a_bL:.0f} / {77 / tau_b + a_bR:.0f} in/s^2 from 77 in/s,"
+          f" the robot at most {A_down:.0f}; coasting {a_c:.0f} + 1/{tau_c:.2f} s; speeding up {tau_u:.2f} s, at most {A_up:.0f} in/s^2; sideways response x {sa:.2f}")
 
 if __name__ == "__main__":
     main()

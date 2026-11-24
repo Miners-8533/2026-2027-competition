@@ -22,9 +22,11 @@ import org.firstinspires.ftc.teamcode.drive.PoseStorage;
 import org.firstinspires.ftc.teamcode.drive.TargetLock;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
 import org.firstinspires.ftc.teamcode.math.PoseVelocity2d;
+import org.firstinspires.ftc.teamcode.drive.LaunchGridMap;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 import org.firstinspires.ftc.teamcode.math.Vector2d;
 import org.firstinspires.ftc.teamcode.subsystems.HiveTarget;
+import org.firstinspires.ftc.teamcode.subsystems.LaunchMap;
 import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
 import org.firstinspires.ftc.teamcode.subsystems.Pusher;
 import org.firstinspires.ftc.teamcode.util.LoopProfiler;
@@ -54,7 +56,8 @@ import java.util.Locale;
  *
  * INIT (gamepad 1):
  *   D-pad right / left   BLUE / RED alliance (only when there is no auto pose; an auto pose fixes the alliance)
- *   D-pad up             discard the auto pose and use the default start pose (then the D-pad picks the alliance)
+ *   D-pad up             discard what the last opmode saved: the auto pose (the default start pose is used, then the D-pad picks the alliance) and the CS5 held count (it starts at 0)
+ *   X                    CS5 FULL: FULL AUTO <-> COUNT ONLY (default FULL AUTO; the INIT screen and the competition screen say which; COUNT ONLY shows and logs the count and acts on nothing, as at Hartland)
  *
  * Gamepad 1 (driver):
  *   left stick           drive, field-oriented: up = away from the driver, right = the driver's right
@@ -71,11 +74,13 @@ import java.util.Locale;
  *   D-pad left / right   (HOLD) HIVE DASH: the robot drives to the launch spot of a cell, target locks and launches when ALIGNED. Left = the cell on the driver's LEFT, right = the
  *                        cell on the driver's RIGHT as seen from behind the alliance wall (blue: left = audience cell, right = rear cell; red the other way round). Releasing
  *                        the D-pad cancels at once (the sticks drive again); a salvo already launched always finishes. Refused, with no movement (the screen says DASH REFUSED), in backup mode, with a
- *                        Pinpoint fault, when the counter reads and holds nothing, or when the robot is touching a hive support. See {@link HiveDash} and design/hive-dash.md.
+ *                        Pinpoint fault, when the robot reads empty (the CS5 entry count and the counter on CS1 to CS4 both hold nothing), or when the robot is touching a hive support. See {@link HiveDash} and design/hive-dash.md.
  *   D-pad up / down      (HOLD) PARK DASH: the robot drives to a park corner of its own loading zone and stays there while the D-pad is held. Up = the corner on the driver's LEFT
  *                        (the audience-side corner for blue), down = the corner on the driver's RIGHT (the hive-side corner). The ramp is stowed when it starts. Releasing the D-pad
  *                        cancels at once. Refused, with no movement (the screen says PARK DASH REFUSED), in backup mode, with a Pinpoint fault, with an unseeded pose, while the Hive Dash runs, or when the
  *                        robot is touching a hive support. See {@link ParkDash} and design/park-dash.md.
+ *   (DRIVE LOCK has no control and is a BUILD-TIME switch, LOCK_DRIVE_DURING_SALVO: while the pusher turns forward from the START of a salvo to the next HOLD the driver's translation is ignored, the robot is braked to a stop
+ *                        and then held in its pose; the screen shows DRIVE HELD. See the constant.)
  *   (HOLD POSITION has no control: from a launch request to the end of the salvo, once the robot has settled, it holds that pose with a PID, resisting a push, and the heading too when the
  *                        target lock is not turning it; moving either stick cancels it at once. See {@link HoldPosition} and HoldPosition.ENABLED.)
  *   left bumper + right trigger  (hold 1 s) reseed the pose to the default start pose (held, so it cannot happen by accident; it was left + right bumper until 2026-11-05, when the right bumper became the target lock)
@@ -98,7 +103,7 @@ import java.util.Locale;
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
  *   right bumper         AUTO-LAUNCH on / off (a toggle, off at Start; a prototype). With it on, while the target lock is on (automatic or manual) and the robot is inside the
  *                        launch zone of the cell it is locked on (see {@link AutoLaunch}), the chassis stops by itself and, once the lock is ALIGNED and the robot has stopped,
- *                        one salvo is launched. It does nothing when the counter reads 0 elements, and the driver gets the robot back if the launch has not gone within
+ *                        one salvo is launched. It does nothing when the robot reads empty (the CS5 entry count and the counter both at 0), and the driver gets the robot back if the launch has not gone within
  *                        AutoLaunch.FREEZE_MAX_SEC. The salvo releases the lock as always.
  *   hold left bumper + Y pusher calibration sweep now (the track must be empty; the intake is held off by itself until it ends; again to stop it); Y alone stows
  *   (no control clears a pusher fault: the pusher does not fault while Pusher.FAULTS_ENABLED is false, the current setting)
@@ -130,6 +135,33 @@ public class TeleOpCompetition extends LinearOpMode {
     /** Field heading (deg) of the direction each driver faces, i.e. "stick up". */
     public static double BLUE_DRIVER_FORWARD_DEG = -90.0;
     public static double RED_DRIVER_FORWARD_DEG = 90.0;
+    /**
+     * DRIVE LOCK during the salvo (2026-11-14, a BUILD-TIME switch: change it here and reinstall; there is no Dashboard value or button): while the pusher turns forward from the START of the
+     * salvo (it began at the LOCK position, 90 deg, in the first version) to the next HOLD (360 deg past the HOLD it started from), the driver's translation is ignored, the robot is BRAKED to a
+     * stop (HoldPosition.BRAKE_KP: minus a gain times the measured velocity, until it is under the latch speed) and HOLD POSITION then keeps it where it is (the sticks do not cancel it). The 2026-11-07 to 11-12 logs: 21 percent of TeleOp salvos moved the robot more than 2 in, 13 percent more than 4 in (2 to 4 in sideways at
+     * 45 to 60 in is 2 to 4 deg of aim). The turn is not locked (the target lock and the nudge keep working). Not while the launch is only queued (waiting for the flywheel or the lock), not in
+     * backup mode. A fail-safe releases it after DRIVE_LOCK_MAX_SEC (a jammed pusher must not hold the driver), and a reject, a fault or a jam back-off ends the window by itself (the pusher
+     * leaves the forward salvo). The competition screen shows DRIVE HELD and the log a DRIVE HELD line with the time, the angle range and how far the robot moved and how hard the driver pushed.
+     */
+    public static final boolean LOCK_DRIVE_DURING_SALVO = true;
+    /**
+     * (2026-11-14, user) FULL (4 elements entered by the CS5 count since the last salvo, Mechanisms.isEntryFull) ARMS the auto-launch like the operator's right bumper does: inside the launch zone of the locked cell the chassis
+     * stops and one salvo goes when the lock is ALIGNED and the robot has stopped (the driver still holds the target lock). The operator's toggle still works on its own.
+     */
+    public static boolean AUTO_LAUNCH_WHEN_FULL = true;
+    /**
+     * FALSE from 2026-11-21 (user, at the Novi Qualifier): the TeleOp does NOT ask for the LAUNCH-READY pusher position during a target lock or a Hive Dash any more, so the arm stays at HOLD, the intake stays open
+     * and every TeleOp salvo starts from HOLD (about 1.3 s instead of about 1.0 s). The AUTOS keep the launch-ready position: they ask for it themselves (Mechanisms.requestLaunchReady), not through this.
+     * True brings the TeleOp's request back.
+     */
+    public static boolean LAUNCH_READY_IN_TELEOP = false;
+    /**
+     * (2026-11-18, user) The CS5 FULL actions, off by default and no longer chosen at INIT (the INIT switch was removed): true = FULL AUTO (a CS5 FULL stops the intake, locks the pusher, runs the intake OUT and arms the auto-launch: the Mechanisms FULL_* settings and
+     * AUTO_LAUNCH_WHEN_FULL); false = COUNT ONLY (the count is shown and logged, nothing acts on it: the intake is always IN, no lock on FULL, no auto-launch from FULL, as at Hartland). Changed only in the code or on the Dashboard before Start.
+     */
+    public static boolean FULL_AUTO = false;
+    private static final double DRIVE_LOCK_MAX_SEC = 2.0;
+
     /** An auto pose older than this is ignored (a leftover from an earlier run). */
     public static double AUTO_POSE_MAX_AGE_SEC = 300.0;
     public static double RESEED_HOLD_SEC = 1.0;
@@ -142,6 +174,11 @@ public class TeleOpCompetition extends LinearOpMode {
     public static boolean AUTO_LOCK_WHEN_FULL = false;
     /** With the lock held and not ALIGNED, the driver's launch waits for ALIGNED (at most this long, then it is dropped) instead of firing at once. */
     public static boolean LAUNCH_WAITS_FOR_ALIGN = true;
+    /**
+     * (2026-11-19, user) No launch from a spot the 2-D launch grid measured as NO SHOT: the driver's launch, the Hive Dash's and the auto-launch are refused (a log line, and the screen shows NO SHOT in very large
+     * letters while the robot stands in the zone). Not applied in backup mode or with a Pinpoint fault (the pose, so the zone, cannot be trusted). The autos never use it.
+     */
+    public static boolean BLOCK_LAUNCH_IN_NO_SHOT = true;
     public static double LAUNCH_ALIGN_WAIT_SEC = 1.5;
     /** BACKUP MODE: the fixed launch distance (the start position's distance to the cell), and how long the Pinpoint must stay faulted before it is not just a blip. */
     public static double BACKUP_LAUNCH_DISTANCE_IN = 42.0;
@@ -193,10 +230,41 @@ public class TeleOpCompetition extends LinearOpMode {
         double targetLeftIn = dist * Math.sin(err);
         double miss = TargetLock.LAUNCHER_OFFSET_LEFT_IN - targetLeftIn;
         return String.format(Locale.US, "%s, pose (%.1f, %.1f, %.1f deg), target %s (%.1f, %.1f) %.1f in, bearing %.1f deg, target %+.1f deg / %+.1f in left of the front line, "
-                        + "launcher offset %+.1f in + far-cell extra %+.1f in, predicted miss %+.1f in (against the launcher offset alone), setpoint %.0f (trim %+.0f), lock %s, remembered nudge %+.1f deg",
+                        + "launcher offset %+.1f in + far-cell extra %+.1f in, predicted miss %+.1f in (against the launcher offset alone), setpoint %.0f (trim %+.0f), lock %s, remembered nudge %+.1f deg | %s",
                 blue ? "BLUE" : "RED", pose.position.x, pose.position.y, pose.heading.toDegrees(), t, t.x, t.y, dist, Math.toDegrees(bearing),
                 Math.toDegrees(err), targetLeftIn, TargetLock.LAUNCHER_OFFSET_LEFT_IN, TargetLock.farCellExtraLeftIn(t, blue), miss, mechanisms.getLastSetpoint(), mechanisms.getSpeedTrim(),
-                lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off", cellNudgeDeg[t.ordinal()]);
+                lockOn ? (targetLock.isAligned() ? "ALIGNED" : "on") + String.format(Locale.US, " err %+.1f deg nudge %+.1f deg", targetLock.errorDeg(), targetLock.trimDeg()) : "off", cellNudgeDeg[t.ordinal()], gridSummary(t, pose, blue));
+    }
+
+    /** What the 2-D launch grid (in use from Start) and the formula aim and the 1-D launch map (used where the grid has no data) say for this launch. */
+    /** The robot stands where the 2-D launch grid says no shot works (for the cell it targets); false without a trusted pose (backup mode, a Pinpoint fault) or when the grid is not in use. */
+    private static boolean inNoShotZone(Mechanisms m, boolean backupMode, boolean pinpointBad) {
+        if (backupMode || pinpointBad || !m.isGridOn()) return false;
+        LaunchGridMap.Result r = m.getGridResult();
+        return r != null && r.zone == LaunchGridMap.Zone.NO_SHOT;
+    }
+
+    /** True (and a log line) when a launch from here is refused because of the no-shot zone. */
+    private static boolean launchBlockedInNoShot(Mechanisms m, String who, boolean backupMode, boolean pinpointBad) {
+        if (!BLOCK_LAUNCH_IN_NO_SHOT || !inNoShotZone(m, backupMode, pinpointBad)) return false;
+        RunLog.event("LAUNCH BLOCKED (" + who + "): the 2-D launch grid has no shot from here | " + m.getGridResult().note);
+        return true;
+    }
+
+    private static String gridSummary(HiveTarget t, Pose2d pose, boolean blue) {
+        LaunchGridMap.Result g = LaunchGridMap.lookup(t, pose.position.x, pose.position.y);
+        double bearing = Math.toDegrees(Math.atan2(t.y - pose.position.y, t.x - pose.position.x));
+        double formulaAim = Math.toDegrees(TargetLock.aimHeadingRad(pose.position.x, pose.position.y, t, TargetLock.farCellExtraLeftIn(t, blue)));
+        double dist = t.distanceFrom(pose);
+        String mapSpeed = LaunchMap.isEmpty() ? "map empty" : String.format(Locale.US, "map %.0f ticks/s", LaunchMap.velocityFor(dist));
+        return String.format(Locale.US, "GRID (USED where it has data) %s | formula aim %.1f deg%s | %s", g.describe(), formulaAim,
+                g.hasValues() ? String.format(Locale.US, ", grid aim %.1f deg (bearing %.1f %+.1f)", bearing + g.residualDeg, bearing, g.residualDeg) : "", mapSpeed);
+    }
+
+    private static String gridColumns(Mechanisms m) {
+        LaunchGridMap.Result g = m.getGridResult();
+        if (g == null) return "-,,";
+        return String.format(Locale.US, "%s,%s,%s", g.zone, g.hasValues() ? String.format(Locale.US, "%.0f", g.speed) : "", g.hasValues() ? String.format(Locale.US, "%.1f", g.residualDeg) : "");
     }
 
     private static boolean assigned(Gamepad gamepad) {
@@ -256,12 +324,46 @@ public class TeleOpCompetition extends LinearOpMode {
         // The ramp is NOT commanded in INIT: the servos sag when the auto ends, the auto may leave the ramp stuck or deployed, and G403 allows no
         // powered movement in the transition. It is stowed once, at Start. (The intake, flywheel and pusher constructors only set power 0.)
         Mechanisms mechanisms = Mechanisms.fromHardware(hardwareMap, Pusher.Reference.CONTINUE, false);
+        // The CS5 held count continues from the last opmode (2026-11-17, user: remember the count from the auto to the TeleOp and through an unexpected TeleOp restart). CS5 only sees elements
+        // come in, so a count that started at 0 read low until the first salvo. The autos and this TeleOp save it every loop (PoseStorage.saveHeld); it is used while it is as fresh as a saved pose
+        // must be. D-pad up in INIT discards it together with the saved pose. Nothing can be counted while no opmode runs: an element that rolled in or out since the save is missed.
+        // The operator's remembered aims continue too (2026-11-17, user), but only with the pose they corrected: when this TeleOp ADOPTED the device's pose (a restart in a match). After an auto
+        // there are none (the auto drops them when it reseeds), and a reseed or a discarded pose starts them at 0 as before.
+        boolean aimsRestored = false;
+        if (useAutoPose && loc.startMode == PinpointLocalizer.StartMode.ADOPTED && PoseStorage.isAimsFresh(AUTO_POSE_MAX_AGE_SEC)) {
+            double[] savedAims = PoseStorage.aims();
+            if (savedAims != null && savedAims.length == cellNudgeDeg.length) {
+                System.arraycopy(savedAims, 0, cellNudgeDeg, 0, cellNudgeDeg.length);
+                for (double a : cellNudgeDeg) aimsRestored |= Math.abs(a) > 1e-6;
+                RunLog.event(String.format(Locale.US, "REMEMBERED AIM continued from the last TeleOp (the pose was adopted): blue rear %+.1f, blue audience %+.1f, red rear %+.1f, red audience %+.1f deg",
+                        cellNudgeDeg[HiveTarget.BLUE_REAR.ordinal()], cellNudgeDeg[HiveTarget.BLUE_AUDIENCE.ordinal()], cellNudgeDeg[HiveTarget.RED_REAR.ordinal()], cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()]));
+            }
+        }
+        boolean hasCs5 = mechanisms.getHeldForHandOver() >= 0;
+        boolean heldSaved = hasCs5 && PoseStorage.isHeldFresh(AUTO_POSE_MAX_AGE_SEC);
+        if (heldSaved) {
+            mechanisms.setHeldByEntries(PoseStorage.held(), PoseStorage.heldOrder(), String.format(Locale.US, "saved by the last opmode %.1f s ago (limit %.0f s)", PoseStorage.heldAgeSec(), AUTO_POSE_MAX_AGE_SEC));
+        } else if (hasCs5) {
+            RunLog.event(PoseStorage.held() < 0 ? "ENTRY COUNT starts at 0: no count was saved by an earlier opmode"
+                    : String.format(Locale.US, "ENTRY COUNT starts at 0: the saved count (%d) is %.0f s old, limit %.0f s", PoseStorage.held(), PoseStorage.heldAgeSec(), AUTO_POSE_MAX_AGE_SEC));
+        }
 
         while (!isStarted() && !isStopRequested()) {
-            if (gamepad1.dpadUpWasPressed() && useAutoPose) {
-                useAutoPose = false;
+            if (gamepad1.dpadUpWasPressed() && (useAutoPose || heldSaved)) {   // discard what the last opmode saved: the pose and the CS5 held count
+                if (useAutoPose) {
+                    useAutoPose = false;
+                    blue = true;
+                    if (aimsRestored) {
+                        aimsRestored = false;
+                        Arrays.fill(cellNudgeDeg, 0.0);   // they corrected the pose that is being discarded
+                        RunLog.event("REMEMBERED AIM cleared: the saved pose was discarded in INIT");
+                    }
+                }
+                if (heldSaved) {
+                    heldSaved = false;
+                    mechanisms.setHeldByEntries(0, "the driver pressed D-pad up in INIT: the saved count is discarded");
+                }
                 PoseStorage.clear();
-                blue = true;
             }
             if (!useAutoPose) {
                 if (gamepad1.dpad_right) blue = true;
@@ -310,6 +412,17 @@ public class TeleOpCompetition extends LinearOpMode {
             }
             telemetry.addData("Mechanisms present", mechanisms.describe());
             if (mechanisms.rampPositionUnknown()) telemetry.addData("Ramp", "position unknown: not commanded in INIT, it stows when you press Start");
+            telemetry.addData("CS5 FULL", FULL_AUTO ? "FULL AUTO (set in the code): a FULL (4 entered) stops the intake, locks the pusher, runs the intake OUT and arms the auto-launch"
+                    : "COUNT ONLY: the count is shown, nothing acts on FULL (intake always IN, as at Hartland)");
+            telemetry.addData("Launch speed and aim", "2-D launch grid (the 1-D launch map and the formula aim where the grid has no data)");
+            if (aimsRestored) {
+                telemetry.addData("Remembered aim", "continued from the last TeleOp: rear %+.0f, audience %+.0f deg (D-pad up discards it with the pose)",
+                        cellNudgeDeg[(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_REAR).ordinal()], cellNudgeDeg[(blue ? HiveTarget.BLUE_AUDIENCE : HiveTarget.RED_AUDIENCE).ordinal()]);
+            }
+            telemetry.addData("CS5 held count", !hasCs5 ? "no CS5: no count"
+                    : heldSaved ? String.format(Locale.US, "starts at %d (load order %s), saved by the last opmode %.0f s ago (D-pad up on gamepad 1 discards it)", mechanisms.getHeldByEntries(), mechanisms.getLoadOrder().isEmpty() ? "-" : mechanisms.getLoadOrder(), PoseStorage.heldAgeSec())
+                    : "starts at 0 (nothing saved to continue from)");
+            telemetry.addData("Flywheel position", mechanisms.flywheelPositionText());
             telemetry.addData("Element counter", mechanisms.counter == null ? "not configured"
                     : mechanisms.counter.isValid() ? "reading   " + mechanisms.counter.stackString()
                     : "NOT READING (all four sensors must answer; count by eye in the match if it stays this way)");
@@ -336,22 +449,26 @@ public class TeleOpCompetition extends LinearOpMode {
         double driverForwardRad = Math.toRadians(blue ? BLUE_DRIVER_FORWARD_DEG : RED_DRIVER_FORWARD_DEG);
 
         mechanisms.stowRampAtStart();              // the first and only ramp command of the start (it was left alone in INIT)
+        mechanisms.holdFlywheelPollenAtStart();    // the flywheel position servo: POLLEN, held all match (nothing moved in INIT)
         mechanisms.setOpenCell(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_AUDIENCE);
         mechanisms.setBlueAlliance(blue);
         mechanisms.setAutoTarget(true);            // the target is the closer of the alliance's own two cells: nothing to pick
+        mechanisms.setEntryFullActionsAllowed(FULL_AUTO);   // ... except STOPPED when FULL (4 entered by the CS5 count since the last salvo), OUT to clear a 5th element under CS5, the pusher locked, the auto-launch armed: Mechanisms.ENTRY_FULL_ACTIONS, 2026-11-14
         mechanisms.setIntakeAlwaysOn(true);        // the intake is always IN, whatever the count and the pusher lock say; only the operator's left trigger and a reject run it OUT
         mechanisms.setAutoStopAfterSalvo(false);   // the flywheel runs the whole time ...
         mechanisms.setSpinRequested(true);         // ... from the start, until the operator stops it (left bumper)
+        mechanisms.setLaunchGrid(true, "TeleOp - Competition at Start");   // the speed and the aim of every launch: the 2-D launch grid where it has data, else the 1-D launch map and the formula aim
 
+        RunLog.event("SETUP CS5 FULL mode: " + (FULL_AUTO ? "FULL AUTO (the intake / lock / auto-launch act on FULL)" : "COUNT ONLY (the count is shown and logged, nothing acts on FULL)"));
         RunLog.event(String.format("SETUP profile %s, alliance %s, start pose %s (%.1f, %.1f, %.1f deg), driver forward %.0f deg; %s",
                 profile.name, blue ? "BLUE" : "RED", useAutoPose ? "from the AUTO" : "default",   // (pull_logs.py parses this; the PINPOINT lines say whether the device was adopted)
                 startPose.position.x, startPose.position.y, startPose.heading.toDegrees(), Math.toDegrees(driverForwardRad),
                 mechanisms.describe()));
         RunLog.event("SETUP gamepad 1 " + (assigned(gamepad1) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad1.type() + "), gamepad 2 "
                 + (assigned(gamepad2) ? "assigned" : "NOT ASSIGNED") + " (" + gamepad2.type() + ")");
-        RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS + ",a_lf,a_lb,a_rb,a_rf", SAMPLE_PERIOD_MS,
+        RunLog.setSampler("x,y,hdg_deg,stick_up,stick_right,cmd_fwd,cmd_left,cmd_turn,drive_mode,lock_err_deg," + Mechanisms.SAMPLE_COLUMNS + ",a_lf,a_lb,a_rb,a_rf,grid_zone,grid_speed,grid_resid_deg", SAMPLE_PERIOD_MS,
                 () -> String.format(Locale.US, "%.2f,%.2f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%s,%.1f,%s", logX, logY, logHeadingDeg, logUp, logRight, cmdForward, cmdLeft,
-                        cmdTurn, backupMode ? "backup" : fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow() + "," + drive.wheelAmpsRow()));
+                        cmdTurn, backupMode ? "backup" : fieldOriented ? "field" : "robot", lockErrDeg, mechanisms.sampleRow() + "," + drive.wheelAmpsRow() + "," + gridColumns(mechanisms)));
         boolean gamepad1Was = assigned(gamepad1), gamepad2Was = assigned(gamepad2);
 
         boolean reseedDown = false, reseeded = false, backupHeld = false, manualLockOn = false, autoLockSuppressed = false, prevDriverLock = false;
@@ -362,6 +479,7 @@ public class TeleOpCompetition extends LinearOpMode {
         Telemetry.DisplayFormat shownFormat = null;   // the display format last set (the match screen is HTML, the verbose one CLASSIC)
         boolean launchWaiting = false;   // a driver launch queued until the lock is ALIGNED
         ElapsedTime launchAlignClock = new ElapsedTime();
+        boolean armedByFullLogged = false;
         boolean autoLaunchOn = false, autoLaunchDone = false, autoLaunchInZone = false;   // auto-launch: the operator's toggle, taken or given up for this lock, inside a zone now
         String autoLaunchState = "";
         ElapsedTime autoLaunchZoneClock = new ElapsedTime();
@@ -373,6 +491,9 @@ public class TeleOpCompetition extends LinearOpMode {
         ParkDash parkDash = new ParkDash(profile.robotDepthIn, profile.robotWidthIn, profile.originFromBackIn);
         ParkDash.Input parkIn = new ParkDash.Input();
         HoldPosition hold = new HoldPosition();
+        boolean driveHeld = false, driveHeldGaveUp = false;
+        ElapsedTime driveHeldClock = new ElapsedTime();
+        double heldStartX = 0.0, heldStartY = 0.0, heldMaxStick = 0.0, heldStartAngle = 0.0, heldStartSpeed = 0.0;
         boolean dashOverride = false;   // Hive Dash has taken over the target cell (the nearest-cell logic is off until it lets go)
         ElapsedTime pinpointBadFor = new ElapsedTime();
         ElapsedTime loopClock = new ElapsedTime();
@@ -406,7 +527,11 @@ public class TeleOpCompetition extends LinearOpMode {
                 }
             }
             Pose2d pose = drive.getPose();
-            if (!backupMode) PoseStorage.save(pose, blue);
+            if (!backupMode) {
+                PoseStorage.save(pose, blue);
+                PoseStorage.saveAims(cellNudgeDeg);   // the remembered aims go with the pose they correct
+            }
+            PoseStorage.saveHeld(mechanisms.getHeldForHandOver(), mechanisms.getLoadOrder());   // the CS5 held count, for a TeleOp that has to be restarted (also in backup mode: the count does not need the pose)
             double heading = pose.heading.toDouble();
 
             // driver: stick up = away from the driver, stick right = the driver's right, both in field terms
@@ -429,7 +554,7 @@ public class TeleOpCompetition extends LinearOpMode {
             cmdLeft = robotLeft;
             double manualTurn = -gamepad1.right_stick_x * TURN_SCALE * scale;
             // Hive Dash (driver D-pad, held): drive to the launch spot of a cell, lock on it, launch when aligned. It uses this loop's pose and flags; nothing is read again.
-            boolean counterReads = mechanisms.counter != null && mechanisms.counter.isValid();
+            int heldEstimate = mechanisms.getHeldEstimate();   // the higher of the CS5 entry count and the counter's (CS1 to CS4), -1 when neither reads: 0 means nothing to launch
             dashIn.pose = pose;
             dashIn.measured = measured;
             // Park Dash (driver D-pad up / down, held) shares the loop's pose and flags; the two dashes never run together
@@ -447,14 +572,15 @@ public class TeleOpCompetition extends LinearOpMode {
             dashIn.requestedCell = parkDash.state() != ParkDash.State.IDLE ? null : HiveDash.cellForDpad(gamepad1.dpad_left, gamepad1.dpad_right, blue, driverForwardRad);
             dashIn.blue = blue;
             dashIn.blockedWhy = backupMode ? "backup mode" : pinpointBad ? "Pinpoint fault" : !loc.seedConfirmed ? "pose not seeded" : null;
-            dashIn.counterReadsEmpty = counterReads && mechanisms.counter.count() == 0;
-            dashIn.hasElements = !counterReads || mechanisms.counter.count() > 0;
+            dashIn.counterReadsEmpty = heldEstimate == 0;
+            dashIn.hasElements = heldEstimate != 0;
             dashIn.lockAligned = targetLock.isAligned();
             dashIn.launchBusy = mechanisms.isLaunchBusy();
             long profiledHive = LoopProfiler.start();
             HiveDash.Output dash = hiveDash.update(dashIn);
             LoopProfiler.stop("hive_dash", profiledHive);   // route planning on the first loop of a dash shows as the maximum
             mechanisms.setDashLaunchDistance(dash.overrideCell != null ? dash.overrideDistanceIn : 0.0);
+            if (dash.overrideCell != null) mechanisms.setDashLaunchSpot(dash.overrideGoalX, dash.overrideGoalY);
             if (dash.overrideCell != null) {
                 if (!dashOverride) {
                     dashOverride = true;
@@ -499,6 +625,14 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (!mechanisms.isLaunchBusy()) autoLockLatched = false;
             }
             boolean lockWanted = !backupMode && (manualLock || (AUTO_LOCK_WHEN_FULL && autoLockLatched) || dash.lockWanted);
+            boolean autoLaunchArmed = autoLaunchOn || (AUTO_LAUNCH_WHEN_FULL && !backupMode && mechanisms.isEntryFull());   // the operator's toggle, or FULL
+            if (autoLaunchArmed && !autoLaunchOn != armedByFullLogged) {
+                armedByFullLogged = autoLaunchArmed && !autoLaunchOn;
+                RunLog.event(armedByFullLogged ? "AUTO LAUNCH armed by FULL (" + mechanisms.getHeldByEntries() + " entered)" : "AUTO LAUNCH no longer armed by FULL");
+            } else if (!autoLaunchArmed && armedByFullLogged) {
+                armedByFullLogged = false;
+                RunLog.event("AUTO LAUNCH no longer armed by FULL");
+            }
             if (lockWanted) {
                 HiveTarget lockTarget = mechanisms.getOpenCell();
                 if (!lockOn) {
@@ -509,8 +643,11 @@ public class TeleOpCompetition extends LinearOpMode {
                             pose.heading.toDegrees(), blue ? "BLUE" : "RED"));
                 }
                 long profiledLock = LoopProfiler.start();
+                // the aim of the 2-D launch grid (only where it has data), as a residual on the bearing; else (NaN) the formula
+                LaunchGridMap.Result gridAim = LaunchGridMap.lookup(lockTarget, pose.position.x, pose.position.y);
+                double gridResidual = gridAim.hasValues() ? gridAim.residualDeg : Double.NaN;
                 cmdTurn = targetLock.turn(pose, measured == null ? 0.0 : measured.angVel, lockTarget,
-                        TargetLock.farCellExtraLeftIn(lockTarget, blue), cellNudgeDeg[lockTarget.ordinal()], gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt);   // the nudge needs the left bumper held
+                        TargetLock.farCellExtraLeftIn(lockTarget, blue), cellNudgeDeg[lockTarget.ordinal()], gamepad1.left_bumper ? gamepad1.right_stick_x : 0.0, dt, gridResidual);   // the nudge needs the left bumper held
                 LoopProfiler.stop("target_lock", profiledLock);
                 lockErrDeg = targetLock.errorDeg();
                 boolean aligned = targetLock.isAligned();
@@ -522,10 +659,10 @@ public class TeleOpCompetition extends LinearOpMode {
                 lockWasAligned = aligned;
 
                 // auto-launch (prototype, the operator's right bumper): inside the launch zone of the locked cell the chassis stops, then one salvo goes
-                // when the lock is ALIGNED and the robot has stopped. Not with an empty robot (the counter reads 0), and at most FREEZE_MAX_SEC of holding.
-                boolean hasElements = mechanisms.counter == null || !mechanisms.counter.isValid() || mechanisms.counter.count() > 0;
+                // when the lock is ALIGNED and the robot has stopped. Not with an empty robot (the CS5 entry count and the counter both read 0: Mechanisms.getHeldEstimate), and at most FREEZE_MAX_SEC of holding.
+                boolean hasElements = heldEstimate != 0;
                 boolean inZone = AutoLaunch.inZone(lockTarget, pose.position.x, pose.position.y);
-                if (!autoLaunchOn) {
+                if (!autoLaunchArmed) {
                     autoLaunchState = "off";
                 } else if (autoLaunchDone) {
                     autoLaunchState = "done for this lock";
@@ -560,7 +697,7 @@ public class TeleOpCompetition extends LinearOpMode {
                             lastLaunchAim = aimSummary(pose, mechanisms, blue, lockOn);
                             lastLaunchCell = lockTarget;
                             RunLog.event(String.format(Locale.US, "AUTO LAUNCH: %.2f s after entering the zone, speed %.1f in/s | %s", autoLaunchZoneClock.seconds(), speed, lastLaunchAim));
-                            mechanisms.requestLaunch();
+                            if (!launchBlockedInNoShot(mechanisms, "auto-launch", backupMode, pinpointBad)) mechanisms.requestLaunch();   // autoLaunchDone is already set: the driver has the robot again
                         }
                     }
                 }
@@ -574,13 +711,45 @@ public class TeleOpCompetition extends LinearOpMode {
                 cmdTurn = dash.turnActive ? dash.turn : park.turnActive ? park.turn : manualTurn;
                 autoLaunchDone = false;
                 autoLaunchInZone = false;
-                autoLaunchState = autoLaunchOn ? "waiting: no target lock" : "off";
+                autoLaunchState = autoLaunchArmed ? "waiting: no target lock" : "off";
             }
             // hold position while launching: from the launch request to the end of the salvo the robot holds the pose it settled in (the sticks cancel it at once)
             boolean dashDriving = (dash.translation && (Math.abs(dash.forward) + Math.abs(dash.left) > 1e-3)) || (park.translation && (Math.abs(park.forward) + Math.abs(park.left) > 1e-3));
             boolean driverMoving = Math.abs(gamepad1.left_stick_x) > 0.1 || Math.abs(gamepad1.left_stick_y) > 0.1 || (!lockOn && Math.abs(gamepad1.right_stick_x) > 0.1);
+            // DRIVE LOCK during the salvo's launching sweep (LOCK_DRIVE_DURING_SALVO): the translation is zero, HOLD POSITION keeps the pose and the sticks do not cancel it
+            boolean inSweep = LOCK_DRIVE_DURING_SALVO && !backupMode && mechanisms.isLaunchSweep();
+            if (!inSweep) driveHeldGaveUp = false;
+            boolean wantHeld = inSweep && !driveHeldGaveUp;
+            if (wantHeld && !driveHeld) {
+                driveHeld = true;
+                driveHeldClock.reset();
+                heldStartX = pose.position.x;
+                heldStartY = pose.position.y;
+                heldMaxStick = 0.0;
+                heldStartAngle = mechanisms.pusher.getSalvoProgressDeg();
+                heldStartSpeed = measured == null ? 0.0 : Math.hypot(measured.linearVel.x, measured.linearVel.y);
+            }
+            if (driveHeld && wantHeld && driveHeldClock.seconds() > DRIVE_LOCK_MAX_SEC) {
+                driveHeldGaveUp = true;
+                wantHeld = false;
+                RunLog.event(String.format(Locale.US, "DRIVE HELD gave up after %.1f s: the pusher is still in the sweep (a jam?)", driveHeldClock.seconds()));
+            }
+            if (wantHeld) {
+                heldMaxStick = Math.max(heldMaxStick, Math.hypot(gamepad1.left_stick_x, gamepad1.left_stick_y));
+                robotForward = 0.0;
+                robotLeft = 0.0;
+                cmdForward = 0.0;
+                cmdLeft = 0.0;
+                driverMoving = false;
+            } else if (driveHeld) {
+                driveHeld = false;
+                double progress = mechanisms.pusher != null ? mechanisms.pusher.getSalvoProgressDeg() : Double.NaN;
+                RunLog.event(String.format(Locale.US, "DRIVE HELD ended after %.2f s (the pusher at %s deg of its travel, from %.0f; the robot was doing %.1f in/s when it began): the robot moved %.2f in, the driver pushed up to %.2f",
+                        driveHeldClock.seconds(), Double.isNaN(progress) ? "the end of the sweep" : String.format(Locale.US, "%.0f", progress), heldStartAngle, heldStartSpeed,
+                        Math.hypot(pose.position.x - heldStartX, pose.position.y - heldStartY), heldMaxStick));
+            }
             long profiledHold = LoopProfiler.start();
-            HoldPosition.Output holding = hold.update(pose, measured, !backupMode && !pinpointBad && (mechanisms.isLaunchBusy() || parkDash.holdWanted()), driverMoving || dashDriving || backupMode || pinpointBad, !lockOn);
+            HoldPosition.Output holding = hold.update(pose, measured, !backupMode && !pinpointBad && (mechanisms.isLaunchBusy() || parkDash.holdWanted()), driverMoving || dashDriving || backupMode || pinpointBad, !lockOn, wantHeld);
             LoopProfiler.stop("hold", profiledHold);
             if (holding.active) {
                 robotForward = holding.forward;
@@ -661,8 +830,12 @@ public class TeleOpCompetition extends LinearOpMode {
             if (launchNow) {
                 lastLaunchAim = aimSummary(pose, mechanisms, blue, lockOn);
                 lastLaunchCell = mechanisms.getOpenCell();
-                RunLog.event("LAUNCH requested: " + lastLaunchAim);
-                mechanisms.requestLaunch();
+                if (launchBlockedInNoShot(mechanisms, dash.launchNow ? "Hive Dash" : "driver", backupMode, pinpointBad)) {
+                    launchNow = false;
+                } else {
+                    RunLog.event("LAUNCH requested: " + lastLaunchAim);
+                    mechanisms.requestLaunch();
+                }
             }
             if (gamepad2.rightBumperWasPressed()) {
                 autoLaunchOn = !autoLaunchOn;
@@ -701,7 +874,7 @@ public class TeleOpCompetition extends LinearOpMode {
                 }
             }
 
-            mechanisms.setPusherLockWanted(!backupMode && (lockOn || hiveDash.state() != HiveDash.State.IDLE));   // lock the pusher during a target lock or a Hive Dash
+            mechanisms.setPusherLockWanted(LAUNCH_READY_IN_TELEOP && !backupMode && (lockOn || hiveDash.state() != HiveDash.State.IDLE));   // the launch-ready pusher position during a target lock or a Hive Dash: OFF in the TeleOp from 2026-11-21 (LAUNCH_READY_IN_TELEOP false); the autos keep theirs
             mechanisms.update(pose);
             RunLog.tick();
 
@@ -716,6 +889,8 @@ public class TeleOpCompetition extends LinearOpMode {
                 screen.x = pose.position.x;
                 screen.y = pose.position.y;
                 screen.headingDeg = pose.heading.toDegrees();
+                screen.aimRearDeg = cellNudgeDeg[(blue ? HiveTarget.BLUE_REAR : HiveTarget.RED_REAR).ordinal()];   // the operator's remembered aim of each of the alliance's cells (2026-11-17, user)
+                screen.aimAudienceDeg = cellNudgeDeg[(blue ? HiveTarget.BLUE_AUDIENCE : HiveTarget.RED_AUDIENCE).ordinal()];
                 if (backupMode) screen.alert(CompetitionScreen.RED, "BACKUP MODE");
                 else if (pinpointBad) screen.alert(CompetitionScreen.RED, "PINPOINT FAULT");
                 String driveWarning = drive.getHealthWarning();   // a wheel drawing far less current than the others (DriveHealth)
@@ -725,6 +900,11 @@ public class TeleOpCompetition extends LinearOpMode {
                 if (hiveDash.status().startsWith("REFUSED")) screen.alert(CompetitionScreen.YELLOW, "DASH REFUSED");   // replaces the old rumble: the dash did not start (the reason is in the log and the verbose screen)
                 if (parkDash.status().startsWith("REFUSED")) screen.alert(CompetitionScreen.YELLOW, "PARK DASH REFUSED");
                 CompetitionScreen.fromMechanisms(screen, mechanisms, backupMode, BACKUP_LAUNCH_DISTANCE_IN);
+                if (driveHeld) screen.alert(CompetitionScreen.CYAN, "DRIVE HELD");
+                if (mechanisms.isEntryFull()) screen.alert(CompetitionScreen.CYAN, mechanisms.fullStatusText());
+                if (autoLaunchArmed && !autoLaunchOn) screen.alert(CompetitionScreen.CYAN, "AUTO-LAUNCH ARMED");
+                // the grid's no-shot zones (the launch is refused there, BLOCK_LAUNCH_IN_NO_SHOT): the very large NO SHOT line; the grid's answer is looked up every loop by Mechanisms.update anyway
+                screen.noShot = inNoShotZone(mechanisms, backupMode, pinpointBad);
                 HiveTarget dashCell = hiveDash.cell();
                 if (dashCell != null) {
                     String dashName = dashCell.name().endsWith("REAR") ? "REAR" : "AUDIENCE";
@@ -764,7 +944,9 @@ public class TeleOpCompetition extends LinearOpMode {
             telemetry.addData("Remembered aim (operator D-pad left / right)", "blue rear %+.1f, blue audience %+.1f, red rear %+.1f, red audience %+.1f deg   | speed trim %+.0f ticks/s (D-pad up / down)",
                     cellNudgeDeg[HiveTarget.BLUE_REAR.ordinal()], cellNudgeDeg[HiveTarget.BLUE_AUDIENCE.ordinal()], cellNudgeDeg[HiveTarget.RED_REAR.ordinal()],
                     cellNudgeDeg[HiveTarget.RED_AUDIENCE.ordinal()], mechanisms.getSpeedTrim());
-            telemetry.addData("Auto-launch (operator RB toggles)", backupMode ? "off (backup mode)" : autoLaunchOn ? "ON: " + autoLaunchState : "off");
+            telemetry.addData("Launch speed and aim", mechanisms.isGridOn() ? "2-D launch grid (the 1-D launch map and the formula aim where the grid has no data)" : "1-D launch map and the formula aim");
+            telemetry.addData("CS5 FULL mode", mechanisms.isEntryFullActionsOn() ? "FULL AUTO" : "COUNT ONLY");   // the mode in use (set at Start, and the Mechanisms master switch), as on the match screen; not the FULL_AUTO static, which the Dashboard can change after Start
+            telemetry.addData("Auto-launch (operator RB toggles; FULL arms it)", backupMode ? "off (backup mode)" : autoLaunchOn ? "ON: " + autoLaunchState : autoLaunchArmed ? "ARMED BY FULL: " + autoLaunchState : "off");
             telemetry.addData("Hive Dash (driver D-pad left / right, held)", hiveDash.status());
             telemetry.addData("Park Dash (driver D-pad up / down, held)", parkDash.status());
             telemetry.addData("Hold position (from the launch request to the end of the salvo)", hold.status());
@@ -778,11 +960,7 @@ public class TeleOpCompetition extends LinearOpMode {
             LoopProfiler.stop("telemetry", profiledTelemetry);   // the Driver Station and the Dashboard
         }
         drive.stop();
-        mechanisms.setIntakeRequested(false);
-        mechanisms.setManualOuttake(false);
-        mechanisms.setManualIntake(false);
-        mechanisms.stopFlywheel();
-        mechanisms.update(drive.getPose());
+        mechanisms.stopAll();   // the intake, the flywheel and the pusher off, written at once; no update() after it (with the always-IN intake an update wrote the intake IN again)
         RunLog.event("STOPPED by the driver station");
     }
 }

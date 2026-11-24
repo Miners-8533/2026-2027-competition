@@ -29,9 +29,11 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * ENCODER_SIGN makes the speed positive when the wheel turns the launching way. A dead or reversed encoder is a
  * wiring problem for the pit check to find. If the speed sensor DIES in a match this class notices (see
  * {@link #isEncoderLost}): the motor commanded at 0.9 or more for LOST_DETECT_SEC while the speed never reaches
- * LOST_SPEED_MAX. It then latches, for the rest of the run, into an open-loop mode at a fixed power for
+ * LOST_SPEED_MAX. It then switches to an open-loop mode at a fixed power for
  * LOST_BASE_SETPOINT ticks/s (LOST_BASE_POWER, a plain power with no battery compensation: the voltage is too noisy and sags with
- * the other motors) that the speed trim can adjust.
+ * the other motors) that the speed trim can adjust. Since 2026-11-16 it goes back to the closed loop when the speed reads again (a hub that
+ * stopped answering for a moment looks the same as a dead encoder; see LOST_RECOVER_ENABLED), at most LOST_MAX_RECOVERIES times a run; after that,
+ * or with the recovery off, it stays in the fixed-power mode for the rest of the run.
  * {@link #setOpenLoop} is the older manual open-loop switch (power = target / OPEN_LOOP_TOP_SPEED).
  *
  * Call {@link #update()} once per loop (autos pass it to Actions.runBlocking). Velocity is in encoder ticks
@@ -72,6 +74,16 @@ public class Flywheel {
     public static double LOST_BASE_POWER = 0.40;
     /** Encoder-lost mode: seconds after the switch until the flywheel counts as ready (it must slow from full power to the base power first). */
     public static double LOST_READY_SEC = 2.0;
+    /**
+     * RECOVERY from the encoder-lost mode (2026-11-16, not yet run on the robot): full power with no speed is also what a hub that stopped answering for a moment looks like (the 7.4 V sag of
+     * 2026-11-06 lost the expansion hub and gave a false ENCODER LOST), and then the encoder is fine once the hub is back. The speed is still read in the encoder-lost mode; when it has stayed at
+     * LOST_RECOVER_FRACTION of the target or more for LOST_RECOVER_SEC, the closed loop is used again. At most LOST_MAX_RECOVERIES times a run, so an encoder that comes and goes (a loose cable)
+     * ends in the fixed-power mode instead of switching back and forth (each time the speed goes again it costs LOST_DETECT_SEC at full power). False: latched for the rest of the run, as before.
+     */
+    public static boolean LOST_RECOVER_ENABLED = true;
+    public static double LOST_RECOVER_SEC = 1.0;
+    public static double LOST_RECOVER_FRACTION = 0.5;
+    public static int LOST_MAX_RECOVERIES = 2;
     /** How often (ms) the motor currents are refreshed for the display. */
     public static double CURRENT_REFRESH_MS = 250.0;
 
@@ -92,6 +104,10 @@ public class Flywheel {
     private String lostReason = "";
     private boolean lostWindowActive = false;
     private final ElapsedTime lostTimer = new ElapsedTime();
+    private boolean recoverWindowActive = false;
+    private final ElapsedTime recoverTimer = new ElapsedTime();
+    private int recoveries = 0;
+    private String recoveredNote = null;
 
     // Hub calls are blocking round trips, so the hub is read in one place (the velocity, at the top of update(), and the
     // currents a few times a second for the display) and written only when the power changes.
@@ -235,10 +251,39 @@ public class Flywheel {
         }
     }
 
+    /** In the encoder-lost mode: the speed reads again (LOST_RECOVER_FRACTION of the target or more for LOST_RECOVER_SEC), so the closed loop is used again. See LOST_RECOVER_ENABLED. */
+    private void detectRecovery() {
+        if (targetVelocity <= 0.0 || velocity < targetVelocity * LOST_RECOVER_FRACTION) {
+            recoverWindowActive = false;
+            return;
+        }
+        if (!recoverWindowActive) {
+            recoverWindowActive = true;
+            recoverTimer.reset();
+        } else if (recoverTimer.seconds() >= LOST_RECOVER_SEC) {
+            recoveries++;
+            encoderLost = false;
+            openLoop = false;
+            openLoopSpinning = false;
+            lostWindowActive = false;
+            recoverWindowActive = false;
+            recoveredNote = String.format(java.util.Locale.US, "the speed has read %.0f ticks/s or more for %.1f s (now %.0f of %.0f): closed loop again (recovery %d of at most %d this run)",
+                    targetVelocity * LOST_RECOVER_FRACTION, recoverTimer.seconds(), velocity, targetVelocity, recoveries, LOST_MAX_RECOVERIES);
+        }
+    }
+
+    /** One line when the flywheel has just left the encoder-lost mode (else null); returns it once. For the run log. */
+    public String takeRecoveredNote() {
+        String n = recoveredNote;
+        recoveredNote = null;
+        return n;
+    }
+
     /** Call once per loop. Reads the encoder once, up front; getVelocity() and the filter use that reading. */
     public void update() {
         velocity = ENCODER_SIGN * motor.getVelocity();
         if (LOST_DETECT_ENABLED && !encoderLost && !openLoop) detectEncoderLost();
+        else if (LOST_RECOVER_ENABLED && encoderLost && recoveries < LOST_MAX_RECOVERIES) detectRecovery();
         if (currentTimer.milliseconds() > CURRENT_REFRESH_MS) {
             currentA = motor.getCurrent(CurrentUnit.AMPS);
             // followerCurrentA = follower != null ? follower.getCurrent(CurrentUnit.AMPS) : 0.0;   // fly_follow

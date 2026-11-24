@@ -35,7 +35,11 @@ public final class CompetitionScreen {
         String target = "";           // for example "REAR 36 in"
         double x, y, headingDeg;
         boolean pusherLocked = false;
+        boolean noShot = false;       // the robot stands in a no-shot zone of the launch grid: a launch is refused (2026-11-19)
+        boolean countOnly = false;    // the CS5 FULL actions are off (COUNT ONLY): the count is shown, nothing acts on FULL
         double speedTrim = 0.0;
+        double aimRearDeg = 0.0, aimAudienceDeg = 0.0;   // the operator's remembered aim of the alliance's two cells, degrees (+ = counterclockwise); shown while either is not zero
+        int shot = 0;                 // elements launched since Start (the entry count / the counter at each salvo)
         final List<int[]> alertColors = new ArrayList<>();   // one {color} per alert, in the same order as alertTexts
         final List<String> alertTexts = new ArrayList<>();
 
@@ -60,6 +64,11 @@ public final class CompetitionScreen {
 
     /** Draws the screen: call telemetry.update() afterwards. The display format must be HTML. */
     public static void render(Telemetry t, State s) {
+        // standing where no shot works: the largest and first line (2026-11-19, user): the launch is refused here
+        if (s.noShot) {
+            t.addLine("<big><big><big><big><b>" + colored(RED, "NO SHOT") + "</b></big></big></big></big>");
+            t.addLine("<big><big><b>" + colored(RED, "LAUNCH BLOCKED: MOVE") + "</b></big></big>");
+        }
         // alerts first, red before yellow, at most three lines
         int shown = 0;
         for (int pass = 0; pass < 2 && shown < 3; pass++) {
@@ -81,19 +90,22 @@ public final class CompetitionScreen {
         if (!s.target.isEmpty()) t.addLine("<big><b>" + s.target + "</b></big>");
         // the pose
         t.addLine(String.format(Locale.US, "%.1f, %.1f, %.0f deg", s.x, s.y, s.headingDeg));
+        if (s.shot > 0) t.addLine("<small>" + s.shot + " SHOT</small>");
         // small and conditional
         if (s.pusherLocked) t.addLine("<small>" + colored(YELLOW, "PUSHER LOCKED") + "</small>");
+        if (s.countOnly) t.addLine("<small>" + colored(YELLOW, "COUNT ONLY") + " (no automatic FULL actions)</small>");
         if (Math.abs(s.speedTrim) > 0.5) t.addLine(String.format(Locale.US, "<small>speed trim %+.0f</small>", s.speedTrim));
+        if (Math.abs(s.aimRearDeg) > 0.05 || Math.abs(s.aimAudienceDeg) > 0.05) {
+            t.addLine(String.format(Locale.US, "<small>aim REAR %+.0f  AUD %+.0f deg</small>", s.aimRearDeg, s.aimAudienceDeg));
+        }
     }
 
     /** The robot's own facts: the flywheel, the count, the target cell and the warnings that matter. */
     static void fromMechanisms(State s, Mechanisms m, boolean backupMode, double backupFixedDistanceIn) {
-        if (m.counter != null && m.counter.isValid()) {
-            s.count = m.counter.count();
-        } else {
-            s.count = -1;
-        }
-        s.full = m.isFull();
+        // the count is CS5's entry count (2026-11-15, user), not the counter on CS1 to CS4; green when FULL
+        s.count = m.getShownCount();
+        s.full = s.count >= Mechanisms.ENTRY_CAPACITY || m.isEntryFull();
+        if (m.isEntryCounterDown()) s.alert(YELLOW, "CS5 NOT ANSWERING");
 
         if (m.flywheel == null) {
             s.flywheel = "NO FLY";
@@ -113,22 +125,32 @@ public final class CompetitionScreen {
         String name = cell.name().endsWith("REAR") ? "REAR" : "AUDIENCE";
         s.target = backupMode ? String.format(Locale.US, "FIXED %.0f in", backupFixedDistanceIn) : String.format(Locale.US, "%s %.0f in", name, m.getLastDistance());
         s.pusherLocked = m.isPusherLocked();
+        s.countOnly = !m.isEntryFullActionsOn();
         s.speedTrim = m.getSpeedTrim();
+        s.shot = m.getLaunchedTotal();
 
-        for (String w : m.getWarnings()) {
-            if (w.startsWith("FULL") || w.startsWith("Stow waiting") || w.startsWith("Pusher zero not verified") || w.startsWith("BACKUP MODE")) continue;   // shown elsewhere or not for a match
-            if (w.startsWith("FLYWHEEL ENCODER LOST")) s.alert(RED, "FLYWHEEL LOST");
-            else if (w.startsWith("FLYWHEEL OPEN LOOP")) s.alert(RED, "FLY OPEN LOOP");
-            else if (w.startsWith("Pusher STALLED")) s.alert(RED, "PUSHER STALLED");
-            else if (w.startsWith("Pusher not calibrated")) s.alert(RED, "PUSHER NOT CALIBRATED");
-            else if (w.startsWith("Pusher JAMMED")) s.alert(RED, "PUSHER JAMMED");
-            else if (w.startsWith("PUSHER ZERO UNCERTAIN")) s.alert(YELLOW, "PUSHER ZERO?");
-            else if (w.startsWith("OPPONENT NECTAR")) s.alert(YELLOW, "OPPONENT NECTAR: REJECT");
-            else if (w.startsWith("ELEMENT COUNTER NOT READING")) s.alert(YELLOW, "COUNTER NOT READING");
-            else if (w.startsWith("COUNTER OVERRIDE")) s.alert(YELLOW, "COUNTER OVERRIDE");
-            else if (w.startsWith("Launch map empty")) s.alert(YELLOW, "LAUNCH MAP EMPTY");
-            else if (w.startsWith("Ramp positions not measured")) continue;   // the ramp is not on this screen
-            else s.alert(YELLOW, "CHECK ROBOT (verbose)");
+        // by the warning's CODE, not its text (2026-11-16): the sentences in Mechanisms can be reworded without changing what this screen shows
+        for (Mechanisms.WarningCode w : m.getWarningCodes()) {
+            switch (w) {
+                case FULL:
+                case STOW_WAITING:
+                case PUSHER_ZERO_NOT_VERIFIED:
+                case BACKUP_MODE:
+                    break;   // shown elsewhere or not for a match
+                case RAMP_NOT_CONFIGURED:
+                    break;   // the ramp is not on this screen
+                case FLYWHEEL_ENCODER_LOST: s.alert(RED, "FLYWHEEL LOST"); break;
+                case FLYWHEEL_OPEN_LOOP: s.alert(RED, "FLY OPEN LOOP"); break;
+                case PUSHER_STALLED: s.alert(RED, "PUSHER STALLED"); break;
+                case PUSHER_NOT_CALIBRATED: s.alert(RED, "PUSHER NOT CALIBRATED"); break;
+                case PUSHER_JAMMED: s.alert(RED, "PUSHER JAMMED"); break;
+                case PUSHER_ZERO_UNCERTAIN: s.alert(YELLOW, "PUSHER ZERO?"); break;
+                case OPPONENT_NECTAR: s.alert(YELLOW, "OPPONENT NECTAR: REJECT"); break;
+                case COUNTER_NOT_READING: s.alert(YELLOW, "COUNTER NOT READING"); break;
+                case COUNTER_OVERRIDE: s.alert(YELLOW, "COUNTER OVERRIDE"); break;
+                case LAUNCH_MAP_EMPTY: s.alert(YELLOW, "LAUNCH MAP EMPTY"); break;
+                default: s.alert(YELLOW, "CHECK ROBOT (verbose)"); break;   // a code added in Mechanisms without a case here
+            }
         }
         String notice = m.getNotice();
         if (!notice.isEmpty()) s.alert(YELLOW, notice.length() > 26 ? notice.substring(0, 26) : notice);
@@ -136,7 +158,7 @@ public final class CompetitionScreen {
 
     // ---- sample screens for the Telemetry Font Test ----
 
-    /** 0: normal driving; 1: a dash in progress with a warning; 2: faults. */
+    /** 0: normal driving; 1: a dash in progress with a warning; 2: faults; 3: standing in a no-shot zone. */
     public static State sample(int variant) {
         State s = new State();
         s.blue = variant != 2;
@@ -162,6 +184,13 @@ public final class CompetitionScreen {
                 s.pusherLocked = true;
                 s.speedTrim = 10;
                 s.alert(YELLOW, "OPPONENT NECTAR: REJECT");
+                break;
+            case 3:
+                s.count = 4;
+                s.full = true;
+                s.flywheel = "READY";
+                s.flywheelColor = GREEN;
+                s.noShot = true;
                 break;
             default:
                 s.count = -1;

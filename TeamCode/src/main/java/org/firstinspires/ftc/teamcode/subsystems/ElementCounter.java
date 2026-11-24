@@ -13,8 +13,12 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import java.util.Arrays;
 
 /**
- * Counts and identifies the elements in the transport with four REV Color Sensor V3 named CS1 to CS4, numbered along the
- * track: intake -> CS1 -> CS2 -> CS3 -> CS4 -> flywheel (CS4 is deepest, nearest the flywheel and the pusher arm). The count
+ * Counts and identifies the elements in the transport with THREE REV Color Sensor V3 along the track: intake -> CS1 -> CS3 ->
+ * CS4 -> flywheel (CS4 is deepest, nearest the flywheel and the pusher arm). Until 2026-11-18 there were four: CS2 sat between
+ * CS1 and CS3. The team moved it to the top of the feed ramp, where {@link LaunchSensor} reads it; it is NOT read here, never
+ * counts, and its place in the slots text is a dash (IN_TRACK). The arrays keep four places so that the sensor numbers and the
+ * log's columns stay as they were. The count is therefore 3 at most and {@link #isFull()} can no longer be true: the robot's
+ * count is the CS5 entry count (Mechanisms.COUNT_BY_ENTRIES). Not run on the robot in this form. The count
  * is the number of sensors that see an element. The stack fills from the CS4 end, so the run of elements in a row from
  * CS4 is a check: an element seen without a neighbor toward the flywheel is still moving (or a misread) and sets
  * {@link #hasGap()}, but it still counts as held.
@@ -77,12 +81,15 @@ public class ElementCounter {
     public static double BLUE_NECTAR_MIN_BLUE_OVER_GREEN = 0.08;
     public static double BLUE_NECTAR_MAX_RED = 0.25;
     /** Pusher arm: bluish with GREEN CLOSE TO BLUE (about 0.23 / 0.38 / 0.39); a dim blue nectar has blue well above green. */
-    public static double ARM_MIN_BLUE = 0.36;
+    // 2026-11-19 (user, the new normal at CS4): the arm now reads rgb 0.21 to 0.22 / 0.41 to 0.42 / 0.36 to 0.37 at 2.5 to 3.0 cm (Pusher Calibration Test), so the blue floor is 0.34, the green to blue gap 0.10, there is
+    // a blue CEILING (blue nectar is 0.44 and up), and the distance is no longer asked for (below).
+    public static double ARM_MIN_BLUE = 0.34;
+    public static double ARM_MAX_BLUE = 0.42;
     public static double ARM_MAX_RED = 0.28;
-    public static double ARM_MAX_GREEN_BLUE_GAP = 0.06;
+    public static double ARM_MAX_GREEN_BLUE_GAP = 0.10;
     /** The arm is only expected at CS4; ColorSensorsTest turns this on to hold it in front of any sensor. */
     public static boolean ARM_ANY_SENSOR = false;
-    public static boolean ARM_REQUIRE_DISTANCE = true;
+    public static boolean ARM_REQUIRE_DISTANCE = false;   // FALSE 2026-11-19: the arm now reads 2.5 to 3.0 cm, as near as pollen (3.0), so the color alone says arm: pollen's blue is 0.18 to 0.27, nectar's 0.44 and up
     /**
      * The arm reads farther than pollen at CS4 (pollen about 3.0 cm, an empty track about 7.7). 4.0 since 2026-11-05 (was 5.5): with the recolored transport the arm's CENTER reads 5.1 to 5.2 cm and only
      * its shoulders read 5.8 cm or more, so 5.5 accepted only the shoulders: the pusher check saw a crossing 8 to 18 deg wide instead of about 46 and corrected the zero by 14 to 29 deg (and by 94 and 155 deg
@@ -93,6 +100,15 @@ public class ElementCounter {
     public static final String[] NAMES = {"CS1", "CS2", "CS3", "CS4"};
     public static final int N = NAMES.length;
     public static final int ARM_SENSOR = 3;   // CS4
+    /** CS2: at the top of the feed ramp since 2026-11-18, read by {@link LaunchSensor} and not by this class. */
+    public static final int FEED_RAMP_SENSOR = 1;
+    /** Which of the four names is a place along the track. A sensor that is not is never read here, is never an element, and is not needed for the counter to exist or to be valid. */
+    private static final boolean[] IN_TRACK = {true, false, true, true};
+
+    /** True if sensor i (0 = CS1) is a place along the track; false for CS2, which is on the feed ramp. */
+    public static boolean inTrack(int i) {
+        return IN_TRACK[i];
+    }
 
     /**
      * Empty-track readings: alpha, distance (cm), and the red / green / blue shares, per sensor. RE-MEASURED 2026-11-05 after the rotary transport was
@@ -104,9 +120,14 @@ public class ElementCounter {
      * 2026-10-31: alpha 0.077 0.080 0.173 0.038, distance 3.68 5.23 4.11 7.87, shares 0.32/0.38/0.30 0.29/0.42/0.29 0.28/0.40/0.32 0.30/0.39/0.31.)
      * Lighting and the sensor views change: re-measure in the pit (Color Sensor Study: an empty STILL take) and copy the medians here.
      */
-    private static final double[] BASE_ALPHA = {0.209, 0.109, 0.353, 0.061};
-    private static final double[] BASE_DIST = {3.60, 5.20, 3.92, 7.67};
-    private static final double[][] BASE_SHARES = {{0.238, 0.410, 0.352}, {0.220, 0.448, 0.332}, {0.226, 0.414, 0.360}, {0.240, 0.408, 0.352}};
+    // CS4 re-measured 2026-11-19 (user: the new normal for this sensor): its empty view now reads about 3 cm, not 7.7 (the 19:53 TeleOp read 6.1 to 6.9, every run from 21:45 on 2.7 to 2.9). The Pusher
+    // Calibration Test's two empty baselines, the arm at HOLD (alpha 0.078, 2.74 cm, 0.237/0.429/0.335) and the arm 40 deg past it (0.055, 3.13 cm, 0.263/0.430/0.306), averaged, so both are within about 0.02 of it.
+    // CS4 REPLACED (a new sensor, 2026-11-21, user) and re-measured the same day with the Pusher Calibration Test (robot-logs/2026-11-21/093545_bringup.log), the arm at HOLD as always: alpha 0.128, 4.53 cm,
+    // 0.248/0.415/0.337 (the old sensor's last values were 0.067, 2.94 cm, 0.250/0.430/0.320; against those the new sensor's empty view read 2.6 times the alpha, a phantom element). With the arm far away the new
+    // sensor reads alpha 0.094 and 0.277/0.412/0.311 (a shift of 0.039, under the 0.05 ON threshold); the arm at its center reads alpha 0.28 to 0.38 (2.2 to 3.0 times the baseline), 3.5 to 3.9 cm, 0.23/0.41/0.36.
+    private static final double[] BASE_ALPHA = {0.209, 0.109, 0.353, 0.128};
+    private static final double[] BASE_DIST = {3.60, 5.20, 3.92, 4.53};
+    private static final double[][] BASE_SHARES = {{0.238, 0.410, 0.352}, {0.220, 0.448, 0.332}, {0.226, 0.414, 0.360}, {0.248, 0.415, 0.337}};
 
     private final NormalizedColorSensor[] color = new NormalizedColorSensor[N];
     private final DistanceSensor[] distance = new DistanceSensor[N];
@@ -131,6 +152,7 @@ public class ElementCounter {
 
     private ElementCounter(HardwareMap hardwareMap) {
         for (int i = 0; i < N; i++) {
+            if (!IN_TRACK[i]) continue;   // CS2: left to LaunchSensor (its fast proximity setting leaves no usable distance)
             color[i] = hardwareMap.get(NormalizedColorSensor.class, NAMES[i]);
             distance[i] = hardwareMap.tryGet(DistanceSensor.class, NAMES[i]);
             color[i].setGain((float) GAIN);
@@ -139,10 +161,10 @@ public class ElementCounter {
         Arrays.fill(slot, Slot.EMPTY);
     }
 
-    /** The counter if all four sensors CS1 to CS4 are configured, else null (a robot without them still runs). */
+    /** The counter if the three track sensors CS1, CS3 and CS4 are configured, else null (a robot without them still runs). CS2 is not needed. */
     public static ElementCounter tryCreate(HardwareMap hardwareMap) {
-        for (String name : NAMES) {
-            if (hardwareMap.tryGet(NormalizedColorSensor.class, name) == null) return null;
+        for (int i = 0; i < N; i++) {
+            if (IN_TRACK[i] && hardwareMap.tryGet(NormalizedColorSensor.class, NAMES[i]) == null) return null;
         }
         return new ElementCounter(hardwareMap);
     }
@@ -170,7 +192,7 @@ public class ElementCounter {
     /** What a PRESENT object is, from its color shares (and distance, for the arm). */
     public static Slot classify(int sensor, double red, double green, double blue, double distCm) {
         if ((ARM_ANY_SENSOR || sensor == ARM_SENSOR) && (!ARM_REQUIRE_DISTANCE || distCm >= ARM_MIN_DIST_CM)
-                && blue >= ARM_MIN_BLUE && red <= ARM_MAX_RED && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return Slot.PUSHER_ARM;
+                && blue >= ARM_MIN_BLUE && blue <= ARM_MAX_BLUE && red <= ARM_MAX_RED && Math.abs(green - blue) <= ARM_MAX_GREEN_BLUE_GAP) return Slot.PUSHER_ARM;
         if (red >= RED_NECTAR_MIN_RED && red >= green - 0.01 && blue < RED_NECTAR_MAX_BLUE) return Slot.RED_NECTAR;
         if (blue >= BLUE_NECTAR_MIN_BLUE && blue - green >= BLUE_NECTAR_MIN_BLUE_OVER_GREEN && red <= BLUE_NECTAR_MAX_RED) return Slot.BLUE_NECTAR;
         if (green >= POLLEN_MIN_GREEN_OVER_BLUE * blue && red <= POLLEN_MAX_RED) return Slot.POLLEN;
@@ -185,7 +207,9 @@ public class ElementCounter {
         if ((now - lastReadNs) / 1e6 >= READ_PERIOD_MS) {
             lastReadNs = now;
             readSensor(nextSensor, now);
-            nextSensor = (nextSensor + 1) % N;
+            do {
+                nextSensor = (nextSensor + 1) % N;
+            } while (!IN_TRACK[nextSensor]);
         }
         if (frozen) return;   // the pusher lock: the sensors are still read (and logged) but the count stays where it was
         // the count changes only after the raw count has been steady for COUNT_STABLE_MS
@@ -223,6 +247,7 @@ public class ElementCounter {
     }
 
     private boolean isElement(int i) {
+        if (!IN_TRACK[i]) return false;
         if (allCountIgnored || System.nanoTime() < countIgnoredUntilNs) return false;
         if (i == ARM_SENSOR && armCountIgnored) return false;
         if (i == ARM_SENSOR && armNear && slot[i] == Slot.OTHER) return false;   // the edge of the arm in CS4's view, not an element
@@ -298,6 +323,7 @@ public class ElementCounter {
     private int contiguousFromFlywheelEnd() {
         int n = 0;
         for (int i = N - 1; i >= 0; i--) {
+            if (!IN_TRACK[i]) continue;   // CS2 is not between CS1 and CS3 any more
             if (isElement(i)) n++;
             else break;
         }
@@ -310,6 +336,7 @@ public class ElementCounter {
     public boolean isValid() {
         long now = System.nanoTime();
         for (int i = 0; i < N; i++) {
+            if (!IN_TRACK[i]) continue;
             if (readAtNs[i] == 0L || (now - readAtNs[i]) / 1e6 > STALE_MS) return false;
         }
         return true;
@@ -362,8 +389,9 @@ public class ElementCounter {
         return lastShares[i][channel];
     }
 
-    /** How far sensor i's latest color shares are from its own empty baseline (the presence rule's first test). */
+    /** How far sensor i's latest color shares are from its own empty baseline (the presence rule's first test). 0 for CS2, which is not read here. */
     public double colorShift(int i) {
+        if (!IN_TRACK[i]) return 0.0;
         return Math.sqrt(Math.pow(lastShares[i][0] - BASE_SHARES[i][0], 2) + Math.pow(lastShares[i][1] - BASE_SHARES[i][1], 2)
                 + Math.pow(lastShares[i][2] - BASE_SHARES[i][2], 2));
     }
@@ -372,6 +400,10 @@ public class ElementCounter {
     public static String describeBaselines() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < N; i++) {
+            if (!IN_TRACK[i]) {
+                sb.append(String.format(java.util.Locale.US, "%sCS%d not in the slot count (on the feed ramp)", i == 0 ? "" : "; ", i + 1));
+                continue;
+            }
             sb.append(String.format(java.util.Locale.US, "%sCS%d alpha %.3f dist %.2f cm shares %.3f/%.3f/%.3f", i == 0 ? "" : "; ", i + 1, BASE_ALPHA[i], BASE_DIST[i],
                     BASE_SHARES[i][0], BASE_SHARES[i][1], BASE_SHARES[i][2]));
         }
@@ -428,17 +460,17 @@ public class ElementCounter {
         }
     }
 
-    /** For example ".PRB" (CS1 to CS4; P pollen, R red nectar, B blue nectar, O other, A arm, . empty). */
+    /** For example ".-RB" (CS1 to CS4; P pollen, R red nectar, B blue nectar, O other, A arm, . empty; the dash is CS2, which is not a place along the track). */
     public String slotsCompact() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < N; i++) sb.append(symbol(slot[i]));
+        for (int i = 0; i < N; i++) sb.append(IN_TRACK[i] ? symbol(slot[i]) : "-");
         return sb.toString();
     }
 
-    /** For example "intake > [.] [P] [R] [B] > flywheel". */
+    /** For example "intake > [.] [R] [B] > flywheel" (CS1, CS3, CS4). */
     public String stackString() {
         StringBuilder sb = new StringBuilder("intake > ");
-        for (int i = 0; i < N; i++) sb.append("[").append(symbol(slot[i])).append("] ");
+        for (int i = 0; i < N; i++) if (IN_TRACK[i]) sb.append("[").append(symbol(slot[i])).append("] ");
         return sb.append("> flywheel").toString();
     }
 

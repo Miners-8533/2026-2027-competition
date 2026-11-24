@@ -46,6 +46,14 @@ public final class GridRoutes {
     /** The tracking allowance (in): the clearance a route keeps beyond the margin, E_MAX away from the goal, falling to E_GOAL at it over E_TAPER. */
     public static double E_MAX = 3.0, E_GOAL = 0.5, E_TAPER = 24.0;   // (1.5 at the goal did not remove the plain-fit plants' audience flower grazes and slowed the Park Dash 0.3 to 0.6 s)
     /** Corners closer than this along the route (in) are one turn for the corner speed (three small turns in 22 in swung a robot 8.8 in wide; 18 in left two corners 27 in apart swinging 5.5 in). */
+    /**
+     * The DRIFT MARGIN (in): the pose the robot believes may be out (specs/aiming.md section 5: drift is accepted, not corrected), so every clearance is kept this
+     * much wider: the trees are built with the supports and the flower stands grown by it and the walls moved in by it (RouteGen; regenerate the tables after a
+     * change), and the hop from the robot to its start point and the turn there keep it too (below). Not applied to the footprint at the goal itself, which is where
+     * the team put it (a park corner is against the wall). 3.0: on top of the 1.5 in the trees already keep beyond the tracking allowance, a pose out by 4 in in any
+     * of eight directions touched nothing on a route in the simulation (2026-11-17, tools/dash: driftsurvey); 2.0 still grazed a foot bar.
+     */
+    public static double DRIFT_IN = 3.0;
     public static double CORNER_CLUSTER_IN = 30.0;
     /** The corner speeds are calibrated to keep the swing within this share of E_MAX (a margin for corners that follow each other). */
     public static double CORNER_SAFETY = 0.75;
@@ -88,8 +96,8 @@ public final class GridRoutes {
 
     /** The motion values the routes are driven with, as the generated tables record theirs: a difference is reported (regenerate), the tables are still used. */
     public static String model() {
-        return String.format(Locale.US, "V_MAX %.1f, A_DEC %.1f, A_GRIP %.1f, E_MAX %.2f, E_GOAL %.2f, E_TAPER %.1f, CORNER_CLUSTER_IN %.1f, CORNER_SAFETY %.2f",
-                V_MAX, A_DEC, A_GRIP, E_MAX, E_GOAL, E_TAPER, CORNER_CLUSTER_IN, CORNER_SAFETY);
+        return String.format(Locale.US, "V_MAX %.1f, A_DEC %.1f, A_GRIP %.1f, E_MAX %.2f, E_GOAL %.2f, E_TAPER %.1f, CORNER_CLUSTER_IN %.1f, CORNER_SAFETY %.2f, DRIFT_IN %.2f",
+                V_MAX, A_DEC, A_GRIP, E_MAX, E_GOAL, E_TAPER, CORNER_CLUSTER_IN, CORNER_SAFETY, DRIFT_IN);
     }
 
     private static Table[] tables;
@@ -238,18 +246,132 @@ public final class GridRoutes {
         public final double[] xs, ys, speeds;
         public final int startState;
         public final double predictedSec;
+        /** 1 when the route begins with a MOVE CLEAR leg (see pickOrMoveClear): driven slowly with the heading held; else 0. */
+        public final int moveClearLegs;
 
         Route(double[] xs, double[] ys, double[] speeds, int startState, double predictedSec) {
+            this(xs, ys, speeds, startState, predictedSec, 0);
+        }
+
+        Route(double[] xs, double[] ys, double[] speeds, int startState, double predictedSec, int moveClearLegs) {
             this.xs = xs;
             this.ys = ys;
             this.speeds = speeds;
             this.startState = startState;
             this.predictedSec = predictedSec;
+            this.moveClearLegs = moveClearLegs;
         }
 
         public int legs() {
             return xs.length - 1;
         }
+    }
+
+    /**
+     * MOVE CLEAR: the most the robot slides to get clear (in), the step of the search (in) and the most speed on that leg (in/s).
+     */
+    public static double MOVE_CLEAR_MAX_IN = 30.0, MOVE_CLEAR_STEP_IN = 3.0, MOVE_CLEAR_SPEED_IN_PER_S = 20.0;
+    /** The field walls (in): the move-clear leg never takes a corner of the robot further out, and ends the drift margin inside them. */
+    public static final double WALL_IN = 71.0;
+
+    /**
+     * The route as {@link #pick} gives it, or, when there is none from where the robot stands (it is too close to something, or its pose reads as overlapping a
+     * support, which only a pose that is out can do), a route that first MOVES CLEAR: a straight slide with the heading held (no turn: a turn swings the corners)
+     * to the nearest point a route does start from. The slide is tried in 16 directions and may not come nearer to anything than the robot already is; from
+     * something the pose overlaps (a support, a wall) it must lead away and end the drift margin clear of it. The cheapest in time is taken. Null when no
+     * direction serves within MOVE_CLEAR_MAX_IN.
+     */
+    public static Route pickOrMoveClear(Table t, double x, double y, double heading) {
+        hopClear(x, y, heading, x, y);   // loads the obstacles
+        boolean inSupport = false;
+        HiveRoute.Rect me = HiveRoute.poseRect(x, y, heading, footprintParams, 0.0);
+        for (HiveRoute.Rect o : hopObstacles) if (!o.flower && HiveRoute.overlap(me, o)) inSupport = true;
+        if (!inSupport) {
+            Route r = pick(t, x, y, heading);
+            if (r != null) return r;
+        }
+        Route best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (int d = 0; d < 16; d++) {
+            double ux = Math.cos(d * Math.PI / 8.0), uy = Math.sin(d * Math.PI / 8.0);
+            for (double len = MOVE_CLEAR_STEP_IN; len <= MOVE_CLEAR_MAX_IN + 1e-9; len += MOVE_CLEAR_STEP_IN) {
+                double px = x + ux * len, py = y + uy * len;
+                int ok = moveClearCheck(x, y, heading, px, py);
+                if (ok == 2) break;       // this direction comes nearer to something: longer is no better
+                if (ok == 1) continue;    // not clear yet: go further
+                Route r = pick(t, px, py, heading);
+                if (r == null) continue;
+                double score = len / MOVE_CLEAR_SPEED_IN_PER_S + r.predictedSec;
+                if (score < bestScore) {
+                    int n = r.xs.length + 1;
+                    double[] xs = new double[n], ys = new double[n], sp = new double[n];
+                    xs[0] = x;
+                    ys[0] = y;
+                    sp[0] = Double.MAX_VALUE;
+                    System.arraycopy(r.xs, 0, xs, 1, n - 1);
+                    System.arraycopy(r.ys, 0, ys, 1, n - 1);
+                    System.arraycopy(r.speeds, 0, sp, 1, n - 1);
+                    sp[1] = MOVE_CLEAR_SPEED_IN_PER_S;
+                    limitSpeeds(xs, ys, sp, t.goalX, t.goalY);
+                    best = new Route(xs, ys, sp, r.startState, score, 1);
+                    bestScore = score;
+                }
+                break;   // the shortest slide in this direction
+            }
+        }
+        return best;
+    }
+
+    /** How far the footprint's corners reach beyond a square of half side `half` (in; 0 when inside). */
+    private static double beyond(HiveRoute.Rect r, double half) {
+        double m = 0.0;
+        for (double k : r.corners()) m = Math.max(m, Math.abs(k) - half);
+        return m;
+    }
+
+    /** The distance (in) from a point to a rectangle (0 inside it). */
+    private static double pointToRect(double px, double py, HiveRoute.Rect o) {
+        double c = Math.cos(o.ang), s = Math.sin(o.ang);
+        double dx = (px - o.cx) * c + (py - o.cy) * s, dy = -(px - o.cx) * s + (py - o.cy) * c;
+        return Math.hypot(Math.max(Math.abs(dx) - o.hx, 0.0), Math.max(Math.abs(dy) - o.hy, 0.0));
+    }
+
+    /**
+     * A move-clear slide from (x, y) to (px, py) at the heading: 0 it serves, 1 it does not come nearer to anything but does not end clear yet, 2 it comes nearer
+     * to something. Per obstacle: one the footprint overlaps must be left (the robot's center gets no nearer to it at any step) and cleared by the drift margin
+     * at the end; any other keeps the clearance it has, as on a hop. The walls: no corner goes further out than it is, and the end is the drift margin inside.
+     */
+    static int moveClearCheck(double x, double y, double heading, double px, double py) {
+        double len = Math.hypot(px - x, py - y);
+        int steps = Math.max(1, (int) Math.ceil(len / 2.0));
+        boolean endClear = true;
+        HiveRoute.Rect start = HiveRoute.poseRect(x, y, heading, footprintParams, 0.0);
+        for (HiveRoute.Rect o : hopObstacles) {
+            if (HiveRoute.overlap(start, o)) {
+                double last = pointToRect(x, y, o);
+                for (int k = 1; k <= steps; k++) {
+                    double d = pointToRect(x + (px - x) * k / steps, y + (py - y) * k / steps, o);
+                    if (d < last - 1e-6) return 2;
+                    last = d;
+                }
+                if (HiveRoute.overlap(HiveRoute.poseRect(px, py, heading, footprintParams, DRIFT_IN), o)) endClear = false;
+                continue;
+            }
+            double m = DRIFT_IN;
+            while (m > 0.0 && HiveRoute.overlap(HiveRoute.poseRect(x, y, heading, footprintParams, m), o)) m -= 0.5;
+            m = Math.max(0.0, m);
+            for (int k = 1; k <= steps; k++) {
+                if (HiveRoute.overlap(HiveRoute.poseRect(x + (px - x) * k / steps, y + (py - y) * k / steps, heading, footprintParams, m), o)) return 2;
+            }
+        }
+        double startOut = Math.max(0.0, beyond(start, WALL_IN - DRIFT_IN));
+        for (int k = 1; k <= steps; k++) {
+            double b = beyond(HiveRoute.poseRect(x + (px - x) * k / steps, y + (py - y) * k / steps, heading, footprintParams, 0.0), WALL_IN - DRIFT_IN);
+            // inside the margin already: it must stay inside; outside it: it may not go further out than it is
+            if (b > startOut + 1e-6) return 2;
+            if (k == steps && b > 1e-6) endClear = false;
+        }
+        return endClear ? 0 : 1;
     }
 
     /**
@@ -278,16 +400,18 @@ public final class GridRoutes {
                 for (int d = 0; d < STATES_PER_NODE; d++) {
                     int s = state(n, d);
                     if (!t.reachable(s)) continue;
-                    double dirAng = d == FINAL ? Math.atan2(t.goalY - nodeY(n), t.goalX - nodeX(n)) : dirAngle(d);
-                    double turn = axisTurn(heading, dirAng);
-                    cand.add(new double[]{hop / HOP_SPEED_IN_PER_S + turn * TURN_SEC_PER_RAD + t.cost[s], s, dirAng});
+                    // a cell's final leg is driven turned to the aim itself (GridFollower), so a start on it turns to the aim exactly
+                    boolean exact = d == FINAL && !Double.isNaN(t.aimHeading);
+                    double dirAng = exact ? t.aimHeading : d == FINAL ? Math.atan2(t.goalY - nodeY(n), t.goalX - nodeX(n)) : dirAngle(d);
+                    double turn = exact ? Math.abs(Rotation2d.normalize(dirAng - heading)) : axisTurn(heading, dirAng);
+                    cand.add(new double[]{hop / HOP_SPEED_IN_PER_S + turn * TURN_SEC_PER_RAD + t.cost[s], s, dirAng, exact ? 1 : 0});
                 }
             }
         }
         cand.sort((a, b) -> Double.compare(a[0], b[0]));
         for (double[] c : cand) {
             int s = (int) c[1], n = s / STATES_PER_NODE;
-            if (!startTurnClear(nodeX(n), nodeY(n), heading, c[2])) continue;
+            if (!startTurnClear(nodeX(n), nodeY(n), heading, c[2], c[3] > 0)) continue;
             return walk(t, s, x, y, c[0]);
         }
         return null;
@@ -295,16 +419,17 @@ public final class GridRoutes {
 
     /**
      * The turn at the start node from the robot's present heading onto the first leg (front or rear first, the nearer) touches no support and no flower (the robot's
-     * footprint, no margin, every 7.5 deg): the tree checks the turns between its own legs, not this one (two Park Dash starts beside a bar grazed it in the simulation).
+     * footprint grown by START_TURN_MARGIN_IN and the drift margin, every 7.5 deg): the tree checks the turns between its own legs, not this one (two Park Dash starts
+     * beside a bar grazed it in the simulation).
      */
-    static boolean startTurnClear(double nx, double ny, double heading, double dirAng) {
+    static boolean startTurnClear(double nx, double ny, double heading, double dirAng, boolean exact) {
         hopClear(nx, ny, heading, nx, ny);   // loads the obstacles
         double d = Rotation2d.normalize(dirAng - heading);
-        if (d > Math.PI / 2) d -= Math.PI;
-        if (d < -Math.PI / 2) d += Math.PI;
+        if (!exact && d > Math.PI / 2) d -= Math.PI;
+        if (!exact && d < -Math.PI / 2) d += Math.PI;
         int steps = (int) Math.ceil(Math.abs(d) / Math.toRadians(7.5));
         for (int k = 0; k <= steps; k++) {
-            HiveRoute.Rect me = HiveRoute.poseRect(nx, ny, heading + d * k / Math.max(1, steps), footprintParams, START_TURN_MARGIN_IN);
+            HiveRoute.Rect me = HiveRoute.poseRect(nx, ny, heading + d * k / Math.max(1, steps), footprintParams, START_TURN_MARGIN_IN + DRIFT_IN);
             for (HiveRoute.Rect o : hopObstacles) if (HiveRoute.overlap(me, o)) return false;
         }
         return true;
@@ -313,7 +438,10 @@ public final class GridRoutes {
     private static HiveRoute.Params footprintParams;
     private static java.util.List<HiveRoute.Rect> hopObstacles;
 
-    /** The robot's footprint (ROBOT_1's, no margin) at the present heading, every 2 in along the hop, touches no support and no flower. */
+    /**
+     * The robot's footprint (ROBOT_1's) at the present heading, every 2 in along the hop, stays the drift margin clear of every support and flower. A robot that
+     * stands nearer than that to one (it has just gathered at a flower) keeps the clearance it has, to the half inch: it may leave, it may not come nearer.
+     */
     static boolean hopClear(double x, double y, double heading, double nx, double ny) {
         if (footprintParams == null) {
             footprintParams = new HiveRoute.Params();
@@ -322,15 +450,24 @@ public final class GridRoutes {
         }
         double len = Math.hypot(nx - x, ny - y);
         int steps = Math.max(1, (int) Math.ceil(len / 2.0));
-        HiveRoute.Rect start = HiveRoute.poseRect(x, y, heading, footprintParams, 0.0);
         for (HiveRoute.Rect o : hopObstacles) {
-            if (HiveRoute.overlap(start, o)) continue;   // already touching it (a robot that has just gathered at a flower): it is leaving, not hitting
+            double m = DRIFT_IN;
+            while (m > 0.0 && HiveRoute.overlap(HiveRoute.poseRect(x, y, heading, footprintParams, m), o)) m -= 0.5;
+            if (m <= 0.0) {
+                m = 0.0;
+                if (HiveRoute.overlap(HiveRoute.poseRect(x, y, heading, footprintParams, 0.0), o)) continue;   // already touching it: it is leaving, not hitting
+            }
             for (int k = 1; k <= steps; k++) {
                 double px = x + (nx - x) * k / steps, py = y + (ny - y) * k / steps;
-                if (HiveRoute.overlap(HiveRoute.poseRect(px, py, heading, footprintParams, 0.0), o)) return false;
+                if (HiveRoute.overlap(HiveRoute.poseRect(px, py, heading, footprintParams, m), o)) return false;
             }
         }
         return true;
+    }
+
+    /** The turn (rad) from either end of the axis along ang (the nearer to the aim) to the aim: the body turn onto a cell's final leg, which is driven turned to the aim. */
+    public static double aimTurn(double ang, double aim) {
+        return Math.min(Math.abs(Rotation2d.normalize(aim - ang)), Math.abs(Rotation2d.normalize(aim - ang - Math.PI)));
     }
 
     /** The smallest turn (rad, 0 to pi/2) from the heading to either end of the axis along direction ang (a leg may be driven front or rear first). */

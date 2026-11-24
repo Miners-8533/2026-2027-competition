@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.drive.ChassisProfile;
@@ -28,6 +29,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *   7. Park in the hive-side corner of the loading zone (26, 53.1) through the helper point (-36, 40), ramp stowed.
  * The intake runs IN from the start (AutonDuoBase) until the last salvo. Estimated at about 24.7 s (design/duo-autos.md).
  */
+@Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @Autonomous(name = "Auton - Cybugs", group = "Auto")
 public class AutonCybugs extends AutonDuoBase {
 
@@ -61,7 +63,7 @@ public class AutonCybugs extends AutonDuoBase {
 
         // the audience launch spot: the heading is the computed aim at the audience cell with the far-cell extra (the solo auto's spot, on the audience flower's line)
         Pose2d audXY = DuoKit.forAlliance(DuoKit.pose(DuoAutos.P_AUD_LAUNCH_X, DuoAutos.P_AUD_LAUNCH_Y, 0.0), blue);
-        double audExtra = TargetLock.farCellExtraLeftIn(audCell, blue);
+        double audExtra = 0.0;   // no far-cell extra in the autos from 2026-11-17 (user): each launch's trim holds its whole allowance (DuoAutos)
         // the spot headings include the salvo's aim trim (2026-11-07): the leg arrives pointed at the trimmed aim and the aim step only fine-tunes
         double audAim = TargetLock.aimHeadingRad(audXY.position.x, audXY.position.y, audCell, audExtra);
         Pose2d audSpot = new Pose2d(audXY.position.x, audXY.position.y, audAim + Math.toRadians(DuoAutos.D_GARDEN_TRIM_DEG));
@@ -110,7 +112,7 @@ public class AutonCybugs extends AutonDuoBase {
                 k.crossLeg("east helper (outside the support rails)", drive, eastHelper, true),
                 new InstantAction(() -> m.setOpenCell(audCell)),
                 k.launchLeg("audience launch spot", drive, audSpot),
-                k.launch(drive, m, audCell, blue, "garden pollen", DuoAutos.D_GARDEN_TRIM_DEG, Double.NaN),
+                k.launch(drive, m, audCell, blue, "garden pollen", DuoAutos.D_GARDEN_TRIM_DEG, 0.0),
 
                 // 4. the Blue Wall flower
                 new InstantAction(m::requestDeploy),   // deploys on the way

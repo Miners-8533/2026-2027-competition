@@ -23,6 +23,19 @@ public final class GridDash {
     /** Braked down to this speed (in/s), or after STOP_TIMEOUT_SEC, the dash picks a new route; at most MAX_REPICKS times per dash. */
     public static double REPICK_SPEED_IN_PER_S = 6.0, STOP_TIMEOUT_SEC = 1.0;
     public static int MAX_REPICKS = 2;
+    /**
+     * True drives the grid route as one smooth path ({@link SmoothFollower}: the fewest points, arcs at the corners, one turn to the goal heading, one speed
+     * profile) when such a path is clear, and leg by leg with GridFollower when it is not. ON since 2026-11-18 for both dashes (the team's decision), in simulation
+     * only: NOT YET RUN ON THE ROBOT. False drives every grid route leg by leg.
+     */
+    public static boolean SMOOTH = true;
+    /** The smooth path is taken when its predicted time is no more than this (s) over the leg-by-leg route's. */
+    public static double SMOOTH_MAX_EXTRA_SEC = 0.3;
+    /**
+     * False (the robot): the smooth path is the one the generated plan table names for the start nearest the robot (SmoothTables, made offline), checked at the
+     * robot's pose. True (PC studies only): the full search for the quickest plan on the spot, which the generator runs offline; it is far too slow for the loop.
+     */
+    public static boolean SMOOTH_SEARCH = false;
 
     public static final class Output {
         public boolean translation, turnActive, lockWanted, arrived;
@@ -56,6 +69,19 @@ public final class GridDash {
         GridRoutes.Table[] ts = GridRoutes.tables();
         if (ts == null) return GridRoutes.tablesProblem();
         if (ts.length > 0) GridRoutes.pick(ts[0], -30.0, -30.0, 0.0);
+        String grid = gridProblem(), plans = SmoothFollower.tablesProblem(), map = SmoothFollower.mapProblem();
+        if (plans == null && ts.length > 0) {
+            // one lookup and check now, so the first press does not pay for unpacking the plan tables
+            GridRoutes.Route r = GridRoutes.pick(ts[0], -30.0, -30.0, 0.0);
+            if (r != null) SmoothFollower.build(ts[0].name, -30.0, -30.0, 0.0, r.xs, r.ys, ts[0].aimHeading, 2.5, 0.0);
+        }
+        StringBuilder b = new StringBuilder();
+        for (String p : new String[]{grid, plans, map}) if (p != null) b.append(b.length() == 0 ? "" : "; ").append(p);
+        return b.length() == 0 ? null : b.toString();
+    }
+
+    /** The route trees were generated with the motion values in force, or what differs. */
+    private static String gridProblem() {
         return GridTables.MODEL.equals(GridRoutes.model()) ? null
                 : "the tables were generated with other motion values (" + GridTables.MODEL + "; now " + GridRoutes.model() + "): they are used, but regenerate them";
     }
@@ -68,6 +94,10 @@ public final class GridDash {
     private final ElapsedTime stopClock = new ElapsedTime();
     private GridRoutes.Route route;
     private GridFollower follower;
+    private SmoothFollower smooth;   // the smooth path of this route, or null (then the follower drives it)
+    private boolean smoothReported = false;
+    /** The time the smooth path's planning took for this route (ms): on the robot it must stay a small part of a loop. */
+    private double planMs = 0.0;
     private double[][] waypoints;
     private boolean stopping = false;
     private int repicks = 0, lastLeg = 0;
@@ -83,14 +113,33 @@ public final class GridDash {
     /** Picks the route from the robot's pose (field frame). Null when there is one, otherwise why not. */
     public String start(double x, double y, double h) {
         double s = blue ? 1.0 : -1.0;
-        GridRoutes.Route r = GridRoutes.pick(table, s * x, s * y, blue ? h : h + Math.PI);
-        if (r == null) return "no grid route from here (no grid point near the robot reaches the goal)";
+        GridRoutes.Route r = GridRoutes.pickOrMoveClear(table, s * x, s * y, blue ? h : h + Math.PI);
+        if (r == null) return "no grid route from here, and no straight move of up to " + (int) GridRoutes.MOVE_CLEAR_MAX_IN + " in leads clear to one";
         route = r;
+        smoothReported = false;
+        boolean slower = false;
         double[][] f = GridFollower.toField(r, blue);
         double aim = Double.isNaN(table.aimHeading) ? Double.NaN : blue ? table.aimHeading : table.aimHeading + Math.PI;
-        follower = new GridFollower(f[0], f[1], f[2], aim, goalTolIn, h);
-        waypoints = new double[f[0].length][];
-        for (int i = 0; i < waypoints.length; i++) waypoints[i] = new double[]{f[0][i], f[1][i]};
+        long t0 = System.nanoTime();
+        smooth = !SMOOTH || r.moveClearLegs > 0 ? null : SMOOTH_SEARCH ? SmoothFollower.search(f[0], f[1], aim, goalTolIn, h)
+                : SmoothFollower.build(table.name, s * x, s * y, blue ? h : h + Math.PI, f[0], f[1], aim, goalTolIn, h);
+        planMs = (System.nanoTime() - t0) / 1e6;
+        if (smooth != null && smooth.predictedSec() > r.predictedSec + SMOOTH_MAX_EXTRA_SEC) {
+            // both times are predictions from rest and both run short; the smooth path's turns can cost more than the legs' corners
+            RunLog.event(String.format(Locale.US, "%s smooth path not taken (%.2f s predicted against %.2f s leg by leg): %s", prefix, smooth.predictedSec(), r.predictedSec, smooth.describe()));
+            smooth = null;
+            slower = true;
+        }
+        if (smooth != null) {
+            follower = null;
+            waypoints = smooth.vertices();
+        } else {
+            if (SMOOTH && !slower) RunLog.event(prefix + " no smooth path (" + (r.moveClearLegs > 0 ? "the route moves clear first" : SmoothFollower.lastWhy)
+                    + String.format(Locale.US, "; planned in %.1f ms): leg by leg", planMs));
+            follower = new GridFollower(f[0], f[1], f[2], aim, goalTolIn, h, r.moveClearLegs);
+            waypoints = new double[f[0].length][];
+            for (int i = 0; i < waypoints.length; i++) waypoints[i] = new double[]{f[0][i], f[1][i]};
+        }
         stopping = false;
         lastLeg = 1;
         return null;
@@ -103,7 +152,13 @@ public final class GridDash {
 
     /** The route in HiveRoute's words ("via (x, y) (x, y), 123 in"), with the grid's predicted time. */
     public String describe() {
-        StringBuilder b = new StringBuilder(waypoints.length == 2 ? "direct" : "via");
+        if (smooth != null) return smooth.describe() + String.format(Locale.US, ", planned in %.1f ms", planMs);
+        StringBuilder b = new StringBuilder();
+        if (route.moveClearLegs > 0) {
+            b.append(String.format(Locale.US, "MOVES CLEAR %.0f in first (heading held), then ",
+                    Math.hypot(waypoints[1][0] - waypoints[0][0], waypoints[1][1] - waypoints[0][1])));
+        }
+        b.append(waypoints.length == 2 ? "direct" : "via");
         double len = 0.0;
         for (int i = 1; i < waypoints.length; i++) {
             len += Math.hypot(waypoints[i][0] - waypoints[i - 1][0], waypoints[i][1] - waypoints[i - 1][1]);
@@ -117,7 +172,7 @@ public final class GridDash {
     /** One loop: the pose and the field velocity (in, rad, in/s, rad/s). */
     public Output update(double x, double y, double h, double vx, double vy, double w) {
         out.reset();
-        out.legs = follower.legs();
+        out.legs = smooth != null ? 1 : follower.legs();
         if (stopping) {
             out.translation = true;   // no power: the motors brake
             out.turnActive = true;    // and no turn (the stick does not take over)
@@ -135,19 +190,24 @@ public final class GridDash {
                 return out;
             }
             RunLog.event(String.format(Locale.US, "%s new route %d from (%.1f, %.1f, %.1f deg): %s", prefix, repicks, x, y, Math.toDegrees(h), describe()));
-            out.legs = follower.legs();
+            out.legs = smooth != null ? 1 : follower.legs();
         }
-        GridFollower.Output f = follower.update(x, y, h, vx, vy, w);
+        GridFollower.Output f = smooth != null ? smooth.update(x, y, h, vx, vy, w) : follower.update(x, y, h, vx, vy, w);
+        double off = smooth != null ? smooth.offRouteIn() : follower.offRouteIn();
+        if (f.arrived && smooth != null && !smoothReported) {
+            smoothReported = true;
+            RunLog.event(String.format(Locale.US, "%s smooth path followed within %.1f in (the tracking allowance is %.1f in); the most was %s", prefix, smooth.mostOffIn(), SmoothFollower.TRACK_IN, smooth.mostOffWhere()));
+        }
         out.leg = f.leg;
         if (f.leg != lastLeg && !f.arrived) {
             double[] p = waypoints[f.leg - 1];
             RunLog.event(String.format(Locale.US, "%s via point (%.0f, %.0f) reached at (%.1f, %.1f), leg %d of %d", prefix, p[0], p[1], x, y, f.leg, out.legs));
             lastLeg = f.leg;
         }
-        if (!f.arrived && OFF_ROUTE_IN > 0.0 && follower.offRouteIn() > OFF_ROUTE_IN) {
+        if (!f.arrived && OFF_ROUTE_IN > 0.0 && off > OFF_ROUTE_IN) {
             stopping = true;
             stopClock.reset();
-            RunLog.event(String.format(Locale.US, "%s OFF ROUTE: %.1f in from leg %d of %d at (%.1f, %.1f, %.1f deg), %.1f in/s: braking", prefix, follower.offRouteIn(), f.leg, out.legs,
+            RunLog.event(String.format(Locale.US, "%s OFF ROUTE: %.1f in from leg %d of %d at (%.1f, %.1f, %.1f deg), %.1f in/s: braking", prefix, off, f.leg, out.legs,
                     x, y, Math.toDegrees(h), Math.hypot(vx, vy)));
             out.translation = true;
             out.turnActive = true;

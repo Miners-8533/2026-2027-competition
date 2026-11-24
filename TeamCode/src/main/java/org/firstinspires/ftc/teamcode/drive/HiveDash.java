@@ -88,10 +88,17 @@ public final class HiveDash {
     public static boolean DRY_RUN = false;
     /**
      * True: the GRID PLANNER (design/dash-planner-grid.md: the precomputed route trees of GridRoutes, driven by GridFollower with its own speeds and corner limits, and the
-     * off-route guard of GridDash) instead of HiveRoute and the follower above. The arrival, the aim and the launch are the same. Off until the robot has run it (2026-11-07);
-     * when the tables cannot be used (see the log) the dash falls back to today's planner.
+     * off-route guard of GridDash) instead of HiveRoute and the follower above. The arrival, the aim and the launch are the same. ON since 2026-11-18 (the team's
+     * decision, with GridDash.SMOOTH), in simulation only: NOT YET RUN ON THE ROBOT. When the tables cannot be used (see the log) the dash falls back to the earlier
+     * planner; false here brings that planner back for every dash.
      */
-    public static boolean GRID_ROUTES = false;
+    public static boolean GRID_ROUTES = true;
+    /**
+     * A grid dash that has arrived brakes against its remaining velocity: drive power per in/s, its limit, and the speed (in/s) below which it stops (the Pinpoint's
+     * velocity is noise there). 0 gain turns it off (the robot coasts to rest, as today's route does). Not run on the robot (2026-11-17): watch for a
+     * buzz or a rocking stop there, and lower the gain if so.
+     */
+    public static double ARRIVE_BRAKE_GAIN = 0.04, ARRIVE_BRAKE_MAX = 0.35, ARRIVE_BRAKE_OFF_IN_PER_S = 1.5;
 
     // ---- launch and logging ----
     /** The launch is requested when the lock is ALIGNED and the chassis has stopped (AutoLaunch.MAX_SPEED_IN_PER_S) for LAUNCH_HOLD_SEC. */
@@ -113,9 +120,9 @@ public final class HiveDash {
         public boolean blue;
         /** Why the dash is not available (backup mode, a Pinpoint fault, ...), or null. */
         public String blockedWhy;
-        /** The element counter is reading and holds nothing. */
+        /** The robot reads empty: a count is reading and neither the CS5 entry count nor the counter on CS1 to CS4 holds anything (Mechanisms.getHeldEstimate() is 0; the counter alone until 2026-11-16). */
         public boolean counterReadsEmpty;
-        /** The robot may have something to launch (the counter is not reading, or it holds at least one). */
+        /** The robot may have something to launch (no count is reading, or one of them holds at least one). */
         public boolean hasElements;
         public boolean lockAligned;
         public boolean launchBusy;
@@ -135,6 +142,8 @@ public final class HiveDash {
         public HiveTarget overrideCell;
         /** While overrideCell is set: the distance the launch speed must be worked out for (the launch spot to the cell), so the flywheel goes to that speed at the start of the dash; 0 otherwise. */
         public double overrideDistanceIn;
+        /** While overrideCell is set: the launch spot itself (field frame), so the 2-D launch grid can work out the speed for it (branch launch-grid-2d); 0 otherwise. */
+        public double overrideGoalX, overrideGoalY;
 
         void reset() {
             translation = false;
@@ -145,6 +154,8 @@ public final class HiveDash {
             launchNow = false;
             overrideCell = null;
             overrideDistanceIn = 0.0;
+            overrideGoalX = 0.0;
+            overrideGoalY = 0.0;
         }
     }
 
@@ -171,6 +182,11 @@ public final class HiveDash {
     private HiveRoute.Plan plan;
     private HiveRoute.Params planParams;
     private GridDash grid;   // the grid planner's dash, or null (today's planner)
+    // the shared route follower (LegFollower): its values and answer are reused every loop, and the listener is made once (no garbage in the loop)
+    private final LegFollower.Config followConfig = new LegFollower.Config();
+    private final LegFollower.Step followStep = new LegFollower.Step();
+    private final LegFollower.ViaListener onVia = this::viaReached;
+    private Input followIn;   // the input of the drive() call in progress, for viaReached
     private int legIndex = 0;
     private double legHeading = 0.0, prevLegHeading = 0.0;
     private boolean legAligned = false;
@@ -212,6 +228,11 @@ public final class HiveDash {
     }
 
     private HiveRoute.Params params() {
+        return routeParams(depthIn, widthIn, fromBackIn);
+    }
+
+    /** The planner's values for a robot of this size, from this class's Dashboard statics: the Park Dash plans with the same ones (it had its own copy of this until 2026-11-16). */
+    static HiveRoute.Params routeParams(double depthIn, double widthIn, double fromBackIn) {
         HiveRoute.Params p = new HiveRoute.Params();
         p.robotHeightIn = ROBOT_HEIGHT_IN;
         p.marginIn = MARGIN_IN;
@@ -267,7 +288,11 @@ public final class HiveDash {
             default:
                 break;
         }
-        if (out.overrideCell != null) out.overrideDistanceIn = cell.distanceFrom(new Pose2d(goalX, goalY, 0.0));
+        if (out.overrideCell != null) {
+            out.overrideDistanceIn = cell.distanceFrom(new Pose2d(goalX, goalY, 0.0));
+            out.overrideGoalX = goalX;
+            out.overrideGoalY = goalY;
+        }
         status = statusLine(in);
         sample(in);
         overlay(in);
@@ -302,9 +327,8 @@ public final class HiveDash {
             GridRoutes.Table table = GridDash.tableFor(gx, gy, in.blue);
             if (table == null) {
                 RunLog.event("HIVE DASH grid routes not used (" + GridDash.whyNoTable(gx, gy, in.blue) + "): today's planner instead");
-            } else if (HiveRoute.touchingSupport(pose.position.x, pose.position.y, pose.heading.toDouble(), p)) {
-                pl = HiveRoute.Plan.refused("the robot is touching a hive support: drive clear of it by hand");
             } else {
+                // a pose that reads as touching a support is not refused here: the grid route moves clear of it first (GridRoutes.pickOrMoveClear)
                 GridDash g = new GridDash("HIVE DASH", table, in.blue, GOAL_TOL_IN);
                 String why = g.start(pose.position.x, pose.position.y, pose.heading.toDouble());
                 if (why != null) {
@@ -398,6 +422,14 @@ public final class HiveDash {
         out.lockWanted = g.lockWanted;
     }
 
+    /** The follower reached a via point (LegFollower.ViaListener): the log line, then the next leg starts. */
+    private void viaReached(int nextLegIndex, double[] via) {
+        Pose2d p = followIn.pose;
+        RunLog.event(String.format(Locale.US, "HIVE DASH via point (%.0f, %.0f) reached at (%.1f, %.1f), %.2f s", via[0], via[1], p.position.x, p.position.y, dashClock.seconds()));
+        legIndex = nextLegIndex;
+        startLeg(followIn);
+    }
+
     private void drive(Input in) {
         if (grid != null) {
             driveGrid(in);
@@ -405,60 +437,35 @@ public final class HiveDash {
         }
         Pose2d pose = in.pose;
         double x = pose.position.x, y = pose.position.y, h = pose.heading.toDouble();
-        int legs = plan.waypoints.length - 1;
-        double goalDist = Math.hypot(x - goalX, y - goalY);
-        double ux = 0, uy = 0, nx = 0, ny = 0, along = 0, cross = 0, remaining = 0;
-        for (int guard = 0; guard < 4; guard++) {
-            double[] a = plan.waypoints[legIndex], b = plan.waypoints[legIndex + 1];
-            double len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-            ux = len < 1e-6 ? 1.0 : (b[0] - a[0]) / len;
-            uy = len < 1e-6 ? 0.0 : (b[1] - a[1]) / len;
-            nx = -uy;
-            ny = ux;
-            along = (x - a[0]) * ux + (y - a[1]) * uy;
-            cross = (x - a[0]) * nx + (y - a[1]) * ny;
-            remaining = len - along;
-            boolean last = legIndex == legs - 1;
-            if (last) {
-                if (goalDist <= GOAL_TOL_IN) {
-                    state = State.ARRIVED;
-                    stillClock.reset();
-                    RunLog.event(String.format(Locale.US, "HIVE DASH arrived after %.2f s at (%.1f, %.1f, %.1f deg), %.1f in from the launch spot", dashClock.seconds(), x, y,
-                            pose.heading.toDegrees(), goalDist));
-                    out.overrideCell = cell;
-                    arrived(in);
-                    return;
-                }
-                break;
-            }
-            if (remaining > PASS_TOL_IN && along <= len) break;
-            RunLog.event(String.format(Locale.US, "HIVE DASH via point (%.0f, %.0f) reached at (%.1f, %.1f), %.2f s", b[0], b[1], x, y, dashClock.seconds()));
-            legIndex++;
-            startLeg(in);
+        // the legs, the via points, the arrival and the translation command are the shared follower's (LegFollower, also the Park Dash's); the values are this class's Dashboard statics
+        LegFollower.Config c = followConfig;
+        c.maxPower = MAX_POWER;
+        c.goalTolIn = GOAL_TOL_IN;
+        c.passTolIn = PASS_TOL_IN;
+        c.alongKp = ALONG_KP;
+        c.minFinalPower = MIN_FINAL_POWER;
+        c.crossKp = CROSS_KP;
+        c.crossMax = CROSS_MAX;
+        c.approachPower = APPROACH_POWER;
+        c.approachRadiusIn = APPROACH_RADIUS_IN;
+        c.cornerPower = CORNER_POWER;
+        c.cornerFreeDeg = CORNER_FREE_DEG;
+        c.cornerFullDeg = CORNER_FULL_DEG;
+        c.cornerRampPerIn = CORNER_RAMP_PER_IN;
+        followIn = in;
+        LegFollower.Step s = LegFollower.follow(plan.waypoints, legIndex, x, y, goalX, goalY, c, onVia, followStep);
+        double goalDist = s.goalDist;
+        if (s.arrived) {
+            state = State.ARRIVED;
+            stillClock.reset();
+            RunLog.event(String.format(Locale.US, "HIVE DASH arrived after %.2f s at (%.1f, %.1f, %.1f deg), %.1f in from the launch spot", dashClock.seconds(), x, y,
+                    pose.heading.toDegrees(), goalDist));
+            out.overrideCell = cell;
+            arrived(in);
+            return;
         }
-        boolean last = legIndex == legs - 1;
-        double vfx, vfy;
-        if (last) {
-            // the last leg heads straight for the goal point: a robot that overshoots it or passes it to the side is driven back (power along the leg kept pushing it on past)
-            double v = clamp(ALONG_KP * goalDist, MIN_FINAL_POWER, MAX_POWER);
-            if (APPROACH_POWER > 0.0 && goalDist <= APPROACH_RADIUS_IN) v = Math.min(v, Math.max(APPROACH_POWER, MIN_FINAL_POWER));
-            double d = Math.max(goalDist, 1e-6);
-            vfx = (goalX - x) / d * v;
-            vfy = (goalY - y) / d * v;
-        } else {
-            double vC = clamp(-CROSS_KP * cross, -CROSS_MAX, CROSS_MAX);
-            double vMag = MAX_POWER;
-            if (CORNER_POWER > 0.0 && CORNER_FULL_DEG > CORNER_FREE_DEG) {
-                // slow down for the turn at the via point ahead: the next leg's direction against this one's
-                double[] via = plan.waypoints[legIndex + 1], next = plan.waypoints[legIndex + 2];
-                double turnDeg = Math.toDegrees(Math.abs(Rotation2d.normalize(Math.atan2(next[1] - via[1], next[0] - via[0]) - Math.atan2(uy, ux))));
-                double f = clamp((turnDeg - CORNER_FREE_DEG) / (CORNER_FULL_DEG - CORNER_FREE_DEG), 0.0, 1.0);
-                double cornerPower = MAX_POWER + (Math.min(CORNER_POWER, MAX_POWER) - MAX_POWER) * f;
-                vMag = Math.min(MAX_POWER, cornerPower + CORNER_RAMP_PER_IN * Math.max(0.0, remaining));
-            }
-            vfx = ux * vMag + nx * vC;
-            vfy = uy * vMag + ny * vC;
-        }
+        boolean last = s.last;
+        double vfx = s.vfx, vfy = s.vfy;
         double fwd = vfx * Math.cos(h) + vfy * Math.sin(h);
         double left = -vfx * Math.sin(h) + vfy * Math.cos(h);
         boolean inLock = goalDist <= LOCK_RADIUS_IN
@@ -488,6 +495,14 @@ public final class HiveDash {
         out.translation = true;   // hold: no drive power
         out.lockWanted = true;
         double speed = in.measured == null ? 0.0 : Math.hypot(in.measured.linearVel.x, in.measured.linearVel.y);
+        if (grid != null && ARRIVE_BRAKE_GAIN > 0.0 && speed > ARRIVE_BRAKE_OFF_IN_PER_S) {
+            // a grid dash arrives still moving (up to GridFollower.ARRIVE_MAX_SPEED) and the lock is turning the robot, so the wheels are not braking: with no drive
+            // power it slid on about 2 in, at the audience spot toward the flower stand (simulation, 2026-11-17). Power against the velocity stops the slide.
+            double p = Math.min(ARRIVE_BRAKE_MAX, ARRIVE_BRAKE_GAIN * speed) / speed, h = in.pose.heading.toDouble();
+            double bx = -p * in.measured.linearVel.x, by = -p * in.measured.linearVel.y;
+            out.forward = bx * Math.cos(h) + by * Math.sin(h);
+            out.left = -bx * Math.sin(h) + by * Math.cos(h);
+        }
         boolean still = in.lockAligned && speed <= AutoLaunch.MAX_SPEED_IN_PER_S;
         if (!still) stillClock.reset();
         if (!in.hasElements) return;   // nothing to launch: wait for the driver to let go

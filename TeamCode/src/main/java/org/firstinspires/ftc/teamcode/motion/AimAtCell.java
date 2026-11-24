@@ -4,6 +4,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.teamcode.drive.LaunchGridMap;
 import org.firstinspires.ftc.teamcode.drive.MecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.TargetLock;
 import org.firstinspires.ftc.teamcode.math.Pose2d;
@@ -42,6 +43,7 @@ public final class AimAtCell implements Action {
     private final HiveTarget cell;
     private final boolean blue;
     private final double trimDeg;
+    private boolean useGrid = false;   // aim at the bearing plus the 2-D launch grid's residual where the grid has one (withGrid), else the formula aim
     private int kicks = 0;   // loops in which the breakaway raised the turn command (for the AIM log line)
     /** NaN: the lock's own far-cell rule ({@link TargetLock#farCellExtraLeftIn}); a number: this extra sideways offset in inches instead (the duo autos launch only at the cell on their own start side, which needs none). */
     private final double extraLeftIn;
@@ -68,6 +70,12 @@ public final class AimAtCell implements Action {
         this.extraLeftIn = extraLeftIn;
     }
 
+    /** (2026-11-19) Aims as the TeleOp's lock does with the 2-D launch grid: bearing + the grid's residual for this pose and cell where the grid has data, else the formula aim. */
+    public AimAtCell withGrid() {
+        useGrid = true;
+        return this;
+    }
+
     @Override
     public boolean run(TelemetryPacket packet) {
         if (!started) {
@@ -80,7 +88,12 @@ public final class AimAtCell implements Action {
         loop.reset();
         PoseVelocity2d measured = drive.updatePoseEstimate();
         Pose2d pose = drive.getPose();
-        double turn = lock.turn(pose, measured == null ? 0.0 : measured.angVel, cell, Double.isNaN(extraLeftIn) ? TargetLock.farCellExtraLeftIn(cell, blue) : extraLeftIn, trimDeg, 0.0, dt);
+        double gridResidual = Double.NaN;
+        if (useGrid) {
+            LaunchGridMap.Result g = LaunchGridMap.lookup(cell, pose.position.x, pose.position.y);
+            if (g.hasValues()) gridResidual = g.residualDeg;
+        }
+        double turn = lock.turn(pose, measured == null ? 0.0 : measured.angVel, cell, Double.isNaN(extraLeftIn) ? TargetLock.farCellExtraLeftIn(cell, blue) : extraLeftIn, trimDeg, 0.0, dt, gridResidual);
         double rateDegPerS = measured == null ? 0.0 : Math.toDegrees(measured.angVel);
         if (BREAKAWAY_POWER > 0.0 && turn != 0.0 && Math.abs(turn) < BREAKAWAY_POWER && Math.abs(rateDegPerS) < STALL_RATE_DEG_PER_S) {
             turn = Math.copySign(BREAKAWAY_POWER, turn);
@@ -94,8 +107,8 @@ public final class AimAtCell implements Action {
         boolean done = aligned || timeout.seconds() >= TIMEOUT_SEC;
         if (done) {
             drive.stop();
-            RunLog.event(String.format(java.util.Locale.US, "AIM %s at %s after %.2f s: error %+.1f deg (trim %+.1f deg, %d breakaway loops), pose (%.1f, %.1f, %.1f deg)",
-                    aligned ? "aligned" : "TIMED OUT", cell, timeout.seconds(), lock.errorDeg(), trimDeg, kicks,
+            RunLog.event(String.format(java.util.Locale.US, "AIM %s at %s after %.2f s: error %+.1f deg (trim %+.1f deg, %d breakaway loops, %s), pose (%.1f, %.1f, %.1f deg)",
+                    aligned ? "aligned" : "TIMED OUT", cell, timeout.seconds(), lock.errorDeg(), trimDeg, kicks, Double.isNaN(gridResidual) ? "formula aim" : String.format(java.util.Locale.US, "grid residual %+.1f deg", gridResidual),
                     pose.position.x, pose.position.y, pose.heading.toDegrees()));
             lock.release();
         }

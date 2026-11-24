@@ -1,6 +1,6 @@
 # Pit check
 
-The Pit Check is the only check opmode on the Driver Station. It took over the **Hardware Check** and **Chassis Info** opmodes (removed 2026-11-02). The calibration tools **Launch Map Tuner**, **Pinpoint Offset Check**, **Pinpoint Push Test** and **Color Sensors Test** still exist but are `@Disabled`; see [opmodes.md](opmodes.md).
+**Hidden from the Driver Station for now (2026-11-21, the user; `@Disabled` in `PitCheck.java`).** The Pit Check is the only check opmode on the Driver Station. It took over the **Hardware Check** and **Chassis Info** opmodes (removed 2026-11-02). The calibration tools **Launch Map Tuner**, **Pinpoint Offset Check**, **Pinpoint Push Test** and **Color Sensors Test** still exist but are `@Disabled`; see [opmodes.md](opmodes.md).
 
 `Pit Check (robot on blocks)` (opmode, group Bring-up) is the check to run after any repair, rewiring or hub swap, and before a match day. The code no longer watches for wiring and sign problems while running (the flywheel's reversed-encoder fault was removed), so this is where they are found.
 
@@ -19,10 +19,11 @@ The Pit Check is the only check opmode on the Driver Station. It took over the *
 
 | Step | How | Judged by |
 |---|---|---|
-| Configuration | every device name and type, a stale `fly_follow`, where each device is plugged in (hub and port, in the `Ports` line, for hub-configuration.md) and any configured device the code does not use | automatic |
+| Configuration | every device name and type, a stale `fly_follow`, where each device is plugged in (hub and port, in the `Ports` line, for robot_design/hub-configuration.md) and any configured device the code does not use | automatic |
 | Battery | at least 12.0 V on every hub | automatic |
 | Pinpoint | status READY, loop time 300-1500 us | automatic |
 | Color sensors CS1-CS4 | each answers, and matches its empty baseline (so a changed lighting or something left in the track shows up) | automatic |
+| CS5, CS2 (launch sensor), flywheel position servo | (2026-11-20) CS5 and CS2 have switches (`EntryCounter.CS5_PRESENT`, `LaunchSensor.CS2_PRESENT`, both OFF by default): a switched-off sensor is reported as switched off, not failed; with the CS5 switch on its raw proximity is read ten times; `fly_pos` and `CS5` are no longer listed as unused / stale | automatic |
 | Flywheel | spins at 0.3 power for 1.5 s: the encoder must read at least 100 ticks/s the right way | encoder automatic; the launching direction is yours to judge |
 | Pusher | turns about 60 deg forward and back: the encoder sign and the return to the start | sign and return automatic; the pushing direction is yours to judge |
 | Intake | pulses IN then OUT at half power; the motor current is shown | direction is yours to judge |
