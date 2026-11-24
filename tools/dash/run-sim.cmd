@@ -1,5 +1,5 @@
 @echo off
-rem The dash simulation (design/dash-planner-grid.md): compiles the REAL HiveDash, ParkDash, HoldPosition, TargetLock and HiveRoute with the PC stubs in tools\dash\stubs,
+rem The dash simulation (specs/tools.md): compiles the REAL HiveDash, ParkDash, HoldPosition, TargetLock and HiveRoute with the PC stubs in tools\dash\stubs,
 rem then runs tools\dash\DashSim.java. Needs a JDK on the PATH. Run from the repo root. Arguments go to DashSim (default: replay every logged dash and print the gate), e.g.
 rem   tools\dash\run-sim.cmd                      replay with the tuned plant
 rem   tools\dash\run-sim.cmd replay --plant fitted

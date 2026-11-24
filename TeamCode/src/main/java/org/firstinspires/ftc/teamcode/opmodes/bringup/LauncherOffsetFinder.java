@@ -50,7 +50,7 @@ import java.util.Locale;
  *   X (hold 1 s)                 reseed the pose to the INIT start pose (put the robot on that spot first)
  *
  * The target for the flywheel speed is the HIVE cell nearest the robot (all four, no alliance). The flywheel runs from Start and the speed trim is not used.
- * The log is the BRINGUP kind (bringup.log); read it with tools/logs/launcher_offset.py. Procedure: design/launcher-offset-finder.md.
+ * The log is the BRINGUP kind (bringup.log); read it with tools/logs/launcher_offset.py. Procedure: specs/support-opmodes.md.
  */
 @Config
 @Disabled   // hidden from the Driver Station; remove this line and the import to use it again

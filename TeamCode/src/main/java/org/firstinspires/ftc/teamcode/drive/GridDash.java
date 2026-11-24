@@ -8,7 +8,7 @@ import org.firstinspires.ftc.teamcode.util.RunLog;
 import java.util.Locale;
 
 /**
- * One dash on the GRID planner (design/dash-planner-grid.md), shared by {@link HiveDash} and {@link ParkDash} when their GRID_ROUTES switch is on: the route from the
+ * One dash on the GRID planner (specs/dashes.md), shared by {@link HiveDash} and {@link ParkDash} when their GRID_ROUTES switch is on: the route from the
  * precomputed tree ({@link GridRoutes}, tables generated on a PC into {@link GridTables}), driven by {@link GridFollower}, with the OFF-ROUTE GUARD: when the robot is
  * more than OFF_ROUTE_IN from the leg it is driving (a push, a slip, a swing the tables did not allow for), the dash brakes, and once stopped picks a new route from where
  * the robot is, at most MAX_REPICKS times; after that, or when no route is found, it gives up (the dash cancels and the driver has the sticks).

@@ -13,7 +13,7 @@ import java.util.Locale;
 import java.util.PriorityQueue;
 
 /**
- * The route generator (design/dash-planner-grid.md, "The grid planner"): for each goal (the two blue launch spots, the two blue park corners; red is the same
+ * The route generator (specs/dashes.md, the grid routes): for each goal (the two blue launch spots, the two blue park corners; red is the same
  * turned 180 deg) a shortest-time tree over the states of {@link GridRoutes} (a node every 6 in, 16 travel directions, and FINAL = straight to the goal).
  *
  * CLEARANCE (no route may come nearer than this to a hive support, a flower stand or a wall): the robot is a box 2 x L2 by 2 x W2 (L2 the larger of the origin's
@@ -373,7 +373,7 @@ public final class RouteGen {
     static void writeSource(List<Result> rs, java.nio.file.Path out, String generatedBy) throws java.io.IOException {
         StringBuilder b = new StringBuilder();
         b.append("package org.firstinspires.ftc.teamcode.drive;\n\n");
-        b.append("/**\n * GENERATED: do not edit. Written by ").append(generatedBy).append(" (tools/dash/RouteGen.java; design/dash-planner-grid.md).\n");
+        b.append("/**\n * GENERATED: do not edit. Written by ").append(generatedBy).append(" (tools/dash/RouteGen.java; specs/dashes.md).\n");
         b.append(" * The four blue route trees of the grid planner, packed for GridRoutes.decode (red is the same turned 180 deg about the field center), and the corner\n");
         b.append(" * speed table they were built with. Regenerate after a drive refit, a change to the supports, flowers, launch spots or park corners, or to the grid.\n */\n");
         b.append("final class GridTables {\n\n    private GridTables() {}\n\n");

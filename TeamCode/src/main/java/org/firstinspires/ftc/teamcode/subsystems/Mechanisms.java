@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Coordinates the four mechanisms and enforces the cross-actuator rules confirmed in design/mechanisms.md:
+ * Coordinates the four mechanisms and enforces the cross-actuator rules confirmed in specs/mechanisms.md:
  *
  *   1. REMOVED 2026-10-31: the intake is no longer gated on the pusher's position. (The pusher can rest a few degrees
  *      past HOLD after a salvo, and gating the intake and the next salvo on "within 8 deg of HOLD" locked both out.)
@@ -154,7 +154,7 @@ public class Mechanisms {
     public static double REHOME_MAX_PAST_DEG = 130.0;
     /** With auto target on, the target cell switches only when the other cell is this much closer (so it does not flip-flop midway). */
     public static double AUTO_TARGET_HYSTERESIS_IN = 6.0;
-    /** The arm is "near CS4" (an unclassified reading there is the arm, not an element) from this far behind HOLD to this far past it, degrees. Measured loosely: see design/integration-plan.md. */
+    /** The arm is "near CS4" (an unclassified reading there is the arm, not an element) from this far behind HOLD to this far past it, degrees. Measured loosely: see robot_design/sensors.md. */
     public static double ARM_NEAR_BEHIND_DEG = 70.0;
     /**
      * While the arm is within this many degrees ahead of HOLD, CS4's "other" reading is taken as the edge of the arm, not an element. A salvo

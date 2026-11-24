@@ -15,7 +15,7 @@ import org.firstinspires.ftc.teamcode.motion.SleepAction;
 
 /**
  * The intake roller: one motor, no encoder, open loop, at the front of the robot, the same end as the launcher (the robot
- * launches out of the side it intakes). Takes pollen and nectar. Design notes: design/mechanisms.md.
+ * launches out of the side it intakes). Takes pollen and nectar. Design notes: specs/intake-and-ramp.md.
  *
  * It runs ONLY while someone asks it to (never always-on), so it cannot pick up stray balls
  * and push the robot over the 4-element carry limit. Jams are the driver's job for now. Since 2026-11-05 (the intake failed mechanically in the 23:07 Solo run and the

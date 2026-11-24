@@ -33,23 +33,31 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 
 **Setup.** Robot on blocks, wheels clear, ramp free to move, track empty. Nothing moves until a button is pressed for that step; every move is short and slow.
 
-**Controls.** One button runs a step or confirms "what I saw was right"; one says "wrong"; one skips; one stops everything.
+**Controls (gamepad 1).**
+
+| Button | Meaning |
+|---|---|
+| A | run the step, or "what I saw was right" |
+| B | "what I saw was wrong" |
+| X | skip the step, or "I could not tell" |
+| Back | stop everything and end |
 
 | Step | Checked | Judged by |
 |---|---|---|
 | Configuration | every required device name and type; a stale second flywheel motor; the hub and port of each device; configured devices the code does not use | automatic |
 | Battery | at least 12.0 V on every hub | automatic |
-| Pinpoint | status READY and a sane device loop time | automatic |
+| Pinpoint | status READY and a device loop time of 300 to 1500 us | automatic |
 | CS1 to CS4 | each answers; CS1, CS3 and CS4 match their stored empty readings (CS2, on the feed ramp, has none) | automatic |
-| Flywheel | spins at low power: the encoder reads the right way and fast enough | encoder automatic; launching direction by eye |
+| CS5, CS2 as the launch sensor, the flywheel position servo | whether each is configured, and the state of each sensor's switch in the code (`EntryCounter.CS5_PRESENT`, `LaunchSensor.CS2_PRESENT`): a switched-off sensor is reported as switched off, not failed; with the CS5 switch on its raw proximity is read ten times | automatic |
+| Flywheel | spins at 0.3 power for 1.5 s: the encoder must read at least 100 ticks/s the right way | encoder automatic; launching direction by eye |
 | Pusher | turns about 60 deg forward and back: encoder sign, and return to the start | sign and return automatic; pushing direction by eye |
-| Intake | pulses in, then out; the current is shown | by eye |
+| Intake | pulses in, then out, at half power; the motor current is shown | by eye |
 | Ramp | deploys and stows | by eye |
-| Each drive wheel | one wheel at a time at low power | by eye: only that wheel turns, its top toward the front |
+| Each drive wheel | one wheel at a time at 0.3 power | by eye: only that wheel turns, its top toward the front |
 
-**Output.** Each failure names the fix. The result line is ALL PASS, FAILED or INCOMPLETE with the counts. A skipped step is not a pass. The ports line is the source for [robot_design/hub-configuration.md](../robot_design/hub-configuration.md).
+**Output.** Each failure names the fix (for example "flip `Pusher.ENCODER_SIGN`" or "check the cable on the encoder port"). The result goes to the screen, to the robot's system log (`adb logcat -s PitCheck`) and to the run log of kind `pitcheck` ([logging.md](logging.md)). Its last line is `PIT CHECK ALL PASS`, `FAILED` or `INCOMPLETE`, with the counts. A skipped step is not a pass. The ports line is the source for [robot_design/hub-configuration.md](../robot_design/hub-configuration.md).
 
-**Limits.** It drives the raw hardware, not the subsystem classes, so it does not disturb the pusher's saved zero; it returns the arm to where it started and reports if it cannot. From 2026-11-20 it reports CS5, CS2 as the launch sensor and the flywheel position servo (configured or not, and the state of each sensor's switch in the code) without exercising them. It does not test behavior that needs real elements.
+**Limits.** It drives the raw hardware, not the subsystem classes, so it does not disturb the pusher's saved zero; it returns the arm to where it started; if it cannot, the report says by how much, and the arm must be put back at HOLD by hand before any other opmode runs. The drive wheels have no encoders and on blocks the Pinpoint sees nothing, so the wheel directions are judged by eye. From 2026-11-20 it reports CS5, CS2 as the launch sensor and the flywheel position servo (configured or not, and the state of each sensor's switch in the code) without exercising them. It does not test behavior that needs real elements.
 
 ### 1.1 Ramp Test
 

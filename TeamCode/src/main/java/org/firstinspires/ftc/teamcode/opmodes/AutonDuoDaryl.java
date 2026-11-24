@@ -31,7 +31,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *   6. Park in the hive-side corner of the loading zone, (22, 55.1), through the via point (-20, 44) (clear of the hive's foot bar) at heading 30 deg, as the Triple Tip auto does; ramp stowed.
  * Before 2026-11-21 steps 5 to 8 were: the partner's window (not back at the audience spot before 18 s), a second salvo into the AUDIENCE cell from (56, 36), the audience-wall flower (skipped when late, its
  * pollen kept for the TeleOp) and the park at heading 90. Those are gone: no wait, no second trip around the hive, no audience flower. Built 2026-11-21, not run on the robot.
- * Faster legs than the other duo autos (the solo auto's, DuoAutos.P_*); always launches every salvo (the autos never skip on an empty count). The estimate (design/duo-autos.md): the robot is at the rear launch spot at about 17.8 s, waits to 23.8 s, and is parked at about 28 s.
+ * Faster legs than the other duo autos (the solo auto's, DuoAutos.P_*); always launches every salvo (the autos never skip on an empty count). The estimate (specs/autos.md): the robot is at the rear launch spot at about 17.8 s, waits to 23.8 s, and is parked at about 28 s.
  */
 @Autonomous(name = "Auton - Duo Daryl", group = "Auto")
 public class AutonDuoDaryl extends AutonDuoBase {

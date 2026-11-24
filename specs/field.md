@@ -84,7 +84,7 @@ The default TeleOp start for red is (63.4, -16.0, 180 deg).
 
 Each is about 34 in from its cell, straight out along the cell's axis, and 8 in clear of the wall behind the robot. The y values differ from the cell's 12.75 because the launcher's line sits to the right of the robot's centerline.
 
-**Park corners** (TeleOp Park Dash): (40, 60) on the audience side and (26, 60) on the hive side. The autos park at (40, 53.1) and (26, 53.1), facing the Blue Wall.
+**Park corners** (TeleOp Park Dash): (40, 60) on the audience side and (26, 60) on the hive side. The shown autos park at (22, 55.1) on the hive side, and Flower Side at (40, 55.1) (2026-11-20 and 21; before, (26, 53.1) and (40, 53.1)). Each program's park pose and heading is in [autos.md](autos.md).
 
 **Route points** used by the route planner: helper corners at (±36, ±40) and lane gates at (±34, 0).
 
@@ -131,7 +131,7 @@ Field data is also spread out, and some of it is repeated:
 | Hive cell points | with the mechanisms, though the aiming and dash code are their main users |
 | Flower stands | the route planner; the ramp reads them from there |
 | Helper point (36, 40) and its mirror | the Hive Dash, the Solo auto, and twice in the duo autos |
-| Hive-side park pose (26, 53.1) | the Solo auto and the duo autos |
+| Hive-side park pose (22, 55.1); (26, 53.1) until 2026-11-20 | the Solo family and the duo autos, each with its own copy |
 | Launch spots | the auto-launch zones hold the TeleOp's; each auto holds its own |
 | Auto poses | the autos, and a hand-kept copy in the duo path check on the PC ([tools.md](tools.md)) |
 | Robot footprint | the chassis profile, and a hand-kept copy in the duo path check |

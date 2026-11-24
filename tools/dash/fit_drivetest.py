@@ -1,4 +1,4 @@
-"""Fits the WHEEL drive model to Drive Characterization logs (design/dash-planner-grid.md, "Drive characterization").
+"""Fits the WHEEL drive model to Drive Characterization logs (specs/support-opmodes.md, Drive Characterization).
 
     python -I tools/dash/fit_drivetest.py [drivetest.log ...]      (default: robot-logs/latest/drivetest.log)
 

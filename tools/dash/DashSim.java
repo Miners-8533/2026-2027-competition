@@ -43,7 +43,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The dash simulation (design/dash-planner-grid.md, Phases 1b to 1d). It runs the REAL HiveDash, ParkDash, TargetLock and HoldPosition classes (compiled with the small SDK stubs in
+ * The dash simulation (specs/tools.md, the dash simulator). It runs the REAL HiveDash, ParkDash, TargetLock and HoldPosition classes (compiled with the small SDK stubs in
  * tools/dash/stubs) in the TeleOp's loop against a model of the drive fitted from the logs (tools/dash/identify_drive.py), with a Pinpoint that is a noisy, optionally delayed copy
  * of the true pose, and checks the robot's real footprint against the hive supports, the flower stands and the walls.
  *
@@ -2355,7 +2355,7 @@ public final class DashSim {
                 case "--frame": o.fieldFrame = args[++i].equals("field"); break;
                 case "--accel": o.accelMax = Double.parseDouble(args[++i]); o.fieldFrame = true; break;
                 case "--plant":
-                    // fitted: identify_drive.py's model as it is; tuned: the dash fit plus the three extras chosen on the 11-05 logs and checked on the 11-06 logs (design/dash-planner-grid.md)
+                    // fitted: identify_drive.py's model as it is; tuned: the dash fit plus the three extras chosen on the 11-05 logs and checked on the 11-06 logs (specs/dashes.md)
                     if (args[i + 1].equals("wheel")) {
                         i++;
                         o.wheel = new Wheel("fit 2026-11-07", Wheel.FIT_1107);

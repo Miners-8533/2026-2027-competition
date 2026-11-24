@@ -26,8 +26,11 @@ Start with [architecture.md](architecture.md). It explains the layers, the contr
 | [support-opmodes.md](support-opmodes.md) | Pit Check, tuners, studies, build aids |
 | [logging.md](logging.md) | run log, settings dump, loop profiler, build stamp |
 | [tools.md](tools.md) | PC tools the robot code depends on |
+| [idea-queue.md](idea-queue.md) | ideas agreed to keep but not built, and what was decided against. Not a description of the code |
 
 The physical robot (devices, wiring, dimensions, measured constants) is in [robot_design/](../robot_design/README.md). Rules, strategy and scouting are in the team's separate BIOBUZZ knowledge repo.
+
+**There is no `design/` folder any more** (removed 2026-11-23). `specs/` and `robot_design/` are the only description of the software and the robot. Five things were carried over from it: the hub setup checklist ([robot_design/hub-configuration.md](../robot_design/hub-configuration.md)), what the Driver Station screen can show ([robot_design/driver-station-screen.md](../robot_design/driver-station-screen.md)), Pit Check's controls and output ([support-opmodes.md](support-opmodes.md) section 1), getting the logs off the hub ([logging.md](logging.md) section 5) and the idea queue ([idea-queue.md](idea-queue.md)). The earlier design notes, plans and checklists are in the git history, last present at commit 433799d.
 
 ## What a page contains
 
@@ -36,7 +39,7 @@ The physical robot (devices, wiring, dimensions, measured constants) is in [robo
 - **Parameters** with their present values. A rebuild needs them; they are data, not code.
 - **Status**: whether it has run on the robot.
 
-What is deliberately left out: line-by-line logic, class and method names where a plain name will do, the history of how a value was reached, and procedures for testing. History and procedures are in `design/`.
+What is deliberately left out: line-by-line logic, class and method names where a plain name will do, the history of how a value was reached, and procedures for testing. History is in the commit messages and the git history. The few procedures that are kept are where their subject is: the hub setup checklist in `robot_design/`, Pit Check in [support-opmodes.md](support-opmodes.md), getting the logs in [logging.md](logging.md).
 
 ## As built and target
 
@@ -114,7 +117,7 @@ On 2026-11-17 the team's code was rebuilt from these pages and `robot_design/` a
 | What an incomplete salvo does to the salvo counter | [mechanisms.md](mechanisms.md) section 3 | filled |
 | How a leg is checked: the swept rectangle, the lane walls, the goal | [dashes.md](dashes.md) section 1.2 | filled; the section is rewritten from the code |
 | The layout of the grid route tables and the numbering of their states | [dashes.md](dashes.md) section 5.1 | filled |
-| The corner speed table: this page and `design/dash-planner-grid.md` gave different values | [dashes.md](dashes.md) section 5.1 | settled: this page's values are the code's |
+| The corner speed table: this page and the earlier design notes (`design/dash-planner-grid.md`, in the git history) gave different values | [dashes.md](dashes.md) section 5.1 | settled: this page's values are the code's |
 | The layout of the launch grid data | [aiming.md](aiming.md) section 4.1 | filled |
 | The `PROTOTYPE` and `DRAFT_1` chassis profiles; how the hub's ids are read | [drive.md](drive.md) section 1 | filled |
 | The controls of the support opmodes | [support-opmodes.md](support-opmodes.md) | filled. Six of them use the Back button, which the page's own rule forbade |

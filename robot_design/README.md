@@ -2,14 +2,15 @@
 
 The physical robot as the software needs to know it: what is on it, how it is wired to the hubs, and the measured dimensions and constants the code depends on. Team 8533, BIOBUZZ season (2026-27).
 
-This folder states **what is true of the robot now**. It is not a history and not a procedure.
+This folder states **what is true of the robot now**. It is not a history. The one procedure kept here is the hub setup checklist, on the hub configuration page beside the device tables it uses.
 
 | Page | Holds |
 |---|---|
-| [hub-configuration.md](hub-configuration.md) | every device: configuration name, type, hub, port; the hubs' identity; controllers; power |
+| [hub-configuration.md](hub-configuration.md) | every device: configuration name, type, hub, port; the hubs' identity; controllers; power; the checklist for setting a hub up and checking it |
 | [chassis.md](chassis.md) | footprint, robot frame, drive train, odometry, measured drive performance |
 | [mechanisms.md](mechanisms.md) | the element path and its four actuators: intake, pusher, flywheel (with its position servo), ramp |
 | [sensors.md](sensors.md) | the five color sensors, the encoders, motor currents, battery voltage |
+| [driver-station-screen.md](driver-station-screen.md) | what the Driver Station's telemetry area can show: the formatting that works, how much fits, the rules a match screen follows |
 
 ## What belongs here and what does not
 
@@ -18,8 +19,9 @@ This folder states **what is true of the robot now**. It is not a history and no
 | Hardware, wiring, dimensions, and constants that describe the robot itself (a servo position, an encoder's ticks per turn, where a sensor sits) | here |
 | What the software does with them (control laws, state machines, timing, tuned powers and thresholds) | `specs/` |
 | The field and the game rules the code relies on | `specs/` |
-| Why something was decided, how it was measured, what was tried before | `design/` (a dated decision log) |
-| Setup and test procedures (Pit Check, robot-day runbook, test plans) | `design/` |
+| Why something was decided, how it was measured, what was tried before | the commit messages and the git history. The `design/` folder that held dated notes, plans and checklists was removed on 2026-11-23 (last present at commit 433799d), so that `specs/` and `robot_design/` are the only description |
+| Setup and test procedures | the hub checklist on [hub-configuration.md](hub-configuration.md); Pit Check and the other support opmodes in [specs/support-opmodes.md](../specs/support-opmodes.md); getting the logs in [specs/logging.md](../specs/logging.md) section 5 |
+| Ideas agreed to keep but not built | [specs/idea-queue.md](../specs/idea-queue.md) |
 | Rules, strategy, scouting, and why the robot concept is what it is | the separate BIOBUZZ knowledge repo |
 
 **Rule for a change:** if a wire moves, a part is swapped, a servo position or an offset is re-measured, change the code and the page here in the same commit.

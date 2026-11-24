@@ -13,16 +13,17 @@ The robot code for **FIRST Tech Challenge team 8533, the CSPA Miners**, for the 
 | Folder | What is in it |
 |---|---|
 | `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/` | `opmodes/` (the opmodes), `subsystems/` (intake, flywheel, pusher, ramp, element counter, and `Mechanisms`, the coordinator), `drive/` (mecanum drive, Pinpoint localizer, target lock, Hive Dash, hold position, hive routing), `motion/` (drive-to-pose, the auto actions), `util/` (the run log, the Dashboard config dump), `math/` |
-| `design/` | the design notes, test plan and runbooks (start with [integration-plan.md](design/integration-plan.md) and [robot-day-runbook.md](design/robot-day-runbook.md)) |
+| `specs/` | what the software does and how it behaves, as built, with the status of each feature (start with [specs/README.md](specs/README.md)) |
+| `robot_design/` | the physical robot: devices, wiring, dimensions, measured constants, and the hub setup checklist ([robot_design/README.md](robot_design/README.md)) |
 | `tools/` | `logs/` (pull and analyse the run logs), `hive/` (router checks on a PC) |
 | `FtcRobotController/` | the FTC SDK app (unchanged) |
 
 ## Build and run
-Open the project in Android Studio (Narwhal 3 Feature Drop or later) and build and deploy to the Control Hub. The Dashboard for live tuning is at `192.168.43.1:8080/dash` over the hub's Wi-Fi. A robot-day checklist is in [robot-day-runbook.md](design/robot-day-runbook.md), and the Pit Check opmode checks the hardware.
+Open the project in Android Studio (Narwhal 3 Feature Drop or later) and build and deploy to the Control Hub. The Dashboard for live tuning is at `192.168.43.1:8080/dash` over the hub's Wi-Fi. The hub setup checklist is in [robot_design/hub-configuration.md](robot_design/hub-configuration.md), and the Pit Check opmode checks the hardware ([specs/support-opmodes.md](specs/support-opmodes.md)).
 
 ## Branches and tags
 - **`main`** is the last build that has been **run on the robot**. Each tested build is tagged `tested-YYYY-MM-DD`.
-- **`integration`** is the working branch: all new work lands here first, and it can contain changes that have not run on the robot yet (the test plan rows in [integration-plan.md](design/integration-plan.md) say which).
+- **`integration`** is the working branch: all new work lands here first, and it can contain changes that have not run on the robot yet (the feature status table in [specs/architecture.md](specs/architecture.md) says which).
 - Risky or large changes get their own branch (for example `duo-autos`) and are merged into `integration` once they work; `main` is updated only from tested builds.
 
 ## Conventions
@@ -40,10 +41,10 @@ python tools/logs/baseline_health.py              # post-match health check of t
 python tools/logs/loop_profile.py                 # where the loop time goes (the LOOP PROFILE lines of the newest TeleOp and auto)
 python tools/logs/config_changes.py               # which Dashboard values changed between runs
 ```
-What every log line means is in [run-logs.md](design/run-logs.md).
+What every log line means, and how to get the logs, is in [specs/logging.md](specs/logging.md).
 
-## Design notes
-[mechanisms.md](design/mechanisms.md) (the intake, flywheel, pusher, ramp and the coordinator), [hive-dash.md](design/hive-dash.md), [game-rules.md](design/game-rules.md) (the scoring and rules that matter to the autos), [opmodes.md](design/opmodes.md), [idea-queue.md](design/idea-queue.md).
+## Specifications
+[specs/](specs/README.md) describes the software as built (the mechanisms and their coordinator, aiming, the dashes, the TeleOp, the autos, the support opmodes, logging) and [robot_design/](robot_design/README.md) the robot itself. Ideas agreed to keep but not built are in [specs/idea-queue.md](specs/idea-queue.md). The `design/` folder of earlier notes was removed on 2026-11-23; it is in the git history.
 
 ## License
 The FTC SDK is under the license in [LICENSE](LICENSE) (FIRST's BSD-style license).

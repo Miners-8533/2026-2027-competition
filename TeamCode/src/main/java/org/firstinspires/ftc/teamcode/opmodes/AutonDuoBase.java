@@ -22,7 +22,7 @@ import java.util.Locale;
 
 /**
  * The shared skeleton of the two duo autos: the INIT loop (alliance with the D-pad, the pose check), the log set-up, the run and the hand-over of the final pose. The two subclasses give the
- * start pose and the action sequence ({@link AutonDuoFlowerSide}, {@link AutonDuoGardenSide}). See {@link DuoAutos} for the values and design/duo-autos.md for the plan.
+ * start pose and the action sequence ({@link AutonDuoFlowerSide}, {@link AutonDuoGardenSide}). See {@link DuoAutos} for the values and specs/autos.md for the plan.
  */
 abstract class AutonDuoBase extends LinearOpMode {
 

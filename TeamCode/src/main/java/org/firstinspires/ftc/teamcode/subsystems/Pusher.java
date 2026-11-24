@@ -18,7 +18,7 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
  * one motor with a RELATIVE encoder and NO hard stops (it spins continuously, almost always forward).
  * The back of the arm limits how many elements enter (the 4 cap) while it sits at HOLD; a salvo takes
  * it SALVO_DEG (400, a full turn and 40 deg more) forward from the nearest HOLD, pushing the stack to the flywheel, so it rests
- * about 40 deg past a HOLD; the pusher check (PusherCheck) then parks it at CS4 and brings it back to HOLD. Design notes: design/mechanisms.md.
+ * about 40 deg past a HOLD; the pusher check (PusherCheck) then parks it at CS4 and brings it back to HOLD. Design notes: specs/pusher.md.
  *
  * Control is deliberately plain: every move runs the motor at a calibratable power and cuts it when the
  * position crosses a threshold, and the brake does the rest. No PID, no velocity loop.

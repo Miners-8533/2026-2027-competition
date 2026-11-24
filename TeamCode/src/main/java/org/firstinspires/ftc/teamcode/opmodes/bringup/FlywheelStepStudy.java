@@ -50,7 +50,7 @@ import java.util.Map;
  * independent of the hub's own calculation), the motor command written after the reading, the current, and the in-band flag; a STEP n START line at
  * each change of setpoint and a STEP n line with its measurements when it ends; a STEP TABLE at the end with the mean of each from -> to pair.
  * Bulk caching is AUTO on every hub, as in the TeleOp (MecanumDrive sets it), so the position comes from the speed's bulk read at no extra cost.
- * design/opmodes.md, design/run-logs.md (columns).
+ * specs/support-opmodes.md, specs/logging.md (columns).
  */
 @Config
 @Disabled   // hidden from the Driver Station (2026-11-20, user: only Solo, Daryl, TeleOp - Competition, Pusher Calibration Test and Pit Check are shown); remove this line and the import to use it again

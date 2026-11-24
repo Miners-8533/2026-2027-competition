@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * DRIVE CHARACTERIZATION (2026-11-06; design/dash-planner-grid.md, "Drive characterization"): the robot drives a fixed list of open-loop drive tests BY ITSELF on
+ * DRIVE CHARACTERIZATION (2026-11-06; specs/support-opmodes.md, Drive Characterization): the robot drives a fixed list of open-loop drive tests BY ITSELF on
  * one alliance's half of the field and logs every loop, so the drive model can be fitted from clean data (stops at zero and at part power, turning while rolling,
  * changing direction at speed, steady speed against power, spins, the dead zone, random commands). The tests are {@link DriveTestRoutine} (about 2.7 minutes of
  * driving in the simulation); the geofence there keeps the robot on its own half, clear of the walls, the hive and the flowers.

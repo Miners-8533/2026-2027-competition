@@ -1,4 +1,4 @@
-"""tools/dash/identify_drive.py (2026-11-06, Phase 1 of the dash planner rework, design/dash-planner-grid.md): run `python tools/dash/identify_drive.py` (all TeleOp driving rows) or `... dash` (dash rows only); writes drive_model_all.npy / drive_model_dash.npy next to it.
+"""tools/dash/identify_drive.py (2026-11-06, the drive model for the dash planner rework, specs/dashes.md): run `python tools/dash/identify_drive.py` (all TeleOp driving rows) or `... dash` (dash rows only); writes drive_model_all.npy / drive_model_dash.npy next to it.
 Body-level drive model fitted for multi-step prediction: windows of W log rows, initial state from the measured velocity, error = predicted pose vs logged pose at each later row.
 Per axis (forward, strafe, turn): target = K * (volt/12) * sign(c) * max(0, |c| - p0), first-order lag with tau_up / tau_down; c is the command after the wheel-power normalization."""
 import glob, math, sys

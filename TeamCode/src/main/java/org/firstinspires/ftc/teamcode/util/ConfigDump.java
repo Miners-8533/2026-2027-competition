@@ -36,7 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Writes the live Dashboard values into the run log when a run starts (design/run-logs.md). Dashboard edits live in memory and reset when the app restarts, so without this
+ * Writes the live Dashboard values into the run log when a run starts (specs/logging.md). Dashboard edits live in memory and reset when the app restarts, so without this
  * a log does not say which trim, speed or tolerance was in force. One {@code CONFIG <class> name=value, ...} event per class, then {@code CONFIG CHANGED} lines for every value
  * that differs from the previous run in this app process (the edits made between the two runs). tools/logs/config_changes.py reads them across runs.
  *
