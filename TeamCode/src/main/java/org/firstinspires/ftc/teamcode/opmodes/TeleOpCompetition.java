@@ -57,7 +57,7 @@ import java.util.Locale;
  * INIT (gamepad 1):
  *   D-pad right / left   BLUE / RED alliance (only when there is no auto pose; an auto pose fixes the alliance)
  *   D-pad up             discard what the last opmode saved: the auto pose (the default start pose is used, then the D-pad picks the alliance) and the CS5 held count (it starts at 0)
- *   X                    CS5 FULL: FULL AUTO <-> COUNT ONLY (default FULL AUTO; the INIT screen and the competition screen say which; COUNT ONLY shows and logs the count and acts on nothing, as at Hartland)
+ *   (no other choice in INIT since 2026-11-18: the TeleOp always runs COUNT ONLY and the 2-D launch grid; FULL AUTO is the build-time switch FULL_AUTO, false)
  *
  * Gamepad 1 (driver):
  *   left stick           drive, field-oriented: up = away from the driver, right = the driver's right
@@ -66,7 +66,8 @@ import java.util.Locale;
  *   A                    launch a salvo (spins up and launches when ready); also cancels a running reject, the way out of a jam the other way.
  *                        Works with any number of elements held, locked or not. While the target lock (right bumper) is held and not yet ALIGNED the launch is QUEUED until it is
  *                        (LAUNCH_WAITS_FOR_ALIGN): it goes the moment the lock aligns, and is dropped if the trigger is released or LAUNCH_ALIGN_WAIT_SEC passes (10 of 19 salvos on
- *                        2026-11-03 went before the lock was aligned, two pointing 70 to 110 deg off the cell).
+ *                        2026-11-03 went before the lock was aligned, two pointing 70 to 110 deg off the cell). REFUSED where the 2-D launch grid measured no shot for the cell
+ *                        (BLOCK_LAUNCH_IN_NO_SHOT; the screen says NO SHOT and LAUNCH BLOCKED: MOVE): back away and press again. Every press counts: one just after a salvo ends starts another salvo.
  *   right bumper (hold)  TARGET LOCK by hand (it was the right trigger until 2026-11-05): while it is held the robot turns itself to point its front (intake and launcher end) at the nearest of your alliance's two
  *                        CELLs while you keep driving; with the left bumper also held the right stick nudges the aim up to 15 deg (without it the stick does nothing while
  *                        locked); ALIGNED on the screen says it is on target. The automatic lock when the robot is full is OFF (AUTO_LOCK_WHEN_FULL = false: a sliding
@@ -91,14 +92,15 @@ import java.util.Locale;
  *   left trigger (hold)  force the intake OUT
  *   hold left bumper + B reject (pusher reverse + outtake); also the way out of a jam: it cancels a running salvo or a queued launch
  *   X / Y                deploy / stow the ramp (manual, no limits: the stow does not wait for the pose or a flower)
- *   (the pusher LOCK has no control: while a target lock (driver right bumper, the operator's A, auto-launch) or a Hive Dash is on and something is held, the arm moves 90 deg forward of HOLD across the intake
- *                        entrance by itself (Mechanisms.PUSHER_LOCK_ENABLED); the element count is frozen and the intake is OFF while locked (it is NOT locked just because the robot is full: the count of 4 is not
- *                        trusted); a launch goes from the lock (310 deg), a reject unlocks first, holding the right trigger (force IN) unlocks it, and the arm goes back to HOLD 0.5 s after the target lock or dash ends without a launch)
+ *   (the pusher has no control for its LAUNCH-READY position, and since 2026-11-21 the TeleOp does not use it: LAUNCH_READY_IN_TELEOP is false, the arm stays at HOLD and every salvo starts from HOLD.
+ *                        With the switch true, while a target lock or a Hive Dash is on, whatever is held, the arm moves forward to Pusher.LAUNCH_READY_DEG (141 deg past HOLD) by itself, the count on CS1 to CS4
+ *                        is frozen while it is there, a launch goes from it, a reject or the right trigger unlocks it, and the arm goes back to HOLD 0.5 s after the lock or dash ends without a launch.
+ *                        The robot being full never locks the pusher. The autos ask for the same position before each salvo (Mechanisms.requestLaunchReady).)
  *   (the flywheel has no control: it runs from Start, keeps running after salvos, and stops only when the opmode ends)
  *   D-pad (unguarded)    REPORT where the LAST salvo landed, seen from behind the robot: left = it landed LEFT (the remembered aim for that cell turns 3 deg right),
  *                        right = landed RIGHT (3 deg left), down = landed LOW / UNDER (speed trim +10 ticks/s), up = landed HIGH / OVER (speed trim -10). The remembered aim is kept
  *                        per CELL (the cell of the last launch), is used by the next lock on that cell, and is cleared by a driver reseed; the speed trim is one shared offset
- *                        added to the launch map's speed (the manual setpoint while the map is empty). Each report is logged with the aim of the last launch.
+ *                        added to the launch speed (the 2-D launch grid's, or the launch map's where the grid has no data). Each report is logged with the aim of the last launch.
  *   hold left bumper + D-pad left / right   clear the remembered aim of the last launched cell;  hold left bumper + D-pad up / down   clear the speed trim
  *   (the target cell is not picked: it is always the closer of your alliance's own two cells, chosen from the pose)
  *   right bumper         AUTO-LAUNCH on / off (a toggle, off at Start; a prototype). With it on, while the target lock is on (automatic or manual) and the robot is inside the
