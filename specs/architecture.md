@@ -199,20 +199,27 @@ No behavior the drivers can see changes.
 | Queued launch, launch band, reject, pusher check, jam handling | in the tested build |
 | Target lock, auto-launch, hold position, reports, backup mode | in the tested build |
 | Hive Dash and Park Dash (hand-placed route points) | in the tested build; judged too slow to use as they are, and known to cut clearances fine at present speeds |
-| Solo, Daryl, Cybugs autos | in the tested build |
-| CS5 entry count, FULL sequence, COUNT ONLY choice | added later; the first version ran in practice, the present one has not |
-| Drive hold during a salvo | added later; ran in practice, not at speed |
+| Solo, Daryl, Cybugs autos, as at Hartland | in the tested build |
+| Solo with the launch grid, the launch-ready pusher and one launch spot (2026-11-19, 20) | ran in six matches at the Novi Qualifier |
+| Boomerang (2026-11-21) | ran in five playoff matches at the Novi Qualifier and finished every time. A launch spot 2 in nearer the wall is on the `integration` branch only, not run |
+| Daryl's new finish; Blaser's Gambit (2026-11-21) | each run three times on 2026-11-21 outside a match; Daryl finished once, Blaser's Gambit has not finished its actions |
+| Triple Tip (2026-11-20); Garden Side and Flower Side as rebuilt 2026-11-21 | built; not run |
+| CS5 entry count, FULL sequence, COUNT ONLY choice | added later; ran in practice to 2026-11-19; **CS5 is switched off since 2026-11-20**: no held count is shown (`? HELD`) and nothing is ever FULL. CS2's recording is switched off too |
+| Drive hold during a salvo | added later; ran in every match at the Novi Qualifier |
 | Flywheel position hold; flywheel encoder recovery | added later; not run |
-| Launch grid | added later; off; not run |
+| Launch grid | on from Start in the TeleOp (2026-11-18) and in the shown autos (2026-11-19 to 21); used in every match at the Novi Qualifier |
+| No launch from a no-shot zone of the grid (TeleOp) | built 2026-11-19; ran at the Novi Qualifier |
 | Grid routes, driven as smooth paths | built; on since 2026-11-18 for both dashes; not run on the robot |
-| Pusher lock for a target lock or dash | built; off |
+| Launch-ready pusher position | the autos' request ran in every auto at the Novi Qualifier; the TeleOp's (for a target lock or a dash) ran in two matches there and is off since 2026-11-21 |
+| Pusher re-home after a skipped check | built 2026-11-19; ran after every salvo at the Novi Qualifier, where a stale CS3 baseline kept the check itself from running (re-measured 2026-11-21; the new values are on the `integration` branch only, not run) |
+| Jostle strokes by time; a time limit for the whole wall squaring | built 2026-11-19, 20; ran at the Novi Qualifier |
 | Drive-to-pose static friction term | added later; opt-in; not run |
 | Drive-to-pose gain tuning on this robot | never done |
 | CS5 held count carried between opmodes; an auto starts at 4 | built 2026-11-17; not run |
 | The entry count alone for full and the tally (jostle end, warning, intake stop) | built 2026-11-17; on; not run |
-| Autos: one aim trim per launch, no far-cell extra | built 2026-11-17; same aim by PC check; not run |
+| Autos: one aim trim per launch, no far-cell extra | built 2026-11-17; same aim by PC check; in every auto at the Novi Qualifier |
 | Remembered aims kept through a TeleOp restart; aim trims on the match screen | built 2026-11-17; not run |
-| Autos stop all mechanisms at their end | built 2026-11-17; not run |
+| Autos stop all mechanisms at their end | built 2026-11-17; in every auto at the Novi Qualifier |
 | Drive Acceptance opmode; overshoot in the drive log line; tuners write a log | built 2026-11-17; not run |
 
 "Tested build" means the build used at the Hartland Qualifier on 2026-11-07, which is the `main` branch. These specs describe the `integration` branch, which has all of the above.

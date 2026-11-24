@@ -2,7 +2,7 @@
 
 What the team's robot software does and how it behaves, written so that it could be rebuilt from these pages without the source. Team 8533, BIOBUZZ season (2026-27).
 
-These pages describe the **`integration` branch as of 2026-11-17**. They cover the team's own code only, not the FTC SDK.
+These pages describe the **`main` branch: the build that last ran on the robot**, at the Novi Qualifier of 2026-11-21. Its build stamp in the logs is `commit 9599d8b (integration), built 2026-11-21 16:24:44 (PC clock), UNCOMMITTED changes: 8 file(s) changed, 1 new, fingerprint 82e29283`; those uncommitted changes were committed afterwards as 9fcb12d (the Ramp Test, the full ramp range, Pit Check shown). Two later changes have not run and are on the `integration` branch only, with the pages as they read there: CS3's re-measured empty baseline (3b31327) and the Boomerang's launch spot 2 in nearer the wall (64087f6). Where a page here touches one of them it says so. They were first written on 2026-11-17 and are kept up with the code; the last full pass against the code and the run logs, those of the Novi Qualifier of 2026-11-21 included, was on 2026-11-23. They cover the team's own code only, not the FTC SDK.
 
 ## How to read them
 
@@ -26,8 +26,11 @@ Start with [architecture.md](architecture.md). It explains the layers, the contr
 | [support-opmodes.md](support-opmodes.md) | Pit Check, tuners, studies, build aids |
 | [logging.md](logging.md) | run log, settings dump, loop profiler, build stamp |
 | [tools.md](tools.md) | PC tools the robot code depends on |
+| [idea-queue.md](idea-queue.md) | ideas agreed to keep but not built, and what was decided against. Not a description of the code |
 
 The physical robot (devices, wiring, dimensions, measured constants) is in [robot_design/](../robot_design/README.md). Rules, strategy and scouting are in the team's separate BIOBUZZ knowledge repo.
+
+**There is no `design/` folder any more** (removed 2026-11-23). `specs/` and `robot_design/` are the only description of the software and the robot. Five things were carried over from it: the hub setup checklist ([robot_design/hub-configuration.md](../robot_design/hub-configuration.md)), what the Driver Station screen can show ([robot_design/driver-station-screen.md](../robot_design/driver-station-screen.md)), Pit Check's controls and output ([support-opmodes.md](support-opmodes.md) section 1), getting the logs off the hub ([logging.md](logging.md) section 5) and the idea queue ([idea-queue.md](idea-queue.md)). The earlier design notes, plans and checklists are in the git history, last present at commit 433799d.
 
 ## What a page contains
 
@@ -36,7 +39,7 @@ The physical robot (devices, wiring, dimensions, measured constants) is in [robo
 - **Parameters** with their present values. A rebuild needs them; they are data, not code.
 - **Status**: whether it has run on the robot.
 
-What is deliberately left out: line-by-line logic, class and method names where a plain name will do, the history of how a value was reached, and procedures for testing. History and procedures are in `design/`.
+What is deliberately left out: line-by-line logic, class and method names where a plain name will do, the history of how a value was reached, and procedures for testing. History is in the commit messages and the git history. The few procedures that are kept are where their subject is: the hub setup checklist in `robot_design/`, Pit Check in [support-opmodes.md](support-opmodes.md), getting the logs in [logging.md](logging.md).
 
 ## As built and target
 
@@ -60,8 +63,9 @@ Some targets only move things around and change nothing the robot does in a matc
 
 | Words | Meaning |
 |---|---|
-| In the tested build, or used at Hartland | part of the build that ran at the Hartland Qualifier on 2026-11-07 (the `main` branch) |
+| In the tested build, or used at Hartland | part of the build that ran at the Hartland Qualifier on 2026-11-07 (merged into `main` that day) |
 | Ran in practice | exercised on the robot after Hartland, outside a match |
+| Ran at Novi, or used at the Novi Qualifier | ran in a match at the Novi Qualifier on 2026-11-21, on the `integration` branch (builds dfee25d, 1fa5b23, and 9599d8b with the uncommitted changes that became 9fcb12d: stamp `built 2026-11-21 16:24:44 (PC clock)`, fingerprint 82e29283). That last build is `main` since 2026-11-23 |
 | Not run on the robot | builds and passes any PC checks, but has never run on the robot |
 | Off, or switched off | present in the code but disabled by a setting |
 | Hidden | an opmode that is complete but not shown on the Driver Station |
@@ -87,12 +91,15 @@ Collected from the pages; each is explained where it arises.
 |---|---|
 | The drive-to-pose gains have never been tuned on this robot | Target T2 ([motion.md](motion.md), [support-opmodes.md](support-opmodes.md)); needs a tuning session |
 | Odometry drift across the field was allowed for in four separate places | Target T1 ([aiming.md](aiming.md)): drift is accepted and trimmed by the operator. Mostly built 2026-11-17, not run |
-| Two element counts with different rules for "full" | Target T3 ([element-counting.md](element-counting.md)): the CS5 entry count is the count. Built and first run 2026-11-17; it undercounted, its levels changed 2026-11-18 and 2026-11-19 (the last not run) |
+| Two element counts with different rules for "full" | Target T3 ([element-counting.md](element-counting.md)): the CS5 entry count is the count. Built and first run 2026-11-17; it undercounted, its levels changed 2026-11-18 and 2026-11-19. **CS5 is switched off in the code since 2026-11-20** (the user), so at present the robot has no held count and is never FULL; the Novi Qualifier was played that way |
 | The present dashes are too slow to use and cut clearances fine | Target T9 ([dashes.md](dashes.md)); the grid routes as smooth paths are switched on since 2026-11-18 and need their first robot run |
 | Several live settings are missing from the settings dump | Target T8 ([logging.md](logging.md)) |
-| The entry count ran low in its first robot runs; at the levels of 2026-11-19 it is right at 204 of 208 loads by replay, and those levels have not run | needs a run; the true number of each load comes from CS2 in every log ([element-counting.md](element-counting.md) section 2.7) |
-| CS2 has been moved to the top of the feed ramp (2026-11-18). Nothing counts what a salvo launches yet | Target T11 ([element-counting.md](element-counting.md) section 6): CS2 has left the slot count and is recorded through every salvo (built 2026-11-18, not run). The counting rule waits on those recordings, and the cost of the fast reads during a salvo is not known |
-| The launch grid has data for one cell from one run | no design change; needs data ([aiming.md](aiming.md)) |
+| The entry count ran low in its first robot runs; at the levels of 2026-11-19 it is right at 204 of 208 loads by replay, and those levels ran only in four Solo autos on the night of 2026-11-19 (not examined) before CS5 was switched off | needs CS5 switched on again and a run; the true number of each load comes from CS2 in every log ([element-counting.md](element-counting.md) section 2.7) |
+| CS2 has been moved to the top of the feed ramp (2026-11-18). Nothing counts what a salvo launches yet | Target T11 ([element-counting.md](element-counting.md) section 6): CS2 has left the slot count and is recorded through every salvo (built 2026-11-18; recorded in the runs of 2026-11-18 and 19; **switched off in the code since 2026-11-20**). The counting rule waits on those recordings, and the cost of the fast reads during a salvo is not known |
+| The launch grid: both blue cells are measured (2026-11-18) and the grid was used in every match at the Novi Qualifier. Its no-shot zone begins about 34 in from the audience cell and the driver only learns of it on arrival: up to 17 blocked presses in a playoff match | not decided ([aiming.md](aiming.md) section 4.3) |
+| A press of the driver's A just after a salvo has ended starts another salvo, whatever is held. At the Novi Qualifier that gave 5 to 15 second salvos a match, each holding the drive about 0.85 s; about half launched nothing | not decided ([teleop.md](teleop.md) section 5) |
+| A stale empty baseline on one slot sensor (CS3) kept the track from reading empty all day at the Novi Qualifier, so the pusher check after a salvo was skipped every time | the baseline was re-measured on 2026-11-21; the new values are on the `integration` branch only (3b31327) until they have run, so **this build still has the stale CS3 baseline**. After any change to a sensor or the track, compare every sensor's empty reading with its stored baseline ([element-counting.md](element-counting.md) section 1.6) |
+| The autos' start pose at the audience wall (Flower Side and Blaser's Gambit, y = 7.5) is not on a tile seam, and the team lines the robot up on the tile marks | not decided ([autos.md](autos.md) section 9) |
 
 ## Gaps found by a rebuild
 
@@ -110,7 +117,7 @@ On 2026-11-17 the team's code was rebuilt from these pages and `robot_design/` a
 | What an incomplete salvo does to the salvo counter | [mechanisms.md](mechanisms.md) section 3 | filled |
 | How a leg is checked: the swept rectangle, the lane walls, the goal | [dashes.md](dashes.md) section 1.2 | filled; the section is rewritten from the code |
 | The layout of the grid route tables and the numbering of their states | [dashes.md](dashes.md) section 5.1 | filled |
-| The corner speed table: this page and `design/dash-planner-grid.md` gave different values | [dashes.md](dashes.md) section 5.1 | settled: this page's values are the code's |
+| The corner speed table: this page and the earlier design notes (`design/dash-planner-grid.md`, in the git history) gave different values | [dashes.md](dashes.md) section 5.1 | settled: this page's values are the code's |
 | The layout of the launch grid data | [aiming.md](aiming.md) section 4.1 | filled |
 | The `PROTOTYPE` and `DRAFT_1` chassis profiles; how the hub's ids are read | [drive.md](drive.md) section 1 | filled |
 | The controls of the support opmodes | [support-opmodes.md](support-opmodes.md) | filled. Six of them use the Back button, which the page's own rule forbade |

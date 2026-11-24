@@ -20,7 +20,7 @@ import java.util.concurrent.locks.LockSupport;
  *
  * A thread reads CS5's raw proximity (rawOptical: one 2-byte I2C read, about 3 ms) every PERIOD_MS (25) and runs the counting rule on each sample: EDGE counting (USE_EDGE, from 2026-11-15: an entry
  * is the signal's rise to EDGE_HI above the empty level for EDGE_CONFIRM samples, re-armed when it is back at EDGE_LO), or, with that switch off, the earlier PEAK counting ({@link PeakCounter}).
- * The CS Pass Study of 2026-11-14 (design/opmodes.md) showed that a 20 ms thread ran the main loop at 40 ms against the TeleOp's 26 and a 10 ms one at 47 ms; at 25 ms the thread costs nothing
+ * The CS Pass Study of 2026-11-14 (specs/support-opmodes.md) showed that a 20 ms thread ran the main loop at 40 ms against the TeleOp's 26 and a 10 ms one at 47 ms; at 25 ms the thread costs nothing
  * measurable. The thread starts with the first {@link #touch()} (Mechanisms.update calls it every loop, so nothing is read in INIT) and ends when touch stops (the opmode is over) or on {@link #stop()}.
  *
  * The sensor is put on its fast proximity preset (8-bit, a new value every 6.25 ms; the SDK default is 100 ms) when this is built (INIT). A failed preset is logged and the count would be useless

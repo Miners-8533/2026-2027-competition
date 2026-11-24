@@ -128,6 +128,10 @@ Every change of mode is logged. The stretches during which the intake ran OUT ar
 
 > In the always-on TeleOp the track rarely reads empty right after a salvo, so in practice the automatic check is often skipped and the arm rests 40 to 60 deg past HOLD between salvos.
 
+**Re-home after a skipped check (2026-11-19; `REHOME_AFTER_SKIPPED_CHECK`, true).** When the check after a salvo is skipped because the track did not read empty within its 2.0 s, and the arm rests more than the HOLD tolerance (8 deg) and at most 130 deg (`REHOME_MAX_PAST_DEG`) past a HOLD, the arm is reversed to that HOLD by the encoder, so that the intake keeps its room. It is the same reverse-only seek as unlocking the lock, at 0.25 power, and it needs the robot idle and no lock wanted. It is never done forward (that would sweep the elements into the flywheel) and never from farther than the limit (a reverse that far could push elements out; a log line says so). A queued launch, a salvo, a reject, a manual outtake, a pusher fault or a launch-ready request stops it. Log lines: `PUSHER RE-HOME: the check was skipped and the arm rests <deg> past HOLD ...`, `PUSHER RE-HOME done: the arm is <deg> past HOLD`, `PUSHER RE-HOME stopped: <why>`, `PUSHER RE-HOME not done: ...`. The same re-home follows a salvo while the pusher check is switched off ([pusher.md](pusher.md)).
+
+> At the Novi Qualifier (2026-11-21) the check after a salvo was skipped every time, in every match: a stale CS3 baseline kept the track from reading empty ([element-counting.md](element-counting.md) section 1.6). The re-home ran each time (3 to 4 times in an auto, 6 to 13 in a TeleOp). In the last match's auto the arm rested 46 to 52 deg past HOLD and ended 6 to 11 deg behind HOLD about 0.35 s after the re-home began. A check ran and passed only three times all day in a match, once each in the TeleOps of Q17, M10 and M11.
+
 ## 7. FULL and the pusher lock
 
 ### 7.1 Declaring FULL
@@ -166,9 +170,14 @@ Lock states: none, locking, locked, unlocking.
 
 **Unlocking** happens when: the reason for the lock has ended (after 0.5 s, and no launch is pending); the operator forces the intake in; or a reject is requested. When the arm stops, the count is unfrozen.
 
-**The one reason to lock (changed 2026-11-19, user; not run on the robot):** the TeleOp has a target lock or a Hive Dash active, whatever the count says (even 0). The arm goes to the launch-ready position (`LAUNCH_READY_DEG`, 156 deg, a first guess: right behind the stack at the bottom of the feed ramp; [pusher.md](pusher.md)). No count and no FULL ever locks the pusher (`FULL_LOCKS_PUSHER` is false). The master switch `PUSHER_LOCK_ENABLED` is on again. The autos never request it; their preload pre-position stays at 90 deg.
+**The reasons to lock (2026-11-19 to 2026-11-21, user).** The arm goes to the launch-ready position (`LAUNCH_READY_DEG`, 141 deg past HOLD since the night of 2026-11-19; first 156 deg: right behind the stack at the bottom of the feed ramp; [pusher.md](pusher.md)), so that the salvo from it is shorter.
 
-**Preload pre-position (autos).** At the very start of an auto the arm is moved to the lock angle while the flywheel spins up, so the preload salvo turns 310 deg instead of 400 and finishes about 0.3 s sooner. This calls the pusher's lock move directly and is independent of the switches above.
+- **An auto asks for it before a salvo** (`requestLaunchReady`, 2026-11-20): at Start for the preload, and on the last leg to each launch spot. It is one request, which ends when the next salvo starts. Every shown auto uses it. It ran in every auto at the Novi Qualifier (in the last match's auto the arm locked at 135 to 144 deg, 0.63 to 0.69 s after the request).
+- **The TeleOp asks for it during a target lock or a Hive Dash,** whatever the count says (even 0), only while `TeleOpCompetition.LAUNCH_READY_IN_TELEOP` is true. That switch is **false since 2026-11-21** (the user, at the Novi Qualifier, after two matches with it): in the TeleOp the arm stays at HOLD and every salvo starts from HOLD.
+
+No count and no FULL ever locks the pusher (`FULL_LOCKS_PUSHER` is false). The master switch `PUSHER_LOCK_ENABLED` is on.
+
+**Preload pre-position (autos).** At the very start of an auto the arm is moved to the lock angle while the flywheel spins up, so the preload salvo turns 310 deg instead of 400 and finishes about 0.3 s sooner. This calls the pusher's lock move directly and is independent of the switches above. Only the hidden programs Cybugs and Primary still do this (`preparePusherForLaunch`, 90 deg); the shown autos ask for the launch-ready position at Start instead.
 
 ## 8. Ramp
 
@@ -249,7 +258,7 @@ Every sample row of the run log carries the coordinator's state: setpoint, flywh
 
 ## 15. Status
 
-In the Hartland build: the queued launch with the launch band, reject, always-on intake, the pusher check, jam handling, the preload pre-position, backup mode. Added 2026-11-17 and run in practice TeleOps that day: the entry count as the only count for full and the tally, and the held count carried between opmodes. Added 2026-11-17 and not run: stop all at the end of the autos, and the kind of each entry with the load order (logged only; [element-counting.md](element-counting.md) section 2.8). Added after Hartland: the CS5 entry count and FULL (the edge counter and the present sequence ran in practice on 2026-11-17, where the count ran low; the re-arm level raised for it on 2026-11-18 has not run), the lock retry limit, the put-back after an incomplete salvo, stop all, the flywheel position hold, and the launch grid.
+In the Hartland build: the queued launch with the launch band, reject, always-on intake, the pusher check, jam handling, the preload pre-position, backup mode. Added 2026-11-17 and run in practice TeleOps that day: the entry count as the only count for full and the tally, and the held count carried between opmodes. Added 2026-11-17 and not run: stop all at the end of the autos, and the kind of each entry with the load order (logged only; [element-counting.md](element-counting.md) section 2.8). Added after Hartland: the CS5 entry count and FULL (the edge counter and the present sequence ran in practice on 2026-11-17, where the count ran low; the re-arm level raised for it on 2026-11-18 has not run), the lock retry limit, the put-back after an incomplete salvo, stop all, the flywheel position hold, and the launch grid. **At the Novi Qualifier (2026-11-21):** the launch grid for the speed, the launch-ready request of the autos, the re-home after a skipped check, the flywheel position held at POLLEN, and stop all at the end of the autos ran in every match; CS5 and CS2 were switched off (since 2026-11-20), so there was no held count, no FULL and a launched tally of 0.
 
 ## 16. Target T4: a coordinator made of parts
 

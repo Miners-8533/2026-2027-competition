@@ -11,7 +11,7 @@ import org.firstinspires.ftc.teamcode.util.RunLog;
 import java.util.Locale;
 
 /**
- * PARK DASH (design/park-dash.md): in TeleOp - Competition the driver HOLDS D-pad up or down and the robot drives to one of the two park corners of its own loading zone, the
+ * PARK DASH (specs/dashes.md): in TeleOp - Competition the driver HOLDS D-pad up or down and the robot drives to one of the two park corners of its own loading zone, the
  * corner on the driver's left (up) or on the driver's right (down), and stays there while the D-pad is held. The ramp is stowed when the dash starts. Releasing the D-pad cancels at
  * once and gives the sticks back.
  *

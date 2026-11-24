@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.dashboard.config.Config;
 
 /**
- * The Dashboard values of the two DUO autos, "Auton - Duo Flower Side" and "Auton - Duo Garden Side" (design/duo-autos.md). They are a matched pair: the alliance partner runs the other one,
+ * The Dashboard values of the two DUO autos, "Auton - Duo Flower Side" and "Auton - Duo Garden Side" (specs/autos.md). They are a matched pair: the alliance partner runs the other one,
  * and the two take turns tipping the blue hive. All poses are in the BLUE frame (x, y inches, heading degrees; origin at the field center, +X toward the audience wall, +Y toward the Blue Wall);
  * red is the same path turned 180 degrees about the center. Most numbers are copied from {@code AutonSolo}, whose tuned values they start from; these are separate Dashboard values so tuning
  * one auto does not move the other.
@@ -78,7 +78,7 @@ public final class DuoAutos {
     /** UNUSED from 2026-11-21: F parks straight from its flower launch spot (56, 36), which is already clear of the flower and the support rails. Before: F's way to its park went through this point first (it left from (61.5, 7.5), below the flower); heading is the park heading. */
     public static double F_PARK_VIA_X = 46.0, F_PARK_VIA_Y = 32.0;
 
-    // ---- Auton - Duo Primary (2026-11-06, design/duo-autos.md): the rear-wall start of G with a longer program ----
+    // ---- Auton - Duo Primary (2026-11-06, specs/autos.md): the rear-wall start of G with a longer program ----
     /**
      * The launch spot for the AUDIENCE cell after the Blue Wall flower: the solo auto's, on the audience flower's line (the flower gather follows it), the far cell so the aim takes the far-cell
      * extra. The launch spot for the REAR cell after the audience flower and after the garden: its mirror, (-50, 26.3), 31.6 in from the rear cell like the audience one is from its cell, 22 in
@@ -104,7 +104,7 @@ public final class DuoAutos {
     /** The Blue Wall flower's pre-position and back-out stalled 1.7 to 1.9 in short of the solo auto's tolerances (2026-11-05 logs): the same near-enough tolerances here. */
     public static double WALL_PRE_POS_TOL_IN = 2.5, WALL_PRE_HEADING_TOL_DEG = 4.0, WALL_BACKOUT_TOL_IN = 2.5;
 
-    // ---- Auton - Duo Daryl (2026-11-06, design/duo-autos.md): the rear-wall start, garden first ----
+    // ---- Auton - Duo Daryl (2026-11-06, specs/autos.md): the rear-wall start, garden first ----
     /**
      * The partner's window (the user, 2026-11-06): our preload ends at about 3 s, the hive tip takes 4 s, plus a 2 s buffer: the partner shoots at about 9 s and must be parked by about 18 s. The second audience
      * shot (the Blue Wall flower's pollen) is therefore not before D_SECOND_SHOT_NOT_BEFORE_SEC (an ABSOLUTE time from Start, not a relative pause): the robot does not leave the flower before that time minus
@@ -139,7 +139,7 @@ public final class DuoAutos {
     /** The Blue Wall flower's jostle ends by this many seconds into the auto at the latest; the audience flower's likewise, and the audience flower is skipped when it would start later than the latest start (so the park keeps its time). */
     public static double D_WALL_JOSTLE_DEADLINE_SEC = 19.0, D_AUD_JOSTLE_DEADLINE_SEC = 26.0, D_AUD_FLOWER_LATEST_START_SEC = 22.5;
 
-    // ---- Auton - Blaser's Gambit (2026-11-21, the user's design; design/duo-autos.md): the audience-wall start, a triple tip; built, not run on the robot ----
+    // ---- Auton - Blaser's Gambit (2026-11-21, the user's design; specs/autos.md): the audience-wall start, a triple tip; built, not run on the robot ----
     /** The start, as the Flower Side's: back flush to the audience wall at this y (blue frame), heading 180. */
     public static double B_START_Y_IN = 7.5;
     /** The preload is not before this (the user, 2026-11-21: 7 s; the partner's preload salvo and the tip). The robot aims before the wait (DuoKit.aimWaitLaunch), so the salvo starts when it passes. Every second here comes off the end of the auto. */

@@ -15,7 +15,7 @@ import org.firstinspires.ftc.teamcode.motion.InstantAction;
 
 /**
  * The launcher flywheel: one encoder motor "fly_motor_enc", hood fixed. (The optional second motor "fly_follow"
- * is commented out for now; search for "fly_follow" to restore it.) Design notes: design/mechanisms.md.
+ * is commented out for now; search for "fly_follow" to restore it.) Design notes: specs/flywheel.md.
  *
  * Control is last season's bang-bang plus feedforward: full power while below the setpoint, a single
  * FEED_FORWARD motor command (0 to 1) at or above it, nothing when the target is 0. Plain on purpose;

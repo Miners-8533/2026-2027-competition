@@ -40,7 +40,7 @@ The rest of this section was measured with `CS2` in its old place, between `CS1`
 |---|---|---|---|
 | CS1 | 0.209 | 3.60 | 0.238 / 0.410 / 0.352 |
 | CS2 (its old place; **not valid since the move**) | 0.109 | 5.20 | 0.220 / 0.448 / 0.332 |
-| CS3 | 0.353 | 3.92 | 0.226 / 0.414 / 0.360 |
+| CS3 (**stale:** these values left the empty sensor reading "occupied" all day at the Novi Qualifier of 2026-11-21. Re-measured that evening with the robot empty: 0.575, 3.51, 0.230 / 0.428 / 0.343, which are on the `integration` branch only, commit 3b31327, until they have run) | 0.353 | 3.92 | 0.226 / 0.414 / 0.360 |
 | CS4 (a NEW sensor, replaced and re-measured 2026-11-21, the arm at HOLD; the arm at its center reads alpha 0.28 to 0.38 at 3.5 to 3.9 cm; the old sensor's last values were 0.067, 2.94, 0.250 / 0.430 / 0.320) | 0.128 | 4.53 | 0.248 / 0.415 / 0.337 |
 
 These depend on the lighting and on the track's color. A stale empty reading shows up as a phantom element (this happened on 2026-11-03), so they are re-measured in the pit when the lighting changes. They cannot be captured at the start of a match, because the robot starts with elements in it.
@@ -90,7 +90,7 @@ A dim blue nectar at CS4 is close to the arm's color; the arm is told apart by i
 
 ## The entrance sensor: CS5
 
-A fifth REV Color Sensor V3 at the intake entrance, ahead of `CS1`. Its **proximity** counts the elements. Its **color** names each one (from 2026-11-17, not run on the robot; the color table is below).
+A fifth REV Color Sensor V3 at the intake entrance, ahead of `CS1`. Its **proximity** counts the elements. Its **color** names each one (from 2026-11-17, not run on the robot; the color table is below). **The code does not read CS5 since 2026-11-20** (`EntryCounter.CS5_PRESENT` false; [specs/element-counting.md](../specs/element-counting.md)).
 
 | Quantity | Value |
 |---|---|

@@ -226,7 +226,7 @@ Each dash has its own switch. With a switch off, everything in sections 1 to 4 a
 |---|---|---|---|---|---|---|
 | Speed limit (in/s) | 66 | 60 | 44 | 36 | 24 | 20 |
 
-The table has an entry for 0, 10, 20, 30, 45, 60, 75, 90, 120, 150 and 180 deg, and the limit between two entries is interpolated. These are the values in the generated tables in the code (calibrated 2026-11-07; the tables were generated again on 2026-11-17 with the drift margin, and the calibration gave the same speeds). `design/dash-planner-grid.md` gives other figures for that calibration; the code's are the ones in force.
+The table has an entry for 0, 10, 20, 30, 45, 60, 75, 90, 120, 150 and 180 deg, and the limit between two entries is interpolated. These are the values in the generated tables in the code (calibrated 2026-11-07; the tables were generated again on 2026-11-17 with the drift margin, and the calibration gave the same speeds). The earlier design notes (`design/dash-planner-grid.md`, removed 2026-11-23, in the git history) gave other figures for that calibration; the code's are the ones in force.
 
 ### 5.2 Picking a start
 

@@ -6,11 +6,11 @@ Building blocks: [motion.md](motion.md), [mechanisms.md](mechanisms.md), [aiming
 
 | Program | Start wall | Shown on the Driver Station | Intended use |
 |---|---|---|---|
-| Auton - Solo | rear | yes | the partner only parks; since 2026-11-19 the preload takes only its flywheel speed from the 2-D launch grid (`PRELOAD_GRID_SPEED`: 1394 ticks/s at the start wall, extrapolated, against the map's 1350; the position and the aim are unchanged); every salvo runs from the LAUNCH-READY pusher position (`Mechanisms.requestLaunchReady`, requested on the last leg to each launch spot, forward only to 156 deg, dropped when the salvo starts); the launch-spot legs end within 3 in and 12 deg (the grid's speed and aim are looked up at the pose the robot is really at; not run); since 2026-11-19 there is no squaring after the garden since 2026-11-19 (`GARDEN_SQUARING` false); the audience launch spot, one for all three salvos, is blue (56, 36) / red (-56, -36) (8 in toward the flower wall from (48, 36), 2026-11-19; a first move to (44, 36) went the wrong way for red) with the 2-D launch grid's speed and aim; also from 2026-11-19 (user) the garden in one leg from the start to the end of the angled pickup (last 12.5 in at 0.5 power) and a THIRD garden salvo of the wall flower's pollen into the same cell from that same spot (56, 36), then the park is tried even if time runs out (not run since) |
-| Auton - Boomerang | rear | yes | (2026-11-21, built, not run) Solo up to the Blue Wall flower's back-out; then the last salvo into the first (preload's) cell from blue (-55.6, 26.2) instead of into the second cell from (56, 36), and the park through (-20, 44) (section 3) |
+| Auton - Solo | rear | yes | the partner only parks; since 2026-11-19 the preload takes only its flywheel speed from the 2-D launch grid (`PRELOAD_GRID_SPEED`: 1394 ticks/s at the start wall, extrapolated, against the map's 1350; the position and the aim are unchanged); every salvo runs from the LAUNCH-READY pusher position (`Mechanisms.requestLaunchReady`, requested on the last leg to each launch spot, forward only to the launch-ready angle, 141 deg, dropped when the salvo starts); the launch-spot legs end within 3 in and 12 deg (the grid's speed and aim are looked up at the pose the robot is really at; not run); since 2026-11-19 there is no squaring after the garden since 2026-11-19 (`GARDEN_SQUARING` false); the audience launch spot, one for all three salvos, is blue (56, 36) / red (-56, -36) (8 in toward the flower wall from (48, 36), 2026-11-19; a first move to (44, 36) went the wrong way for red) with the 2-D launch grid's speed and aim; also from 2026-11-19 (user) the garden in one leg from the start to the end of the angled pickup (last 12.5 in at 0.5 power) and a THIRD garden salvo of the wall flower's pollen into the same cell from that same spot (56, 36), then the park is tried even if time runs out (not run since) |
+| Auton - Boomerang | rear | yes | (2026-11-21; ran in five playoff matches at the Novi Qualifier with the last salvo from blue (-55.6, 26.2): it finished and parked every time, in 26.9 to 28.5 s) Solo up to the Blue Wall flower's back-out; then the last salvo into the first (preload's) cell from blue (-55.6, 26.2), the Triple Tip's rear launch spot (a spot of its own 2 in nearer the wall is on the `integration` branch only, not run), instead of into the second cell from (56, 36), and the park through (-20, 44) (section 3) |
 | Auton - Triple Tip | rear | yes | (2026-11-20, built, not run) Solo up to the first flower gather, the partner launches with our garden salvo; then around the outside of the hive to the first cell's side, two salvos into the first cell from blue (-55.6, 26.2) with the alliance-wall flower between them, and the park through (-20, 44) |
-| Auton - Blaser's Gambit | audience | yes | (2026-11-21, built, not run) a triple tip from the audience wall: the preload after a 7 s wait and the audience flower into the audience cell, the Blue Wall flower and the garden into the rear cell from the Triple Tip's launch spot; the salvos come before the park, which is tried last |
-| Auton - Duo Daryl | rear | yes | garden first; since 2026-11-20 the garden salvo launches from blue (56, 36) with the 2-D grid's speed and aim, every salvo from the launch-ready pusher position, the preload takes the grid's flywheel speed, and it parks at (22, 55.1); since 2026-11-21 the Blue Wall flower's pollen go into the original (preload's) cell from blue (-55.6, 26.2) and the partner wait, the second audience-cell salvo and the audience flower are gone (not run since 2026-11-07) |
+| Auton - Blaser's Gambit | audience | yes | (2026-11-21; run three times that day outside a match, none finished its actions) a triple tip from the audience wall: the preload after a 7 s wait and the audience flower into the audience cell, the Blue Wall flower and the garden into the rear cell from the Triple Tip's launch spot; the salvos come before the park, which is tried last |
+| Auton - Duo Daryl | rear | yes | garden first; since 2026-11-20 the garden salvo launches from blue (56, 36) with the 2-D grid's speed and aim, every salvo from the launch-ready pusher position, the preload takes the grid's flywheel speed, and it parks at (22, 55.1); since 2026-11-21 the Blue Wall flower's pollen go into the original (preload's) cell from blue (-55.6, 26.2) and the partner wait, the second audience-cell salvo and the audience flower are gone (the version of 2026-11-20 ran once at the Novi Qualifier, as practice; the new finish ran three times that afternoon outside a match and finished once, in 27.0 s) |
 | Auton - Cybugs | rear | hidden | Daryl without the last flower; ends about 5 s early |
 | Auton - Duo Garden Side | rear | yes (from 2026-11-21) | one half of a matched pair; since 2026-11-21 with the changes of the other autos and its last two salvos as late as the park allows (section 6), built, never run |
 | Auton - Duo Flower Side | audience | yes (from 2026-11-21) | the other half of the pair; since 2026-11-21 with the Solo and Daryl changes (section 6), built, never run |
@@ -47,7 +47,7 @@ Every path is written for blue. Red is the same path rotated 180 degrees about t
 - The CS5 held count is saved on every loop of the program and after it, with its load order, so the TeleOp starts with what the last gather left aboard.
 - Until the opmode is stopped, the pose keeps being read and saved and the mechanisms keep updating.
 - The flywheel is stopped as the last step of the sequence.
-- When the opmode is stopped: the drive is stopped, then all mechanisms at once, with no update after it (built 2026-11-17, not run on the robot).
+- When the opmode is stopped: the drive is stopped, then all mechanisms at once, with no update after it (built 2026-11-17; in every auto at the Novi Qualifier).
 
 ### 1.5 Logging
 
@@ -87,7 +87,7 @@ Aim at the cell (with the launch's aim trim), then launch one salvo and wait for
 
 - **A salvo is always launched**, whatever any count says. A count that under-reads must never throw a salvo away.
 - The leg before a launch ends at a heading that already includes the aim and the trim, so the aim step only fine-tunes.
-- **Each launch has one aim trim, which holds all of its allowance.** The far-cell extra of [aiming.md](aiming.md) is not applied in any auto (built 2026-11-17, not run on the robot; before that the far-cell launches got the extra and a -8.0 deg trim, which worked against each other).
+- **Each launch has one aim trim, which holds all of its allowance.** The far-cell extra of [aiming.md](aiming.md) is not applied in any auto (built 2026-11-17; so in every auto at the Novi Qualifier; before that the far-cell launches got the extra and a -8.0 deg trim, which worked against each other).
 
 ### 2.3 Garden pickup
 
@@ -102,7 +102,7 @@ Aim at the cell (with the launch's aim trim), then launch one salvo and wait for
 2. Drive to the **pre-position**, facing the flower, and wait for the ramp to settle.
 3. Force the intake in.
 4. **Ram:** drive at a target 12 in beyond the flower at power 0.6 for 0.6 s.
-5. **Jostle** ([motion.md](motion.md)) until the robot is full by the CS5 entry count (built 2026-11-17, not run on the robot; before, by the slot count), or the jostle's deadline in seconds since Start passes, or its one cycle is done.
+5. **Jostle** ([motion.md](motion.md)) until the robot is full by the CS5 entry count (built 2026-11-17; before, by the slot count; with CS5 switched off, as it is since 2026-11-20, the robot is never full), or the jostle's deadline in seconds since Start passes, or its one cycle is done.
 6. **Back out** straight, 9 in, before any turn. Turning at the flower catches the ramp on the stand.
 7. Stow the ramp: either at once after the back-out, or during the following turn as soon as the robot has turned 45 deg from the flower heading.
 
@@ -166,7 +166,9 @@ Start: rear wall, (-63.4, 16.0, 0 deg). Cells: rear, then audience.
 
 Nominal duration about 29 s. A switch can replace steps 8 and 9 with a plain park at (51.1, 54.0, 180 deg).
 
-**Auton - Boomerang** (2026-11-21, the user: Solo, but the last salvo into the other hive cell, then park; built, not run on the robot) is the Solo program up to and including the Blue Wall flower's back-out at (-26.3, 46.3) (`AutonBoomerang extends AutonSolo`, the hook `lastSalvoIntoFirstCell()`; every number is the Solo's). Then, where the Solo drives 81 in back to (56, 36) for a third salvo into the audience cell:
+**Auton - Boomerang** (2026-11-21, the user: Solo, but the last salvo into the other hive cell, then park; ran in five playoff matches at the Novi Qualifier) is the Solo program up to and including the Blue Wall flower's back-out at (-26.3, 46.3) (`AutonBoomerang extends AutonSolo`, the hook `lastSalvoIntoFirstCell()`; every number is the Solo's). Then, where the Solo drives 81 in back to (56, 36) for a third salvo into the audience cell:
+
+**Boomerang's launch spot** is the Triple Tip's, blue (-55.6, 26.2) / red (55.6, -26.2) (`AutonSolo.REAR_LAUNCH_X / Y`): the spot it launched from in its five matches at the Novi Qualifier. On the evening of 2026-11-21 the user asked for a spot closer to the wall, and a spot of its own 2 in nearer, blue (-57.6, 26.2), was built; it is on the `integration` branch only (commit 64087f6) and has not run.
 
 1. Set the target to the **rear** cell (the one the preload went into). Straight to the rear launch spot, blue (-55.6, 26.2) (the Triple Tip's, 35 in away), the ramp stowing and the pusher going to launch-ready.
 2. Launch the Blue Wall flower's pollen at the rear cell with the grid's speed and aim (trim `REAR_AIM_TRIM_DEG`, 0).
@@ -176,7 +178,7 @@ It applies only while `THIRD_SALVO_ENABLED` is true. Controller simulation (not 
 
 ## 4. Auton - Duo Daryl
 
-Start: rear wall. Garden first. The finish changed 2026-11-21 (the user; built, not run): steps 5 and 6 replace the partner's window, a second audience-cell salvo and the audience-wall flower.
+Start: rear wall. Garden first. The finish changed 2026-11-21 (the user; run three times that afternoon outside a match, finished once, in 27.0 s): steps 5 and 6 replace the partner's window, a second audience-cell salvo and the audience-wall flower.
 
 1. Launch the preload at the **rear** cell.
 2. Garden pickup.
@@ -230,7 +232,7 @@ All aim trims are 0. The Garden Side's two waits (19.3 s and 24.8 s) are estimat
 
 ## 6a. Auton - Blaser's Gambit
 
-Start: audience wall. The user's design of 2026-11-21; built, not run on the robot. The partner starts at the rear wall and tips the hive with its preload (tip 1). Every piece is one another program already has: the Flower Side's start, the Solo's flower and garden, the Triple Tip's rear launch spot and park path.
+Start: audience wall. The user's design of 2026-11-21; run three times that day outside a match (stopped at 10.3 s, cut off at 30.0 s, stopped at 29.0 s), so it has not yet finished its actions. The partner starts at the rear wall and tips the hive with its preload (tip 1). Every piece is one another program already has: the Flower Side's start, the Solo's flower and garden, the Triple Tip's rear launch spot and park path.
 
 1. Start with the back against the audience wall, (63.4, 7.5, 180 deg). From Start the flywheel takes the 2-D launch grid's speed, the pusher goes to the launch-ready position and the robot aims at the audience cell (the formula aim) and rests aimed. **Wait until 7.0 s** (the partner's preload salvo and the tip), then launch the preload at once.
 2. Audience-wall flower gather (pre-position (38, 26.3), ram, one jostle cycle, back out to (46.3, 26.3)); to the Solo launch spot (56, 36), the ramp stowing during the turn; launch at the **audience** cell with the grid's speed and aim: 8 pollen, tip 2.
@@ -280,6 +282,9 @@ The -2.5 deg trims are the net of two older allowances at the far cell from (50,
 ## 9. Status
 
 - Solo, Daryl and Cybugs ran at or just before Hartland and are in the tested build. In one Hartland match Daryl lost its park after colliding with the partner, and one Solo run started very late; neither is a reason to change the programs.
+- **The Novi Qualifier (2026-11-21), on `integration`.** Solo ran in six matches (Q9, Q17, Q23, Q28, Q40 and playoff match 3): it finished in 27.6 to 29.1 s in three of them and was cut off by the 30 s in the other three (Q9, Q17, M3). Boomerang ran in five playoff matches and finished and parked every time (26.9 to 28.5 s); in its first (M7) the garden gather came up short (two held, the squaring ended 1.8 in from the wall) and the second cell was not tipped in the auto. In every run the preload salvo waited about 0.8 s for the flywheel to reach its band.
+- Run outside a match that day: Daryl's new finish (three runs, one finished, in 27.0 s) and Blaser's Gambit (three runs, none finished). Not run: Triple Tip. (Boomerang's launch spot 2 in nearer the wall is on the `integration` branch only.)
+- **Open: the start pose at the audience wall** (Flower Side and Blaser's Gambit, y = 7.5). The team lines the robot up on the tile marks, and y = 7.5 is on no seam (the user, 2026-11-21). Which seam and which part of the robot is not decided.
 - Garden Side is shown on the Driver Station again from 2026-11-21 with the changes of section 6; it has never run on the robot.
 - Primary is hidden. Flower Side is shown again from 2026-11-21 (the user) with the changes of section 6; it has never run on the robot.
 - **The drive gains were never tuned on this robot**, so every program relies on loose tolerances, time caps and, at the wall, physical squaring. The autos are due a rework. Target T2 ([motion.md](motion.md) section 2.1) comes first: the rework is built on a drive that passes its acceptance test, and the leg table of section 2.1 is then revised so that each coarse tolerance states its purpose. "The drive stalls short" stops being one.

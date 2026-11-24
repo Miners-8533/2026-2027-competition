@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * HIVE DASH (design/hive-dash.md): in TeleOp - Competition the driver HOLDS D-pad left or right and the robot drives to the launch spot of a hive cell (the Auto Launch
+ * HIVE DASH (specs/dashes.md): in TeleOp - Competition the driver HOLDS D-pad left or right and the robot drives to the launch spot of a hive cell (the Auto Launch
  * zone centre), target locks and launches once ALIGNED. Left / right follow the DRIVER'S view of the field (blue: left = audience cell, right = rear cell; red the other way
  * round). Releasing the D-pad cancels at once and gives the sticks back, except that a salvo already launched always finishes.
  *
@@ -87,7 +87,7 @@ public final class HiveDash {
     /** True: plan, log and draw the route but do not drive. */
     public static boolean DRY_RUN = false;
     /**
-     * True: the GRID PLANNER (design/dash-planner-grid.md: the precomputed route trees of GridRoutes, driven by GridFollower with its own speeds and corner limits, and the
+     * True: the GRID PLANNER (specs/dashes.md: the precomputed route trees of GridRoutes, driven by GridFollower with its own speeds and corner limits, and the
      * off-route guard of GridDash) instead of HiveRoute and the follower above. The arrival, the aim and the launch are the same. ON since 2026-11-18 (the team's
      * decision, with GridDash.SMOOTH), in simulation only: NOT YET RUN ON THE ROBOT. When the tables cannot be used (see the log) the dash falls back to the earlier
      * planner; false here brings that planner back for every dash.

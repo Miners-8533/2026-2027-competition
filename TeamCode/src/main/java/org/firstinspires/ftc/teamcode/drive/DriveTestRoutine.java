@@ -12,7 +12,7 @@ import java.util.Locale;
 import java.util.Random;
 
 /**
- * The drive characterization routine (design/dash-planner-grid.md, "Drive characterization"): a fixed list of open-loop drive tests, each driven from a known start
+ * The drive characterization routine (specs/support-opmodes.md, Drive Characterization): a fixed list of open-loop drive tests, each driven from a known start
  * on one alliance's HALF of the field, to fit the drive model from logs at the loop rate. Pure logic (no SDK, no hardware): {@code opmodes.tuning.DriveCharacterization}
  * gives it the pose and the deadman button each loop and sends the powers it returns; tools/dash/DashSim runs the same class against the simulated drive
  * ({@code run-sim.cmd drivetest}) to check the time and the geofence.

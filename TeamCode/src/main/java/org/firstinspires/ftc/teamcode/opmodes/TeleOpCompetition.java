@@ -74,11 +74,11 @@ import java.util.Locale;
  *   D-pad left / right   (HOLD) HIVE DASH: the robot drives to the launch spot of a cell, target locks and launches when ALIGNED. Left = the cell on the driver's LEFT, right = the
  *                        cell on the driver's RIGHT as seen from behind the alliance wall (blue: left = audience cell, right = rear cell; red the other way round). Releasing
  *                        the D-pad cancels at once (the sticks drive again); a salvo already launched always finishes. Refused, with no movement (the screen says DASH REFUSED), in backup mode, with a
- *                        Pinpoint fault, when the robot reads empty (the CS5 entry count and the counter on CS1 to CS4 both hold nothing), or when the robot is touching a hive support. See {@link HiveDash} and design/hive-dash.md.
+ *                        Pinpoint fault, when the robot reads empty (the CS5 entry count and the counter on CS1 to CS4 both hold nothing), or when the robot is touching a hive support. See {@link HiveDash} and specs/dashes.md.
  *   D-pad up / down      (HOLD) PARK DASH: the robot drives to a park corner of its own loading zone and stays there while the D-pad is held. Up = the corner on the driver's LEFT
  *                        (the audience-side corner for blue), down = the corner on the driver's RIGHT (the hive-side corner). The ramp is stowed when it starts. Releasing the D-pad
  *                        cancels at once. Refused, with no movement (the screen says PARK DASH REFUSED), in backup mode, with a Pinpoint fault, with an unseeded pose, while the Hive Dash runs, or when the
- *                        robot is touching a hive support. See {@link ParkDash} and design/park-dash.md.
+ *                        robot is touching a hive support. See {@link ParkDash} and specs/dashes.md.
  *   (DRIVE LOCK has no control and is a BUILD-TIME switch, LOCK_DRIVE_DURING_SALVO: while the pusher turns forward from the START of a salvo to the next HOLD the driver's translation is ignored, the robot is braked to a stop
  *                        and then held in its pose; the screen shows DRIVE HELD. See the constant.)
  *   (HOLD POSITION has no control: from a launch request to the end of the salvo, once the robot has settled, it holds that pose with a PID, resisting a push, and the heading too when the

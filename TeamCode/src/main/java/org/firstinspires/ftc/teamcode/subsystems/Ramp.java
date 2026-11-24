@@ -13,7 +13,7 @@ import org.firstinspires.ftc.teamcode.math.Pose2d;
 /**
  * The ramp: two goBILDA torque servos lower a ramp so pollen from a FLOWER's bottom opening
  * rolls straight into the intake. Two positions only, STOWED and DEPLOYED. Design notes:
- * design/mechanisms.md.
+ * specs/intake-and-ramp.md.
  *
  * Deliberately plain, like last year's hood and stop servos: each command sets both servos straight to
  * their position (the plain Servo interface, no slew, no pulse range). Each servo has its own stowed and

@@ -5,7 +5,7 @@ import com.acmerobotics.dashboard.config.Config;
 import org.firstinspires.ftc.teamcode.math.Rotation2d;
 
 /**
- * Follows a {@link GridRoutes.Route} (design/dash-planner-grid.md, "The grid planner"): leg by leg, each leg driven aligned with the wheels (front or rear first,
+ * Follows a {@link GridRoutes.Route} (specs/dashes.md, the grid routes): leg by leg, each leg driven aligned with the wheels (front or rear first,
  * whichever needs less turning; on the last leg the one nearer the aim), at the speed the route allows: on a leg the target speed is
  * min(V_MAX, sqrt(v_end^2 + 2 A_DEC d)), d the distance to the leg's end and v_end the most speed allowed there (the table's corner and stop limits), turned into
  * a power by the drive model's feedforward (FF_DEAD + v / FF_GAIN) plus a little feedback on the measured speed along the leg. The last leg is the Hive Dash's:

@@ -33,23 +33,61 @@ Opmodes that are not run in matches: checks, tuners, studies and build aids. Eac
 
 **Setup.** Robot on blocks, wheels clear, ramp free to move, track empty. Nothing moves until a button is pressed for that step; every move is short and slow.
 
-**Controls.** One button runs a step or confirms "what I saw was right"; one says "wrong"; one skips; one stops everything.
+**Controls (gamepad 1).**
+
+| Button | Meaning |
+|---|---|
+| A | run the step, or "what I saw was right" |
+| B | "what I saw was wrong" |
+| X | skip the step, or "I could not tell" |
+| Back | stop everything and end |
 
 | Step | Checked | Judged by |
 |---|---|---|
 | Configuration | every required device name and type; a stale second flywheel motor; the hub and port of each device; configured devices the code does not use | automatic |
 | Battery | at least 12.0 V on every hub | automatic |
-| Pinpoint | status READY and a sane device loop time | automatic |
+| Pinpoint | status READY and a device loop time of 300 to 1500 us | automatic |
 | CS1 to CS4 | each answers; CS1, CS3 and CS4 match their stored empty readings (CS2, on the feed ramp, has none) | automatic |
-| Flywheel | spins at low power: the encoder reads the right way and fast enough | encoder automatic; launching direction by eye |
+| CS5, CS2 as the launch sensor, the flywheel position servo | whether each is configured, and the state of each sensor's switch in the code (`EntryCounter.CS5_PRESENT`, `LaunchSensor.CS2_PRESENT`): a switched-off sensor is reported as switched off, not failed; with the CS5 switch on its raw proximity is read ten times | automatic |
+| Flywheel | spins at 0.3 power for 1.5 s: the encoder must read at least 100 ticks/s the right way | encoder automatic; launching direction by eye |
 | Pusher | turns about 60 deg forward and back: encoder sign, and return to the start | sign and return automatic; pushing direction by eye |
-| Intake | pulses in, then out; the current is shown | by eye |
+| Intake | pulses in, then out, at half power; the motor current is shown | by eye |
 | Ramp | deploys and stows | by eye |
-| Each drive wheel | one wheel at a time at low power | by eye: only that wheel turns, its top toward the front |
+| Each drive wheel | one wheel at a time at 0.3 power | by eye: only that wheel turns, its top toward the front |
 
-**Output.** Each failure names the fix. The result line is ALL PASS, FAILED or INCOMPLETE with the counts. A skipped step is not a pass. The ports line is the source for [robot_design/hub-configuration.md](../robot_design/hub-configuration.md).
+**Output.** Each failure names the fix (for example "flip `Pusher.ENCODER_SIGN`" or "check the cable on the encoder port"). The result goes to the screen, to the robot's system log (`adb logcat -s PitCheck`) and to the run log of kind `pitcheck` ([logging.md](logging.md)). Its last line is `PIT CHECK ALL PASS`, `FAILED` or `INCOMPLETE`, with the counts. A skipped step is not a pass. The ports line is the source for [robot_design/hub-configuration.md](../robot_design/hub-configuration.md).
 
-**Limits.** It drives the raw hardware, not the subsystem classes, so it does not disturb the pusher's saved zero; it returns the arm to where it started and reports if it cannot. It does not check CS5 or the flywheel position servo. It does not test behavior that needs real elements.
+**Limits.** It drives the raw hardware, not the subsystem classes, so it does not disturb the pusher's saved zero; it returns the arm to where it started; if it cannot, the report says by how much, and the arm must be put back at HOLD by hand before any other opmode runs. The drive wheels have no encoders and on blocks the Pinpoint sees nothing, so the wheel directions are judged by eye. From 2026-11-20 it reports CS5, CS2 as the launch sensor and the flywheel position servo (configured or not, and the state of each sensor's switch in the code) without exercising them. It does not test behavior that needs real elements.
+
+### 1.1 Ramp Test
+
+**Purpose (2026-11-21, the user, at the Novi Qualifier).** Move the ramp by hand and nothing else, to check the two servos and their end positions after a repair.
+
+- X deploys, Y stows, on either gamepad, as often as wanted. Start and Back are not used.
+- Nothing else on the robot is built or run: no drive, intake, flywheel or pusher.
+- Nothing moves in INIT or at Start. The ramp servos are first commanded when a button is pressed; until then the screen says the position is unknown.
+- The positions are the chassis profile's ([robot_design/mechanisms.md](../robot_design/mechanisms.md)). The screen shows all four and the number of deploys and stows.
+- A ramp that is not configured is reported at INIT and does not move.
+- Log kind `bringup`: one `COMMAND ramp DEPLOY` or `COMMAND ramp STOW` line per press, with the two servo positions.
+
+**Status:** ran five times at the Novi Qualifier on 2026-11-21.
+
+### 1.2 Pusher Calibration Test
+
+**Purpose (2026-11-19, the user, after the pusher check stopped finding the arm at CS4).** With no elements in the robot, record what the pusher arm looks like to each color sensor, CS1 to CS5, at every pusher angle, and the empty reading of each.
+
+| Step | What happens |
+|---|---|
+| Baseline | track empty, pusher at HOLD, robot still for 4 s: the empty reading of every sensor (distance, alpha and color shares for CS1, CS3, CS4; proximity for CS2 and CS5) |
+| Forward | the pusher turns forward at 0.15 power, open loop (about 120 deg/s), 420 deg past HOLD, and stops |
+| Back | the pusher turns back to HOLD |
+
+- Gamepad 1: A starts the step shown and stops a running one; D-pad left and right choose the step; right bumper writes a note to the log. Start and Back are not used. Nothing else moves.
+- The pusher must be at HOLD at INIT (the zero is assumed there) and the robot empty and still. An aborted sweep leaves the arm where it stopped: initialize again with the arm at HOLD.
+- It switches CS5 and CS2 on in the code while it runs and restores the switches when it ends.
+- The log (kind `bringup`, about 25 rows a second) has the raw readings by pusher angle, a `RESULT` line for every stretch in which a sensor sees something, and `PROFILE` lines with the strongest signal per bin of pusher angle. CS4 is compared with where the pusher check parks the arm.
+
+**Status:** ran on 2026-11-21 at the Novi Qualifier; the CS4 and CS3 baselines in the code came from those runs ([element-counting.md](element-counting.md) section 1.6). Hidden for now.
 
 ## 2. Launch tuning
 

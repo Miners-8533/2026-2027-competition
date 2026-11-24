@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The precomputed dash routes (design/dash-planner-grid.md, "The grid planner"): for each goal a shortest-time TREE over the states of a grid, generated offline
+ * The precomputed dash routes (specs/dashes.md, the grid routes): for each goal a shortest-time TREE over the states of a grid, generated offline
  * (tools/dash/RouteGen.java) with the robot's footprint, a tracking allowance and corner speed limits from the drive model. Pure Java, no SDK: the robot and the
  * PC simulation use the same lookup.
  *

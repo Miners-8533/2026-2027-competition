@@ -206,9 +206,52 @@ A section that runs only on some loops is averaged over all loops, so its longes
 
 These are PC tools, outside the robot code ([tools.md](tools.md)), but they define how the logs are used.
 
-- **Pull:** one command copies every run off the hub over USB, files each under its date and time, keeps an index (opmode, build, length, how it ended, alliance, salvos, minimum battery voltage, worst loop, flags), and removes them from the hub. Running it again is safe.
-- **Event day:** labels pulled runs with their match numbers and produces a per-match report and a day summary. Match labels are never entered on the robot.
-- **Specific analyses:** loop profile tables, settings changes between runs, sensor baseline health, launch stability, cycle times, the launcher offset.
+### 5.1 Pulling the logs (hub on USB)
+
+From the repo root:
+
+```
+python tools/logs/pull_logs.py
+```
+
+(or double-click `tools/logs/pull-logs.cmd`). It finds adb under the Android SDK's platform-tools, copies the logs off the hub and files **every** run. Then it removes from the hub each log that it has confirmed is stored and finished (an end marker, or idle for 5 minutes); a log that may still be running is left there. The hub keeps only the last 10 runs of each kind, so pull before an opmode has run an eleventh time.
+
+```
+robot-logs/                    (not in git)
+  index.md                     one row per run, newest first: opmode, build, length, how it ended, alliance, salvos, minimum battery volts, worst loop time, slow loops, flags (crash, backup mode, flywheel encoder lost, Pinpoint faults)
+  index.json                   the same for tools
+  latest/teleop.log            the newest and second newest run of each kind under fixed names
+  latest/teleop_prev.log          (also auto, bringup, pitcheck)
+  2026-11-02/000341_teleop.log every run, by the date and time on its first line (the hub's clock)
+  matchlogs/                   the SDK's own match logs, with --matchlogs
+```
+
+- Running it again is safe: runs already stored are skipped, and a run that was still being written when it was pulled is replaced by the longer copy.
+- Options: `--list` (print the index only), `--from-dir <folder>` (file logs that were pulled earlier), `--keep-on-hub` (do not remove them from the hub), `--matchlogs`, `--serial <adb serial>`, `--dest <folder>`.
+- The date and time of a run are the hub's clock, which can be wrong: at the Novi Qualifier it ran about 60 minutes ahead.
+- After a crash, the first `#` line of the next log of that kind says how the previous run ended.
+
+**Without the tool:** `adb pull /sdcard/FIRST/runlogs runlogs` copies the folder as it is. Two check opmodes also write to the robot's system log: `adb logcat -d -s PitCheck` (Pit Check's results) and `adb logcat -d -s ColorSensors` (the Color Sensors Test).
+
+### 5.2 Event day
+
+Pull the logs as usual, then label them with their matches and read the report:
+
+```
+python tools/logs/event_day.py label  --event "<event>" --since 2026-11-05                  # asks for the match of each unlabeled run, oldest first (free text: Q12, M3, practice)
+python tools/logs/event_day.py label  --event "<event>" --set 2026-11-05/101530 Q12         # or one run at a time, no questions
+python tools/logs/event_day.py report --event "<event>" --since 2026-11-05
+python tools/logs/cycle_times.py --event "<event>"
+```
+
+- A match is an auto followed by a TeleOp within 90 s of its end; a lone run is its own group. `--auto-number R` labels every unlabeled run R1, R2, ... for a rehearsal.
+- Everything goes to `robot-logs/events/<event>/`: `labels.csv` (edit it by hand to clean labels up; the raw logs are never changed), one `<label>.md` per match (flags, a table of numbers, the events worth reading, the settings that changed) and `day.md` (what stands out against the day's median once there are 4 or more matches, the hard faults, a table of every match).
+- **Cycle times** writes `cycle_times.md` beside the reports. A TeleOp cycle is one salvo start to the next, split into the salvo, collect (salvo done to the last time the stack rose to the count it held at the lock), transit (that moment to the target lock coming on, with the distance moved) and lock (lock on to the salvo starting). It also gives pollen per minute, the cycles by pollen launched, the time before the first salvo and after the last, and the auto steps side by side. A lock the driver released again counts as collect, and so does a pickup made on the way to the launch spot, so transit is a floor.
+- Match labels are never entered on the robot: only mission-critical input goes on the Driver Station (the user, 2026-11-04).
+
+### 5.3 Other analyses
+
+Loop profile tables, settings changes between runs, sensor baseline health, launch stability and the launcher offset: one tool each in `tools/logs/` ([tools.md](tools.md) section 4).
 
 ## 6. What is not logged
 
@@ -217,5 +260,7 @@ Raw color sensor readings in match opmodes (only the classified slots and, when 
 ## 7. Dashboard
 
 Every tunable value is exposed in the FTC Dashboard and read live, so most parameters in these specs can be changed without a rebuild. Such changes last until the app restarts. **A tuned value survives only if it is written into the code.**
+
+The Dashboard is at `192.168.43.1:8080/dash` over the hub's Wi-Fi. Over USB: `adb forward tcp:8080 tcp:8080`, then `localhost:8080/dash`.
 
 The Dashboard's field view also shows the dashes' routes and obstacles while a plan is on screen.

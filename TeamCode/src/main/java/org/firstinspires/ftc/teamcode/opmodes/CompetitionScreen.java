@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The competition TeleOp's Driver Station screen (design/telemetry-fonts.md, 2026-11-06): a few big, colored lines for both drivers, written in the HTML display format (the only format that
+ * The competition TeleOp's Driver Station screen (robot_design/driver-station-screen.md, 2026-11-06): a few big, colored lines for both drivers, written in the HTML display format (the only format that
  * formats, measured from the photos of the Telemetry Font Test). From the top: the alerts (only when something is wrong), the alliance as the largest text, the flywheel state and the
  * element count, what the robot is doing, the target cell and its distance, the pose, and two small conditional lines. Everything fits the roughly 15 lines of about 36 characters the screen
  * shows, and no line should wrap. The tags used are only the ones the photos showed working: big, small, bold, font color, br-free lines. No ramp and no voltage (both are visible elsewhere).

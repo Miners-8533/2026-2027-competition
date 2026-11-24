@@ -27,7 +27,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Mechanisms;
  *   5. To the REAR launch spot at the start wall (-61.5, 15.25, the Garden Side's spot), wait DuoAutos.C_LAST_SALVO_WAIT_SEC (1 s, the flywheel keeps spinning), then launch the flower pollen into the REAR cell (the cell near the start; trim DuoAutos.C_REAR_TRIM_DEG).
  *   6. The intake runs OUT from here to the end (Mechanisms.setManualOuttake, the TeleOp's left-trigger outtake), so it does not pick up game elements on the way to the park (user, 2026-11-07: nectar kept getting picked up). The second garden pass was dropped.
  *   7. Park in the hive-side corner of the loading zone (26, 53.1) through the helper point (-36, 40), ramp stowed.
- * The intake runs IN from the start (AutonDuoBase) until the last salvo. Estimated at about 24.7 s (design/duo-autos.md).
+ * The intake runs IN from the start (AutonDuoBase) until the last salvo. Estimated at about 24.7 s (specs/autos.md).
  */
 @Disabled   // hidden from the Driver Station; remove this line and the import to use it again
 @Autonomous(name = "Auton - Cybugs", group = "Auto")

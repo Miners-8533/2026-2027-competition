@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Route planning around the HIVE's supports for Hive Dash (design/hive-dash.md). Pure geometry: no hardware and no SDK classes, so tools/hive/HiveRouteCheck.java
+ * Route planning around the HIVE's supports for Hive Dash (specs/dashes.md). Pure geometry: no hardware and no SDK classes, so tools/hive/HiveRouteCheck.java
  * runs it on a PC. Field frame: origin at the field center, +X toward the audience wall, +Y toward the Blue Wall, inches, radians.
  *
  * KEEP-OUTS (from the field CAD, parts am-5878 foot bar and am-5876 A-frame leg; CAD X = our Y, CAD Z = our X; symmetric in sign):

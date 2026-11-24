@@ -130,8 +130,7 @@ public final class ChassisProfile {
      * these are commanded values; TRAVEL_SEC = 0.8 s was measured by the team). The intake direction was flipped to FORWARD on
      * 2026-10-31 (it ran backwards with REVERSE; not yet re-checked after the flip). The footprint
      * was 17 x 13.75 in (measured 2026-10-31); from CAD (2026-11-02) it is 444 x 348 mm = 17.48 x 13.70 in, with the origin 193 mm (7.598 in) from the back edge
-     * and 174 mm (6.85 in) from each side, so 9.88 in from the front edge. The robot-frame check poses of 2026-11-02 agree with that to about 0.4 in. See design/integration-plan.md,
-     * Phases 1 and 2. Hub: serial and Android id read over adb.
+     * and 174 mm (6.85 in) from each side, so 9.88 in from the front edge. The robot-frame check poses of 2026-11-02 agree with that to about 0.4 in. See robot_design/chassis.md. Hub: serial and Android id read over adb.
      */
     public static final ChassisProfile ROBOT_1 = new ChassisProfile("ROBOT_1",
             Arrays.asList("5462f57f0f18d316", "7c789032eb35f27b"),

@@ -1,4 +1,4 @@
-"""Drive Characterization report (design/dash-planner-grid.md, "Drive characterization").
+"""Drive Characterization report (specs/support-opmodes.md, Drive Characterization).
 
 Reads a drivetest.log (opmodes/tuning/DriveCharacterization: a row every loop with the pose, the field velocity, the commanded robot powers, the wheel powers,
 the battery and one motor current per loop) and prints, per test and segment, what the drive did in the ROBOT frame: the speed along and across the

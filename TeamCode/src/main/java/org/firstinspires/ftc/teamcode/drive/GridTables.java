@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.drive;
 
 /**
- * GENERATED: do not edit. Written by tools/dash/run-sim.cmd gentables on 2026-11-17 (corner speeds: the slowest per angle of the tuned plant and the wheel plant at [11.5, 12.8, 13.4] V rest) (tools/dash/RouteGen.java; design/dash-planner-grid.md).
+ * GENERATED: do not edit. Written by tools/dash/run-sim.cmd gentables on 2026-11-17 (corner speeds: the slowest per angle of the tuned plant and the wheel plant at [11.5, 12.8, 13.4] V rest) (tools/dash/RouteGen.java; specs/dashes.md).
  * The four blue route trees of the grid planner, packed for GridRoutes.decode (red is the same turned 180 deg about the field center), and the corner
  * speed table they were built with. Regenerate after a drive refit, a change to the supports, flowers, launch spots or park corners, or to the grid.
  */

@@ -12,7 +12,7 @@ Two sources, the better one first:
     ('O' and 'A' at CS4 are the pusher arm's edge and are not counted.)
 
 Verdict per sensor: OK (median shift under 0.02), WATCH (0.02 to 0.03, or a phantom after 1 salvo), RE-MEASURE (0.03 or more, or a phantom after 2 or more salvos).
-To re-measure: Color Sensor Study, an empty STILL take in the pit, copy the medians into ElementCounter (see design/color-sensor-study.md). CS4 sees the pusher arm part of the time,
+To re-measure: Color Sensor Study, an empty STILL take in the pit, copy the medians into ElementCounter (see specs/support-opmodes.md). CS4 sees the pusher arm part of the time,
 so its shift is split by the `arm` flag and judged on the `clear` rows.
 """
 import argparse
